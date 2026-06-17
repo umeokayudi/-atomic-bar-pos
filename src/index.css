@@ -1,0 +1,72 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --navy: #001028;
+  --navy2: #001840;
+  --navy3: #002255;
+  --gold: #c19c56;
+  --gold2: #d4b06a;
+  --gold-dim: rgba(193,156,86,0.12);
+  --gold-border: rgba(193,156,86,0.25);
+  --white90: rgba(255,255,255,0.90);
+  --white60: rgba(255,255,255,0.60);
+  --white30: rgba(255,255,255,0.30);
+  --white08: rgba(255,255,255,0.08);
+  --white05: rgba(255,255,255,0.05);
+  --danger: #e85555;
+  --danger-dim: rgba(232,85,85,0.12);
+  --success: #4caf7d;
+  --success-dim: rgba(76,175,125,0.12);
+  --warning: #f5a623;
+}
+
+html, body, #root {
+  height: 100%;
+  background: var(--navy);
+  color: var(--white90);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+button { font-family: inherit; cursor: pointer; }
+input, select { font-family: inherit; }
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(193,156,86,0.25); border-radius: 2px; }
+
+.tag {
+  display: inline-flex; align-items: center;
+  padding: 2px 8px; border-radius: 10px;
+  font-size: 11px; font-weight: 500;
+}
+.tag-gold { background: var(--gold-dim); color: var(--gold); border: 0.5px solid var(--gold-border); }
+.tag-success { background: var(--success-dim); color: var(--success); }
+.tag-danger { background: var(--danger-dim); color: var(--danger); }
+.tag-muted { background: var(--white05); color: var(--white60); }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: 7px; font-size: 13px; font-weight: 500;
+  border: 0.5px solid var(--gold-border); background: none; color: var(--white90);
+  transition: background 0.15s, color 0.15s;
+}
+.btn:hover { background: var(--white08); }
+.btn-gold { background: var(--gold); color: var(--navy); border-color: var(--gold); }
+.btn-gold:hover { background: var(--gold2); }
+.btn-danger { border-color: var(--danger); color: var(--danger); }
+.btn-danger:hover { background: var(--danger-dim); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.card {
+  background: var(--white05);
+  border: 0.5px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.section-title {
+  font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--white30); margin-bottom: 12px;
+}
