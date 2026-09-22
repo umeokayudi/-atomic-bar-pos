@@ -123,12 +123,52 @@ select public.upsert_login_user(
 ) as caixa_id;
 
 select public.upsert_login_user(
-  'jbm@umeokayudi.com',
+  'umeokagroup@gmail.com',
   'Jbm#Fornecedor2026',
-  'JBM Fornecedor',
+  'Umeoka Group / JBM',
   'fornecedor'
-) as jbm_id;
+) as fornecimento_id;
 
-select email, raw_user_meta_data->>'role' as role, email_confirmed_at is not null as confirmado
-from auth.users
-where lower(email) in ('umeokayudi@gmail.com', 'caixa@atomic.bar', 'jbm@umeokayudi.com');
+-- Bebidas Control (mesmo banco) lê a tabela perfis, não o metadata.
+-- Fornecimento antigo: umeokagroup@gmail.com entra como staff nesse painel.
+do $$
+declare
+  rec record;
+begin
+  if not exists (
+    select 1 from information_schema.tables
+    where table_schema = 'public' and table_name = 'perfis'
+  ) then
+    return;
+  end if;
+
+  for rec in
+    select
+      id,
+      lower(email) as email,
+      coalesce(raw_user_meta_data->>'nome', split_part(email, '@', 1)) as nome,
+      case
+        when lower(email) = 'umeokayudi@gmail.com' then 'admin'
+        when lower(email) = 'umeokagroup@gmail.com' then 'staff'
+        else coalesce(nullif(raw_user_meta_data->>'role', 'fornecedor'), 'staff')
+      end as role
+    from auth.users
+    where lower(email) in ('umeokayudi@gmail.com', 'caixa@atomic.bar', 'umeokagroup@gmail.com')
+  loop
+    insert into public.perfis (id, nome, email, role, bar_id)
+    values (rec.id, rec.nome, rec.email, rec.role, null)
+    on conflict (id) do update
+      set nome = excluded.nome,
+          email = excluded.email,
+          role = excluded.role;
+  end loop;
+end;
+$$;
+
+select u.email,
+       u.raw_user_meta_data->>'role' as role_pos,
+       p.role as role_bebidas,
+       u.email_confirmed_at is not null as confirmado
+from auth.users u
+left join public.perfis p on p.id = u.id
+where lower(u.email) in ('umeokayudi@gmail.com', 'caixa@atomic.bar', 'umeokagroup@gmail.com');

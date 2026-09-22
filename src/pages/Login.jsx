@@ -105,7 +105,7 @@ export default function Login() {
         }}>
           <h1 style={{ fontSize: 18, fontWeight: 500, marginBottom: 6 }}>Entrar no sistema</h1>
           <p style={{ fontSize: 13, color: 'var(--white60)', marginBottom: 18 }}>
-            Um login libera todas as áreas do bar.
+            Fornecimento JBM: <span style={{ color: 'var(--gold)' }}>umeokagroup@gmail.com</span>
           </p>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}>
@@ -187,7 +187,7 @@ export default function Login() {
           </button>
 
           <p style={{ fontSize: 12, color: 'var(--white30)', marginTop: 16, lineHeight: 1.5 }}>
-            Contas são criadas pelo administrador no Supabase. Este acesso vale para o caixa, o estoque, o cast e os relatórios.
+            Fornecimento: umeokagroup@gmail.com. Caixa e admin usam as outras contas do SQL.
           </p>
         </form>
       </div>
