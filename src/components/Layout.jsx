@@ -1,18 +1,13 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { useAuth } from '../lib/useAuth'
-
-const NAV = [
-  { to: '/pos',       icon: '🧾', label: 'POS / Caixa' },
-  { to: '/estoque',   icon: '📦', label: 'Estoque' },
-  { to: '/cast',      icon: '👥', label: 'Cast' },
-  { to: '/relatorio', icon: '📊', label: 'Relatório' },
-]
+import { ROLE_LABEL, ROLE_NAV } from '../lib/roles'
 
 export default function Layout() {
   const [time, setTime] = useState('')
   const [signingOut, setSigningOut] = useState(false)
-  const { user, signOut } = useAuth()
+  const { user, role, signOut } = useAuth()
+  const NAV = ROLE_NAV[role] || ROLE_NAV.staff
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -67,6 +62,9 @@ export default function Layout() {
         <div style={{ padding: '12px 16px', borderTop: '0.5px solid var(--gold-border)' }}>
           <div style={{ fontSize: 11, color: 'var(--white60)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={email}>
             {email}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--gold)', marginTop: 4 }}>
+            {ROLE_LABEL[role] || role}
           </div>
           <div style={{ fontSize: 11, color: 'var(--white30)', marginTop: 4 }}>
             Atomic Bar · Shinjuku

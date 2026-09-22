@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
 import { AuthContext } from './useAuth'
+import { roleFromUser } from './roles'
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
@@ -41,8 +42,11 @@ export function AuthProvider({ children }) {
     if (error) throw error
   }
 
+  const user = session?.user ?? null
+  const role = roleFromUser(user)
+
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ session, user, role, loading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   )

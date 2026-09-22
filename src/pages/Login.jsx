@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/useAuth'
+import { ROLE_HOME, canOpenPath, roleFromUser } from '../lib/roles'
 
 const AREAS = [
   { icon: '🧾', label: 'POS / Caixa' },
@@ -45,7 +46,13 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false)
 
   const requested = location.state?.from
-  const nextPath = requested && requested !== '/login' ? requested : '/pos'
+
+  function pathAfterLogin(user) {
+    const role = roleFromUser(user)
+    const home = ROLE_HOME[role] || '/pos'
+    if (requested && requested !== '/login' && canOpenPath(role, requested)) return requested
+    return home
+  }
 
   if (loading) {
     return (
@@ -55,7 +62,7 @@ export default function Login() {
     )
   }
 
-  if (session) return <Navigate to={nextPath} replace />
+  if (session) return <Navigate to={pathAfterLogin(session.user)} replace />
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -66,8 +73,8 @@ export default function Login() {
     }
     setSubmitting(true)
     try {
-      await signIn(email, password)
-      navigate(nextPath, { replace: true })
+      const data = await signIn(email, password)
+      navigate(pathAfterLogin(data.user), { replace: true })
     } catch (err) {
       setError(authErrorMessage(err))
     } finally {

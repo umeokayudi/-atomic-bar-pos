@@ -8,9 +8,10 @@ import Relatorio from './pages/Relatorio'
 import Login from './pages/Login'
 import { AuthProvider } from './lib/AuthContext'
 import { useAuth } from './lib/useAuth'
+import { ROLE_HOME, canOpenPath } from './lib/roles'
 
 function RequireAuth() {
-  const { session, loading } = useAuth()
+  const { session, role, loading } = useAuth()
   const location = useLocation()
 
   if (loading) {
@@ -26,7 +27,16 @@ function RequireAuth() {
     return <Navigate to="/login" replace state={{ from }} />
   }
 
+  if (!canOpenPath(role, location.pathname)) {
+    return <Navigate to={ROLE_HOME[role] || '/pos'} replace />
+  }
+
   return <Outlet />
+}
+
+function HomeRedirect() {
+  const { role } = useAuth()
+  return <Navigate to={ROLE_HOME[role] || '/pos'} replace />
 }
 
 export default function App() {
@@ -37,7 +47,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route element={<RequireAuth />}>
             <Route path="/" element={<Layout />}>
-              <Route index element={<Navigate to="/pos" replace />} />
+              <Route index element={<HomeRedirect />} />
               <Route path="pos" element={<POS />} />
               <Route path="estoque" element={<Estoque />} />
               <Route path="cast" element={<Cast />} />
