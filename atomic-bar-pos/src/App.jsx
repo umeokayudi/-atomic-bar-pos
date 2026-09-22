@@ -5,6 +5,7 @@ import POS from './pages/POS'
 import Estoque from './pages/Estoque'
 import Cast from './pages/Cast'
 import Relatorio from './pages/Relatorio'
+import Usuarios from './pages/Usuarios'
 import Login from './pages/Login'
 import { AuthProvider } from './lib/AuthContext'
 import { useAuth } from './lib/useAuth'
@@ -52,6 +53,7 @@ export default function App() {
               <Route path="estoque" element={<Estoque />} />
               <Route path="cast" element={<Cast />} />
               <Route path="relatorio" element={<Relatorio />} />
+              <Route path="usuarios" element={<Usuarios />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
