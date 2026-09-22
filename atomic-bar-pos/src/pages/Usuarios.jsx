@@ -50,17 +50,17 @@ export default function Usuarios() {
   const allowed = role === 'jbm' || role === 'admin'
   const barOptions = useMemo(() => bars.length ? bars : [], [bars])
 
-  async function load() {
-    setLoading(true)
-    setErr('')
-    const { data, error } = await supabase.from('perfis').select('id,nome,email,role,bar_id').order('nome')
-    if (error) setErr(error.message)
-    setUsers(data || [])
-    setLoading(false)
-  }
-
   useEffect(() => {
-    if (allowed) load()
+    if (!allowed) return undefined
+    let cancelled = false
+    ;(async () => {
+      const { data, error } = await supabase.from('perfis').select('id,nome,email,role,bar_id').order('nome')
+      if (cancelled) return
+      if (error) setErr(error.message)
+      setUsers(data || [])
+      setLoading(false)
+    })()
+    return () => { cancelled = true }
   }, [allowed])
 
   async function createUser(event) {
@@ -112,7 +112,9 @@ export default function Usuarios() {
       }
       setMsg(`Conta ${email} criada. Depois do login o sistema abre a tela certa.`)
       setForm({ nome: '', email: '', password: '', role: 'caixa', bar_id: form.bar_id })
-      load()
+      const { data: list, error: listErr } = await supabase.from('perfis').select('id,nome,email,role,bar_id').order('nome')
+      if (listErr) setErr(listErr.message)
+      setUsers(list || [])
     } catch (e) {
       setErr(e.message || 'Não deu para criar a conta.')
     } finally {
