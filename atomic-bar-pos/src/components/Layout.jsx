@@ -1,5 +1,6 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
+import { useAuth } from '../lib/useAuth'
 
 const NAV = [
   { to: '/pos',       icon: '🧾', label: 'POS / Caixa' },
@@ -10,6 +11,9 @@ const NAV = [
 
 export default function Layout() {
   const [time, setTime] = useState('')
+  const [signingOut, setSigningOut] = useState(false)
+  const { user, signOut } = useAuth()
+  const navigate = useNavigate()
 
   useEffect(() => {
     const tick = () => setTime(new Date().toLocaleTimeString('ja-JP', {
@@ -19,6 +23,18 @@ export default function Layout() {
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
   }, [])
+
+  async function handleSignOut() {
+    setSigningOut(true)
+    try {
+      await signOut()
+      navigate('/login', { replace: true })
+    } catch {
+      setSigningOut(false)
+    }
+  }
+
+  const email = user?.email || 'Equipe'
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
@@ -48,8 +64,13 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
-        <div style={{ padding: '12px 16px', borderTop: '0.5px solid var(--gold-border)', fontSize: 11, color: 'var(--white30)' }}>
-          Atomic Bar · Shinjuku
+        <div style={{ padding: '12px 16px', borderTop: '0.5px solid var(--gold-border)' }}>
+          <div style={{ fontSize: 11, color: 'var(--white60)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={email}>
+            {email}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--white30)', marginTop: 4 }}>
+            Atomic Bar · Shinjuku
+          </div>
         </div>
       </aside>
 
@@ -66,8 +87,19 @@ export default function Layout() {
           <div style={{ fontSize: 14, color: 'var(--white60)' }}>
             <span style={{ color: 'var(--gold)' }}>●</span>&nbsp; Sistema Ativo
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
+            <span style={{ fontSize: 12, color: 'var(--white60)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }} title={email}>{email}</span>
             <span style={{ fontSize: 12, color: 'var(--white30)', fontVariantNumeric: 'tabular-nums' }}>{time} JST</span>
+            <button type="button" onClick={handleSignOut} disabled={signingOut} style={{
+              background: 'none',
+              border: '0.5px solid var(--gold-border)',
+              color: 'var(--gold)',
+              borderRadius: 6,
+              padding: '5px 10px',
+              fontSize: 12,
+            }}>
+              {signingOut ? 'Saindo...' : 'Sair'}
+            </button>
           </div>
         </div>
 
