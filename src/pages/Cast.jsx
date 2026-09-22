@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
-import { supabase, BAR_ID } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
+import { useBar } from '../lib/useBar'
 
 const fmt = n => '¥' + Math.round(n).toLocaleString('ja-JP')
 
 export default function Cast() {
+  const { barId } = useBar()
   const [cast, setCast] = useState([])
   const [comissoes, setComissoes] = useState([])
   const [loading, setLoading] = useState(true)
@@ -15,19 +17,20 @@ export default function Cast() {
   const monthStart = today.slice(0, 7) + '-01'
 
   useEffect(() => {
+    if (!barId) return
     async function load() {
       const [{ data: castData }, { data: comData }] = await Promise.all([
-        supabase.from('cast_members').select('*').eq('bar_id', BAR_ID).order('nome'),
+        supabase.from('cast_members').select('id,nome,tipo,contrato,turno,ativo').eq('bar_id', barId).order('nome'),
         supabase.from('cast_comissoes')
-          .select('*, cast_members(nome)')
+          .select('id,cast_id,valor,data,cast_members(nome)')
           .gte('data', monthStart)
       ])
       setCast(castData || [])
-      setComissoes(comData || [])
+      setComissoes((comData || []).filter(c => castData?.some(m => m.id === c.cast_id)))
       setLoading(false)
     }
     load()
-  }, [])
+  }, [barId])
 
   // Aggregated commission per cast this month
   const commBycast = cast.reduce((acc, c) => {
@@ -39,10 +42,10 @@ export default function Cast() {
 
   async function saveCast() {
     setSaving(true)
-    const payload = { ...form, bar_id: BAR_ID }
+    const payload = { ...form, bar_id: barId }
     const { error } = await supabase.from('cast_members').insert(payload)
     if (!error) {
-      const { data } = await supabase.from('cast_members').select('*').eq('bar_id', BAR_ID).order('nome')
+      const { data } = await supabase.from('cast_members').select('id,nome,tipo,contrato,turno,ativo').eq('bar_id', barId).order('nome')
       setCast(data || [])
       setModal(false)
       setForm({ nome: '', tipo: 'hostess', contrato: 'inhouse', turno: '21:00–03:00', ativo: true })
