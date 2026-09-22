@@ -93,8 +93,8 @@ export default function Login() {
     }}>
       <div style={{ width: '100%', maxWidth: 420 }}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontSize: 28, fontWeight: 600, color: 'var(--gold)', letterSpacing: 6 }}>ATOMIC</div>
-          <div style={{ fontSize: 11, color: 'var(--white30)', letterSpacing: 2, marginTop: 4 }}>BAR SYSTEM</div>
+          <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--gold)', letterSpacing: 4 }}>JBM POS</div>
+          <div style={{ fontSize: 11, color: 'var(--white30)', letterSpacing: 2, marginTop: 4 }}>BAR</div>
         </div>
 
         <form onSubmit={handleSubmit} style={{
@@ -105,7 +105,7 @@ export default function Login() {
         }}>
           <h1 style={{ fontSize: 18, fontWeight: 500, marginBottom: 6 }}>Entrar no sistema</h1>
           <p style={{ fontSize: 13, color: 'var(--white60)', marginBottom: 18 }}>
-            Fornecimento JBM: <span style={{ color: 'var(--gold)' }}>umeokagroup@gmail.com</span>
+            POS do bar. Cada local entra com a conta dele. JBM Supply é outro site.
           </p>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}>
@@ -187,7 +187,7 @@ export default function Login() {
           </button>
 
           <p style={{ fontSize: 12, color: 'var(--white30)', marginTop: 16, lineHeight: 1.5 }}>
-            Fornecimento: umeokagroup@gmail.com. Caixa e admin usam as outras contas do SQL.
+            Cada bar tem conta e dados separados. Fornecimento JBM: bebidas-control.vercel.app
           </p>
         </form>
       </div>
