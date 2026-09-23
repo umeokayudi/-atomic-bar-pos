@@ -158,6 +158,60 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
+-- 14. VIP karaoke rooms and sessions
+CREATE TABLE IF NOT EXISTS salas_vip (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  bar_id UUID REFERENCES bars(id) ON DELETE CASCADE,
+  nome TEXT NOT NULL,
+  capacidade INTEGER NOT NULL DEFAULT 4,
+  preco_hora NUMERIC(12,2) NOT NULL DEFAULT 0,
+  taxa_pessoa NUMERIC(12,2) NOT NULL DEFAULT 0,
+  minimo_minutos INTEGER NOT NULL DEFAULT 60,
+  ativo BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS sessoes_vip (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sala_id UUID NOT NULL REFERENCES salas_vip(id) ON DELETE CASCADE,
+  bar_id UUID REFERENCES bars(id) ON DELETE SET NULL,
+  inicio TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  fim TIMESTAMPTZ,
+  pessoas INTEGER NOT NULL DEFAULT 1,
+  valor NUMERIC(12,2),
+  forma_pagamento TEXT,
+  status TEXT NOT NULL DEFAULT 'aberta',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 15. Clock-in for the live staff cost
+CREATE TABLE IF NOT EXISTS staff_turnos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  staff_id UUID NOT NULL REFERENCES cast_members(id) ON DELETE CASCADE,
+  bar_id UUID REFERENCES bars(id) ON DELETE SET NULL,
+  entrada TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  saida TIMESTAMPTZ,
+  valor_hora NUMERIC(12,2) NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE salas_vip ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sessoes_vip ENABLE ROW LEVEL SECURITY;
+ALTER TABLE staff_turnos ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  CREATE POLICY "salas_vip_access" ON salas_vip FOR ALL USING (true) WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+  CREATE POLICY "sessoes_vip_access" ON sessoes_vip FOR ALL USING (true) WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+  CREATE POLICY "staff_turnos_access" ON staff_turnos FOR ALL USING (true) WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
 -- ============================================
 -- DONE
 -- ============================================

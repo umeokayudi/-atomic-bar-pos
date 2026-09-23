@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase, BAR_ID } from '../lib/supabase'
 import { taxaComissao } from '../lib/payroll'
 
@@ -21,6 +22,7 @@ export default function POS() {
   const [submitting, setSubmitting] = useState(false)
   const [modal, setModal] = useState(false)
   const [toast, setToast] = useState(null)
+  const [vipAbertas, setVipAbertas] = useState(0)
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type })
@@ -29,12 +31,14 @@ export default function POS() {
 
   useEffect(() => {
     async function load() {
-      const [{ data: prods }, { data: castData }] = await Promise.all([
+      const [{ data: prods }, { data: castData }, { data: vipData }] = await Promise.all([
         supabase.from('produtos').select('*').eq('bar_id', BAR_ID).order('categoria').order('nome'),
-        supabase.from('cast_members').select('*').eq('bar_id', BAR_ID).eq('ativo', true).order('nome')
+        supabase.from('cast_members').select('*').eq('bar_id', BAR_ID).eq('ativo', true).order('nome'),
+        supabase.from('sessoes_vip').select('id,status').eq('bar_id', BAR_ID).eq('status', 'aberta'),
       ])
       setProdutos(prods || [])
       setCast(castData || [])
+      setVipAbertas((vipData || []).length)
       if (prods?.length) setCat(prods[0].categoria)
       setLoading(false)
     }
@@ -241,6 +245,9 @@ export default function POS() {
               {cast.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
             </select>
           </div>
+          <Link to="/operacao?tab=vip" style={{ fontSize: 12, color: 'var(--gold)', textDecoration: 'none' }}>
+            Salas VIP{vipAbertas > 0 ? ` · ${vipAbertas} em uso` : ''}
+          </Link>
         </div>
 
         {/* Order items */}

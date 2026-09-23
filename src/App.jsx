@@ -4,6 +4,7 @@ import Layout from './components/Layout'
 import POS from './pages/POS'
 import Estoque from './pages/Estoque'
 import Equipe from './pages/Equipe'
+import Operacao from './pages/Operacao'
 import Relatorio from './pages/Relatorio'
 
 export default function App() {
@@ -15,6 +16,7 @@ export default function App() {
           <Route path="pos" element={<POS />} />
           <Route path="estoque" element={<Estoque />} />
           <Route path="equipe" element={<Equipe />} />
+          <Route path="operacao" element={<Operacao />} />
           <Route path="cast" element={<Navigate to="/equipe" replace />} />
           <Route path="relatorio" element={<Relatorio />} />
         </Route>

@@ -5,6 +5,7 @@ const NAV = [
   { to: '/pos',       icon: '🧾', label: 'POS / Caixa' },
   { to: '/estoque',   icon: '📦', label: 'Estoque' },
   { to: '/equipe',    icon: '👥', label: 'Pessoal' },
+  { to: '/operacao',  icon: '⏱️', label: 'Operação' },
   { to: '/relatorio', icon: '📊', label: 'Relatório' },
 ]
 

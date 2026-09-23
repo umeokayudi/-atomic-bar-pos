@@ -10,6 +10,7 @@ export default function Relatorio() {
   const [caixa, setCaixa] = useState([])
   const [compras, setCompras] = useState([])
   const [custos, setCustos] = useState([])
+  const [vip, setVip] = useState([])
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState('hoje')
 
@@ -20,16 +21,18 @@ export default function Relatorio() {
 
   useEffect(() => {
     async function load() {
-      const [{ data: vData }, { data: cxData }, { data: compData }, { data: custoData }] = await Promise.all([
+      const [{ data: vData }, { data: cxData }, { data: compData }, { data: custoData }, { data: vipData }] = await Promise.all([
         supabase.from('vendas').select('*, vendas_itens(*)').eq('bar_id', BAR_ID).gte('data_venda', dateFilter).order('data_venda', { ascending: false }),
         supabase.from('caixa_movimentos').select('*').eq('bar_id', BAR_ID).gte('data', dateFilter).order('data', { ascending: false }),
         supabase.from('compras').select('*, compras_itens(*)').eq('bar_id', BAR_ID).gte('data_emissao', dateFilter),
         supabase.from('custos_locais').select('*').eq('ativo', true),
+        supabase.from('sessoes_vip').select('*').eq('bar_id', BAR_ID).gte('inicio', dateFilter),
       ])
       setVendas(vData || [])
       setCaixa(cxData || [])
       setCompras(compData || [])
       setCustos(custoData || [])
+      setVip(vipData || [])
       setLoading(false)
     }
     load()
@@ -69,8 +72,11 @@ export default function Relatorio() {
   }).reduce((s, c) => s + (Number(c.valor) || 0), 0)
   const custosLocais = period === 'hoje' ? (fixosMes / 30) + variaveisPeriodo : fixosMes + variaveisPeriodo
 
+  const vipTotal = vip.filter(s => s.status === 'encerrada').reduce((s, x) => s + (Number(x.valor) || 0), 0)
+
   const metrics = [
     { label: 'Vendas Brutas', val: fmt(totalVendasBruto), sub: `${vendas.length} pedidos` },
+    { label: 'Salas VIP', val: fmt(vipTotal), sub: `${vip.filter(s => s.status === 'encerrada').length} sessões no caixa` },
     { label: 'Saldo Caixa', val: fmt(saldoCaixa), sub: 'Após taxas e comissões' },
     { label: 'Custo Bebidas', val: fmt(custoCompras), sub: `${compras.length} compras` },
     { label: 'Custos locais', val: fmt(custosLocais), sub: period === 'hoje' ? 'Fixos/30 + variáveis' : 'Fixos do mês + variáveis' },
