@@ -184,6 +184,7 @@ export function NotificationBell({
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const btnRef = useRef(null)
+  const panelRef = useRef(null)
   const [panelStyle, setPanelStyle] = useState(null)
 
   const overdueCount = (overdueAlerts?.faturas?.length || 0) + (overdueAlerts?.compras?.length || 0)
@@ -215,11 +216,18 @@ export function NotificationBell({
     window.addEventListener('resize', place)
     window.addEventListener('scroll', place, true)
     window.visualViewport?.addEventListener('resize', place)
+    const onDoc = e => {
+      if (btnRef.current?.contains(e.target)) return
+      if (panelRef.current?.contains(e.target)) return
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
     return () => {
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('resize', place)
       window.removeEventListener('scroll', place, true)
       window.visualViewport?.removeEventListener('resize', place)
+      document.removeEventListener('mousedown', onDoc)
     }
   }, [open, place])
 
@@ -229,16 +237,14 @@ export function NotificationBell({
   }
 
   const panel = open && panelStyle && createPortal(
-    <>
-      <button type="button" className="notif-backdrop" onClick={() => setOpen(false)} aria-label={t('notifications.close')} />
-      <div
-        className="notif-panel"
-        style={panelStyle}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('notifications.title')}
-        onClick={e => e.stopPropagation()}
-      >
+    <div
+      ref={panelRef}
+      className="notif-panel"
+      style={panelStyle}
+      role="dialog"
+      aria-modal="false"
+      aria-label={t('notifications.title')}
+    >
         <div className="notif-panel-header">
           <span className="notif-panel-title">{t('notifications.title')}</span>
           <div className="notif-panel-actions">
@@ -324,8 +330,7 @@ export function NotificationBell({
             )
           })}
         </div>
-      </div>
-    </>,
+    </div>,
     document.body
   )
 

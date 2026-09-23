@@ -7,8 +7,8 @@ export function placeNotifPanel({
   placement = 'sidebar',
   vw,
   vh,
-  panelW = 360,
-  maxH = 480,
+  panelW = 320,
+  maxH = 360,
   pad = 8,
   gap = 8,
 } = {}) {

@@ -479,12 +479,7 @@ html[data-layout="auto"][data-device="tablet"][data-orientation="landscape"] .si
 }
 
 .notif-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 9998;
-  background: rgba(0, 0, 0, 0.35);
-  border: none;
-  cursor: default;
+  display: none;
 }
 
 .notif-panel {
@@ -492,10 +487,10 @@ html[data-layout="auto"][data-device="tablet"][data-orientation="landscape"] .si
   z-index: 9999;
   display: flex;
   flex-direction: column;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.22);
+  background: #fff;
+  border: 1px solid rgba(0, 16, 40, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 10px 32px rgba(0, 16, 40, 0.22);
   overflow: hidden;
   min-height: 0;
 }
@@ -1462,8 +1457,8 @@ body.menu-open {
 
 .theme-toggle {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
   gap: 8px;
   width: 100%;
   padding: 10px 12px;
@@ -1474,6 +1469,9 @@ body.menu-open {
   color: rgba(255,255,255,0.55);
   cursor: pointer;
   transition: all 0.2s ease;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .theme-toggle:hover {
@@ -1491,18 +1489,22 @@ body.menu-open {
 }
 
 .theme-pill {
-  display: inline-flex;
+  display: flex;
+  width: 100%;
   background: rgba(0,0,0,0.25);
   border-radius: 20px;
   padding: 2px;
   gap: 2px;
+  box-sizing: border-box;
 }
 
 .theme-pill span,
 .theme-pill button {
-  padding: 4px 9px;
+  flex: 1;
+  text-align: center;
+  padding: 6px 8px;
   border-radius: 18px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   border: none;
   background: transparent;
@@ -1510,6 +1512,7 @@ body.menu-open {
   cursor: pointer;
   transition: all 0.25s ease;
   min-height: 0;
+  min-width: 0;
 }
 
 .theme-pill span.on,
@@ -1520,8 +1523,8 @@ body.menu-open {
 
 .layout-toggle {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
   gap: 8px;
   padding: 10px 12px;
   border-radius: 10px;
@@ -1541,8 +1544,6 @@ body.menu-open {
 .theme-pill,
 .layout-pill {
   flex-shrink: 1;
-  flex-wrap: wrap;
-  max-width: 100%;
 }
 
 .layout-pill button {
