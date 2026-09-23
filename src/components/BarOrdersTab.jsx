@@ -4,7 +4,7 @@ import { useAuth } from './Auth'
 import { fmtYen, fmtDate, Spinner, Empty, SectionTitle, isSupplierProduct, PedidoItemChip } from './utils'
 import { isRestockPedido } from '../lib/posSupply'
 import { useI18n } from '../lib/i18n'
-import { orderCastFromObs, orderDetailsFromObs, withOrderCast } from '../lib/orderMeta'
+import { orderDetailsFromObs } from '../lib/orderMeta'
 
 const STATUS_PEDIDO = {
   pendente:   { labelKey: 'orderStatus.pendente',   color: '#8A5A00', bg: '#FDF3E0' },
@@ -24,7 +24,6 @@ export default function BarOrdersTab({ bar }) {
   const { user } = useAuth()
   const [produtos, setProdutos] = useState([])
   const [pedidos, setPedidos] = useState([])
-  const [casts, setCasts] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [orderErr, setOrderErr] = useState('')
@@ -33,10 +32,6 @@ export default function BarOrdersTab({ bar }) {
   const [qtyInput, setQtyInput] = useState('')
   const [items, setItems] = useState([])
   const [obs, setObs] = useState('')
-  const [castName, setCastName] = useState('')
-  const [castId, setCastId] = useState('')
-  const [addCastOpen, setAddCastOpen] = useState(false)
-  const [newCastName, setNewCastName] = useState('')
   const [entrega, setEntrega] = useState('')
   const [search, setSearch] = useState('')
   const [cat, setCat] = useState('all')
@@ -47,14 +42,12 @@ export default function BarOrdersTab({ bar }) {
   useEffect(() => { load() }, [bar])
 
   async function load() {
-    const [pR, pedR, cR] = await Promise.all([
+    const [pR, pedR] = await Promise.all([
       supabase.from('produtos_public').select('*').eq('ativo', true).order('categoria').order('nome'),
       supabase.from('pedidos').select('*, pedidos_itens(*, produtos(nome,preco_venda,categoria,volume_ml))').eq('bar_id', bar.id).order('criado_em', { ascending: false }).limit(80),
-      supabase.from('drink_back_agents').select('id,nome,ativo').eq('bar_id', bar.id).eq('ativo', true).order('nome'),
     ])
     setProdutos((pR.data || []).filter(isSupplierProduct))
     setPedidos(pedR.data || [])
-    setCasts(cR.error ? [] : (cR.data || []))
     setLoading(false)
   }
 
@@ -92,26 +85,6 @@ export default function BarOrdersTab({ bar }) {
     return p.status === statusFilter
   })
 
-  async function addCastQuick(nomeRaw) {
-    const nome = String(nomeRaw || '').trim()
-    if (!nome) return
-    const { data, error } = await supabase.from('drink_back_agents').insert({
-      bar_id: bar.id, nome, comissao_pct: 10, ativo: true,
-    }).select('id,nome,ativo').single()
-    if (error) {
-      setCastName(nome)
-      setCastId('')
-      setAddCastOpen(false)
-      setNewCastName('')
-      return
-    }
-    setCasts(prev => [...prev, data])
-    setCastName(data.nome)
-    setCastId(data.id)
-    setAddCastOpen(false)
-    setNewCastName('')
-  }
-
   async function enviarOrder() {
     if (items.length === 0) {
       setOrderErr(t('portal.orders.addOneItem'))
@@ -119,13 +92,12 @@ export default function BarOrdersTab({ bar }) {
     }
     setSaving(true)
     setOrderErr('')
-    const packed = withOrderCast(obs, { name: castName, id: castId })
     const { data: pedido, error } = await supabase.from('pedidos').insert({
       bar_id: bar.id, criado_por: user?.id,
       status: 'pendente',
       data_pedido: new Date().toISOString().slice(0, 10),
       data_entrega_prevista: entrega || null,
-      obs: packed, total_estimado: totalOrder,
+      obs: obs.trim() || null, total_estimado: totalOrder,
     }).select().single()
 
     if (error) { setOrderErr(t('portal.orders.saveError', { message: error.message })); setSaving(false); return }
@@ -151,7 +123,7 @@ export default function BarOrdersTab({ bar }) {
     }
 
     setSaving(false)
-    setItems([]); setObs(''); setCastName(''); setCastId(''); setEntrega('')
+    setItems([]); setObs(''); setEntrega('')
     load()
   }
 
@@ -234,56 +206,6 @@ export default function BarOrdersTab({ bar }) {
           <div className="ord-composer-title">{t('portal.orders.newOrderJbm')}</div>
           <div className="ord-composer-hint">{t('portal.orders.supplierListHint')}</div>
 
-          <div className="ord-cast-panel">
-            <div className="ord-meta-label">💃 {t('portal.orders.cast')}</div>
-            <div className="ord-chips">
-              {casts.map(c => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className={`ord-chip ord-chip-cast${castId === c.id || (!castId && castName === c.nome) ? ' is-on' : ''}`}
-                  onClick={() => {
-                    if (castId === c.id) { setCastId(''); setCastName('') }
-                    else { setCastId(c.id); setCastName(c.nome) }
-                  }}
-                >💃 {c.nome}</button>
-              ))}
-              <button type="button" className="ord-chip" onClick={() => setAddCastOpen(v => !v)}>{t('portal.orders.addCast')}</button>
-            </div>
-            {addCastOpen && (
-              <div className="ord-add-cast">
-                <input
-                  value={newCastName}
-                  onChange={e => setNewCastName(e.target.value)}
-                  placeholder={t('portal.orders.castPlaceholder')}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCastQuick(newCastName) } }}
-                />
-                <button type="button" className="btn-primary" onClick={() => addCastQuick(newCastName)}>{t('common.confirm')}</button>
-              </div>
-            )}
-            <input
-              className="ord-cast-input"
-              value={castName}
-              onChange={e => { setCastName(e.target.value); setCastId('') }}
-              placeholder={t('portal.orders.castPlaceholder')}
-            />
-          </div>
-
-          <div className="ord-meta-grid">
-            <label>{t('portal.orders.deliveryDate')}
-              <input type="date" value={entrega} onChange={e => setEntrega(e.target.value)} />
-            </label>
-          </div>
-          <label className="ord-details-label">{t('portal.orders.details')}
-            <textarea
-              className="ord-details-input"
-              rows={3}
-              value={obs}
-              onChange={e => setObs(e.target.value)}
-              placeholder={t('portal.orders.notesPlaceholder')}
-            />
-          </label>
-
           <input
             className="ord-search"
             value={search}
@@ -305,7 +227,6 @@ export default function BarOrdersTab({ bar }) {
                   <button type="button" className="ord-tile-hit" onClick={() => bumpQty(p.id, 1)}>
                     <span className="ord-tile-name">{p.nome}</span>
                     <span className="ord-tile-cat">{p.categoria}{p.volume_ml ? ` · ${p.volume_ml}ml` : ''}</span>
-                    <span className="ord-tile-price">{fmtYen(p.preco_venda)}</span>
                   </button>
                   <div className="ord-tile-qty">
                     <button type="button" onClick={() => bumpQty(p.id, -1)}>−</button>
@@ -316,6 +237,21 @@ export default function BarOrdersTab({ bar }) {
               )
             })}
           </div>
+
+          <div className="ord-meta-grid">
+            <label>{t('portal.orders.deliveryDate')}
+              <input type="date" value={entrega} onChange={e => setEntrega(e.target.value)} />
+            </label>
+          </div>
+          <label className="ord-details-label">{t('portal.orders.details')}
+            <textarea
+              className="ord-details-input"
+              rows={2}
+              value={obs}
+              onChange={e => setObs(e.target.value)}
+              placeholder={t('portal.orders.notesPlaceholder')}
+            />
+          </label>
 
           {qtyPopup && (
             <div className="ord-modal-bg" onClick={() => setQtyPopup(null)}>
@@ -336,18 +272,15 @@ export default function BarOrdersTab({ bar }) {
           )}
 
           <div className="ord-sendbar">
-            <div>
-              {castName
-                ? <div className="ord-cast-tag">💃 {castName}</div>
-                : <div className="ord-send-kicker">{t('portal.orders.cast')}</div>}
-              <div className="ord-send-kicker">{bottleCount} {t('portal.orders.items')}</div>
-              <div className="ord-send-total">{t('portal.orders.estimatedTotal', { amount: fmtYen(totalOrder) })}</div>
-              {orderErr && <div className="pos-sale-err">{orderErr}</div>}
+            <div className="ord-send-kicker">{bottleCount} {t('portal.orders.items')}</div>
+            <div className="ord-send-end">
+              <div className="ord-send-total">{fmtYen(totalOrder)}</div>
+              <button type="button" className="btn-primary ord-send-btn" onClick={enviarOrder} disabled={saving || items.length === 0}>
+                {saving ? t('portal.orders.sending') : t('portal.orders.sendOrder')}
+              </button>
             </div>
-            <button type="button" className="btn-primary ord-send-btn" onClick={enviarOrder} disabled={saving || items.length === 0}>
-              {saving ? t('portal.orders.sending') : t('portal.orders.sendOrder')}
-            </button>
           </div>
+          {orderErr && <div className="pos-sale-err">{orderErr}</div>}
         </div>
       )}
 
@@ -360,13 +293,12 @@ export default function BarOrdersTab({ bar }) {
       {listed.length === 0
         ? <Empty text={t('portal.orders.noOrders')} icon="🛒" />
         : listed.map(p => {
-          const meta = { cast: orderCastFromObs(p.obs), details: orderDetailsFromObs(p.obs) }
+          const meta = { details: orderDetailsFromObs(p.obs) }
           return (
             <div key={p.id} className="ord-card">
               <div className="ord-card-top">
                 <div>
                   <div className="ord-card-date">{fmtDate(p.criado_em?.slice(0, 10))}</div>
-                  {meta.cast && <div className="ord-cast-tag">💃 {meta.cast}</div>}
                   {isRestockPedido(p) && <div className="ord-restock">{t('portal.orders.restockFromCounter')}</div>}
                   {p.data_entrega_prevista && <div className="ord-card-sub">{t('portal.orders.expected', { date: p.data_entrega_prevista })}</div>}
                   {meta.details && !isRestockPedido(p) && <div className="ord-details-box compact">{meta.details}</div>}
@@ -407,9 +339,6 @@ export default function BarOrdersTab({ bar }) {
               </div>
               <Badge status={orderPreview.status} />
             </div>
-            {orderCastFromObs(orderPreview.obs) && (
-              <div className="ord-cast-tag big">💃 CAST · {orderCastFromObs(orderPreview.obs)}</div>
-            )}
             {orderPreview.data_entrega_prevista && (
               <div className="ord-card-sub">{t('portal.orders.expected', { date: orderPreview.data_entrega_prevista })}</div>
             )}
@@ -420,11 +349,8 @@ export default function BarOrdersTab({ bar }) {
             <div className="ord-meta-label" style={{ marginTop: 16 }}>{t('portal.orders.items')}</div>
             {(orderPreview.pedidos_itens || []).map(it => (
               <div key={it.id} className="ord-line">
-                <div>
-                  <div className="ord-tile-name">{it.produtos?.nome}</div>
-                  <div className="ord-card-sub">¥{(it.preco_unitario || 0).toLocaleString()} × {it.qtd}</div>
-                </div>
-                <strong>¥{((it.preco_unitario || 0) * it.qtd).toLocaleString()}</strong>
+                <div className="ord-tile-name">{it.produtos?.nome}</div>
+                <span className="ord-card-sub">× {it.qtd}</span>
               </div>
             ))}
             <div className="ord-total-bar">
