@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase, BAR_ID } from '../lib/supabase'
+import { custoMensalEstimado } from '../lib/payroll'
 
 const fmt = n => '¥' + Math.round(n).toLocaleString('ja-JP')
 const fmtDate = d => new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
@@ -8,6 +9,8 @@ export default function Relatorio() {
   const [vendas, setVendas] = useState([])
   const [caixa, setCaixa] = useState([])
   const [compras, setCompras] = useState([])
+  const [custos, setCustos] = useState([])
+  const [vip, setVip] = useState([])
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState('hoje')
 
@@ -18,14 +21,18 @@ export default function Relatorio() {
 
   useEffect(() => {
     async function load() {
-      const [{ data: vData }, { data: cxData }, { data: compData }] = await Promise.all([
+      const [{ data: vData }, { data: cxData }, { data: compData }, { data: custoData }, { data: vipData }] = await Promise.all([
         supabase.from('vendas').select('*, vendas_itens(*)').eq('bar_id', BAR_ID).gte('data_venda', dateFilter).order('data_venda', { ascending: false }),
         supabase.from('caixa_movimentos').select('*').eq('bar_id', BAR_ID).gte('data', dateFilter).order('data', { ascending: false }),
-        supabase.from('compras').select('*, compras_itens(*)').eq('bar_id', BAR_ID).gte('data_emissao', dateFilter)
+        supabase.from('compras').select('*, compras_itens(*)').eq('bar_id', BAR_ID).gte('data_emissao', dateFilter),
+        supabase.from('custos_locais').select('*').eq('ativo', true),
+        supabase.from('sessoes_vip').select('*').eq('bar_id', BAR_ID).gte('inicio', dateFilter),
       ])
       setVendas(vData || [])
       setCaixa(cxData || [])
       setCompras(compData || [])
+      setCustos(custoData || [])
+      setVip(vipData || [])
       setLoading(false)
     }
     load()
@@ -55,12 +62,26 @@ export default function Relatorio() {
   const comissoes = caixa.filter(c => c.referencia_tipo === 'comissao').reduce((s, c) => s + (c.valor || 0), 0)
   const custoCompras = compras.reduce((s, c) => s + (c.total || 0), 0)
   const saldoCaixa = entradas - saidas
+  const pagamentosStaff = caixa.filter(c => c.referencia_tipo === 'pagamento_staff').reduce((s, c) => s + (c.valor || 0), 0)
+
+  const fixosMes = custos.filter(c => c.natureza === 'fixo').reduce((s, c) => s + custoMensalEstimado(c), 0)
+  const variaveisPeriodo = custos.filter(c => {
+    if (c.natureza !== 'variavel') return false
+    const d = String(c.data || '').slice(0, 10)
+    return d >= dateFilter
+  }).reduce((s, c) => s + (Number(c.valor) || 0), 0)
+  const custosLocais = period === 'hoje' ? (fixosMes / 30) + variaveisPeriodo : fixosMes + variaveisPeriodo
+
+  const vipTotal = vip.filter(s => s.status === 'encerrada').reduce((s, x) => s + (Number(x.valor) || 0), 0)
 
   const metrics = [
     { label: 'Vendas Brutas', val: fmt(totalVendasBruto), sub: `${vendas.length} pedidos` },
+    { label: 'Salas VIP', val: fmt(vipTotal), sub: `${vip.filter(s => s.status === 'encerrada').length} sessões no caixa` },
     { label: 'Saldo Caixa', val: fmt(saldoCaixa), sub: 'Após taxas e comissões' },
     { label: 'Custo Bebidas', val: fmt(custoCompras), sub: `${compras.length} compras` },
+    { label: 'Custos locais', val: fmt(custosLocais), sub: period === 'hoje' ? 'Fixos/30 + variáveis' : 'Fixos do mês + variáveis' },
     { label: 'Comissões Cast', val: fmt(comissoes), sub: 'Drink backs' },
+    { label: 'Pagamentos staff', val: fmt(pagamentosStaff), sub: 'Hora / comissão' },
     { label: 'Dinheiro', val: fmt(vendasDinheiro), sub: 'Pagamento' },
     { label: 'Cartão (+taxa)', val: fmt(vendasCartao), sub: `Taxa: ${fmt(taxasCartao)}` },
   ]
@@ -89,7 +110,7 @@ export default function Relatorio() {
       </div>
 
       {/* Metrics */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 20 }}>
         {metrics.map(m => (
           <div key={m.label} style={{ background: 'var(--white05)', border: '0.5px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: 14 }}>
             <div style={{ fontSize: 11, color: 'var(--white30)', letterSpacing: 0.5, marginBottom: 6, textTransform: 'uppercase' }}>{m.label}</div>
