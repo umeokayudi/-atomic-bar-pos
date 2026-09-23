@@ -323,8 +323,10 @@ export default function TimeClockPanel({ bar }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tipo, staff_id: staffId, managerMark: true, bar_id: bar.id }),
       })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Punch failed')
+      const text = await res.text()
+      let json = {}
+      try { json = text ? JSON.parse(text) : {} } catch { json = { error: text.slice(0, 160) } }
+      if (!res.ok) throw new Error(json.error || json.message || `Clock failed (${res.status})`)
       await load()
     } catch (e) {
       setErr(e.message)
