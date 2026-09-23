@@ -6,6 +6,17 @@ import { Field, Modal, GoldButton, GhostButton, SolidButton, Empty } from '../..
 
 const emptySala = () => ({ nome: '', capacidade: 6, preco_hora: 8000, taxa_pessoa: 0, minimo_minutos: 60 })
 
+function pct(n) {
+  const p = (Number(n) || 0) * 100
+  if (p > 0 && p < 1) return '<1%'
+  return `${Math.round(p)}%`
+}
+
+function tempoLabel(min) {
+  if (min > 0 && min < 1) return `${Math.max(1, Math.round(min * 60))} s`
+  return `${Math.round(min)} min`
+}
+
 export default function SalasVip() {
   const horas = loadHoras()
   const [noite] = useState(() => noiteDoInstante(new Date(), horas.abre, horas.fecha))
@@ -50,9 +61,10 @@ export default function SalasVip() {
     return () => { cancelled = true; clearInterval(id) }
   }, [noite])
 
+  const relogio = Math.max(agora, ...sessoes.map(s => new Date(s.fim || s.inicio || 0).getTime()), 0)
   const occ = useMemo(
-    () => ocupacaoNoite(salas, sessoes, noite, horas.abre, horas.fecha, agora),
-    [salas, sessoes, noite, horas.abre, horas.fecha, agora],
+    () => ocupacaoNoite(salas, sessoes, noite, horas.abre, horas.fecha, relogio),
+    [salas, sessoes, noite, horas.abre, horas.fecha, relogio],
   )
   const abertas = sessoes.filter(s => s.status === 'aberta')
   const encerradas = sessoes.filter(s => s.status === 'encerrada')
@@ -98,7 +110,8 @@ export default function SalasVip() {
 
   async function encerrar(sess) {
     const sala = salaDe(sess.sala_id) || {}
-    const fim = agora
+    const fimDate = new Date()
+    const fim = Math.max(fimDate.getTime(), new Date(sess.inicio).getTime() + 1000)
     const valor = valorSessao(sala, sess.pessoas, new Date(sess.inicio).getTime(), fim)
     setErro('')
     const { error } = await supabase.from('sessoes_vip').update({
@@ -129,12 +142,12 @@ export default function SalasVip() {
         </div>
         <div className="card">
           <div className="section-title">Tempo das salas</div>
-          <div style={{ fontSize: 22, color: 'var(--gold)', fontWeight: 500 }}>{Math.round(occ.tempo * 100)}%</div>
-          <div style={{ fontSize: 11, color: 'var(--white30)', marginTop: 4 }}>{occ.salas} salas · {Math.round(occ.ocupadoMin)} min ocupados de {Math.round(occ.salas * occ.abertoMin)} possíveis</div>
+          <div style={{ fontSize: 22, color: 'var(--gold)', fontWeight: 500 }}>{pct(occ.tempo)}</div>
+          <div style={{ fontSize: 11, color: 'var(--white30)', marginTop: 4 }}>{occ.salas} salas · {tempoLabel(occ.ocupadoMin)} ocupados de {tempoLabel(occ.salas * occ.abertoMin)} possíveis</div>
         </div>
         <div className="card">
           <div className="section-title">Lugares usados</div>
-          <div style={{ fontSize: 22, color: 'var(--gold)', fontWeight: 500 }}>{Math.round(occ.lugares * 100)}%</div>
+          <div style={{ fontSize: 22, color: 'var(--gold)', fontWeight: 500 }}>{pct(occ.lugares)}</div>
           <div style={{ fontSize: 11, color: 'var(--white30)', marginTop: 4 }}>capacidade {occ.capacidade} pessoas · enquanto a casa está aberta</div>
         </div>
       </div>

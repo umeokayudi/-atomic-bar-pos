@@ -77,9 +77,9 @@ export default function Pulso() {
 
   async function sair(turno) {
     setErro('')
-    const saidaDate = new Date(agora)
+    const saidaDate = new Date()
     const saida = saidaDate.toISOString()
-    const horas = Math.max(0, (agora - new Date(turno.entrada).getTime()) / 3600000)
+    const horas = Math.max(0, (saidaDate.getTime() - new Date(turno.entrada).getTime()) / 3600000)
     const { error } = await supabase.from('staff_turnos').update({ saida }).eq('id', turno.id)
     if (error) { setErro(error.message); return }
     await supabase.from('staff_horas').insert({

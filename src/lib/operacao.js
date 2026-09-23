@@ -174,7 +174,8 @@ export function montarPulso({
     for (const sess of sessoes) {
       if (sess.status === 'cancelada') continue
       const ini = new Date(sess.inicio).getTime()
-      const fimReal = sess.fim ? new Date(sess.fim).getTime() : agora
+      let fimReal = sess.fim ? new Date(sess.fim).getTime() : agora
+      if (fimReal <= ini) fimReal = ini + 1000
       const ms = overlapMs(slot.start, slot.end, ini, fimReal)
       if (ms <= 0) continue
       const dur = Math.max(fimReal - ini, 1)

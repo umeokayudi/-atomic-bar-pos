@@ -43,4 +43,21 @@ const occ = ocupacaoNoite([sala], [{
 assert(Math.round(occ.tempo * 100) === 50, '1h de 2h abertas = 50% do tempo')
 assert(Math.round(occ.lugares * 100) === 25, '3 de 6 lugares na hora ocupada, metade do tempo = 25%')
 
+const curto = montarPulso({
+  noite: '2026-09-23',
+  abre: '13:00',
+  fecha: '18:00',
+  agora: new Date('2026-09-23T14:40:00+09:00').getTime(),
+  salas: [sala],
+  sessoes: [{
+    sala_id: 'sala1',
+    inicio: '2026-09-23T14:35:05+09:00',
+    fim: '2026-09-23T14:35:01+09:00',
+    valor: 8000,
+    status: 'encerrada',
+    pessoas: 4,
+  }],
+})
+assert(Math.round(curto.acumulado.fatVip) === 8000, 'sessão encerrada entra na faixa mesmo com fim anterior')
+
 console.log('operacao tests ok')
