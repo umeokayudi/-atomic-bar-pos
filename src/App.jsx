@@ -35,6 +35,7 @@ import { loadDashboard } from './lib/loadDashboard'
 import { PageHeader, PortalHero, PortalKpi, PortalSurface, PortalAlert } from './components/ui/PageLayout'
 import DashboardMetricModal from './components/DashboardMetricModal'
 import DashboardCalendar from './components/DashboardCalendar'
+import DashboardAi from './components/DashboardAi'
 import MarkPaidPopup from './components/MarkPaidPopup'
 
 // ── TABS por role ─────────────────────────────────────────────────────────────
@@ -197,6 +198,24 @@ function Dashboard({ onNav }) {
         title={t('dashboard.title')}
         subtitle={`${isCurrentMonth ? t('dashboard.currentMonth') : t('dashboard.history')} · ${monthLabel(selMonth)}`}
       />
+
+      <DashboardAi snapshot={{
+        monthLabel: monthLabel(selMonth),
+        lucro: m.lucroProjetado ?? m.lucro,
+        faturamento: m.faturamento ?? m.receita,
+        compras: m.compras,
+        margem: m.margem,
+        aReceber: m.aReceber || 0,
+        entregas: entregasCount,
+        pedidosPendentes: data.pedidosPendentes || 0,
+        overdueText: (data.alertas?.faturasAtrasadas || []).map(f => `${f.barNome} ${fmtYen(f.valor)} (${fmtDate(f.vencimento)})`).join('\n'),
+        payText: (data.alertas?.comprasAtrasadas || []).map(c => `${c.fornecedor} ${fmtYen(c.valor)} (${fmtDate(c.vencimento)})`).join('\n'),
+        calText: (data.calendar || [])
+          .filter(e => e.date?.startsWith(selMonth))
+          .slice(0, 40)
+          .map(e => `${e.date} ${e.kind} ${e.label} ${e.amount || 0}`)
+          .join('\n'),
+      }} />
 
       {data.pedidosPendentes > 0 && (
         <PortalAlert variant="navy" onClick={() => onNav('pedidos')}>
