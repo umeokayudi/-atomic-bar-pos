@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { fmtYen, fmtDate } from './utils'
 import { useI18n } from '../lib/i18n'
 import { PortalSurface } from './ui/PageLayout'
@@ -13,33 +13,30 @@ function kindColor(kind, dir, amount) {
   return 'var(--navy)'
 }
 
-export default function DashboardCalendar({ events = [], onNav, month }) {
-  const { t, lang } = useI18n()
-  const locale = lang === 'ja' ? 'ja-JP' : 'en-US'
+export default function DashboardCalendar({ events = [], onNav, month, onMonthChange }) {
+  const { t } = useI18n()
   const [filter, setFilter] = useState('all')
-  const [view, setView] = useState(() => {
-    if (month && /^\d{4}-\d{2}$/.test(month)) {
-      const [y, m] = month.split('-').map(Number)
-      return new Date(y, m - 1, 1)
-    }
-    return new Date()
-  })
   const [openDay, setOpenDay] = useState(null)
 
-  useEffect(() => {
-    if (!month || !/^\d{4}-\d{2}$/.test(month)) return
-    const [y, m] = month.split('-').map(Number)
-    setView(new Date(y, m - 1, 1))
-    setOpenDay(null)
-  }, [month])
-
-  const year = view.getFullYear()
-  const mo = view.getMonth()
-  const monthStr = `${year}-${String(mo + 1).padStart(2, '0')}`
-  const firstDay = new Date(year, mo, 1).getDay()
-  const daysInMonth = new Date(year, mo + 1, 0).getDate()
-  const todayStr = new Date().toISOString().slice(0, 10)
+  const now = new Date()
+  const fallback = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const monthStr = /^\d{4}-\d{2}$/.test(month || '') ? month : fallback
+  const [year, mo] = monthStr.split('-').map(Number)
+  const firstDay = new Date(year, mo - 1, 1).getDay()
+  const daysInMonth = new Date(year, mo, 0).getDate()
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
   const isThisMonth = todayStr.startsWith(monthStr)
+
+  function goMonth(next) {
+    if (!/^\d{4}-\d{2}$/.test(next)) return
+    setOpenDay(null)
+    onMonthChange?.(next)
+  }
+
+  function shift(delta) {
+    const d = new Date(year, mo - 1 + delta, 1)
+    goMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }
 
   const filtered = useMemo(() => {
     const list = Array.isArray(events) ? events : []
@@ -85,9 +82,14 @@ export default function DashboardCalendar({ events = [], onNav, month }) {
       style={{ marginTop: 20 }}
       headerRight={(
         <div className="dash-cal-nav">
-          <button type="button" className="dash-cal-nav-btn" onClick={() => { setView(new Date(year, mo - 1, 1)); setOpenDay(null) }}>←</button>
-          <span className="dash-cal-month">{view.toLocaleDateString(locale, { month: 'long', year: 'numeric' })}</span>
-          <button type="button" className="dash-cal-nav-btn" onClick={() => { setView(new Date(year, mo + 1, 1)); setOpenDay(null) }}>→</button>
+          <button type="button" className="dash-cal-nav-btn" onClick={() => shift(-1)} aria-label="Previous month">←</button>
+          <input
+            type="month"
+            className="dash-cal-month-input"
+            value={monthStr}
+            onChange={e => goMonth(e.target.value)}
+          />
+          <button type="button" className="dash-cal-nav-btn" onClick={() => shift(1)} aria-label="Next month">→</button>
         </div>
       )}
     >

@@ -17,7 +17,7 @@ function lastMonths(n = 6) {
   const now = new Date()
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    out.push(d.toISOString().slice(0, 7))
+    out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
   }
   return out
 }
@@ -49,7 +49,17 @@ export default async function handler(req, res) {
     const vendas = (vendasRaw || []).filter(isSupplierVenda)
     const ctx = { vendas, compras, faturas, pedidos, bars: bars || [] }
 
+    function ym(d) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    }
+    const now = new Date()
+    const padded = []
+    for (let i = 36; i >= -12; i--) {
+      padded.push(ym(new Date(now.getFullYear(), now.getMonth() - i, 1)))
+    }
+
     const months = [...new Set([
+      ...padded,
       ...(compras || []).map(compraMonthKey),
       ...(compras || []).flatMap(c => [c.data, c.data_compra].map(d => String(d || '').slice(0, 7))),
       ...vendas.map(saleMonthKey),

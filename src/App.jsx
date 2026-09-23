@@ -135,9 +135,10 @@ function Dashboard({ onNav }) {
     setLoading(true)
     try {
       const payload = await loadDashboard()
-      const mesAtual = new Date().toISOString().slice(0, 7)
+      const now = new Date()
+      const mesAtual = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
       setData(payload)
-      setSelMonth(prev => prev || (payload.months?.includes(mesAtual) ? mesAtual : payload.months?.[0]) || mesAtual)
+      setSelMonth(prev => prev || mesAtual)
     } catch (e) {
       console.error('loadStats error', e)
       setLoadErr(e.message || t('dashboard.loadError'))
@@ -146,7 +147,11 @@ function Dashboard({ onNav }) {
     }
   }
 
-  const m = data?.byMonth?.[selMonth]
+  const emptyMonth = {
+    receita: 0, faturamento: 0, compras: 0, lucro: 0, lucroProjetado: 0,
+    margem: 0, vendasCount: 0, comprasCount: 0, aReceber: 0, entregasDetalhe: [],
+  }
+  const m = data?.byMonth?.[selMonth] || emptyMonth
   const lucroChart = (data?.chart || []).map(row => ({
     label: monthLabel(row.month).split('/')[0],
     month: monthLabel(row.month),
@@ -171,16 +176,10 @@ function Dashboard({ onNav }) {
       </div>
     )
   }
-  if (!m) {
-    return (
-      <div style={{ maxWidth: 520, padding: 24, color: 'var(--text2)' }}>
-        {t('dashboard.noData')}
-      </div>
-    )
-  }
-
-  const mesAtual = new Date().toISOString().slice(0, 7)
+  const now = new Date()
+  const mesAtual = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const isCurrentMonth = selMonth === mesAtual
+  const noSales = !(m.faturamento || m.receita || m.compras || (m.entregasDetalhe || []).length)
   const entregasCount = m.entregasDetalhe?.length ?? m.vendasCount ?? 0
   const modalStats = {
     faturamento: m.faturamento ?? m.receita,
@@ -195,14 +194,6 @@ function Dashboard({ onNav }) {
       <PageHeader
         title={t('dashboard.title')}
         subtitle={`${isCurrentMonth ? t('dashboard.currentMonth') : t('dashboard.history')} · ${monthLabel(selMonth)}`}
-        actions={(
-          <div className="page-header-actions">
-            <span className="page-header-actions-label">{t('common.month')}</span>
-            <select value={selMonth} onChange={e => setSelMonth(e.target.value)} className="page-header-select">
-              {(data?.months || []).map(mon => <option key={mon} value={mon}>{monthLabel(mon)}</option>)}
-            </select>
-          </div>
-        )}
       />
 
       {data.pedidosPendentes > 0 && (
@@ -296,7 +287,13 @@ function Dashboard({ onNav }) {
         />
       </div>
 
-      <DashboardCalendar events={data.calendar || []} onNav={onNav} month={selMonth} />
+      {noSales && (
+        <PortalAlert variant="navy">
+          <div style={{ fontSize: 13 }}>{t('dashboard.noSalesMonth', { month: monthLabel(selMonth) })}</div>
+        </PortalAlert>
+      )}
+
+      <DashboardCalendar events={data.calendar || []} onNav={onNav} month={selMonth} onMonthChange={setSelMonth} />
 
       <PortalSurface title={t('dashboard.chartTitle')} sub={t('dashboard.chartSub')} style={{ marginTop: 20 }}>
         <BarChart data={lucroChart} color="#1a6b4a" height={72} />
