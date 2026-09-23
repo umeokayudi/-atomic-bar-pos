@@ -1,6 +1,6 @@
 /** HTTP CRUD for POS/CRM live-store. Never touches JBM ledgers. */
 
-import { drinksAdminClient } from './_supabaseAdmin.js'
+import { tryDrinksAdminClient, createStaffUserClient } from './_supabaseAdmin.js'
 import { handleCorsPreflight, setCorsHeaders } from './_cors.js'
 import { LIVE_TABLES, ensureBarLiveReady, runLiveOp } from './_barLiveStore.js'
 import { resolveBarActor } from './_barLaneAuth.js'
@@ -48,20 +48,57 @@ function scopedFilters(auth, table, filters, row) {
   return { filters: next, row, error: null }
 }
 
+async function runPgOp(db, spec) {
+  const table = spec.table
+  if (spec.mode === 'select' || !spec.mode) return runPgSelect(db, spec)
+
+  if (spec.mode === 'insert') {
+    const rows = spec.insertRows || []
+    let q = db.from(table).insert(rows.length === 1 ? rows[0] : rows).select(spec.columns || '*')
+    if (spec.wantSingle === true) q = q.single()
+    return q
+  }
+  if (spec.mode === 'upsert') {
+    const rows = spec.insertRows || []
+    let q = db.from(table).upsert(rows.length === 1 ? rows[0] : rows).select(spec.columns || '*')
+    if (spec.wantSingle === true) q = q.single()
+    return q
+  }
+  if (spec.mode === 'update') {
+    let q = db.from(table).update(spec.updatePatch || {})
+    for (const f of spec.filters || []) {
+      if (f.op === 'eq') q = q.eq(f.k, f.v)
+      else if (f.op === 'neq') q = q.neq(f.k, f.v)
+      else if (f.op === 'in') q = q.in(f.k, f.v)
+    }
+    q = q.select(spec.columns || '*')
+    if (spec.wantSingle === true) q = q.single()
+    return q
+  }
+  if (spec.mode === 'delete') {
+    let q = db.from(table).delete()
+    for (const f of spec.filters || []) {
+      if (f.op === 'eq') q = q.eq(f.k, f.v)
+      else if (f.op === 'in') q = q.in(f.k, f.v)
+    }
+    return q
+  }
+  return { data: null, error: { message: 'Unknown mode' } }
+}
+
 export default async function handler(req, res) {
   if (handleCorsPreflight(req, res)) return
   setCorsHeaders(req, res, 'GET, POST, OPTIONS')
 
-  let admin
-  try { admin = drinksAdminClient() } catch (e) {
-    return res.status(500).json({ error: e.message })
-  }
-
+  const admin = tryDrinksAdminClient()
   const auth = await resolveBarActor(req, admin)
   if (auth.error) return res.status(auth.status).json({ error: auth.error })
 
+  const db = admin || (auth.token ? createStaffUserClient(auth.token) : null)
+  if (!db) return res.status(500).json({ error: 'Database client unavailable' })
+
   try {
-    await ensureBarLiveReady(admin)
+    if (admin) await ensureBarLiveReady(admin)
     const body = req.method === 'GET' ? { table: req.query?.table, mode: 'select' } : bodyOf(req)
     const table = String(body.table || '')
     if (SECRET_TABLES.has(table)) return res.status(403).json({ error: 'Forbidden table' })
@@ -102,7 +139,13 @@ export default async function handler(req, res) {
 
     if (PG_MENU_TABLES.has(table)) {
       if (spec.mode !== 'select') return res.status(403).json({ error: 'Menu tables are read-only here' })
-      const result = await runPgSelect(admin, spec)
+      const result = await runPgSelect(db, spec)
+      if (result.error) return res.status(400).json(result)
+      return res.status(200).json({ data: result.data, error: null })
+    }
+
+    if (!admin) {
+      const result = await runPgOp(db, spec)
       if (result.error) return res.status(400).json(result)
       return res.status(200).json({ data: result.data, error: null })
     }

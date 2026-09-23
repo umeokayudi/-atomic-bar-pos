@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useUiPrefs, THEMES } from '../lib/uiPrefs'
 import { useI18n, LANGS } from '../lib/i18n'
 
@@ -39,21 +39,37 @@ export function ThemeToggle({ compact }) {
 
 export default function UiPrefsPanel() {
   const [open, setOpen] = useState(false)
+  const wrapRef = useRef(null)
   const { t } = useI18n()
 
+  useEffect(() => {
+    if (!open) return
+    const onDoc = e => {
+      if (wrapRef.current?.contains(e.target)) return
+      setOpen(false)
+    }
+    const onKey = e => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDoc)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
   return (
-    <div className="ui-prefs-wrap">
+    <div className="ui-prefs-wrap" ref={wrapRef}>
       <button
         type="button"
-        className="ui-prefs-toggle"
+        className={`ui-prefs-toggle${open ? ' is-on' : ''}`}
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
         aria-label={open ? t('shell.hideAppearance') : t('shell.showAppearance')}
       >
-        {open ? `▾ ${t('shell.appearance')}` : `⚙ ${t('shell.appearance')}`}
+        ⚙ {t('shell.appearance')}
       </button>
       {open && (
-        <div className="ui-prefs-panel">
+        <div className="ui-prefs-popover" role="dialog" aria-label={t('shell.appearance')}>
           <LanguageToggle />
           <ThemeToggle />
         </div>

@@ -63,9 +63,17 @@ export function createStaffUserClient(accessToken) {
   })
 }
 
-/** Service-role client for JBM Drinks (bebidas-control). */
+/** Service-role client for JBM Drinks (bebidas-control). Throws if the key is missing. */
 export function drinksAdminClient() {
   return createClient(resolveDrinksUrl(), resolveServiceRoleKey(), {
     auth: { autoRefreshToken: false, persistSession: false },
   })
+}
+
+export function tryDrinksAdminClient() {
+  try {
+    return drinksAdminClient()
+  } catch {
+    return null
+  }
 }

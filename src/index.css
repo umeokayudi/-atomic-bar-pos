@@ -403,32 +403,47 @@ tbody tr:hover td { background: var(--bg3); }
 .sidebar-footer {
   padding: 16px 20px;
   border-top: 1px solid rgba(193,156,86,0.15);
+  position: relative;
+  z-index: 6;
+  overflow: visible;
 }
 
-.sidebar-footer-notifs {
+.sidebar-footer-actions {
   display: flex;
   gap: 8px;
-  align-items: center;
-  margin-bottom: 8px;
-  position: relative;
-  z-index: 1;
+}
+.sidebar-footer-actions .sidebar-signout {
+  flex: 1;
+  min-width: 0;
 }
 
-@media (max-width: 768px) {
-  .sidebar-footer-notifs { display: none; }
-}
-html[data-layout="mobile"] .sidebar-footer-notifs {
+.workspace-chrome {
   display: none;
 }
-html[data-layout="desktop"] .sidebar-footer-notifs,
-html[data-layout="tablet"] .sidebar-footer-notifs,
-html[data-layout="auto"][data-device="tablet"][data-orientation="landscape"] .sidebar-footer-notifs {
+
+html[data-layout="desktop"] .workspace-chrome,
+html[data-layout="tablet"] .workspace-chrome,
+html[data-layout="auto"][data-device="desktop"] .workspace-chrome,
+html[data-layout="auto"][data-device="tablet"][data-orientation="landscape"] .workspace-chrome {
   display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin: -8px 0 16px;
 }
-@media (max-width: 768px) {
-  html[data-layout="desktop"] .sidebar-footer-notifs {
-    display: none;
-  }
+
+.workspace-chrome .notif-bell-btn {
+  background: var(--navy);
+  color: #fff;
+  border-color: transparent;
+}
+.workspace-chrome .notif-bell-btn:hover,
+.workspace-chrome .notif-bell-btn.is-on {
+  background: #002855;
+  border-color: rgba(193, 156, 86, 0.45);
+}
+.workspace-chrome .notif-badge {
+  border-color: var(--bg);
 }
 
 /* Notification bell */
@@ -1421,6 +1436,7 @@ body.menu-open {
 
 /* ── Preferências UI (recolhidas na sidebar) ─────────────────────────────── */
 .ui-prefs-wrap {
+  position: relative;
   margin-bottom: 10px;
 }
 
@@ -1440,9 +1456,30 @@ body.menu-open {
   transition: color 0.15s, border-color 0.15s;
 }
 
-.ui-prefs-toggle:hover {
+.ui-prefs-toggle:hover,
+.ui-prefs-toggle.is-on {
   color: rgba(193,156,86,0.85);
   border-color: rgba(193,156,86,0.25);
+}
+
+.ui-prefs-popover {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: #001028;
+  border: 1px solid rgba(193,156,86,0.28);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.35);
 }
 
 .ui-prefs-panel {

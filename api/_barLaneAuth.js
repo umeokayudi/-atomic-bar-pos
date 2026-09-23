@@ -10,7 +10,7 @@ function newId() {
   return globalThis.crypto?.randomUUID?.() || `lane-${Date.now()}`
 }
 
-export async function resolveLaneSession(token, admin) {
+async function resolveLaneSession(token, admin) {
   if (!token || !String(token).startsWith('lane:')) return null
   const signed = verifyLaneToken(token)
   if (signed?.id) {
@@ -29,6 +29,7 @@ export async function resolveLaneSession(token, admin) {
       lane: true,
     }
   }
+  if (!admin) return null
   const sessionId = String(token).slice(5)
   if (sessionId.includes('.')) return null
   const { data } = await runLiveOp(admin, {

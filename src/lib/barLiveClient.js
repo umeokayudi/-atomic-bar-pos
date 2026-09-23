@@ -120,8 +120,10 @@ class LiveQuery {
         signal: AbortSignal.timeout(12000),
       })
       const j = await r.json().catch(() => ({ error: r.statusText }))
-      if (!r.ok) return { data: this.spec.wantSingle ? null : [], error: { message: j.error || j.message || r.statusText, code: 'LIVE' } }
-      return { data: j.data, error: j.error || null }
+      if (r.ok && !j.error) return { data: j.data, error: null }
+      const fallback = await this.executeRaw()
+      if (!fallback.error) return fallback
+      return { data: this.spec.wantSingle ? null : [], error: { message: j.error || j.message || fallback.error?.message || r.statusText, code: 'LIVE' } }
     } catch (e) {
       try {
         return await this.executeRaw()

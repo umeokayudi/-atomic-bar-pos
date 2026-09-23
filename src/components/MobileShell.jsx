@@ -30,3 +30,9 @@ export function ShellOverlay({ open, onClose }) {
   if (!open) return null
   return <button type="button" className="shell-overlay" onClick={onClose} aria-label="Fechar menu" />
 }
+
+/** Desktop/tablet tools that sit in the page, not the sidebar. */
+export function WorkspaceChrome({ children }) {
+  if (!children) return null
+  return <div className="workspace-chrome">{children}</div>
+}

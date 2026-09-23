@@ -9,7 +9,7 @@ class ErrorBoundary extends Component {
 }
 
 import { LogoSidebar } from './components/Logo'
-import { MobileTopBar, ShellOverlay, useMobileMenuLock } from './components/MobileShell'
+import { MobileTopBar, ShellOverlay, WorkspaceChrome, useMobileMenuLock } from './components/MobileShell'
 import { useNotifications, NotificationBell, useOverdueAlerts } from './components/Notifications'
 import { useState, useEffect, useRef } from 'react'
 import { AuthProvider, useAuth, LoginPage } from './components/Auth'
@@ -511,15 +511,15 @@ function Shell() {
               <div style={{fontSize:10,color:'rgba(193,156,86,0.7)'}}>{roleLabel(perfil?.role)}</div>
             </div>
           </div>
-          <div className="sidebar-footer-notifs">
-            <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="sidebar"/>
-          </div>
           <UiPrefsPanel />
           <button onClick={signOut} className="sidebar-signout">{t('common.signOut')}</button>
         </div>
       </aside>
 
       <main className="app-main app-main-wide">
+        <WorkspaceChrome>
+          <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
+        </WorkspaceChrome>
         <div className="fade-in" key={tab}>
           {tab==='dashboard' && <Dashboard onNav={selectTab}/>}
           {tab==='billingHub' && <ReportsBilling onNav={selectTab}/>}

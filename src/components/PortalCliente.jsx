@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import { callGeminiChat, imageDataUrlToParts, parseJsonFromAI } from '../lib/ai'
 import { LogoSidebar } from './Logo'
-import { MobileTopBar, ShellOverlay, useMobileMenuLock } from './MobileShell'
+import { MobileTopBar, ShellOverlay, WorkspaceChrome, useMobileMenuLock } from './MobileShell'
 import { fmtYen, fmtDate, Spinner, Empty, SectionTitle, isSupplierProduct, filterSupplierVendas } from './utils'
 import {
   filterJbmDrinksFaturas,
@@ -2200,19 +2200,21 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
           <div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginBottom:10,lineHeight:1.5}}>
             {t(footerKey)}
           </div>
-          <div className="sidebar-footer-notifs">
-            <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="sidebar"/>
-          </div>
           <UiPrefsPanel />
-          {isGerente(perfil?.role) && (
-            <button type="button" className="sidebar-signout" onClick={() => { setDoorHash('pos'); setDoor('pos') }}>
-              {t('auth.openTillTablet')}
-            </button>
-          )}
-          <button onClick={signOut} className="sidebar-signout">{t('common.signOut')}</button>
+          <div className="sidebar-footer-actions">
+            {isGerente(perfil?.role) && (
+              <button type="button" className="sidebar-signout" onClick={() => { setDoorHash('pos'); setDoor('pos') }}>
+                {t('auth.openTillTablet')}
+              </button>
+            )}
+            <button onClick={signOut} className="sidebar-signout">{t('common.signOut')}</button>
+          </div>
         </div>
       </aside>
       <main className="app-main app-main-wide">
+        <WorkspaceChrome>
+          <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
+        </WorkspaceChrome>
         {tab==='custos'    && isGerente(perfil?.role) && <BarCostsTab bar={bar} onTab={selectTab} />}
         {tab==='inicio' && posAccess !== 'cashier' && (
           <HomeTab bar={bar} onTab={selectTab} />

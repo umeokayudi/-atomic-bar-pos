@@ -66,9 +66,9 @@ export async function requireStaff(req, _admin, opts = {}) {
 export async function requireBarAccount(req, _admin, opts = {}) {
   const allowed = opts.roles || ['cliente', 'gerente', 'caixa', 'bar_staff']
   let admin = _admin
-  if (!admin) {
-    const { drinksAdminClient } = await import('./_supabaseAdmin.js')
-    admin = drinksAdminClient()
+  if (admin === undefined) {
+    const { tryDrinksAdminClient } = await import('./_supabaseAdmin.js')
+    admin = tryDrinksAdminClient()
   }
   const { resolveBarActor } = await import('./_barLaneAuth.js')
   const actor = await resolveBarActor(req, admin)
