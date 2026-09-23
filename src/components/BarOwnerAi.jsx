@@ -3,6 +3,7 @@ import { callGeminiChat, imageDataUrlToParts } from '../lib/ai'
 import { buildHqChatSystem, localHqAnswer } from '../lib/hqChat'
 import { buildClientChatSystem } from '../lib/clientPortalSnapshot'
 import { useI18n } from '../lib/i18n'
+import { asReactText } from '../lib/errText'
 
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -90,7 +91,7 @@ export default function BarOwnerAi({ bar, hq }) {
       </div>
       <div ref={listRef} className="cash-ai-log">
         {messages.map((msg, i) => (
-          <div key={i} className={`cash-ai-bubble cash-ai-${msg.role}`}>{msg.content}</div>
+          <div key={i} className={`cash-ai-bubble cash-ai-${msg.role}`}>{asReactText(msg.content)}</div>
         ))}
       </div>
       {photo && (

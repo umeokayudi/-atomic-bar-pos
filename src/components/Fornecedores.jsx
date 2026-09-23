@@ -3,16 +3,17 @@ import { supabase } from '../lib/supabase'
 import { fmtYen, Spinner, Empty } from './utils'
 import PurchaseCashflowAdvisor from './PurchaseCashflowAdvisor'
 import { fromZeikomi, parseSupplierPriceNotas, formatPriceChange } from '../lib/consumptionTax'
+import { asReactText } from '../lib/errText'
 import { AdminPage, PortalSurface, PortalPills } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
 
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
-  static getDerivedStateFromError(e) { return { error: e.message } }
+  static getDerivedStateFromError(e) { return { error: asReactText(e, e?.message || 'Error') } }
   render() {
     if (this.state.error) return (
       <div style={{ padding:20, background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:12, color:'#dc2626', fontSize:13 }}>
-        <strong>Error:</strong> {this.state.error}
+        <strong>Error:</strong> {asReactText(this.state.error)}
       </div>
     )
     return this.props.children

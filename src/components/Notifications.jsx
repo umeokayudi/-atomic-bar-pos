@@ -6,7 +6,7 @@ import { fmtYen, fmtDate } from './utils'
 import { splitPendingCompras, splitPendingFaturas } from '../lib/compraPagamentos'
 import { filterJbmDrinksFaturas, faturaRemaining } from '../lib/barPortal'
 import { useI18n } from '../lib/i18n'
-import { placeNotifPanel, panelBoxStyle } from '../lib/notifPanel'
+import { asReactText } from '../lib/errText'
 
 export function useNotifications() {
   const { user } = useAuth()
@@ -311,7 +311,7 @@ export function NotificationBell({
                   <span className="notif-row-icon" style={{ background: tipo.bg }}>{tipo.icon}</span>
                   <span className="notif-row-content">
                     <span className="notif-row-title">{n.titulo}</span>
-                    {n.mensagem && <span className="notif-row-msg">{n.mensagem}</span>}
+                    {n.mensagem && <span className="notif-row-msg">{asReactText(n.mensagem)}</span>}
                     <span className="notif-row-time">{timeAgo(n.criado_em, t)}</span>
                   </span>
                   {!n.lida && <span className="notif-unread-dot" aria-hidden />}

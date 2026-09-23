@@ -2,6 +2,7 @@ import { staffFetch } from './apiAuth'
 import { getGlobalLang } from './i18n'
 import { buildHqChatSystem as buildHqChatSystemBase, localHqAnswer as localHqAnswerBase } from './hqChat'
 import { localHoursPay } from './timeClock'
+import { errText } from './errText'
 
 export { localHoursPay }
 
@@ -20,7 +21,7 @@ export async function fetchHqSnapshot(month, { fresh } = {}) {
   const q = month ? `?month=${encodeURIComponent(month)}` : ''
   const r = await staffFetch(`/api/bar/hq-sync${q}`)
   const j = await r.json().catch(() => ({ error: r.statusText }))
-  if (!r.ok) throw new Error(j.error || 'HQ sync failed')
+  if (!r.ok || j.error || !j.books) throw new Error(errText(j.error || j, 'HQ sync failed'))
   hqCache.set(key, { at: Date.now(), data: j })
   return j
 }
@@ -32,7 +33,7 @@ export async function saveHqRent({ amount, note, month_key }) {
     body: JSON.stringify({ month: month_key, rent: { amount, note, month_key } }),
   })
   const j = await r.json().catch(() => ({ error: r.statusText }))
-  if (!r.ok) throw new Error(j.error || 'Rent save failed')
+  if (!r.ok || j.error) throw new Error(errText(j.error || j, 'Rent save failed'))
   invalidateHqSnapshot()
   return j
 }

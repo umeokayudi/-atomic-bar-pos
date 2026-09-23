@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { errText } from './errText'
 
 let dashMem = { at: 0, data: null }
 const DASH_TTL_MS = 45_000
@@ -24,7 +25,7 @@ export async function loadDashboard({ fresh } = {}) {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err.error || `Dashboard API ${res.status}`)
+    throw new Error(errText(err.error || err, `Dashboard API ${res.status}`))
   }
   const payload = await res.json()
   dashMem = { at: Date.now(), data: payload }

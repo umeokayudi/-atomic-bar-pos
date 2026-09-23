@@ -9,9 +9,8 @@ import {
   clearLaneSession,
   isLaneEmail,
 } from '../lib/barLanes'
-import {
-  setHashForRole,
-} from '../lib/barDoors'
+import { setHashForRole } from '../lib/barDoors'
+import { asReactText, errText } from '../lib/errText'
 
 const AuthContext = createContext(null)
 export const useAuth = () => useContext(AuthContext)
@@ -28,7 +27,7 @@ async function tryLaneLogin(email, password) {
     body: JSON.stringify({ email, password }),
   })
   const json = await res.json().catch(() => ({}))
-  if (!res.ok) return { error: { message: json.error || 'Incorrect email or password' } }
+  if (!res.ok) return { error: { message: errText(json.error, 'Incorrect email or password') } }
   return { error: null, token: json.token, perfil: { ...json.perfil, lane: true } }
 }
 
@@ -259,7 +258,7 @@ export function LoginPage() {
               background: 'rgba(160,41,28,0.2)',
               color: '#fca5a5',
               border: '1px solid rgba(160,41,28,0.3)',
-            }}>{err}</div>
+            }}>{asReactText(err)}</div>
           )}
 
           <button type="submit" className="btn-gold" disabled={busy}

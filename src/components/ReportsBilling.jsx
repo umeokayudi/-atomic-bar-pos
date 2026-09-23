@@ -5,6 +5,7 @@ import { useAuth } from './Auth'
 import { fmtYen, fmtDate, Spinner, Empty } from './utils'
 import { AdminPage, PortalKpi, PortalSurface, PortalPills, PortalAlert } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
+import { asReactText, errText } from '../lib/errText'
 
 function faturaRemaining(f) {
   return Math.max(0, (+f.valor || +f.total || 0) - (+f.pago || 0))
@@ -36,7 +37,7 @@ export default function ReportsBilling({ onNav }) {
       setPagamentos(pR.data || [])
       setHub(hubR)
     } catch (e) {
-      setErr(e.message)
+      setErr(errText(e))
     }
     setLoading(false)
   }, [])
@@ -62,11 +63,11 @@ export default function ReportsBilling({ onNav }) {
         body: JSON.stringify({ action }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Failed')
+      if (!res.ok) throw new Error(errText(json.error, 'Failed'))
       setMsg(action === 'report' ? t('billingHub.reportSent') : t('billingHub.remindersSent'))
       await load()
     } catch (e) {
-      setErr(e.message)
+      setErr(errText(e))
     }
     setSending('')
   }
@@ -90,7 +91,7 @@ export default function ReportsBilling({ onNav }) {
         />
       )}
     >
-      {err && <PortalAlert variant="red">{err}</PortalAlert>}
+      {err && <PortalAlert variant="red">{asReactText(err)}</PortalAlert>}
       {msg && <PortalAlert variant="green">{msg}</PortalAlert>}
 
       {tab === 'summary' && (

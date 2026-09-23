@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import { Spinner, SectionTitle } from './utils'
 import { useI18n } from '../lib/i18n'
+import { asReactText, errText } from '../lib/errText'
 import {
   SPACE_TYPES,
   tokyoFloorPreset,
@@ -56,7 +57,7 @@ export default function BarSpacesTab({ bar }) {
       ]))
       const err = sR.error || vR.error || gR.error
       if (err && crmTableMissing(err)) {
-        setReady({ ready: false, error: err.message })
+        setReady({ ready: false, error: errText(err) })
         setSpaces([])
         setVisits([])
         setGuests([])
@@ -65,11 +66,11 @@ export default function BarSpacesTab({ bar }) {
         setSpaces(sR.data || [])
         setVisits(vR.data || [])
         setGuests(gR.data || [])
-        if (err) setLoadErr(err.message)
+        if (err) setLoadErr(errText(err))
       }
     } catch (e) {
-      setReady({ ready: false, error: e.message })
-      setLoadErr(e.message || t('spaces.loadError'))
+      setReady({ ready: false, error: errText(e) })
+      setLoadErr(errText(e, t('spaces.loadError')))
     } finally {
       setLoading(false)
     }
@@ -171,7 +172,7 @@ export default function BarSpacesTab({ bar }) {
     return (
       <div className="card floor-page" style={{ padding: 20 }}>
         <SectionTitle>{t('spaces.title')}</SectionTitle>
-        <p style={{ fontSize: 13, color: 'var(--text2)' }}>{loadErr || t('spaces.setupHint')}</p>
+        <p style={{ fontSize: 13, color: 'var(--text2)' }}>{asReactText(loadErr) || t('spaces.setupHint')}</p>
         <button type="button" className="btn-primary" onClick={load} style={{ marginTop: 12 }}>{t('common.retry')}</button>
       </div>
     )
@@ -181,7 +182,7 @@ export default function BarSpacesTab({ bar }) {
     <div className="fade-in floor-page">
       <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>{t('spaces.title')}</div>
       <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16 }}>{t('spaces.subtitle')}</div>
-      {loadErr && <div className="pos-sale-err" style={{ marginBottom: 12 }}>{loadErr}</div>}
+      {loadErr && <div className="pos-sale-err" style={{ marginBottom: 12 }}>{asReactText(loadErr)}</div>}
 
       {staleVisits.length > 0 && (
         <div className="floor-stale-banner">

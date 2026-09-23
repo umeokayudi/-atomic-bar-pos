@@ -1,9 +1,10 @@
 import { Component } from 'react'
+import { asReactText, errText } from './lib/errText'
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
-  static getDerivedStateFromError(e) { return { error: e.message } }
+  static getDerivedStateFromError(e) { return { error: errText(e, e?.message || 'Error') } }
   render() {
-    if (this.state.error) return <div style={{padding:20,color:'red',fontSize:14,background:'white',minHeight:'100vh'}}><h2>Error</h2><p>{this.state.error}</p></div>
+    if (this.state.error) return <div style={{padding:20,color:'red',fontSize:14,background:'white',minHeight:'100vh'}}><h2>Error</h2><p>{asReactText(this.state.error)}</p></div>
     return this.props.children
   }
 }
@@ -144,7 +145,7 @@ function Dashboard({ onNav }) {
       setSelMonth(prev => prev || mesAtual)
     } catch (e) {
       console.error('loadStats error', e)
-      setLoadErr(e.message || t('dashboard.loadError'))
+      setLoadErr(errText(e, t('dashboard.loadError')))
     } finally {
       setLoading(false)
     }
@@ -173,7 +174,7 @@ function Dashboard({ onNav }) {
       <div style={{ maxWidth: 520, padding: 24 }}>
         <PortalAlert variant="red">
           <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>{t('dashboard.loadError')}</div>
-          <div style={{ fontSize: 13, opacity: 0.9 }}>{loadErr}</div>
+          <div style={{ fontSize: 13, opacity: 0.9 }}>{asReactText(loadErr)}</div>
         </PortalAlert>
         <button className="btn-primary" onClick={loadStats} style={{ marginTop: 16 }}>{t('common.retry')}</button>
       </div>

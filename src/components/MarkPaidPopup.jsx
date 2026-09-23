@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { fmtYen, fmtDate } from './utils'
 import { savePaidMark } from '../lib/markPaid'
 import { useI18n } from '../lib/i18n'
+import { asReactText, errText } from '../lib/errText'
 
 function todayStr() {
   const d = new Date()
@@ -25,7 +26,7 @@ export default function MarkPaidPopup({ item, onClose, onSaved }) {
       onSaved?.()
       onClose?.()
     } catch (e) {
-      setErr(e.message || t('payMark.error'))
+      setErr(errText(e, t('payMark.error')))
     } finally {
       setBusy(false)
     }
@@ -57,7 +58,7 @@ export default function MarkPaidPopup({ item, onClose, onSaved }) {
           </label>
         )}
 
-        {err && <div className="pay-pop-err">{err}</div>}
+        {err && <div className="pay-pop-err">{asReactText(err)}</div>}
 
         <div className="pay-pop-actions">
           <button type="button" onClick={onClose} disabled={busy}>{t('common.cancel')}</button>

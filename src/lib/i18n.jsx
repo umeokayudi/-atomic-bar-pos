@@ -48,6 +48,7 @@ export function getGlobalLang() {
 export function t(key, vars, lang = globalLang) {
   const dict = LANGS[lang]?.dict || en
   let str = resolveDict(dict, key) ?? resolveDict(en, key) ?? key
+  if (typeof str !== 'string' && !Array.isArray(str)) str = key
   if (vars && typeof str === 'string') {
     Object.entries(vars).forEach(([k, v]) => {
       str = str.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v))

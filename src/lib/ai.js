@@ -1,3 +1,5 @@
+import { errText } from './errText'
+
 async function readApiJson(res) {
   const text = await res.text()
   try {
@@ -14,7 +16,7 @@ export async function callGeminiChat({ messages, system, image, temperature, max
     body: JSON.stringify({ messages, system, image, temperature, maxOutputTokens }),
   })
   const data = await readApiJson(res)
-  if (!res.ok || data.error) return `Error: ${data.error || res.statusText}`
+  if (!res.ok || data.error) return `Error: ${errText(data.error, res.statusText)}`
   return data.text || 'No response'
 }
 

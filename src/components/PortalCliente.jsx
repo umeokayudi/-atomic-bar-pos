@@ -43,6 +43,8 @@ import BarCostsTab, { CostBooksHero, loadCostBooks, BarCommandActions } from './
 import BarOpsGlance from './BarOpsGlance'
 import { buildBarOpsGlance } from '../lib/barOpsGlance'
 import { fetchHqSnapshot } from '../lib/hqSnapshot'
+import { booksAreSeparate } from '../lib/costBooks'
+import { asReactText } from '../lib/errText'
 import { NotificationBell, useBarOverdueAlerts } from './Notifications'
 import BarOrdersTab from './BarOrdersTab'
 import {
@@ -66,8 +68,8 @@ function EasyMoneyCard({ kicker, value, hint, tone = 'navy', children }) {
       borderRadius: 20, padding: '22px 24px',
     }}>
       <div className="easy-dash-kicker">{kicker}</div>
-      <div className="easy-dash-value">{value}</div>
-      {hint && <div className="easy-dash-hint" style={{ color: s.hint }}>{hint}</div>}
+      <div className="easy-dash-value">{asReactText(value)}</div>
+      {hint && <div className="easy-dash-hint" style={{ color: s.hint }}>{asReactText(hint)}</div>}
       {children}
     </div>
   )
@@ -137,7 +139,7 @@ function HomeTab({ bar, onTab }) {
     const snap = await hqP
     if (snap) {
       setHq(snap)
-      setCostBooks(snap.books)
+      setCostBooks(booksAreSeparate(snap.books) ? snap.books : null)
       if (snap?.pos) {
         setPosTickets(snap.pos.tickets || [])
         setPosMonthTotal(snap.pos.till != null ? snap.pos.till : null)
@@ -146,7 +148,7 @@ function HomeTab({ bar, onTab }) {
       setHq(null)
       try {
         const books = await loadCostBooks(bar.id)
-        setCostBooks(books)
+        setCostBooks(booksAreSeparate(books) ? books : null)
       } catch {
         setCostBooks(null)
       }

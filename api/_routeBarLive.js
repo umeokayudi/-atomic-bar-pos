@@ -4,6 +4,18 @@ import { tryDrinksAdminClient, createStaffUserClient } from './_supabaseAdmin.js
 import { handleCorsPreflight, setCorsHeaders } from './_cors.js'
 import { LIVE_TABLES, ensureBarLiveReady, runLiveOp } from './_barLiveStore.js'
 import { resolveBarActor } from './_barLaneAuth.js'
+import { errText } from '../src/lib/errText.js'
+
+function sendResult(res, result) {
+  if (result?.error) {
+    return res.status(400).json({
+      data: result.data ?? null,
+      error: errText(result.error, 'Query failed'),
+      code: result.error.code || undefined,
+    })
+  }
+  return res.status(200).json({ data: result.data, error: null })
+}
 
 const SECRET_TABLES = new Set(['bar_logins', 'bar_sessions'])
 const PG_MENU_TABLES = new Set(['drink_menu', 'bar_pricing', 'bars'])
@@ -92,7 +104,7 @@ export default async function handler(req, res) {
 
   const admin = tryDrinksAdminClient()
   const auth = await resolveBarActor(req, admin)
-  if (auth.error) return res.status(auth.status).json({ error: auth.error })
+  if (auth.error) return res.status(auth.status).json({ error: errText(auth.error, 'Unauthorized') })
 
   const db = admin || (auth.token ? createStaffUserClient(auth.token) : null)
   if (!db) return res.status(500).json({ error: 'Database client unavailable' })
@@ -139,21 +151,15 @@ export default async function handler(req, res) {
 
     if (PG_MENU_TABLES.has(table)) {
       if (spec.mode !== 'select') return res.status(403).json({ error: 'Menu tables are read-only here' })
-      const result = await runPgSelect(db, spec)
-      if (result.error) return res.status(400).json(result)
-      return res.status(200).json({ data: result.data, error: null })
+      return sendResult(res, await runPgSelect(db, spec))
     }
 
     if (!admin) {
-      const result = await runPgOp(db, spec)
-      if (result.error) return res.status(400).json(result)
-      return res.status(200).json({ data: result.data, error: null })
+      return sendResult(res, await runPgOp(db, spec))
     }
 
-    const result = await runLiveOp(admin, spec)
-    if (result.error) return res.status(400).json(result)
-    return res.status(200).json(result)
+    return sendResult(res, await runLiveOp(admin, spec))
   } catch (e) {
-    return res.status(500).json({ error: e.message })
+    return res.status(500).json({ error: errText(e, 'live-db failed') })
   }
 }

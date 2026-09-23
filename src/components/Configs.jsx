@@ -8,6 +8,7 @@ import { SupplierCostHint } from './SupplierPriceCheck'
 import { staffFetch } from '../lib/apiAuth'
 import { AdminPage, PortalSurface } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
+import { asReactText, errText } from '../lib/errText'
 
 // ── PRODUTOS ─────────────────────────────────────────────────────────────────
 export function ProductsTab() {
@@ -206,7 +207,7 @@ export function UsuariosTab() {
   async function loadUsers() {
     const res = await staffFetch('/api/admin-user')
     const json = await res.json()
-    if (!res.ok) throw new Error(json.error || 'Failed to load users')
+    if (!res.ok) throw new Error(errText(json.error, 'Failed to load users'))
     return json.users || []
   }
 
@@ -224,7 +225,7 @@ export function UsuariosTab() {
       setBars(b || [])
       setUsers(u || [])
     } catch (e) {
-      setErr(e.message)
+      setErr(errText(e))
     }
     setLoading(false)
   }
@@ -252,14 +253,14 @@ export function UsuariosTab() {
         }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Update failed')
+      if (!res.ok) throw new Error(errText(json.error, 'Update failed'))
       setMsg(t('configs.userUpdated'))
       setEditId(null)
       setEditPw('')
       load()
       setTimeout(() => setMsg(''), 4000)
     } catch (e) {
-      setErr(e.message)
+      setErr(errText(e))
     }
     setSaving(false)
   }
@@ -295,7 +296,7 @@ export function UsuariosTab() {
       }
     >
 
-      {err && <div style={{background:'#fef2f2',color:'#b91c1c',border:'1px solid #fecaca',borderRadius:8,padding:'10px 16px',marginBottom:16,fontSize:13}}>{err}</div>}
+      {err && <div style={{background:'#fef2f2',color:'#b91c1c',border:'1px solid #fecaca',borderRadius:8,padding:'10px 16px',marginBottom:16,fontSize:13}}>{asReactText(err)}</div>}
       {msg && <div style={{background:'var(--green-bg)',color:'var(--green)',borderRadius:8,padding:'10px 16px',marginBottom:16,fontSize:13}}>{msg}</div>}
 
       {bars.length === 0 && (
@@ -336,13 +337,13 @@ export function UsuariosTab() {
                     body: JSON.stringify({ email: newEmail, password: newPw, nome: form.nome, role: form.role, bar_id: form.bar_id || null })
                   })
                   const json = await res.json()
-                  if (!res.ok) throw new Error(json.error || 'Create failed')
+                  if (!res.ok) throw new Error(errText(json.error, 'Create failed'))
                   setMsg(t('configs.userCreated', { email: newEmail }))
                   setShowNew(false); setNewEmail(''); setNewPw('')
                   setForm({ nome:'', email:'', role:'cliente', bar_id:'' })
                   load()
                   setTimeout(()=>setMsg(''),4000)
-                } catch(e) { setErr(e.message) }
+                } catch(e) { setErr(errText(e)) }
                 setCreating(false)
               }}>
               {creating ? t('configs.creating') : t('configs.createLogin')}

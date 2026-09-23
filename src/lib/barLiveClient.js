@@ -1,5 +1,7 @@
 /** Client wrapper: POS/CRM tables go to /api/bar/live-db when Postgres schema is missing. */
 
+import { errText } from './errText'
+
 export const LIVE_TABLES = new Set([
   'pos_vendas',
   'pos_vendas_itens',
@@ -123,12 +125,13 @@ class LiveQuery {
       if (r.ok && !j.error) return { data: j.data, error: null }
       const fallback = await this.executeRaw()
       if (!fallback.error) return fallback
-      return { data: this.spec.wantSingle ? null : [], error: { message: j.error || j.message || fallback.error?.message || r.statusText, code: 'LIVE' } }
+      const msg = errText(j.error, '') || errText(j.message, '') || errText(fallback.error, r.statusText || 'Error')
+      return { data: this.spec.wantSingle ? null : [], error: { message: msg, code: j.error?.code || fallback.error?.code || 'LIVE' } }
     } catch (e) {
       try {
         return await this.executeRaw()
       } catch {
-        return { data: this.spec.wantSingle ? null : [], error: { message: e.message } }
+        return { data: this.spec.wantSingle ? null : [], error: { message: errText(e, 'Error') } }
       }
     }
   }
@@ -157,7 +160,17 @@ class LiveQuery {
     if (this.spec.limitN != null) q = q.limit(this.spec.limitN)
     if (this.spec.wantSingle === true) q = q.single()
     if (this.spec.wantSingle === 'maybe') q = q.maybeSingle()
-    return q
+    const result = await q
+    if (result?.error) {
+      return {
+        data: this.spec.wantSingle ? null : (result.data || []),
+        error: { message: errText(result.error, 'Query failed'), code: result.error.code || 'PG' },
+        count: result.count,
+        status: result.status,
+        statusText: result.statusText,
+      }
+    }
+    return result
   }
 }
 

@@ -6,6 +6,7 @@ import { getTabletToken, setTabletToken, readGps } from '../lib/tabletDevice'
 import { payrollFromPunches, monthRange, hoursBetween } from '../lib/timeClock'
 import { canManageBarTeam } from '../lib/access'
 import { useI18n } from '../lib/i18n'
+import { asReactText, errText } from '../lib/errText'
 
 function PunchKiosk({ bar, staffIdLocked, lastTipo, onPunched }) {
   const { t } = useI18n()
@@ -26,8 +27,8 @@ function PunchKiosk({ bar, staffIdLocked, lastTipo, onPunched }) {
     if (!token) return
     fetch(`/api/time-clock?roster=1&bar_id=${encodeURIComponent(bar.id)}&tabletToken=${encodeURIComponent(token)}`)
       .then(r => r.json())
-      .then(j => { if (j.staff) setRoster(j.staff); if (j.error) setErr(j.error) })
-      .catch(e => setErr(e.message))
+      .then(j => { if (j.staff) setRoster(j.staff); if (j.error) setErr(errText(j.error)) })
+      .catch(e => setErr(errText(e)))
   }, [bar.id, token])
 
   function pair() {
@@ -58,14 +59,14 @@ function PunchKiosk({ bar, staffIdLocked, lastTipo, onPunched }) {
         }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Punch failed')
+      if (!res.ok) throw new Error(errText(json.error, 'Punch failed'))
       setPin('')
       setMsg(tipo === 'in'
         ? t('clock.punchedIn', { name: json.staff?.nome || '' })
         : t('clock.punchedOut', { name: json.staff?.nome || '' }))
       onPunched?.()
     } catch (e) {
-      setErr(e.message)
+      setErr(errText(e))
     }
     setBusy(false)
   }
@@ -121,7 +122,7 @@ function PunchKiosk({ bar, staffIdLocked, lastTipo, onPunched }) {
         {tipo === 'in' ? t('clock.switchOut') : t('clock.switchIn')}
       </button>
       {msg && <div style={{ marginTop: 12, color: 'var(--green)', fontSize: 13, fontWeight: 700 }}>{msg}</div>}
-      {err && <div style={{ marginTop: 12, color: 'var(--red)', fontSize: 13 }}>{err}</div>}
+      {err && <div style={{ marginTop: 12, color: 'var(--red)', fontSize: 13 }}>{asReactText(err)}</div>}
     </div>
   )
 }
@@ -280,10 +281,10 @@ export default function TimeClockPanel({ bar }) {
       const text = await res.text()
       let json = {}
       try { json = text ? JSON.parse(text) : {} } catch { json = { error: text.slice(0, 160) } }
-      if (!res.ok) throw new Error(json.error || json.message || `Clock failed (${res.status})`)
+      if (!res.ok) throw new Error(errText(json.error, json.message || `Clock failed (${res.status})`))
       await load()
     } catch (e) {
-      setErr(e.message)
+      setErr(errText(e))
     }
     setBusyId('')
   }
@@ -299,7 +300,7 @@ export default function TimeClockPanel({ bar }) {
       body: JSON.stringify({ action: 'createStaff', role: 'bar_staff', cargo: '', ...form, email, password }),
     })
     const json = await res.json()
-    if (!res.ok) setErr(json.error || 'Error')
+    if (!res.ok) setErr(errText(json.error, 'Error'))
     else await load()
     setSaving(false)
   }
@@ -307,7 +308,7 @@ export default function TimeClockPanel({ bar }) {
   return (
     <div className="fade-in">
       <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>{manager ? t('clock.peopleTitle') : t('clock.title')}</div>
-      {err && <div className="pos-sale-err" style={{ marginBottom: 12 }}>{err}</div>}
+      {err && <div className="pos-sale-err" style={{ marginBottom: 12 }}>{asReactText(err)}</div>}
       {loading ? <Spinner /> : manager ? (
         <PeopleFloor
           staff={staff}

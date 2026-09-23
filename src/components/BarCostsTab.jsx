@@ -10,6 +10,7 @@ import { tokyoMonthKey, recentMonthKeys, isMonthKey } from '../lib/tokyo'
 import { compactYen, monthChipHint, matchHqSearch, matchInvoiceStatus } from '../lib/hqFilters'
 import { payrollFromPunches, monthRange, localHoursPay } from '../lib/timeClock'
 import { splitCostBooks } from '../lib/costBooks'
+import { asReactText, errText } from '../lib/errText'
 import { costAccessForRole } from '../lib/access'
 import { fetchHqSnapshot, saveHqRent } from '../lib/hqSnapshot'
 import { useI18n } from '../lib/i18n'
@@ -53,6 +54,7 @@ function BookCard({ kicker, value, hint, tone = 'navy', active, onClick }) {
 
 export function CostBooksHero({ books, access, selected = 'all', onSelect }) {
   const { t } = useI18n()
+  if (!books?.pos || !books?.jbm || !books?.staff) return null
   const pick = id => onSelect?.(selected === id ? 'all' : id)
   return (
     <div className="hq-books-wrap">
@@ -170,7 +172,7 @@ export default function BarCostsTab({ bar, onTab }) {
           body: JSON.stringify({ month: mes }),
         }).then(async r => {
           const j = await r.json()
-          if (!r.ok) throw new Error(j.error || 'Sync failed')
+          if (!r.ok) throw new Error(errText(j.error, 'Sync failed'))
           return j
         })
         : await fetchHqSnapshot(mes)
@@ -182,16 +184,16 @@ export default function BarCostsTab({ bar, onTab }) {
       try {
         const fallback = await loadCostBooks(bar.id, mes)
         setBooks(fallback)
-        setErr(e.message)
+        setErr(errText(e))
       } catch (e2) {
-        setErr(e2.message)
+        setErr(errText(e2))
       }
     }
   }
 
   useEffect(() => {
     let cancelled = false
-    load(false, month).catch(e => { if (!cancelled) setErr(e.message) })
+    load(false, month).catch(e => { if (!cancelled) setErr(errText(e)) })
     return () => { cancelled = true }
   }, [bar.id, month])
 
@@ -241,7 +243,7 @@ export default function BarCostsTab({ bar, onTab }) {
       setBooks(snap.books)
       setRentMsg(t('common.success'))
     } catch (e) {
-      setRentMsg(e.message)
+      setRentMsg(errText(e))
     }
     setBusy(false)
   }
@@ -255,7 +257,7 @@ export default function BarCostsTab({ bar, onTab }) {
       setBooks(snap.books)
       setRentMsg(t('common.success'))
     } catch (e) {
-      setRentMsg(e.message)
+      setRentMsg(errText(e))
     }
     setBusy(false)
   }
@@ -292,7 +294,7 @@ export default function BarCostsTab({ bar, onTab }) {
           {busy ? t('common.wait') : `🔄 ${t('portal.hq.syncNow')}`}
         </button>
       </div>
-      {err && <div style={{ color: 'var(--red)', marginBottom: 12 }}>{err}</div>}
+      {err && <div style={{ color: 'var(--red)', marginBottom: 12 }}>{asReactText(err)}</div>}
 
       <BarOpsGlance
         glance={buildBarOpsGlance({
@@ -443,7 +445,7 @@ export default function BarCostsTab({ bar, onTab }) {
               {hq?.rent?.last && !hq?.rent?.amount && (
                 <button type="button" className="hq-chip" style={{ marginTop: 10 }} disabled={busy} onClick={copyLastRent}>{t('portal.hq.rentCopy')}</button>
               )}
-              {rentMsg && <div style={{ marginTop: 10, fontSize: 12, color: rentMsg === t('common.success') ? 'var(--green)' : 'var(--red)' }}>{rentMsg}</div>}
+              {rentMsg && <div style={{ marginTop: 10, fontSize: 12, color: rentMsg === t('common.success') ? 'var(--green)' : 'var(--red)' }}>{asReactText(rentMsg)}</div>}
             </div>
           )}
           {show('jbm') && hq?.jbm && (

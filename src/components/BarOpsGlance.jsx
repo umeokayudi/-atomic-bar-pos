@@ -1,6 +1,7 @@
 import { fmtYen } from './utils'
 import { useI18n } from '../lib/i18n'
 import { opsGlanceItems, OPS_KPI_ROWS } from '../lib/barOpsGlance'
+import { asReactText } from '../lib/errText'
 
 export default function BarOpsGlance({ glance, onTab }) {
   const { t } = useI18n()
@@ -39,9 +40,9 @@ export default function BarOpsGlance({ glance, onTab }) {
                 className={`ops-kpi${it.warn ? ' is-warn' : ''}`}
                 onClick={() => onTab?.(it.tab)}
               >
-                <span className="ops-kpi-kicker">{it.kicker}</span>
-                <span className="ops-kpi-value">{it.value}</span>
-                {it.hint && <span className="ops-kpi-hint">{it.hint}</span>}
+                <span className="ops-kpi-kicker">{asReactText(it.kicker)}</span>
+                <span className="ops-kpi-value">{asReactText(it.value)}</span>
+                {it.hint && <span className="ops-kpi-hint">{asReactText(it.hint)}</span>}
               </button>
             )
           })}

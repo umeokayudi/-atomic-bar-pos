@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { callGeminiChat } from '../lib/ai'
 import { buildHqChatSystem, localHqAnswer } from '../lib/hqSnapshot'
 import { useI18n } from '../lib/i18n'
+import { asReactText } from '../lib/errText'
 
 export default function HqAiDock({ snapshot, compact = false, strip = false }) {
   const { t } = useI18n()
@@ -79,13 +80,13 @@ export default function HqAiDock({ snapshot, compact = false, strip = false }) {
       {!strip && (
         <div ref={listRef} className="hq-ai-log">
           {messages.map((m, i) => (
-            <div key={i} className={`hq-ai-bubble hq-ai-${m.role}`}>{m.content}</div>
+            <div key={i} className={`hq-ai-bubble hq-ai-${m.role}`}>{asReactText(m.content)}</div>
           ))}
           {busy && <div className="hq-ai-bubble hq-ai-assistant">{t('portal.aiThinking')}</div>}
         </div>
       )}
       {strip && (
-        <div className="hq-ai-strip-line">{messages[messages.length - 1]?.content || t('portal.hq.aiHello')}</div>
+        <div className="hq-ai-strip-line">{asReactText(messages[messages.length - 1]?.content) || t('portal.hq.aiHello')}</div>
       )}
       <div className="hq-ai-compose">
         <input

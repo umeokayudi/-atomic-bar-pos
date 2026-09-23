@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmtYen, fmtDate, Spinner, Empty, SectionTitle } from './utils'
 import { useI18n } from '../lib/i18n'
+import { asReactText, errText } from '../lib/errText'
 import {
   GUEST_TAGS,
   searchGuests,
@@ -49,7 +50,7 @@ export default function BarGuestsTab({ bar }) {
       ]))
       const err = gR.error || sR.error
       if (err && crmTableMissing(err)) {
-        setReady({ ready: false, error: err.message })
+        setReady({ ready: false, error: errText(err) })
         setGuests([])
         setSales([])
         setVips([])
@@ -60,11 +61,11 @@ export default function BarGuestsTab({ bar }) {
         setSales(sR.data || [])
         setVips(vR.data || [])
         setKeeps(kR.error ? [] : (kR.data || []))
-        if (err) setLoadErr(err.message)
+        if (err) setLoadErr(errText(err))
       }
     } catch (e) {
-      setReady({ ready: false, error: e.message })
-      setLoadErr(e.message || t('guests.loadError'))
+      setReady({ ready: false, error: errText(e) })
+      setLoadErr(errText(e, t('guests.loadError')))
     } finally {
       setLoading(false)
     }
@@ -148,7 +149,7 @@ export default function BarGuestsTab({ bar }) {
     return (
       <div className="card guests-book" style={{ padding: 20 }}>
         <SectionTitle>{t('guests.title')}</SectionTitle>
-        <p style={{ fontSize: 13, color: 'var(--text2)' }}>{loadErr || t('guests.setupHint')}</p>
+        <p style={{ fontSize: 13, color: 'var(--text2)' }}>{asReactText(loadErr) || t('guests.setupHint')}</p>
         <button type="button" className="btn-primary" onClick={load} style={{ marginTop: 12 }}>{t('common.retry')}</button>
       </div>
     )
@@ -162,7 +163,7 @@ export default function BarGuestsTab({ bar }) {
     <div className="fade-in guests-book">
       <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>{t('guests.title')}</div>
       <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16 }}>{t('guests.subtitle')}</div>
-      {loadErr && <div className="pos-sale-err" style={{ marginBottom: 12 }}>{loadErr}</div>}
+      {loadErr && <div className="pos-sale-err" style={{ marginBottom: 12 }}>{asReactText(loadErr)}</div>}
 
       {(todayBirthdays.length > 0 || monthBirthdays.length > 0) && (
         <div className="card" style={{ marginBottom: 16, padding: 14 }}>
