@@ -7,6 +7,7 @@ import { splitPendingCompras, splitPendingFaturas } from '../lib/compraPagamento
 import { filterJbmDrinksFaturas, faturaRemaining } from '../lib/barPortal'
 import { useI18n } from '../lib/i18n'
 import { asReactText } from '../lib/errText'
+import { panelBoxStyle, placeNotifPanel } from '../lib/notifPanel'
 
 export function useNotifications() {
   const { user } = useAuth()
@@ -182,6 +183,7 @@ export function NotificationBell({
   placement = 'sidebar',
 }) {
   const { t } = useI18n()
+  const list = Array.isArray(notifs) ? notifs : []
   const [open, setOpen] = useState(false)
   const btnRef = useRef(null)
   const panelRef = useRef(null)
@@ -207,7 +209,7 @@ export function NotificationBell({
 
   useLayoutEffect(() => {
     place()
-  }, [place, notifs.length, overdueCount])
+  }, [place, list.length, overdueCount])
 
   useEffect(() => {
     if (!open) return
@@ -248,7 +250,7 @@ export function NotificationBell({
         <div className="notif-panel-header">
           <span className="notif-panel-title">{t('notifications.title')}</span>
           <div className="notif-panel-actions">
-            {notifs.some(n => n.lida) && deleteAll && (
+            {list.some(n => n.lida) && deleteAll && (
               <button type="button" className="notif-panel-link" onClick={deleteAll}>{t('notifications.clearRead')}</button>
             )}
             {unread > 0 && (
@@ -293,9 +295,9 @@ export function NotificationBell({
             </div>
           )}
 
-          {notifs.length === 0 && overdueCount === 0 ? (
+          {list.length === 0 && overdueCount === 0 ? (
             <div className="notif-empty">{t('notifications.none')}</div>
-          ) : notifs.map(n => {
+          ) : list.map(n => {
             const tipo = TIPO_ICON[n.tipo] || { icon: '🔔', color: 'var(--text2)', bg: 'var(--bg3)' }
             const tab = notifTab(n.link)
             return (

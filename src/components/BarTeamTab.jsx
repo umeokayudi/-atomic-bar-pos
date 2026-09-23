@@ -7,7 +7,7 @@ import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 import { postClockMark } from './TimeClock'
 
-export default function BarTeamTab({ bar }) {
+export default function BarTeamTab({ bar, embedded = false }) {
   const { perfil } = useAuth()
   const { t } = useI18n()
   const [staff, setStaff] = useState([])
@@ -123,8 +123,8 @@ export default function BarTeamTab({ bar }) {
 
   return (
     <div className="fade-in">
-      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>{t('team.title')}</div>
-      <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16, maxWidth: 560 }}>{t('team.subtitle')}</div>
+      {!embedded && <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>{t('team.title')}</div>}
+      {!embedded && <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16, maxWidth: 560 }}>{t('team.subtitle')}</div>}
       {err && <div className="pos-sale-err" style={{ marginBottom: 12 }}>{asReactText(err)}</div>}
 
       <div className="card" style={{ marginBottom: 16 }}>
@@ -199,7 +199,7 @@ export default function BarTeamTab({ bar }) {
         {!loading && !staff.length && <div style={{ padding: 16, color: 'var(--text3)', fontSize: 13 }}>{t('clock.noStaff')}</div>}
       </div>
 
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      {!embedded && <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '14px 16px 0' }}>
           <SectionTitle>{t('team.manualClock')}</SectionTitle>
           <p style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 8 }}>{t('team.manualHint')}</p>
@@ -239,7 +239,7 @@ export default function BarTeamTab({ bar }) {
             )}
           </>
         )}
-      </div>
+      </div>}
     </div>
   )
 }

@@ -29,6 +29,7 @@ import BarOwnerAi from './BarOwnerAi'
 import AtomicPosPanel from './AtomicPos'
 import TimeClockPanel from './TimeClock'
 import BarTeamTab from './BarTeamTab'
+import BarHouseTab from './BarHouse'
 import BarGuestsTab from './BarGuestsTab'
 import BarSpacesTab from './BarSpacesTab'
 import { fetchAllStockMovements } from '../lib/posSupply'
@@ -2120,7 +2121,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   }, [])
 
   function selectTab(id) {
-    setTab(id)
+    setTab(id === 'equipe' ? 'casa' : id)
     setMenuOpen(false)
   }
 
@@ -2220,7 +2221,8 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
           <HomeTab bar={bar} onTab={selectTab} />
         )}
         {tab==='pos'       && posAccess !== 'none' && <AtomicPosPanel bar={bar} onOrder={posAccess === 'owner' ? () => selectTab('pedidos') : undefined} access={posAccess} />}
-        {tab==='ponto'     && <TimeClockPanel bar={bar} onOpenStaff={() => selectTab('equipe')} />}
+        {tab==='ponto'     && <TimeClockPanel bar={bar} onOpenStaff={() => selectTab('casa')} />}
+        {tab==='casa'      && canManageBarTeam(perfil?.role) && <BarHouseTab bar={bar} onTab={selectTab} />}
         {tab==='equipe'    && canManageBarTeam(perfil?.role) && <BarTeamTab bar={bar} />}
         {tab==='clientes'  && canManageBarTeam(perfil?.role) && <BarGuestsTab bar={bar} />}
         {tab==='espacos'   && canManageBarTeam(perfil?.role) && <BarSpacesTab bar={bar} />}
