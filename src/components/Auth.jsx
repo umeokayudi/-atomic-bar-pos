@@ -77,14 +77,14 @@ export function AuthProvider({ children }) {
     setLoading(false)
   }
 
-  async function signIn(email, password, { keep } = {}) {
+  async function signIn(email, password) {
     const e = String(email || '').trim().toLowerCase()
     const p = String(password || '')
 
     if (isLaneEmail(e)) {
       const lane = await tryLaneLogin(e, p)
       if (lane.error) return lane
-      writeLaneSession(lane.token, lane.perfil, !!keep)
+      writeLaneSession(lane.token, lane.perfil, false)
       applyLane(lane.perfil)
       return { error: null, perfil: lane.perfil }
     }
@@ -157,7 +157,6 @@ export function LoginPage() {
   const { t } = useI18n()
   const [email, setEmail] = useState('')
   const [pass,  setPass]  = useState('')
-  const [keep,  setKeep]  = useState(true)
   const [err,   setErr]   = useState('')
   const [busy,  setBusy]  = useState(false)
 
@@ -169,7 +168,7 @@ export function LoginPage() {
     }
     setBusy(true)
     try {
-      const { error, perfil } = await signIn(email, pass, { keep })
+      const { error, perfil } = await signIn(email, pass)
       if (error) {
         const msg = String(error.message || '').toLowerCase()
         if (msg.includes('api key') || msg.includes('jwt') || msg.includes('not configured')) {
@@ -254,11 +253,6 @@ export function LoginPage() {
               onKeyDown={e => e.key === 'Enter' && submit()}
             />
           </div>
-          <label className="login-keep">
-            <input type="checkbox" checked={keep} onChange={e => setKeep(e.target.checked)} />
-            {t('auth.keepTablet')}
-          </label>
-
           {err && (
             <div style={{
               fontSize: 13, marginBottom: 16, padding: '10px 14px', borderRadius: 8,
