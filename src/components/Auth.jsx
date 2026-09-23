@@ -145,7 +145,7 @@ function LoginLanguagePicker() {
             cursor: 'pointer',
           }}
         >
-          {opt.id === 'ja' ? t('shell.langJaOptional') : opt.label}
+          {opt.label}
         </button>
       ))}
     </div>

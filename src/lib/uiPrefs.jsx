@@ -16,11 +16,21 @@ function detectDevice() {
   return { device, pointer, orientation }
 }
 
+function layoutFromDevice(device) {
+  if (device === 'phone') return LAYOUTS.mobile
+  if (device === 'tablet') return LAYOUTS.tablet
+  return LAYOUTS.desktop
+}
+
 function applyDeviceAttrs() {
   const { device, pointer, orientation } = detectDevice()
+  const layout = layoutFromDevice(device)
   document.documentElement.setAttribute('data-device', device)
   document.documentElement.setAttribute('data-pointer', pointer)
   document.documentElement.setAttribute('data-orientation', orientation)
+  document.documentElement.setAttribute('data-layout', layout)
+  try { localStorage.removeItem(LAYOUT_KEY) } catch { /* ignore */ }
+  return layout
 }
 
 function loadTheme() {
@@ -32,15 +42,17 @@ function loadTheme() {
 
 const UiPrefsContext = createContext({
   theme: THEMES.modern,
-  layout: LAYOUTS.auto,
+  layout: LAYOUTS.desktop,
   setTheme: () => {},
-  setLayout: () => {},
   toggleTheme: () => {},
 })
 
 export function UiPrefsProvider({ children }) {
   const [theme, setThemeState] = useState(loadTheme)
-  const [layout, setLayoutState] = useState(() => localStorage.getItem(LAYOUT_KEY) || LAYOUTS.auto)
+  const [layout, setLayoutState] = useState(() => {
+    if (typeof window === 'undefined') return LAYOUTS.desktop
+    return layoutFromDevice(detectDevice().device)
+  })
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -48,13 +60,8 @@ export function UiPrefsProvider({ children }) {
   }, [theme])
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-layout', layout)
-    localStorage.setItem(LAYOUT_KEY, layout)
-  }, [layout])
-
-  useEffect(() => {
-    applyDeviceAttrs()
-    const onChange = () => applyDeviceAttrs()
+    const onChange = () => setLayoutState(applyDeviceAttrs())
+    onChange()
     window.addEventListener('resize', onChange)
     window.addEventListener('orientationchange', onChange)
     const mq = window.matchMedia('(pointer: coarse)')
@@ -74,12 +81,8 @@ export function UiPrefsProvider({ children }) {
     setThemeState(t => t === THEMES.modern ? THEMES.classic : THEMES.modern)
   }
 
-  function setLayout(l) {
-    setLayoutState(Object.values(LAYOUTS).includes(l) ? l : LAYOUTS.auto)
-  }
-
   return (
-    <UiPrefsContext.Provider value={{ theme, layout, setTheme, setLayout, toggleTheme }}>
+    <UiPrefsContext.Provider value={{ theme, layout, setTheme, toggleTheme }}>
       {children}
     </UiPrefsContext.Provider>
   )

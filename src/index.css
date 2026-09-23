@@ -1455,6 +1455,9 @@ body.menu-open {
   flex-direction: column;
   gap: 8px;
   margin-bottom: 12px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .theme-toggle {
@@ -1524,6 +1527,22 @@ body.menu-open {
   border-radius: 10px;
   border: 1px solid rgba(193,156,86,0.2);
   background: rgba(0,0,0,0.15);
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.theme-toggle {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.theme-pill,
+.layout-pill {
+  flex-shrink: 1;
+  flex-wrap: wrap;
+  max-width: 100%;
 }
 
 .layout-pill button {

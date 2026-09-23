@@ -15,12 +15,13 @@
         var t = localStorage.getItem('jbm_drinks_theme') || 'modern';
         if (t === 'light') t = 'modern';
         if (t === 'dark') t = 'classic';
-        var l = localStorage.getItem('jbm_drinks_layout') || 'auto';
         var lang = localStorage.getItem('jbm_drinks_lang') === 'ja' ? 'ja' : 'en';
         var w = window.innerWidth;
         var device = w < 768 ? 'phone' : w < 1280 ? 'tablet' : 'desktop';
+        var layout = device === 'phone' ? 'mobile' : device;
+        try { localStorage.removeItem('jbm_drinks_layout'); } catch (e) {}
         document.documentElement.setAttribute('data-theme', t);
-        document.documentElement.setAttribute('data-layout', l);
+        document.documentElement.setAttribute('data-layout', layout);
         document.documentElement.setAttribute('data-device', device);
         document.documentElement.setAttribute('data-pointer', window.matchMedia('(pointer: coarse)').matches ? 'coarse' : 'fine');
         document.documentElement.setAttribute('data-orientation', window.innerHeight >= window.innerWidth ? 'portrait' : 'landscape');
