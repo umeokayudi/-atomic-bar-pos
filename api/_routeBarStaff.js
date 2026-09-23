@@ -90,7 +90,7 @@ export default async function handler(req, res) {
       if (!extras.ok && extras.error) {
         return res.status(400).json({ error: extras.error })
       }
-      return res.status(200).json({ ok: true, id: uid })
+      return res.status(200).json({ ok: true, id: uid, email: String(email).trim().toLowerCase(), password, nome })
     }
 
     if (req.method === 'PATCH') {

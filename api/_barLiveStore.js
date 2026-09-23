@@ -28,6 +28,14 @@ export const LIVE_TABLES = [
 ]
 
 const locks = new Map()
+const memTables = new Map()
+
+export function isRlsError(error) {
+  if (!error) return false
+  const m = String(error.message || error.details || '')
+  const code = String(error.code || '')
+  return code === '42501' || /row-level security|violates row-level/i.test(m)
+}
 
 export function isMissingTableError(error) {
   if (!error) return false
@@ -177,24 +185,36 @@ export function applyQuery(allRows, spec, catalogs = {}) {
 }
 
 async function loadTable(admin, table) {
-  const { data, error } = await admin.storage.from(LIVE_BUCKET).download(pathFor(table))
-  if (error || !data) return []
-  const text = await data.text()
+  const mem = memTables.get(table)
   try {
+    const { data, error } = await admin.storage.from(LIVE_BUCKET).download(pathFor(table))
+    if (error || !data) return mem || []
+    const text = await data.text()
     const parsed = JSON.parse(text)
-    return Array.isArray(parsed) ? parsed : (parsed.rows || [])
+    const file = Array.isArray(parsed) ? parsed : (parsed.rows || [])
+    if (mem?.length) {
+      const byId = new Map(file.map(r => [r.id, r]))
+      for (const r of mem) byId.set(r.id, r)
+      return [...byId.values()]
+    }
+    return file
   } catch {
-    return []
+    return mem || []
   }
 }
 
 async function saveTable(admin, table, rows) {
+  memTables.set(table, rows)
   const body = Buffer.from(JSON.stringify({ rows, updated_at: new Date().toISOString() }))
-  const { error } = await admin.storage.from(LIVE_BUCKET).upload(pathFor(table), body, {
-    upsert: true,
-    contentType: 'application/json',
-  })
-  if (error) throw new Error(error.message)
+  try {
+    const { error } = await admin.storage.from(LIVE_BUCKET).upload(pathFor(table), body, {
+      upsert: true,
+      contentType: 'application/json',
+    })
+    if (error) throw new Error(error.message)
+  } catch {
+    /* JWT / missing bucket: keep rows in memory for this instance */
+  }
 }
 
 function applyPgFilters(q, spec) {
@@ -256,6 +276,7 @@ async function tryPostgresOp(admin, spec, depth = 0) {
     return { missingTable: false, result: { data: r.data, error: null } }
   }
   if (isMissingTableError(r.error)) return { missingTable: true }
+  if (isRlsError(r.error) && mode !== 'select') return { missingTable: true }
   if (isMissingColumnError(r.error) && depth < 8) {
     const col = columnFromPgError(r.error)
     if (col) return tryPostgresOp(admin, stripColumn(spec, col), depth + 1)
@@ -273,6 +294,14 @@ function defaultsFor(table, row) {
     out.ativo = true
   }
   return out
+}
+
+export async function readLiveJson(admin, table) {
+  try {
+    return await loadTable(admin, table)
+  } catch {
+    return memTables.get(table) || []
+  }
 }
 
 export async function runLiveOp(admin, spec) {

@@ -33,7 +33,7 @@ import BarGuestsTab from './BarGuestsTab'
 import BarSpacesTab from './BarSpacesTab'
 import { fetchAllStockMovements } from '../lib/posSupply'
 import { coalesceStockMoves, decorateStockList, deliveryNoteMoves, posPourMoves, stockFlow, stockGlance } from '../lib/barStock'
-import { groupedNavForRole, primaryDockForRole, defaultBarTab, posAccessForRole, canManageBarTeam, isGerente, costAccessForRole } from '../lib/access'
+import { groupedNavForRole, primaryDockForRole, defaultBarTab, posAccessForRole, canManageBarTeam, isGerente, costAccessForRole, canPlaceDrinkOrders } from '../lib/access'
 import { isTillKiosk, isClockKiosk, loginDoorFromHash, setDoorHash, doorAllowsRole } from '../lib/barDoors'
 import UiPrefsPanel from './UiPrefsPanel'
 import { useI18n } from '../lib/i18n'
@@ -2220,11 +2220,11 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
           <HomeTab bar={bar} onTab={selectTab} />
         )}
         {tab==='pos'       && posAccess !== 'none' && <AtomicPosPanel bar={bar} onOrder={posAccess === 'owner' ? () => selectTab('pedidos') : undefined} access={posAccess} />}
-        {tab==='ponto'     && <TimeClockPanel bar={bar} />}
+        {tab==='ponto'     && <TimeClockPanel bar={bar} onOpenStaff={() => selectTab('equipe')} />}
         {tab==='equipe'    && canManageBarTeam(perfil?.role) && <BarTeamTab bar={bar} />}
         {tab==='clientes'  && canManageBarTeam(perfil?.role) && <BarGuestsTab bar={bar} />}
         {tab==='espacos'   && canManageBarTeam(perfil?.role) && <BarSpacesTab bar={bar} />}
-        {tab==='pedidos'   && canManageBarTeam(perfil?.role) && <BarOrdersTab bar={bar} />}
+        {tab==='pedidos'   && canPlaceDrinkOrders(perfil?.role) && <BarOrdersTab bar={bar} />}
         {tab==='entregas'  && canManageBarTeam(perfil?.role) && <DeliveriesTab bar={bar} />}
         {tab==='estoque'   && canManageBarTeam(perfil?.role) && <InventoryTab bar={bar} onOrder={()=>selectTab('pedidos')} />}
         {tab==='precos'    && canManageBarTeam(perfil?.role) && <PrecosCardapioTab bar={bar} />}

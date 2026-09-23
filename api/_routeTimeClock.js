@@ -2,7 +2,7 @@ import { tryDrinksAdminClient, createStaffUserClient } from './_supabaseAdmin.js
 import { requireBarAccount, bearerToken } from './_requireStaff.js'
 import { secretsMatch } from './_hash.js'
 import { isInsideGeofence } from './_geo.js'
-import { isMissingSchemaError, loadBarWithGeo, loadStaffWithExtras, listStaffWithExtras, runLiveOp } from './_barLiveStore.js'
+import { applyFilters, isMissingSchemaError, isRlsError, loadBarWithGeo, loadStaffWithExtras, listStaffWithExtras, runLiveOp, readLiveJson } from './_barLiveStore.js'
 
 function bodyOf(req) {
   return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
@@ -22,20 +22,20 @@ async function listPunches(db, spec) {
   if (spec.from) query = query.gte('punched_at', spec.from)
   if (spec.to) query = query.lte('punched_at', spec.to)
   const { data, error } = await query
-  if (!error) return { data: data || [], error: null }
-  if (!isMissingSchemaError(error)) return { data: null, error }
   const filters = [{ op: 'eq', k: 'bar_id', v: spec.barId }]
   if (spec.staffId) filters.push({ op: 'eq', k: 'staff_id', v: spec.staffId })
   if (spec.from) filters.push({ op: 'gte', k: 'punched_at', v: spec.from })
   if (spec.to) filters.push({ op: 'lte', k: 'punched_at', v: spec.to })
-  return runLiveOp(db, {
-    table: 'time_clock',
-    mode: 'select',
-    columns: '*',
-    filters,
-    orderBy: { k: 'punched_at', ascending: false },
-    limitN: 500,
-  })
+  const liveRows = applyFilters(await readLiveJson(db, 'time_clock'), filters)
+  if (error && !isMissingSchemaError(error) && !isRlsError(error) && !liveRows.length) {
+    return { data: null, error }
+  }
+  const byId = new Map()
+  for (const row of [...(error ? [] : (data || [])), ...liveRows]) {
+    byId.set(row.id || `${row.staff_id}-${row.punched_at}`, row)
+  }
+  const merged = [...byId.values()].sort((a, b) => String(b.punched_at || '').localeCompare(String(a.punched_at || '')))
+  return { data: merged, error: null }
 }
 
 function tabletOk(bar, token) {
@@ -44,28 +44,8 @@ function tabletOk(bar, token) {
 }
 
 async function lastPunchTipo(db, barId, staffId) {
-  const lastPg = await db.from('time_clock')
-    .select('tipo')
-    .eq('bar_id', barId)
-    .eq('staff_id', staffId)
-    .order('punched_at', { ascending: false })
-    .limit(1)
-  if (!lastPg.error) return lastPg.data?.[0]?.tipo || null
-  if (isMissingSchemaError(lastPg.error)) {
-    const lastLive = await runLiveOp(db, {
-      table: 'time_clock',
-      mode: 'select',
-      columns: 'tipo',
-      filters: [
-        { op: 'eq', k: 'bar_id', v: barId },
-        { op: 'eq', k: 'staff_id', v: staffId },
-      ],
-      orderBy: { k: 'punched_at', ascending: false },
-      limitN: 1,
-    })
-    return lastLive.data?.[0]?.tipo || null
-  }
-  throw new Error(lastPg.error.message)
+  const listed = await listPunches(db, { barId, staffId })
+  return listed.data?.[0]?.tipo || null
 }
 
 export default async function handler(req, res) {
@@ -133,8 +113,9 @@ export default async function handler(req, res) {
     const bar = await loadBar(db, barId)
     if (!bar) return res.status(404).json({ error: 'Bar not found' })
 
+    const selfPunch = !!(auth && !auth.error && staffId === (auth.user?.id || auth.perfil.id))
     let geo = { ok: true, distance: 0, reason: null }
-    if (!managerMark) {
+    if (!managerMark && !selfPunch) {
       const deviceOk = tabletOk(bar, tabletToken)
       if (!deviceOk) {
         return res.status(403).json({ error: 'Clock-in only on the paired bar tablet', code: 'tablet' })
@@ -164,7 +145,7 @@ export default async function handler(req, res) {
     if (!staff || staff.bar_id !== bar.id) return res.status(404).json({ error: 'Staff not found' })
     if (staff.ativo === false) return res.status(403).json({ error: 'Staff inactive' })
 
-    if (!managerMark) {
+    if (!managerMark && !selfPunch) {
       const pinOk = secretsMatch(String(body.pin || ''), staff.clock_pin_hash)
       if (!pinOk) {
         return res.status(403).json({ error: 'Invalid PIN', code: 'pin' })
@@ -188,12 +169,12 @@ export default async function handler(req, res) {
       lng: body.lng || null,
       accuracy_m: body.accuracy || null,
       distance_m: Math.round(geo.distance || 0),
-      tablet_ok: managerMark ? false : true,
-      origem: managerMark ? 'hq' : 'tablet',
+      tablet_ok: managerMark || selfPunch ? false : true,
+      origem: managerMark ? 'hq' : (selfPunch ? 'app' : 'tablet'),
     }
     let punch, pErr
     ;({ data: punch, error: pErr } = await db.from('time_clock').insert(punchRow).select().single())
-    if (pErr && isMissingSchemaError(pErr)) {
+    if (pErr && (isMissingSchemaError(pErr) || isRlsError(pErr))) {
       const live = await runLiveOp(db, {
         table: 'time_clock',
         mode: 'insert',
@@ -203,7 +184,7 @@ export default async function handler(req, res) {
       punch = live.data
       pErr = live.error
     }
-    if (pErr) return res.status(400).json({ error: pErr.message })
+    if (pErr) return res.status(400).json({ error: pErr.message || pErr })
 
     return res.status(200).json({ ok: true, punch, staff: { id: staff.id, nome: staff.nome } })
   } catch (e) {

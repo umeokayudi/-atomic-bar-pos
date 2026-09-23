@@ -3928,6 +3928,14 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
   gap: 8px;
   margin-bottom: 8px;
 }
+.created-login {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(26, 78, 138, 0.08);
+  font-size: 13px;
+  line-height: 1.5;
+}
 @media (max-width: 800px) {
   .people-row { grid-template-columns: 1fr; }
   .people-add { grid-template-columns: 1fr; }

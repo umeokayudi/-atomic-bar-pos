@@ -96,14 +96,14 @@ export function isTillKiosk(role, door = loginDoorFromHash()) {
   return false
 }
 
-export function isClockKiosk(role) {
-  return role === 'bar_staff'
+export function isClockKiosk(_role) {
+  return false
 }
 
 export function doorAllowsRole(door, role) {
   if (!door) return true
-  if (door === 'pos') return role === 'caixa' || role === 'cliente' || role === 'gerente'
-  if (door === 'clock') return role === 'bar_staff'
+  if (door === 'pos') return role === 'caixa' || role === 'cliente' || role === 'gerente' || role === 'bar_staff'
+  if (door === 'clock') return role === 'bar_staff' || role === 'cliente' || role === 'gerente'
   if (door === 'gerente') return role === 'cliente' || role === 'gerente'
   if (door === 'jbm') return role === 'admin' || role === 'funcionario' || role === 'staff'
   return true

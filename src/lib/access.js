@@ -48,13 +48,14 @@ const GERENTE_NAV = [
   { id: 'custos', labelKey: 'nav.portalCosts', icon: '🏛️' },
   { id: 'precos', labelKey: 'nav.portalPrices', icon: '💰' },
   { id: 'recibos', labelKey: 'nav.portalReceipts', icon: '🧾' },
+  { id: 'equipe', labelKey: 'nav.portalTeam', icon: '👤' },
   { id: 'ia', labelKey: 'nav.portalAi', icon: '🤖' },
 ]
 
 const NAV_GROUPS = [
   { id: 'tonight', labelKey: 'nav.groupTonight', ids: ['inicio', 'ia', 'pos', 'pedidos', 'espacos', 'clientes', 'ponto'] },
   { id: 'supply', labelKey: 'nav.groupSupply', ids: ['estoque', 'entregas', 'faturas'] },
-  { id: 'office', labelKey: 'nav.groupOffice', ids: ['custos', 'precos', 'recibos'] },
+  { id: 'office', labelKey: 'nav.groupOffice', ids: ['custos', 'precos', 'recibos', 'equipe'] },
 ]
 
 const CAIXA_NAV = [
@@ -63,6 +64,8 @@ const CAIXA_NAV = [
 
 const STAFF_NAV = [
   { id: 'ponto', labelKey: 'nav.portalClock', icon: '🕒' },
+  { id: 'pos', labelKey: 'nav.portalPos', icon: '🧾' },
+  { id: 'pedidos', labelKey: 'nav.portalOrders', icon: '🛒' },
 ]
 
 export function navForBarRole(role) {
@@ -84,7 +87,14 @@ export function groupedNavForRole(role) {
 }
 
 export function primaryDockForRole(role) {
-  if (role === ROLES.caixa || role === ROLES.bar_staff) return []
+  if (role === ROLES.caixa) return []
+  if (role === ROLES.bar_staff) {
+    return [
+      { id: 'ponto', icon: '🕒', labelKey: 'nav.portalClock' },
+      { id: 'pos', icon: '🧾', labelKey: 'nav.portalPos' },
+      { id: 'pedidos', icon: '🛒', labelKey: 'nav.portalOrders' },
+    ]
+  }
   return [
     { id: 'inicio', icon: '🏠', labelKey: 'nav.portalHome' },
     { id: 'ia', icon: '🤖', labelKey: 'nav.portalAi' },
@@ -95,9 +105,13 @@ export function primaryDockForRole(role) {
 }
 
 export function posAccessForRole(role) {
-  if (role === ROLES.caixa) return 'cashier'
+  if (role === ROLES.caixa || role === ROLES.bar_staff) return 'cashier'
   if (isGerente(role)) return 'owner'
   return 'none'
+}
+
+export function canPlaceDrinkOrders(role) {
+  return isGerente(role) || role === ROLES.bar_staff
 }
 
 export function canManageBarTeam(role) {
