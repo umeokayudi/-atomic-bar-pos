@@ -13,7 +13,7 @@ function kindColor(kind, dir, amount) {
   return 'var(--navy)'
 }
 
-export default function DashboardCalendar({ events = [], onNav, month, onMonthChange }) {
+export default function DashboardCalendar({ events = [], onNav, month, onMonthChange, onPay }) {
   const { t } = useI18n()
   const [filter, setFilter] = useState('all')
   const [openDay, setOpenDay] = useState(null)
@@ -157,7 +157,20 @@ export default function DashboardCalendar({ events = [], onNav, month, onMonthCh
               key={`${ev.kind}-${ev.id}-${ev.date}`}
               type="button"
               className="dash-cal-row"
-              onClick={() => onNav?.(ev.tab)}
+              onClick={() => {
+                if (ev.payType && onPay) {
+                  onPay({
+                    type: ev.payType,
+                    id: ev.payId || ev.id,
+                    label: ev.label,
+                    amount: ev.amount,
+                    dueDate: ev.date,
+                    paid: ev.status === 'pago',
+                  })
+                  return
+                }
+                onNav?.(ev.tab)
+              }}
             >
               <span className="dash-cal-row-kind" style={{ color: kindColor(ev.kind, ev.dir, ev.amount) }}>
                 {labels[ev.kind] || ev.kind}

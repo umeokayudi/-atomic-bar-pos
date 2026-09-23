@@ -275,6 +275,7 @@ export function buildDashboardCalendar({
   faturas = [],
   pagamentos = [],
   bars = [],
+  fornecedores = [],
 } = {}) {
   const barMap = Object.fromEntries((bars || []).map(b => [b.id, b]))
   const events = []
@@ -333,37 +334,76 @@ export function buildDashboardCalendar({
       status: p.confirmado === false ? 'pendente' : 'pago',
       tab: 'faturas',
       id: p.id,
+      payType: p.fatura_id ? 'fatura' : null,
+      payId: p.fatura_id || null,
     })
   }
 
   for (const f of faturas) {
-    if (f.status !== 'pago') continue
-    if (f.id && paidFaturaIds.has(f.id)) continue
-    const date = dayKey(f.data_pagamento || f.pago_em || f.data_vencimento || f.periodo_fim)
+    if (f.status === 'pago') {
+      if (f.id && paidFaturaIds.has(f.id)) continue
+      const date = dayKey(f.data_pagamento || f.pago_em || f.data_vencimento || f.periodo_fim)
+      pushCal(events, {
+        date,
+        kind: 'pagamento',
+        dir: 'in',
+        amount: +f.pago || +f.valor || +f.total || 0,
+        label: f.bars?.nome || 'Fatura',
+        status: 'pago',
+        tab: 'faturas',
+        id: f.id,
+        payType: 'fatura',
+        payId: f.id,
+      })
+      continue
+    }
+    const amount = Math.max(0, (+f.total || +f.valor || 0) - (+f.pago || 0))
+    const date = dayKey(f.data_vencimento)
     pushCal(events, {
       date,
       kind: 'pagamento',
       dir: 'in',
-      amount: +f.pago || +f.valor || +f.total || 0,
+      amount,
       label: f.bars?.nome || 'Fatura',
-      status: 'pago',
+      status: 'pendente',
       tab: 'faturas',
       id: f.id,
+      payType: 'fatura',
+      payId: f.id,
     })
   }
 
+  const pagMap = Object.fromEntries((fornecedores || []).map(f => [f.nome, f.pagamento]))
   for (const c of compras) {
-    if (c.status_pagamento !== 'pago') continue
-    const date = dayKey(c.data_pagamento)
+    if (c.status_pagamento === 'pago') {
+      const date = dayKey(c.data_pagamento)
+      pushCal(events, {
+        date,
+        kind: 'pagamento',
+        dir: 'out',
+        amount: compraTotal(c),
+        label: c.fornecedor || 'Fornecedor',
+        status: 'pago',
+        tab: 'purchases',
+        id: c.id,
+        payType: 'compra',
+        payId: c.id,
+      })
+      continue
+    }
+    if (c.status_pagamento !== 'pendente') continue
+    const date = dayKey(c.data_pagamento) || compraDueDateServer(c, pagMap[c.fornecedor])
     pushCal(events, {
       date,
       kind: 'pagamento',
       dir: 'out',
       amount: compraTotal(c),
       label: c.fornecedor || 'Fornecedor',
-      status: 'pago',
+      status: 'pendente',
       tab: 'purchases',
       id: c.id,
+      payType: 'compra',
+      payId: c.id,
     })
   }
 

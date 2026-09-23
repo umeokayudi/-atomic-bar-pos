@@ -5,6 +5,7 @@ import { splitPendingCompras, splitPendingFaturas, buildCashflowEvents, pagament
 import { uploadCobrancaDoc, buildCobrancaDocument, downloadTextFile } from '../lib/cobrancaDocs'
 import JbmHoldingPanel from './JbmHoldingPanel'
 import CashflowAi from './CashflowAi'
+import MarkPaidPopup from './MarkPaidPopup'
 import { AdminPage, PortalKpi, PortalSurface, PortalPills } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
 
@@ -52,6 +53,7 @@ function CashflowOverview() {
   const { t } = useI18n()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [payItem, setPayItem] = useState(null)
   useEffect(() => { load(); const iv=setInterval(load,30000); return ()=>clearInterval(iv) }, [])
   async function load() {
     const [fR, cR, pR, foR] = await Promise.all([
@@ -163,12 +165,18 @@ function CashflowOverview() {
         <PortalSurface title={t('cashflow.overdueInvoicesTitle')} style={{ marginBottom: 16, borderColor: 'rgba(239,68,68,0.35)' }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {faturaSplit.overdue.map(f => (
-              <div key={f.id} style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 12, padding: '10px 14px', minWidth: 160 }}>
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setPayItem({ type: 'fatura', id: f.id, label: f.bars?.nome || t('common.bar'), amount: f.amount, dueDate: f.dueDate, paid: false })}
+                style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 12, padding: '10px 14px', minWidth: 160, textAlign: 'left', cursor: 'pointer' }}
+              >
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)' }}>{t('cashflow.toReceiveOverdue')}</div>
                 <div style={{ fontSize: 14, fontWeight: 800 }}>{fmtYen(f.amount)}</div>
                 <div style={{ fontSize: 12, fontWeight: 600 }}>{f.bars?.nome || t('common.bar')}</div>
                 <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 4 }}>{t('common.expiredOn', { date: fmtDate(f.dueDate) })}</div>
-              </div>
+                <div style={{ fontSize: 10, color: 'var(--navy)', marginTop: 6, fontWeight: 700 }}>{t('payMark.tap')}</div>
+              </button>
             ))}
           </div>
         </PortalSurface>
@@ -178,13 +186,18 @@ function CashflowOverview() {
         <PortalSurface title={t('cashflow.overduePaymentsTitle')} style={{ marginBottom: 16, borderColor: 'rgba(239,68,68,0.35)' }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {pendingSplit.overdue.map(c => (
-              <div key={c.id} style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 12, padding: '10px 14px', minWidth: 160 }}>
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setPayItem({ type: 'compra', id: c.id, label: c.fornecedor || t('common.supplier'), amount: c.amount, dueDate: c.dueDate, paid: false })}
+                style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 12, padding: '10px 14px', minWidth: 160, textAlign: 'left', cursor: 'pointer' }}
+              >
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)' }}>{t('cashflow.toPayOverdueLabel')}</div>
                 <div style={{ fontSize: 14, fontWeight: 800 }}>{fmtYen(c.amount)}</div>
                 <div style={{ fontSize: 12, fontWeight: 600 }}>{c.fornecedor || t('common.supplier')}</div>
                 <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 4 }}>{t('common.expiredOn', { date: fmtDate(c.dueDate) })}</div>
-                {c.foto_url && <a href={c.foto_url} target="_blank" rel="noreferrer" style={{ fontSize: 10, color: 'var(--blue)' }}>📎 {t('common.document')}</a>}
-              </div>
+                <div style={{ fontSize: 10, color: 'var(--navy)', marginTop: 6, fontWeight: 700 }}>{t('payMark.tap')}</div>
+              </button>
             ))}
           </div>
         </PortalSurface>
@@ -244,6 +257,7 @@ function CashflowOverview() {
           <div><div style={{ fontSize:11, color:'rgba(255,255,255,0.6)', marginBottom:4 }}>{t('cashflow.currentNetCash')}</div><div style={{ fontSize:20, fontWeight:800, color:netCash>=0?'var(--gold)':'#ff3b30' }}>{fmtYen(netCash)}</div></div>
         </div>
       </PortalSurface>
+      {payItem && <MarkPaidPopup item={payItem} onClose={() => setPayItem(null)} onSaved={load} />}
     </div>
   )
 }
@@ -252,6 +266,7 @@ function MoneyIn() {
   const { t } = useI18n()
   const [faturas, setFaturas] = useState([])
   const [loading, setLoading] = useState(true)
+  const [payItem, setPayItem] = useState(null)
   useEffect(() => { load(); const iv=setInterval(load,30000); return ()=>clearInterval(iv) }, [])
   async function load() {
     const { data } = await supabase.from('faturas').select('*, bars(nome)').order('data_vencimento',{ascending:false})
@@ -268,11 +283,17 @@ function MoneyIn() {
         <PortalSurface title={t('cashflow.overdueInvoicesShort')} style={{ marginBottom: 16, borderColor: 'rgba(239,68,68,0.35)' }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
             {faturaSplit.overdue.map(f => (
-              <div key={f.id} style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 12, padding: '10px 14px', minWidth: 160 }}>
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setPayItem({ type: 'fatura', id: f.id, label: f.bars?.nome || 'Bar', amount: f.amount, dueDate: f.dueDate, paid: false })}
+                style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 12, padding: '10px 14px', minWidth: 160, textAlign: 'left', cursor: 'pointer' }}
+              >
                 <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--red)' }}>{fmtYen(f.amount)}</div>
                 <div style={{ fontSize: 12, fontWeight: 600 }}>{f.bars?.nome || 'Bar'}</div>
                 <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 4 }}>Venceu {fmtDate(f.dueDate)}</div>
-              </div>
+                <div style={{ fontSize: 10, color: 'var(--navy)', marginTop: 6, fontWeight: 700 }}>{t('payMark.tap')}</div>
+              </button>
             ))}
           </div>
           <div style={{ fontSize: 12, color: 'var(--text2)' }}>
@@ -298,7 +319,20 @@ function MoneyIn() {
           const pct = f.valor>0?Math.round((f.pago||0)/f.total*100):0
           const isOverdue = f.status!=='pago'&&f.data_vencimento&&f.data_vencimento<today
           return (
-            <div key={f.id} style={{ background:'var(--bg2)', border:'1px solid', borderColor: isOverdue ? 'rgba(239,68,68,0.45)' : 'var(--border)', borderRadius:12, padding:'14px 16px' }}>
+            <div
+              key={f.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => f.status !== 'pago' && setPayItem({
+                type: 'fatura',
+                id: f.id,
+                label: f.bars?.nome,
+                amount: Math.max(0, (+f.total || +f.valor || 0) - (+f.pago || 0)),
+                dueDate: f.data_vencimento,
+                paid: f.status === 'pago',
+              })}
+              style={{ background:'var(--bg2)', border:'1px solid', borderColor: isOverdue ? 'rgba(239,68,68,0.45)' : 'var(--border)', borderRadius:12, padding:'14px 16px', cursor: f.status !== 'pago' ? 'pointer' : 'default' }}
+            >
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
                 <div>
                   <div style={{ fontSize:13, fontWeight:700 }}>{f.bars?.nome}</div>
@@ -318,6 +352,7 @@ function MoneyIn() {
           )
         })}
       </div>
+      {payItem && <MarkPaidPopup item={payItem} onClose={() => setPayItem(null)} onSaved={load} />}
     </div>
   )
 }
@@ -381,6 +416,7 @@ function PurchasePayments() {
   const [form, setForm] = useState({ data_pagamento:'', metodo:'Card', status_pagamento:'pago' })
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [payItem, setPayItem] = useState(null)
   useEffect(() => { load(); const iv=setInterval(load,30000); return ()=>clearInterval(iv) }, [])
   async function load() {
     const [{ data: c }, { data: f }] = await Promise.all([
@@ -444,7 +480,19 @@ function PurchasePayments() {
           const due = compraDueDate(c, pagamentoForNome(c.fornecedor))
           const overdue = isCompraOverdue(c, pagamentoForNome(c.fornecedor))
           return (
-          <div key={c.id} style={{ background:'var(--bg2)', border:'1px solid', borderColor:overdue?'rgba(239,68,68,0.45)':c.status_pagamento==='pendente'?'rgba(255,149,0,0.3)':'var(--border)', borderRadius:12, padding:'12px 16px', display:'flex', alignItems:'center', gap:12 }}>
+          <div
+            key={c.id}
+            style={{ background:'var(--bg2)', border:'1px solid', borderColor:overdue?'rgba(239,68,68,0.45)':c.status_pagamento==='pendente'?'rgba(255,149,0,0.3)':'var(--border)', borderRadius:12, padding:'12px 16px', display:'flex', alignItems:'center', gap:12, cursor: 'pointer' }}
+            onClick={() => setPayItem({
+              type: 'compra',
+              id: c.id,
+              label: c.fornecedor || t('common.supplier'),
+              amount: +c.total_real || +c.total_pago || 0,
+              dueDate: due,
+              paid: c.status_pagamento === 'pago',
+              paidDate: c.data_pagamento,
+            })}
+          >
             <div style={{ flex:1 }}>
               <div style={{ fontSize:13, fontWeight:600 }}>{c.fornecedor||t('common.supplier')} — {fmtDate(c.data)}</div>
               <div style={{ fontSize:11, color:'var(--text2)', marginTop:2 }}>
@@ -468,12 +516,12 @@ function PurchasePayments() {
                   <label style={{ padding:'5px 10px', fontSize:11, borderRadius:8, border:'1px solid var(--border)', cursor:uploading?'wait':'pointer' }}>
                     {uploading ? '…' : `📎 ${t('common.attach')}`}
                     <input type="file" accept="image/*,.pdf,.json,.txt" style={{ display:'none' }} disabled={uploading}
-                      onChange={e=>{ uploadDoc(c, e.target.files?.[0]); e.target.value='' }} />
+                      onChange={e=>{ e.stopPropagation(); uploadDoc(c, e.target.files?.[0]); e.target.value='' }} />
                   </label>
-                  <button onClick={()=>exportDoc(c)} style={{ padding:'5px 10px', fontSize:11, borderRadius:8, border:'1px solid var(--border)', background:'transparent', cursor:'pointer' }}>{t('cashflow.generateDoc')}</button>
+                  <button onClick={e=>{ e.stopPropagation(); exportDoc(c) }} style={{ padding:'5px 10px', fontSize:11, borderRadius:8, border:'1px solid var(--border)', background:'transparent', cursor:'pointer' }}>{t('cashflow.generateDoc')}</button>
                 </>
               )}
-              <button onClick={()=>{ setModal(c); setForm({ data_pagamento:c.data_pagamento||due||new Date().toISOString().slice(0,10), metodo:c.metodo_pagamento_real||'Bank Transfer', status_pagamento:c.status_pagamento||'pago' }) }}
+              <button onClick={e=>{ e.stopPropagation(); setModal(c); setForm({ data_pagamento:c.data_pagamento||due||new Date().toISOString().slice(0,10), metodo:c.metodo_pagamento_real||'Bank Transfer', status_pagamento:c.status_pagamento||'pago' }) }}
                 style={{ padding:'5px 12px', fontSize:12, borderRadius:8, border:'1px solid var(--border)', background:'transparent', cursor:'pointer' }}>✏️ {t('common.edit')}</button>
             </div>
           </div>
@@ -506,6 +554,7 @@ function PurchasePayments() {
           </div>
         </div>
       )}
+      {payItem && <MarkPaidPopup item={payItem} onClose={() => setPayItem(null)} onSaved={load} />}
     </div>
   )
 }
@@ -623,6 +672,7 @@ function Calendario() {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState(null)
   const [popup, setPopup] = useState(null)
+  const [payItem, setPayItem] = useState(null)
   const [notes, setNotes] = useState(() => {
     try { return JSON.parse(localStorage.getItem('jbm_cash_agenda') || '[]') } catch { return [] }
   })
@@ -752,12 +802,18 @@ function Calendario() {
             <PortalSurface title={t('cashflow.overdueInvoicesTitle')} style={{ marginBottom: 16, borderColor: 'rgba(239,68,68,0.35)' }}>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {overdueFaturas.map((ev, i) => (
-                  <div key={i} style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 12, padding: '10px 14px', minWidth: 150 }}>
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setPayItem({ type: ev.kind === 'compra' ? 'compra' : 'fatura', id: ev.id, label: ev.label, amount: ev.amount, dueDate: ev.date, paid: false })}
+                    style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 12, padding: '10px 14px', minWidth: 150, textAlign: 'left', cursor: 'pointer' }}
+                  >
                     <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)' }}>{t('cashflow.toReceiveOverdue')}</div>
                     <div style={{ fontSize: 14, fontWeight: 800 }}>{fmtYen(ev.amount)}</div>
                     <div style={{ fontSize: 11, color: 'var(--text2)' }}>{ev.label}</div>
                     <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 4 }}>{t('common.expiredOn', { date: fmtDate(ev.date) })}</div>
-                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--navy)', marginTop: 6, fontWeight: 700 }}>{t('payMark.tap')}</div>
+                  </button>
                 ))}
               </div>
             </PortalSurface>
@@ -766,13 +822,18 @@ function Calendario() {
             <PortalSurface title={t('cashflow.overduePaymentsTitle')} style={{ marginBottom: 16, borderColor: 'rgba(239,68,68,0.35)' }}>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {overdueCompras.map((ev, i) => (
-                  <div key={i} style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 12, padding: '10px 14px', minWidth: 150 }}>
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setPayItem({ type: 'compra', id: ev.id, label: ev.label, amount: ev.amount, dueDate: ev.date, paid: false })}
+                    style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 12, padding: '10px 14px', minWidth: 150, textAlign: 'left', cursor: 'pointer' }}
+                  >
                     <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)' }}>{t('cashflow.toPayOverdueLabel')}</div>
                     <div style={{ fontSize: 14, fontWeight: 800 }}>{fmtYen(ev.amount)}</div>
                     <div style={{ fontSize: 11, color: 'var(--text2)' }}>{ev.label}</div>
                     <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 4 }}>{t('common.expiredOn', { date: fmtDate(ev.date) })}</div>
-                    {ev.docUrl && <a href={ev.docUrl} target="_blank" rel="noreferrer" style={{ fontSize: 10, color: 'var(--blue)' }}>📎 {t('common.document')}</a>}
-                  </div>
+                    <div style={{ fontSize: 10, color: 'var(--navy)', marginTop: 6, fontWeight: 700 }}>{t('payMark.tap')}</div>
+                  </button>
                 ))}
               </div>
             </PortalSurface>
@@ -866,7 +927,16 @@ function Calendario() {
               {currentMonth.toLocaleDateString('pt-BR',{month:'long'})} {selectedDay}, {year}
             </div>
             {popup.map((ev,i)=>(
-              <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', padding:'12px 0', borderBottom:'1px solid var(--border)' }}>
+              <div
+                key={i}
+                role={(ev.kind === 'fatura' || ev.kind === 'compra') ? 'button' : undefined}
+                onClick={() => {
+                  if (ev.kind !== 'fatura' && ev.kind !== 'compra') return
+                  setPopup(null)
+                  setPayItem({ type: ev.kind, id: ev.id, label: ev.label, amount: ev.amount, dueDate: ev.date, paid: false })
+                }}
+                style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', padding:'12px 0', borderBottom:'1px solid var(--border)', cursor: (ev.kind === 'fatura' || ev.kind === 'compra') ? 'pointer' : 'default' }}
+              >
                 <div>
                   <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4, flexWrap:'wrap' }}>
                     <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:20,
@@ -897,6 +967,7 @@ function Calendario() {
           </div>
         </div>
       )}
+      {payItem && <MarkPaidPopup item={payItem} onClose={() => setPayItem(null)} onSaved={load} />}
     </div>
   )
 }

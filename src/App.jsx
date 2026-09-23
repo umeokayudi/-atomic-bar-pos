@@ -35,6 +35,7 @@ import { loadDashboard } from './lib/loadDashboard'
 import { PageHeader, PortalHero, PortalKpi, PortalSurface, PortalAlert } from './components/ui/PageLayout'
 import DashboardMetricModal from './components/DashboardMetricModal'
 import DashboardCalendar from './components/DashboardCalendar'
+import MarkPaidPopup from './components/MarkPaidPopup'
 
 // ── TABS por role ─────────────────────────────────────────────────────────────
 const ADMIN_TABS = [
@@ -127,6 +128,7 @@ function Dashboard({ onNav }) {
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
   const [detailModal, setDetailModal] = useState(null)
+  const [payItem, setPayItem] = useState(null)
 
   useEffect(() => { if (user) loadStats() }, [user])
 
@@ -216,8 +218,18 @@ function Dashboard({ onNav }) {
                   </div>
                   <div style={{ fontSize: 13, opacity: 0.95 }}>
                     Total {fmtYen(data.alertas.faturasAtrasadasTotal)}
-                    {data.alertas.faturasAtrasadas.slice(0, 2).map(f => (
-                      <span key={f.id}> · {f.barNome} ({fmtDate(f.vencimento)})</span>
+                    {data.alertas.faturasAtrasadas.slice(0, 4).map(f => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation()
+                          setPayItem({ type: 'fatura', id: f.id, label: f.barNome, amount: f.valor, dueDate: f.vencimento, paid: false })
+                        }}
+                        style={{ display: 'inline', margin: 0, padding: 0, border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer', fontWeight: 700, textDecoration: 'underline' }}
+                      >
+                        {' · '}{f.barNome} ({fmtDate(f.vencimento)})
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -234,8 +246,18 @@ function Dashboard({ onNav }) {
                   </div>
                   <div style={{ fontSize: 13, color: 'var(--text2)' }}>
                     Total {fmtYen(data.alertas.comprasAtrasadasTotal)}
-                    {data.alertas.comprasAtrasadas.slice(0, 2).map(c => (
-                      <span key={c.id}> · {c.fornecedor} ({fmtDate(c.vencimento)})</span>
+                    {data.alertas.comprasAtrasadas.slice(0, 4).map(c => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation()
+                          setPayItem({ type: 'compra', id: c.id, label: c.fornecedor, amount: c.valor, dueDate: c.vencimento, paid: false })
+                        }}
+                        style={{ display: 'inline', margin: 0, padding: 0, border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer', fontWeight: 700, textDecoration: 'underline' }}
+                      >
+                        {' · '}{c.fornecedor} ({fmtDate(c.vencimento)})
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -293,7 +315,13 @@ function Dashboard({ onNav }) {
         </PortalAlert>
       )}
 
-      <DashboardCalendar events={data.calendar || []} onNav={onNav} month={selMonth} onMonthChange={setSelMonth} />
+      <DashboardCalendar
+        events={data.calendar || []}
+        onNav={onNav}
+        month={selMonth}
+        onMonthChange={setSelMonth}
+        onPay={setPayItem}
+      />
 
       <PortalSurface title={t('dashboard.chartTitle')} sub={t('dashboard.chartSub')} style={{ marginTop: 20 }}>
         <BarChart data={lucroChart} color="#1a6b4a" height={72} />
@@ -320,6 +348,13 @@ function Dashboard({ onNav }) {
         monthLabel={monthLabel(selMonth)}
         stats={modalStats}
       />
+      {payItem && (
+        <MarkPaidPopup
+          item={payItem}
+          onClose={() => setPayItem(null)}
+          onSaved={loadStats}
+        />
+      )}
     </div>
   )
 }

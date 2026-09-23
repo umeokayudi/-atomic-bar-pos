@@ -945,6 +945,14 @@ export default {
     calEmpty: 'Nothing on this day.',
     calDays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
   },
+  payMark: {
+    invoice: 'Invoice',
+    supplier: 'Supplier bill',
+    paid: 'Paid',
+    notPaid: 'Not paid',
+    tap: 'Tap to mark paid',
+    error: 'Could not save.',
+  },
   orderStatus: {
     pendente: 'Pending',
     confirmado: 'Confirmed',

@@ -945,6 +945,14 @@ export default {
     calEmpty: 'この日の記録はありません。',
     calDays: ['日', '月', '火', '水', '木', '金', '土'],
   },
+  payMark: {
+    invoice: '請求',
+    supplier: '仕入先',
+    paid: '支払済',
+    notPaid: '未払',
+    tap: 'タップして支払済にする',
+    error: '保存できませんでした。',
+  },
   orderStatus: {
     pendente: '保留',
     confirmado: '確認済',

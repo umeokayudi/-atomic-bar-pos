@@ -4,6 +4,7 @@ import { fmtYen, fmtDate, Spinner, Empty, filterSupplierVendas } from './utils'
 import { PageHeader, PortalKpi, PortalSurface, PortalPills, PortalAlert } from './ui/PageLayout'
 import { pagamentoStatus, pagamentosPendentes, totalPagamentosPendentes, pagamentoEmAnalise } from '../lib/faturaPagamentos'
 import { useI18n } from '../lib/i18n'
+import MarkPaidPopup from './MarkPaidPopup'
 
 function getBillingPeriod(date) {
   const d = new Date(date)
@@ -37,6 +38,7 @@ function Overview() {
   const [loading, setLoading] = useState(true)
   useEffect(() => { load(); const iv=setInterval(load,30000); return ()=>clearInterval(iv) }, [])
   const [pagamentos, setPagamentos] = useState([])
+  const [payItem, setPayItem] = useState(null)
   async function load() {
     const [fR, vR, pR] = await Promise.all([
       supabase.from('faturas').select('*, bars(nome)').order('data_vencimento',{ascending:false}),
@@ -170,7 +172,7 @@ function Overview() {
           {upcoming.map(f => {
             const daysLeft = Math.ceil((new Date(f.data_vencimento)-new Date())/(1000*60*60*24))
             return (
-              <div key={f.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom:'1px solid var(--border)' }}>
+              <div key={f.id} onClick={() => setPayItem({ type: 'fatura', id: f.id, label: f.bars?.nome || '?', amount: (+f.total||+f.valor||0)-(+f.pago||0), dueDate: f.data_vencimento, paid: false })} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom:'1px solid var(--border)', cursor: 'pointer' }}>
                 <div style={{ width:44, height:44, borderRadius:12, background:daysLeft<=5?'#fef2f2':'#f0fdf4', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                   <div style={{ fontSize:16, fontWeight:800, color:daysLeft<=5?'var(--red)':'var(--green)', lineHeight:1 }}>{daysLeft}</div>
                   <div style={{ fontSize:9, color:'var(--text2)', textTransform:'uppercase' }}>{t('common.days')}</div>
@@ -188,6 +190,7 @@ function Overview() {
           })}
         </PortalSurface>
       )}
+      {payItem && <MarkPaidPopup item={payItem} onClose={() => setPayItem(null)} onSaved={load} />}
     </div>
   )
 }
@@ -206,6 +209,7 @@ function InvoiceList() {
   const [selBar, setSelBar] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
   const [expanded, setExpanded] = useState(null)
+  const [payItem, setPayItem] = useState(null)
 
   useEffect(() => { load(); const iv=setInterval(load,30000); return ()=>clearInterval(iv) }, [])
   const [allPagamentos, setAllPagamentos] = useState([])
@@ -339,6 +343,7 @@ function InvoiceList() {
                     </div>
                   )}
                   <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                    {f.status!=='pago'&&<button onClick={()=>setPayItem({ type: 'fatura', id: f.id, label: f.bars?.nome, amount: remaining, dueDate: f.data_vencimento, paid: false })} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'none', background:'#16a34a', color:'white', cursor:'pointer', fontWeight:600 }}>{t('payMark.paid')}</button>}
                     {f.status!=='pago'&&<button onClick={()=>setPayModal(f)} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'none', background:'var(--navy)', color:'white', cursor:'pointer', fontWeight:600 }}>{t('invoices.registerPayment')}</button>}
                     {f.status==='pago'&&!f.ryoshusho_id&&<button onClick={()=>generateRyoshusho(f)} disabled={saving} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'none', background:'var(--gold)', color:'white', cursor:'pointer', fontWeight:600 }}>{t('invoices.generateRyoshusho')}</button>}
                     {f.ryoshusho_id&&<span style={{ fontSize:12, color:'var(--green)', fontWeight:600, padding:'6px 0' }}>{t('invoices.ryoshushoIssued')}</span>}
@@ -396,6 +401,7 @@ function InvoiceList() {
           </div>
         </div>
       )}
+      {payItem && <MarkPaidPopup item={payItem} onClose={() => setPayItem(null)} onSaved={load} />}
     </div>
   )
 }

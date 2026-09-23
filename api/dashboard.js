@@ -94,6 +94,7 @@ export default async function handler(req, res) {
         faturas,
         pagamentos,
         bars: bars || [],
+        fornecedores: fornecedores || [],
       }),
       pedidosPendentes: pedidosPendentes || 0,
       alertas: buildDashboardAlertas({ faturas, compras, fornecedores }),

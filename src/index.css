@@ -3611,3 +3611,104 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
   .dash-cal-row { grid-template-columns: 70px 1fr auto; }
 }
 
+.pay-pop-back {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.pay-pop {
+  width: 100%;
+  max-width: 340px;
+  background: #fff;
+  border: 1px solid rgba(0,16,40,0.12);
+  border-radius: 14px;
+  box-shadow: 0 12px 36px rgba(0,16,40,0.22);
+  padding: 18px 18px 16px;
+}
+.pay-pop-kicker {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text3);
+}
+.pay-pop-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--navy);
+  margin-top: 4px;
+}
+.pay-pop-amt {
+  font-size: 22px;
+  font-weight: 800;
+  margin: 8px 0 4px;
+}
+.pay-pop-due {
+  font-size: 12px;
+  color: var(--red);
+  margin-bottom: 14px;
+}
+.pay-pop-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.pay-pop-toggle button {
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+.pay-pop-toggle button.is-on.paid {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #166534;
+}
+.pay-pop-toggle button.is-on.pending {
+  background: #fffbeb;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+.pay-pop-date {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text2);
+  margin-bottom: 12px;
+}
+.pay-pop-date input {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+}
+.pay-pop-err {
+  font-size: 12px;
+  color: var(--red);
+  margin-bottom: 8px;
+}
+.pay-pop-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.pay-pop-actions button {
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+  font-weight: 600;
+}
+
