@@ -34,6 +34,7 @@ import { UiPrefsProvider, useUiPrefs, LAYOUTS } from './lib/uiPrefs'
 import { loadDashboard } from './lib/loadDashboard'
 import { PageHeader, PortalHero, PortalKpi, PortalSurface, PortalAlert } from './components/ui/PageLayout'
 import DashboardMetricModal from './components/DashboardMetricModal'
+import DashboardCalendar from './components/DashboardCalendar'
 
 // ── TABS por role ─────────────────────────────────────────────────────────────
 const ADMIN_TABS = [
@@ -295,7 +296,9 @@ function Dashboard({ onNav }) {
         />
       </div>
 
-      <PortalSurface title={t('dashboard.chartTitle')} sub={t('dashboard.chartSub')}>
+      <DashboardCalendar events={data.calendar || []} onNav={onNav} month={selMonth} />
+
+      <PortalSurface title={t('dashboard.chartTitle')} sub={t('dashboard.chartSub')} style={{ marginTop: 20 }}>
         <BarChart data={lucroChart} color="#1a6b4a" height={72} />
       </PortalSurface>
 

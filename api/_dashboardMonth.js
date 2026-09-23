@@ -257,3 +257,141 @@ export function buildDashboardAlertas({ faturas = [], compras = [], fornecedores
     comprasAtrasadasTotal: comprasAtrasadas.reduce((a, c) => a + c.valor, 0),
   }
 }
+
+function dayKey(d) {
+  return String(d || '').slice(0, 10)
+}
+
+function pushCal(events, row) {
+  if (!row?.date || row.date.length < 10) return
+  events.push(row)
+}
+
+/** Pedidos, pagamentos, lucro do dia e entregas — um ponto por fato no calendário do dashboard. */
+export function buildDashboardCalendar({
+  pedidos = [],
+  vendas = [],
+  compras = [],
+  faturas = [],
+  pagamentos = [],
+  bars = [],
+} = {}) {
+  const barMap = Object.fromEntries((bars || []).map(b => [b.id, b]))
+  const events = []
+  const paidFaturaIds = new Set()
+
+  for (const p of pedidos) {
+    const date = dayKey(p.data_pedido || p.criado_em)
+    pushCal(events, {
+      date,
+      kind: 'pedido',
+      amount: +p.total_estimado || 0,
+      label: barMap[p.bar_id]?.nome || 'Pedido',
+      status: p.status || '',
+      tab: 'pedidos',
+      id: p.id,
+    })
+  }
+
+  for (const v of vendas) {
+    const date = dayKey(v.data || v.data_venda)
+    pushCal(events, {
+      date,
+      kind: 'entrega',
+      amount: +v.total || 0,
+      label: barMap[v.bar_id]?.nome || 'Entrega',
+      tab: 'sales',
+      id: v.id,
+    })
+  }
+
+  for (const p of pedidos) {
+    if (!['entregue', 'confirmado'].includes(p.status)) continue
+    const date = dayKey(p.data_entrega_prevista)
+    const orderDate = dayKey(p.data_pedido || p.criado_em)
+    if (!date || date === orderDate) continue
+    pushCal(events, {
+      date,
+      kind: 'entrega',
+      amount: +p.total_estimado || 0,
+      label: barMap[p.bar_id]?.nome || 'Entrega',
+      tab: 'pedidos',
+      id: `del-${p.id}`,
+    })
+  }
+
+  for (const p of pagamentos) {
+    const date = dayKey(p.data || p.confirmado_em || p.criado_em)
+    if (!date) continue
+    if (p.fatura_id) paidFaturaIds.add(p.fatura_id)
+    pushCal(events, {
+      date,
+      kind: 'pagamento',
+      dir: 'in',
+      amount: +p.valor || 0,
+      label: p.metodo || 'Pagamento',
+      status: p.confirmado === false ? 'pendente' : 'pago',
+      tab: 'faturas',
+      id: p.id,
+    })
+  }
+
+  for (const f of faturas) {
+    if (f.status !== 'pago') continue
+    if (f.id && paidFaturaIds.has(f.id)) continue
+    const date = dayKey(f.data_pagamento || f.pago_em || f.data_vencimento || f.periodo_fim)
+    pushCal(events, {
+      date,
+      kind: 'pagamento',
+      dir: 'in',
+      amount: +f.pago || +f.valor || +f.total || 0,
+      label: f.bars?.nome || 'Fatura',
+      status: 'pago',
+      tab: 'faturas',
+      id: f.id,
+    })
+  }
+
+  for (const c of compras) {
+    if (c.status_pagamento !== 'pago') continue
+    const date = dayKey(c.data_pagamento)
+    pushCal(events, {
+      date,
+      kind: 'pagamento',
+      dir: 'out',
+      amount: compraTotal(c),
+      label: c.fornecedor || 'Fornecedor',
+      status: 'pago',
+      tab: 'purchases',
+      id: c.id,
+    })
+  }
+
+  const byDay = {}
+  for (const v of vendas) {
+    const date = dayKey(v.data || v.data_venda)
+    if (!date) continue
+    byDay[date] = byDay[date] || { in: 0, out: 0 }
+    byDay[date].in += +v.total || 0
+  }
+  for (const c of compras) {
+    const date = dayKey(c.data_compra || c.data)
+    if (!date) continue
+    byDay[date] = byDay[date] || { in: 0, out: 0 }
+    byDay[date].out += compraTotal(c)
+  }
+  for (const [date, row] of Object.entries(byDay)) {
+    const lucro = row.in - row.out
+    if (!row.in && !row.out) continue
+    pushCal(events, {
+      date,
+      kind: 'lucro',
+      amount: lucro,
+      label: 'Lucro',
+      tab: 'relatorio',
+      id: `lucro-${date}`,
+    })
+  }
+
+  return events.sort((a, b) => String(a.date).localeCompare(String(b.date)))
+}

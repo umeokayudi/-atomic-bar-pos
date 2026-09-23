@@ -9,6 +9,7 @@ import {
   pedidoMonthKey,
   buildDashboardAlertas,
   entregasDetalheForMonth,
+  buildDashboardCalendar,
 } from './_dashboardMonth.js'
 
 function lastMonths(n = 6) {
@@ -31,7 +32,7 @@ export default async function handler(req, res) {
     const db = createStaffUserClient(auth.token)
     const chartMonths = lastMonths(6)
 
-    const [{ data: compras, error: comprasErr }, { data: vendasRaw }, { data: faturas }, { data: pedidos }, { count: pedidosPendentes }, { data: fornecedores }, { data: bars }] = await Promise.all([
+    const [{ data: compras, error: comprasErr }, { data: vendasRaw }, { data: faturas }, { data: pedidos }, { count: pedidosPendentes }, { data: fornecedores }, { data: bars }, pagamentosRes] = await Promise.all([
       db.from('compras').select('data, data_compra, data_pagamento, total_real, total_pago, status_pagamento, fornecedor, pagamento, compras_itens(nome, qtd, custo_unitario)').order('data'),
       db.from('vendas').select('id, bar_id, data, data_venda, total, obs').order('data'),
       db.from('faturas').select('id, total, valor, pago, status, periodo_inicio, periodo_fim, data_emissao, data_vencimento, obs, bar_id, bars(nome)'),
@@ -39,7 +40,9 @@ export default async function handler(req, res) {
       db.from('pedidos').select('id', { count: 'exact', head: true }).eq('status', 'pendente'),
       db.from('fornecedores').select('nome, pagamento'),
       db.from('bars').select('id, nome, cor'),
+      db.from('fatura_pagamentos').select('id, valor, confirmado, metodo, data, confirmado_em, criado_em, fatura_id'),
     ])
+    const pagamentos = pagamentosRes?.error ? [] : (pagamentosRes?.data || [])
 
     if (comprasErr) throw new Error('compras: ' + comprasErr.message)
 
@@ -74,6 +77,14 @@ export default async function handler(req, res) {
       months,
       chart,
       byMonth,
+      calendar: buildDashboardCalendar({
+        pedidos,
+        vendas,
+        compras,
+        faturas,
+        pagamentos,
+        bars: bars || [],
+      }),
       pedidosPendentes: pedidosPendentes || 0,
       alertas: buildDashboardAlertas({ faturas, compras, fornecedores }),
     })
