@@ -25,7 +25,6 @@ const ACTIONS = [
   { id: 'clientes', icon: '🥂', labelKey: 'portal.home.goGuests', hintKey: 'portal.home.goGuestsHint' },
   { id: 'ponto', icon: '🕒', labelKey: 'portal.home.goClock', hintKey: 'portal.home.goClockHint' },
   { id: 'custos', icon: '🏛️', labelKey: 'portal.home.goHq', hintKey: 'portal.home.goHqHint' },
-  { id: 'equipe', icon: '👥', labelKey: 'nav.portalTeam' },
   { id: 'estoque', icon: '📊', labelKey: 'nav.portalInventory' },
   { id: 'faturas', icon: '💳', labelKey: 'nav.portalInvoices' },
 ]

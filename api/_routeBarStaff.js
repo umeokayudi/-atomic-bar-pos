@@ -1,6 +1,6 @@
 /** Dono do bar gerencia equipe, PIN, GPS e tablet. Não toca no fornecimento JBM. */
 
-import { drinksAdminClient } from './_supabaseAdmin.js'
+import { tryDrinksAdminClient, createStaffUserClient } from './_supabaseAdmin.js'
 import { requireBarAccount } from './_requireStaff.js'
 import { hashSecret, randomTabletCode } from './_hash.js'
 import { loadBarWithGeo, listStaffWithExtras, saveBarGeo, saveStaffExtras } from './_barLiveStore.js'
@@ -12,20 +12,18 @@ function bodyOf(req) {
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
 
-  let admin
-  try { admin = drinksAdminClient() } catch (e) {
-    return res.status(500).json({ error: e.message })
-  }
-
+  const admin = tryDrinksAdminClient()
   const auth = await requireBarAccount(req, admin, { roles: ['cliente', 'gerente'] })
   if (auth.error) return res.status(auth.status).json({ error: auth.error })
   const barId = auth.perfil.bar_id
+  const db = admin || (auth.token ? createStaffUserClient(auth.token) : null)
+  if (!db) return res.status(500).json({ error: 'Database client unavailable' })
 
   try {
     if (req.method === 'GET') {
       const [staff, bar] = await Promise.all([
-        listStaffWithExtras(admin, barId),
-        loadBarWithGeo(admin, barId),
+        listStaffWithExtras(db, barId),
+        loadBarWithGeo(db, barId),
       ])
       return res.status(200).json({
         staff: staff || [],
@@ -44,13 +42,13 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST' && body.action === 'pairTablet') {
       const code = randomTabletCode()
-      const saved = await saveBarGeo(admin, barId, { tablet_token_hash: hashSecret(code) })
+      const saved = await saveBarGeo(db, barId, { tablet_token_hash: hashSecret(code) })
       if (!saved.ok) return res.status(400).json({ error: saved.error })
       return res.status(200).json({ ok: true, tabletToken: code })
     }
 
     if (req.method === 'POST' && body.action === 'saveLocation') {
-      const saved = await saveBarGeo(admin, barId, {
+      const saved = await saveBarGeo(db, barId, {
         lat: +body.lat,
         lng: +body.lng,
         geofence_m: Math.max(50, Math.min(500, +body.geofence_m || 150)),
@@ -60,6 +58,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST' && body.action === 'createStaff') {
+      if (!admin) return res.status(503).json({ error: 'Creating a login needs SUPABASE_SERVICE_ROLE_KEY' })
       const { email, password, nome, role, cargo, salario_hora, pin } = body
       if (!email || !password || !nome) return res.status(400).json({ error: 'email, password, name required' })
       const staffRole = role === 'caixa' ? 'caixa' : 'bar_staff'
@@ -87,7 +86,7 @@ export default async function handler(req, res) {
       if (salario_hora != null) extraPatch.salario_hora = +salario_hora || 0
       if (pin) extraPatch.clock_pin_hash = hashSecret(String(pin))
       extraPatch.ativo = true
-      const extras = await saveStaffExtras(admin, uid, extraPatch)
+      const extras = await saveStaffExtras(db, uid, extraPatch)
       if (!extras.ok && extras.error) {
         return res.status(400).json({ error: extras.error })
       }
@@ -97,7 +96,7 @@ export default async function handler(req, res) {
     if (req.method === 'PATCH') {
       const { id } = body
       if (!id) return res.status(400).json({ error: 'id required' })
-      const { data: existing } = await admin.from('perfis').select('id,bar_id,role').eq('id', id).single()
+      const { data: existing } = await db.from('perfis').select('id,bar_id,role').eq('id', id).single()
       if (!existing || existing.bar_id !== barId) return res.status(404).json({ error: 'Staff not found' })
       if (existing.role === 'cliente' && existing.id !== auth.user.id) {
         return res.status(403).json({ error: 'Cannot edit another owner' })
@@ -111,11 +110,11 @@ export default async function handler(req, res) {
       if (body.pin) extraPatch.clock_pin_hash = hashSecret(String(body.pin))
       if (body.role === 'caixa' || body.role === 'bar_staff') patch.role = body.role
       if (Object.keys(patch).length) {
-        const { error } = await admin.from('perfis').update(patch).eq('id', id)
+        const { error } = await db.from('perfis').update(patch).eq('id', id)
         if (error) return res.status(400).json({ error: error.message })
       }
       if (Object.keys(extraPatch).length) {
-        const extras = await saveStaffExtras(admin, id, extraPatch)
+        const extras = await saveStaffExtras(db, id, extraPatch)
         if (!extras.ok) return res.status(400).json({ error: extras.error })
       }
       return res.status(200).json({ ok: true })

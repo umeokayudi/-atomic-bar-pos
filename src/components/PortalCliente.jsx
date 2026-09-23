@@ -2118,7 +2118,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   }, [])
 
   function selectTab(id) {
-    setTab(id)
+    setTab(id === 'equipe' ? 'ponto' : id)
     setMenuOpen(false)
   }
 
