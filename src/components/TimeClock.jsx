@@ -126,26 +126,17 @@ function PunchKiosk({ bar, staffIdLocked, lastTipo, onPunched }) {
   )
 }
 
-function PeopleFloor({ bar, staff, rows, busyId, onMark, onAdd, saving }) {
+function PeopleFloor({ staff, rows, busyId, onMark, onAdd, saving, meId, meNome }) {
   const { t } = useI18n()
   const [nome, setNome] = useState('')
   const [rate, setRate] = useState('1200')
-  const [pin, setPin] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [more, setMore] = useState(false)
-  const [devices, setDevices] = useState(false)
-  const [data, setData] = useState(null)
-  const [tabletCode, setTabletCode] = useState('')
-  const [msg, setMsg] = useState('')
-  const [err, setErr] = useState('')
-
-  useEffect(() => {
-    staffFetch('/api/bar-staff').then(r => r.json()).then(setData).catch(() => {})
-  }, [bar.id])
+  const [showAdd, setShowAdd] = useState(false)
 
   const working = rows.filter(r => r.open)
   const byId = Object.fromEntries(rows.map(r => [r.staff_id, r]))
+  const me = staff.find(s => s.id === meId) || { id: meId, nome: meNome }
+  const meRow = byId[meId] || { hours: 0, pay: 0, open: false }
+  const others = staff.filter(s => s.id !== meId)
 
   return (
     <div className="people-floor">
@@ -157,8 +148,28 @@ function PeopleFloor({ bar, staff, rows, busyId, onMark, onAdd, saving }) {
           ))}
         </div>
       )}
+
+      <div className="card people-me">
+        <div>
+          <div className="people-me-kicker">{t('clock.you')}</div>
+          <div className="people-me-name">{me.nome || meNome}</div>
+          <div className="people-me-sub">
+            {meRow.open ? t('clock.openShift') : t('clock.offShift')}
+            {' · '}{(meRow.hours || 0).toFixed(1)}h · {fmtYen(meRow.pay || 0)}
+          </div>
+        </div>
+        <button
+          type="button"
+          className={meRow.open ? 'people-out people-me-btn' : 'people-in people-me-btn'}
+          disabled={!meId || busyId === meId}
+          onClick={() => onMark(meId, meRow.open ? 'out' : 'in')}
+        >
+          {busyId === meId ? t('common.wait') : (meRow.open ? t('clock.bigOut') : t('clock.bigIn'))}
+        </button>
+      </div>
+
       <div className="card" style={{ marginBottom: 16, padding: 0, overflow: 'hidden' }}>
-        {staff.map(s => {
+        {others.map(s => {
           const row = byId[s.id] || { hours: 0, pay: 0, open: false }
           const open = !!row.open
           return (
@@ -186,84 +197,27 @@ function PeopleFloor({ bar, staff, rows, busyId, onMark, onAdd, saving }) {
             </div>
           )
         })}
-        {!staff.length && <div style={{ padding: 16, color: 'var(--text3)', fontSize: 13 }}>{t('clock.noStaff')}</div>}
+        {!others.length && <div style={{ padding: 16, color: 'var(--text3)', fontSize: 13 }}>{t('clock.noStaff')}</div>}
       </div>
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <SectionTitle>{t('team.addPerson')}</SectionTitle>
-        <div className="people-add">
-          <input placeholder={t('auth.name')} value={nome} onChange={e => setNome(e.target.value)} />
-          <input type="number" placeholder={t('team.hourly')} value={rate} onChange={e => setRate(e.target.value)} />
-          <input inputMode="numeric" placeholder={t('clock.pin')} value={pin} onChange={e => setPin(e.target.value)} />
-        </div>
-        <button
-          type="button"
-          className="stock-from-hint"
-          onClick={() => setMore(m => !m)}
-          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', margin: '8px 0' }}
-        >
-          {more ? t('team.hideLogin') : t('team.optionalLogin')}
-        </button>
-        {more && (
-          <div className="people-add" style={{ marginBottom: 8 }}>
-            <input placeholder="email" value={email} onChange={e => setEmail(e.target.value)} />
-            <input type="password" placeholder={t('auth.password')} value={password} onChange={e => setPassword(e.target.value)} />
+      {showAdd ? (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <SectionTitle>{t('team.addPerson')}</SectionTitle>
+          <div className="people-add">
+            <input placeholder={t('auth.name')} value={nome} onChange={e => setNome(e.target.value)} />
+            <input type="number" placeholder={t('team.hourly')} value={rate} onChange={e => setRate(e.target.value)} />
           </div>
-        )}
-        <button
-          className="btn-primary"
-          disabled={saving || !nome.trim()}
-          onClick={() => onAdd({ nome: nome.trim(), salario_hora: +rate || 0, pin, email, password })}
-          style={{ width: '100%', padding: 10 }}
-        >
-          {t('team.addPerson')}
-        </button>
-        <div className="stock-from-hint" style={{ marginTop: 8 }}>{t('team.addHint')}</div>
-      </div>
-
-      <button type="button" className="ui-prefs-toggle" style={{ maxWidth: 280, color: 'var(--text2)', borderColor: 'var(--border)' }} onClick={() => setDevices(d => !d)}>
-        {t('team.localTablet')}
-      </button>
-      {devices && (
-        <div className="card" style={{ marginTop: 10 }}>
-          <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 10 }}>
-            GPS: {data?.bar?.lat != null ? `${Number(data.bar.lat).toFixed(5)}, ${Number(data.bar.lng).toFixed(5)}` : t('team.gpsMissing')}
-            {' · '}{data?.bar?.geofence_m || 150}m
-          </div>
-          {msg && <div style={{ color: 'var(--green)', fontSize: 13, marginBottom: 8 }}>{msg}</div>}
-          {err && <div style={{ color: 'var(--red)', fontSize: 13, marginBottom: 8 }}>{err}</div>}
-          <button className="btn-primary" onClick={async () => {
-            setErr(''); setMsg('')
-            try {
-              const gps = await readGps()
-              const res = await staffFetch('/api/bar-staff', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'saveLocation', lat: gps.lat, lng: gps.lng, geofence_m: data?.bar?.geofence_m || 150 }),
-              })
-              const json = await res.json()
-              if (!res.ok) throw new Error(json.error)
-              setMsg(t('team.gpsSaved'))
-            } catch (e) { setErr(e.message) }
-          }} style={{ marginRight: 8 }}>{t('team.saveGpsHere')}</button>
-          <button onClick={async () => {
-            setErr('')
-            const res = await staffFetch('/api/bar-staff', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ action: 'pairTablet' }),
-            })
-            const json = await res.json()
-            if (!res.ok) setErr(json.error || 'Error')
-            else { setTabletCode(json.tabletToken); setMsg(t('team.tabletReady')) }
-          }} style={{ padding: '8px 14px', borderRadius: 10 }}>{t('team.newTabletCode')}</button>
-          {tabletCode && (
-            <div style={{ marginTop: 12, padding: 12, background: 'var(--bg3)', borderRadius: 10, fontSize: 22, fontWeight: 800, letterSpacing: 4 }}>
-              {tabletCode}
-              <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: 0, color: 'var(--text2)', marginTop: 6 }}>{t('team.codeOnce')}</div>
-            </div>
-          )}
+          <button
+            className="btn-primary"
+            disabled={saving || !nome.trim()}
+            onClick={() => onAdd({ nome: nome.trim(), salario_hora: +rate || 0 })}
+            style={{ width: '100%', padding: 10, marginTop: 8 }}
+          >
+            {t('team.addPerson')}
+          </button>
         </div>
+      ) : (
+        <button type="button" className="people-add-link" onClick={() => setShowAdd(true)}>{t('team.addPerson')}</button>
       )}
     </div>
   )
@@ -355,7 +309,16 @@ export default function TimeClockPanel({ bar }) {
       <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>{manager ? t('clock.peopleTitle') : t('clock.title')}</div>
       {err && <div className="pos-sale-err" style={{ marginBottom: 12 }}>{err}</div>}
       {loading ? <Spinner /> : manager ? (
-        <PeopleFloor bar={bar} staff={staff} rows={rows} busyId={busyId} onMark={mark} onAdd={addPerson} saving={saving} />
+        <PeopleFloor
+          staff={staff}
+          rows={rows}
+          busyId={busyId}
+          onMark={mark}
+          onAdd={addPerson}
+          saving={saving}
+          meId={perfil?.id}
+          meNome={perfil?.nome}
+        />
       ) : (
         <div className="fluid-2 clock-layout">
           <PunchKiosk bar={bar} staffIdLocked={perfil?.role === 'bar_staff' ? perfil.id : ''} lastTipo={last?.tipo} onPunched={load} />

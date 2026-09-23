@@ -3832,6 +3832,37 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
   font-weight: 600;
 }
 
+.people-me {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+.people-me-kicker {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text3);
+}
+.people-me-name { font-size: 22px; font-weight: 800; }
+.people-me-sub { font-size: 13px; color: var(--text2); margin-top: 4px; }
+.people-me-btn {
+  min-width: 140px;
+  min-height: 56px;
+  font-size: 18px;
+}
+.people-add-link {
+  border: none;
+  background: none;
+  color: var(--navy);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
 .people-live {
   display: flex;
   flex-wrap: wrap;
