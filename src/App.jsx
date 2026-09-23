@@ -3,7 +3,7 @@ import './index.css'
 import Layout from './components/Layout'
 import POS from './pages/POS'
 import Estoque from './pages/Estoque'
-import Cast from './pages/Cast'
+import Equipe from './pages/Equipe'
 import Relatorio from './pages/Relatorio'
 
 export default function App() {
@@ -14,7 +14,8 @@ export default function App() {
           <Route index element={<Navigate to="/pos" replace />} />
           <Route path="pos" element={<POS />} />
           <Route path="estoque" element={<Estoque />} />
-          <Route path="cast" element={<Cast />} />
+          <Route path="equipe" element={<Equipe />} />
+          <Route path="cast" element={<Navigate to="/equipe" replace />} />
           <Route path="relatorio" element={<Relatorio />} />
         </Route>
       </Routes>

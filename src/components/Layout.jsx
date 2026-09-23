@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 const NAV = [
   { to: '/pos',       icon: '🧾', label: 'POS / Caixa' },
   { to: '/estoque',   icon: '📦', label: 'Estoque' },
-  { to: '/cast',      icon: '👥', label: 'Cast' },
+  { to: '/equipe',    icon: '👥', label: 'Pessoal' },
   { to: '/relatorio', icon: '📊', label: 'Relatório' },
 ]
 

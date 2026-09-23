@@ -1,13 +1,12 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase, BAR_ID } from '../lib/supabase'
+import { taxaComissao } from '../lib/payroll'
 
 const fmt = n => '¥' + Math.round(n).toLocaleString('ja-JP')
 
-// Drink-back commission: 50% freelancer, 30% in-house above ¥2000
 function calcCommission(castMember, item) {
   if (!castMember) return 0
-  const rate = castMember.tipo === 'freelancer' ? 0.5 : (item.price > 2000 ? 0.3 : 0)
-  return Math.round(item.price * rate)
+  return Math.round(item.price * taxaComissao(castMember, item.price))
 }
 
 export default function POS() {
