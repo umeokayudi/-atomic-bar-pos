@@ -37,7 +37,7 @@ export function ThemeToggle({ compact }) {
   )
 }
 
-export default function UiPrefsPanel() {
+export default function UiPrefsPanel({ compact = false }) {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef(null)
   const { t } = useI18n()
@@ -58,15 +58,15 @@ export default function UiPrefsPanel() {
   }, [open])
 
   return (
-    <div className="ui-prefs-wrap" ref={wrapRef}>
+    <div className={`ui-prefs-wrap${compact ? ' is-chrome' : ''}`} ref={wrapRef}>
       <button
         type="button"
-        className={`ui-prefs-toggle${open ? ' is-on' : ''}`}
+        className={`ui-prefs-toggle${compact ? ' is-icon' : ''}${open ? ' is-on' : ''}`}
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
         aria-label={open ? t('shell.hideAppearance') : t('shell.showAppearance')}
       >
-        ⚙ {t('shell.appearance')}
+        {compact ? '⚙' : `⚙ ${t('shell.appearance')}`}
       </button>
       {open && (
         <div className="ui-prefs-popover" role="dialog" aria-label={t('shell.appearance')}>

@@ -511,13 +511,13 @@ function Shell() {
               <div style={{fontSize:10,color:'rgba(193,156,86,0.7)'}}>{roleLabel(perfil?.role)}</div>
             </div>
           </div>
-          <UiPrefsPanel />
           <button onClick={signOut} className="sidebar-signout">{t('common.signOut')}</button>
         </div>
       </aside>
 
       <main className="app-main app-main-wide">
         <WorkspaceChrome>
+          <UiPrefsPanel compact />
           <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
         </WorkspaceChrome>
         <div className="fade-in" key={tab}>
