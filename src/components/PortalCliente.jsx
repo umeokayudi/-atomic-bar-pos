@@ -25,6 +25,7 @@ import {
 import ClientAnalyticsTab from './ClientAnalyticsTab'
 import PortalRecibosTab from './PortalRecibosTab'
 import PortalClienteAI from './PortalClienteAI'
+import BarOwnerAi from './BarOwnerAi'
 import AtomicPosPanel from './AtomicPos'
 import TimeClockPanel from './TimeClock'
 import BarTeamTab from './BarTeamTab'
@@ -41,7 +42,6 @@ import { birthdayThisMonth, decorateSpaces } from '../lib/barCrm'
 import BarCostsTab, { CostBooksHero, loadCostBooks, BarCommandActions } from './BarCostsTab'
 import BarOpsGlance from './BarOpsGlance'
 import { buildBarOpsGlance } from '../lib/barOpsGlance'
-import HqAiDock from './HqAiDock'
 import { fetchHqSnapshot } from '../lib/hqSnapshot'
 import { NotificationBell, useBarOverdueAlerts } from './Notifications'
 import BarOrdersTab from './BarOrdersTab'
@@ -329,7 +329,7 @@ function HomeTab({ bar, onTab }) {
       ) : (
         <div className="easy-dash-ok">{t('portal.home.allClear')}</div>
       )}
-      <HqAiDock snapshot={hq} compact strip />
+      <BarOwnerAi bar={bar} hq={hq} />
       </section>
 
       <button type="button" className="easy-dash-more" onClick={() => setShowMore(v => !v)}>

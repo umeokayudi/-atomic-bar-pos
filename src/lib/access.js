@@ -53,10 +53,10 @@ const GERENTE_NAV = [
 ]
 
 const NAV_GROUPS = [
-  { id: 'tonight', labelKey: 'nav.groupTonight', ids: ['inicio', 'pos', 'pedidos', 'espacos', 'clientes'] },
+  { id: 'tonight', labelKey: 'nav.groupTonight', ids: ['inicio', 'ia', 'pos', 'pedidos', 'espacos', 'clientes'] },
   { id: 'people', labelKey: 'nav.groupPeople', ids: ['ponto', 'equipe'] },
   { id: 'supply', labelKey: 'nav.groupSupply', ids: ['estoque', 'entregas', 'faturas'] },
-  { id: 'office', labelKey: 'nav.groupOffice', ids: ['custos', 'precos', 'recibos', 'ia'] },
+  { id: 'office', labelKey: 'nav.groupOffice', ids: ['custos', 'precos', 'recibos'] },
 ]
 
 const CAIXA_NAV = [
@@ -89,6 +89,7 @@ export function primaryDockForRole(role) {
   if (role === ROLES.caixa || role === ROLES.bar_staff) return []
   return [
     { id: 'inicio', icon: '🏠', labelKey: 'nav.portalHome' },
+    { id: 'ia', icon: '🤖', labelKey: 'nav.portalAi' },
     { id: 'pos', icon: '🧾', labelKey: 'nav.portalPos' },
     { id: 'pedidos', icon: '🛒', labelKey: 'nav.portalOrders' },
     { id: 'ponto', icon: '🕒', labelKey: 'nav.portalClock' },

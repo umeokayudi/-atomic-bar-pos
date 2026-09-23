@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import { callGeminiChat } from '../lib/ai'
+import { callGeminiChat, imageDataUrlToParts } from '../lib/ai'
 import { Spinner, SectionTitle } from './utils'
 import { useI18n } from '../lib/i18n'
 import { fetchClientPortalSnapshot, buildClientChatSystem } from '../lib/clientPortalSnapshot'
@@ -23,7 +23,9 @@ export default function PortalClienteAI({ bar, initialSnapshot = null }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
+  const [photo, setPhoto] = useState(null)
   const listRef = useRef(null)
+  const fileRef = useRef(null)
 
   useEffect(() => {
     setMessages([{ role: 'assistant', content: t(snapshot?.books ? 'portal.aiHqIntro' : 'portal.aiIntro', { bar: bar.nome }) }])
@@ -55,20 +57,25 @@ export default function PortalClienteAI({ bar, initialSnapshot = null }) {
 
   async function sendChat(override) {
     const text = (override || input).trim()
-    if (!text || chatLoading) return
+    if ((!text && !photo) || chatLoading) return
     setInput('')
-    const userMsg = { role: 'user', content: text }
+    const userLabel = text || t('portal.aiReadPrompt')
+    const userMsg = { role: 'user', content: photo ? `${userLabel}\n📷` : userLabel }
     setMessages(m => [...m, userMsg])
     setChatLoading(true)
+    const image = photo ? imageDataUrlToParts(photo) : null
+    setPhoto(null)
 
     const snap = snapshot?.erro ? await loadPortalSnapshot(bar) : (snapshot || await loadPortalSnapshot(bar))
     if (!snapshot || snapshot.erro) setSnapshot(snap)
 
     const history = messages.filter((_, i) => i > 0).map(m => ({ role: m.role, content: m.content }))
-    const system = snap?.books ? buildHqChatSystem(snap) : buildClientChatSystem(snap)
+    const system = (snap?.books ? buildHqChatSystem(snap) : buildClientChatSystem(snap))
+      + '\nIf the user sends a photo, read the invoice, receipt or delivery note and explain amount, date and next step.'
     const reply = await callGeminiChat({
-      messages: [...history, userMsg],
+      messages: [...history, { role: 'user', content: userLabel }],
       system,
+      image,
       temperature: 0.45,
       maxOutputTokens: 1200,
     })
@@ -155,24 +162,46 @@ export default function PortalClienteAI({ bar, initialSnapshot = null }) {
           ))}
           {chatLoading && <Spinner text={t('portal.aiThinking')} />}
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            hidden
+            onChange={async e => {
+              const file = e.target.files?.[0]
+              e.target.value = ''
+              if (!file) return
+              const r = new FileReader()
+              r.onload = () => setPhoto(r.result)
+              r.readAsDataURL(file)
+            }}
+          />
+          <button type="button" onClick={() => fileRef.current?.click()} style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'white', cursor: 'pointer' }}>📷</button>
           <input
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && sendChat()}
-            placeholder={t('portal.aiPlaceholder')}
+            placeholder={t('portal.aiOwnerPlaceholder')}
             style={{ flex: 1, padding: '10px 14px', borderRadius: 10, fontSize: 13 }}
           />
           <button
             type="button"
             onClick={() => sendChat()}
-            disabled={chatLoading || !input.trim()}
+            disabled={chatLoading || (!input.trim() && !photo)}
             className="btn-primary"
             style={{ padding: '10px 16px', borderRadius: 10, fontSize: 12 }}
           >
             {t('portal.send')}
           </button>
         </div>
+        {photo && (
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+            <img src={photo} alt="" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} />
+            <button type="button" onClick={() => setPhoto(null)}>{t('common.clear')}</button>
+          </div>
+        )}
       </div>
     </div>
   )
