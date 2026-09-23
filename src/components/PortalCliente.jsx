@@ -95,31 +95,54 @@ function HomeTab({ bar, onTab }) {
   useEffect(() => { load() }, [bar])
 
   async function load() {
-    const [vR, pR, iR, bpR, fR, posR] = await Promise.all([
-      supabase.from('vendas').select('*').eq('bar_id', bar.id).order('data', { ascending:true }),
-      supabase.from('pedidos').select('*').eq('bar_id', bar.id).order('criado_em', { ascending:false }),
-      supabase.from('vendas_itens').select('*, produtos(nome,categoria,preco_venda,volume_ml), vendas(data,bar_id,obs)').eq('vendas.bar_id', bar.id),
+    const since = (() => {
+      const [y, mo] = tokyoMonthKey().split('-').map(Number)
+      const d = new Date(y, mo - 1 - 8, 1)
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+    })()
+
+    const fastP = Promise.all([
+      supabase.from('vendas').select('id,bar_id,data,total,obs').eq('bar_id', bar.id).gte('data', since).order('data', { ascending: false }).limit(400),
+      supabase.from('pedidos').select('id,status,total_estimado,criado_em').eq('bar_id', bar.id).order('criado_em', { ascending: false }).limit(80),
+      supabase.from('faturas').select('*').eq('bar_id', bar.id).order('data_vencimento', { ascending: false }).limit(36),
+      supabase.from('pos_vendas').select('total,data,criado_em').eq('bar_id', bar.id).gte('data', since),
       supabase.from('bar_pricing').select('produto_id,drinks_por_garrafa,preco_drink').eq('bar_id', bar.id),
-      supabase.from('faturas').select('*').eq('bar_id', bar.id).order('data_vencimento', { ascending:false }),
-      supabase.from('pos_vendas').select('total,data,criado_em').eq('bar_id', bar.id),
     ])
+    const hqP = fetchHqSnapshot().catch(() => null)
+    const itensP = supabase
+      .from('vendas_itens')
+      .select('qtd,preco_unitario,produtos(nome,categoria,preco_venda,volume_ml), vendas(data,bar_id,obs)')
+      .eq('vendas.bar_id', bar.id)
+      .gte('vendas.data', since)
+      .limit(600)
+    const floorP = Promise.all([
+      supabase.from('bar_spaces').select('id,ativo,ordem,tipo,zona').eq('bar_id', bar.id).eq('ativo', true),
+      supabase.from('bar_visits').select('id,space_id,status,guest_id').eq('bar_id', bar.id).in('status', ['seated', 'reserved']),
+      supabase.from('bar_guests').select('id,nome,aniversario,ativo').eq('bar_id', bar.id).eq('ativo', true),
+    ]).catch(() => null)
+
+    const [vR, pR, fR, posR, bpR] = await fastP
     setVendas(filterSupplierVendas(vR.data || []))
     setPedidos(pR.data || [])
-    setItens((iR.data || []).filter(i => i.vendas && filterSupplierVendas([i.vendas]).length))
-    setBarPricing(bpR.data || [])
     setFaturas(filterJbmDrinksFaturas(fR.data || []))
+    setBarPricing(bpR.data || [])
     const mesKey = tokyoMonthKey()
-    let hqPos = false
-    try {
-      const snap = await fetchHqSnapshot()
+    if (!posR.error && (posR.data || []).length) {
+      const posSales = posR.data || []
+      setPosTickets(posSales)
+      setPosMonthTotal(posSales.filter(s => (s.data || '').startsWith(mesKey)).reduce((a, s) => a + (+s.total || 0), 0))
+    }
+    setLoading(false)
+
+    const snap = await hqP
+    if (snap) {
       setHq(snap)
       setCostBooks(snap.books)
       if (snap?.pos) {
         setPosTickets(snap.pos.tickets || [])
         setPosMonthTotal(snap.pos.till != null ? snap.pos.till : null)
-        hqPos = true
       }
-    } catch {
+    } else {
       setHq(null)
       try {
         const books = await loadCostBooks(bar.id)
@@ -128,37 +151,31 @@ function HomeTab({ bar, onTab }) {
         setCostBooks(null)
       }
     }
-    if (!hqPos) {
-      if (!posR.error && (posR.data || []).length) {
-        const posSales = posR.data || []
-        setPosTickets(posSales)
-        setPosMonthTotal(posSales.filter(s => (s.data || '').startsWith(mesKey)).reduce((a, s) => a + (+s.total || 0), 0))
-      } else {
-        setPosTickets([])
-        setPosMonthTotal(null)
-      }
-    }
+
+    const iR = await itensP
+    setItens((iR.data || []).filter(i => i.vendas && filterSupplierVendas([i.vendas]).length))
+
     try {
-      const [spR, viR, guR] = await Promise.all([
-        supabase.from('bar_spaces').select('id,ativo,ordem,tipo,zona').eq('bar_id', bar.id).eq('ativo', true),
-        supabase.from('bar_visits').select('id,space_id,status,guest_id').eq('bar_id', bar.id).in('status', ['seated', 'reserved']),
-        supabase.from('bar_guests').select('id,nome,aniversario,ativo').eq('bar_id', bar.id).eq('ativo', true),
-      ])
-      if (!spR.error) {
-        const floor = decorateSpaces(spR.data || [], viR.data || [])
-        setFloorGlance({
-          seated: floor.filter(s => s.occupied).length,
-          reserved: floor.filter(s => s.reserved).length,
-          free: floor.filter(s => !s.occupied && !s.reserved).length,
-          birthdays: birthdayThisMonth(guR.data || []).length,
-        })
-      } else {
+      const floorRes = await floorP
+      if (!floorRes) {
         setFloorGlance(null)
+      } else {
+        const [spR, viR, guR] = floorRes
+        if (!spR.error) {
+          const floor = decorateSpaces(spR.data || [], viR.data || [])
+          setFloorGlance({
+            seated: floor.filter(s => s.occupied).length,
+            reserved: floor.filter(s => s.reserved).length,
+            free: floor.filter(s => !s.occupied && !s.reserved).length,
+            birthdays: birthdayThisMonth(guR.data || []).length,
+          })
+        } else {
+          setFloorGlance(null)
+        }
       }
     } catch {
       setFloorGlance(null)
     }
-    setLoading(false)
   }
 
   const pricingMap = buildPricingMap(barPricing)

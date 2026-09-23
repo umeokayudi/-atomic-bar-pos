@@ -5,11 +5,23 @@ import { localHoursPay } from './timeClock'
 
 export { localHoursPay }
 
-export async function fetchHqSnapshot(month) {
+const HQ_TTL_MS = 120_000
+const hqCache = new Map()
+
+export function invalidateHqSnapshot() {
+  hqCache.clear()
+}
+
+export async function fetchHqSnapshot(month, { fresh } = {}) {
+  const key = month || ''
+  const hit = hqCache.get(key)
+  if (!fresh && hit && Date.now() - hit.at < HQ_TTL_MS) return hit.data
+
   const q = month ? `?month=${encodeURIComponent(month)}` : ''
   const r = await staffFetch(`/api/bar/hq-sync${q}`)
   const j = await r.json().catch(() => ({ error: r.statusText }))
   if (!r.ok) throw new Error(j.error || 'HQ sync failed')
+  hqCache.set(key, { at: Date.now(), data: j })
   return j
 }
 
@@ -21,6 +33,7 @@ export async function saveHqRent({ amount, note, month_key }) {
   })
   const j = await r.json().catch(() => ({ error: r.statusText }))
   if (!r.ok) throw new Error(j.error || 'Rent save failed')
+  invalidateHqSnapshot()
   return j
 }
 

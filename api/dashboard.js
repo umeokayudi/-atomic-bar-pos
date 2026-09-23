@@ -33,8 +33,8 @@ export default async function handler(req, res) {
     const chartMonths = lastMonths(6)
 
     const [{ data: compras, error: comprasErr }, { data: vendasRaw }, { data: faturas }, { data: pedidos }, { count: pedidosPendentes }, { data: fornecedores }, { data: bars }, pagamentosRes] = await Promise.all([
-      db.from('compras').select('data, data_compra, data_pagamento, total_real, total_pago, status_pagamento, fornecedor, pagamento, compras_itens(nome, qtd, custo_unitario)').order('data'),
-      db.from('vendas').select('id, bar_id, data, data_venda, total, obs').order('data'),
+      db.from('compras').select('data, data_compra, data_pagamento, total_real, total_pago, status_pagamento, fornecedor, pagamento').order('data', { ascending: false }).limit(400),
+      db.from('vendas').select('id, bar_id, data, data_venda, total, obs').order('data', { ascending: false }).limit(800),
       db.from('faturas').select('id, total, valor, pago, status, periodo_inicio, periodo_fim, data_emissao, data_vencimento, obs, bar_id, bars(nome)'),
       db.from('pedidos').select('id, bar_id, data_pedido, data_entrega_prevista, criado_em, total_estimado, status, obs'),
       db.from('pedidos').select('id', { count: 'exact', head: true }).eq('status', 'pendente'),
@@ -49,17 +49,8 @@ export default async function handler(req, res) {
     const vendas = (vendasRaw || []).filter(isSupplierVenda)
     const ctx = { vendas, compras, faturas, pedidos, bars: bars || [] }
 
-    function ym(d) {
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    }
-    const now = new Date()
-    const padded = []
-    for (let i = 36; i >= -12; i--) {
-      padded.push(ym(new Date(now.getFullYear(), now.getMonth() - i, 1)))
-    }
-
     const months = [...new Set([
-      ...padded,
+      ...chartMonths,
       ...(compras || []).map(compraMonthKey),
       ...(compras || []).flatMap(c => [c.data, c.data_compra].map(d => String(d || '').slice(0, 7))),
       ...vendas.map(saleMonthKey),
@@ -72,10 +63,11 @@ export default async function handler(req, res) {
       return { month: m, receita: s.receita, faturamento: s.faturamento, compras: s.compras, lucro: s.lucroProjetado }
     })
 
+    const detailMonths = new Set(lastMonths(12))
     const byMonth = {}
-    for (const m of [...new Set([...months, ...chartMonths])]) {
+    for (const m of months) {
       const stats = monthDashboardStats(m, ctx)
-      const entregasDetalhe = entregasDetalheForMonth(m, ctx)
+      const entregasDetalhe = detailMonths.has(m) ? entregasDetalheForMonth(m, ctx) : []
       byMonth[m] = {
         ...stats,
         entregasDetalhe,

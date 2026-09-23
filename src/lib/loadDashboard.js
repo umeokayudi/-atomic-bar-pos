@@ -1,6 +1,15 @@
 import { supabase } from './supabase'
 
-export async function loadDashboard() {
+let dashMem = { at: 0, data: null }
+const DASH_TTL_MS = 45_000
+
+export function invalidateDashboard() {
+  dashMem = { at: 0, data: null }
+}
+
+export async function loadDashboard({ fresh } = {}) {
+  if (!fresh && dashMem.data && Date.now() - dashMem.at < DASH_TTL_MS) return dashMem.data
+
   let { data: { session } } = await supabase.auth.getSession()
   if (!session?.access_token) throw new Error('Not authenticated')
 
@@ -17,5 +26,7 @@ export async function loadDashboard() {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || `Dashboard API ${res.status}`)
   }
-  return res.json()
+  const payload = await res.json()
+  dashMem = { at: Date.now(), data: payload }
+  return payload
 }

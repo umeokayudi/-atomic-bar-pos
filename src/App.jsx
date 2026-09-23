@@ -31,7 +31,7 @@ import { fmtYen, fmtDate, roleLabel } from './components/utils'
 import { I18nProvider, useI18n } from './lib/i18n'
 import UiPrefsPanel from './components/UiPrefsPanel'
 import { UiPrefsProvider, useUiPrefs, LAYOUTS } from './lib/uiPrefs'
-import { loadDashboard } from './lib/loadDashboard'
+import { loadDashboard, invalidateDashboard } from './lib/loadDashboard'
 import { PageHeader, PortalHero, PortalKpi, PortalSurface, PortalAlert } from './components/ui/PageLayout'
 import DashboardMetricModal from './components/DashboardMetricModal'
 import DashboardCalendar from './components/DashboardCalendar'
@@ -371,7 +371,7 @@ function Dashboard({ onNav }) {
         <MarkPaidPopup
           item={payItem}
           onClose={() => setPayItem(null)}
-          onSaved={loadStats}
+          onSaved={() => { invalidateDashboard(); loadStats() }}
         />
       )}
     </div>
