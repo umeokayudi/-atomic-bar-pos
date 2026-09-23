@@ -4,6 +4,7 @@ import { fmtYen, fmtDate, Spinner, Empty, compraDueDate, isCompraOverdue } from 
 import { splitPendingCompras, splitPendingFaturas, buildCashflowEvents, pagamentoFor, pagamentoMap } from '../lib/compraPagamentos'
 import { uploadCobrancaDoc, buildCobrancaDocument, downloadTextFile } from '../lib/cobrancaDocs'
 import JbmHoldingPanel from './JbmHoldingPanel'
+import CashflowAi from './CashflowAi'
 import { AdminPage, PortalKpi, PortalSurface, PortalPills } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
 
@@ -18,19 +19,31 @@ export default function Cashflow() {
       actions={
         <PortalPills
           scrollable
-          options={[['overview', t('cashflow.tabOverview')],['in', t('cashflow.tabIn')],['out', t('cashflow.tabOut')],['purchases', t('cashflow.tabPurchases')],['holding', t('cashflow.tabHolding')],['caixa', t('cashflow.tabCaixa')],['calendario', t('cashflow.tabCalendar')]]}
+          options={[
+            ['overview', t('cashflow.tabOverview')],
+            ['agenda', t('cashflow.tabAgenda')],
+            ['in', t('cashflow.tabIn')],
+            ['out', t('cashflow.tabOut')],
+            ['caixa', t('cashflow.tabCaixa')],
+            ['holding', t('cashflow.tabHolding')],
+          ]}
           value={tab}
           onChange={setTab}
         />
       }
     >
       {tab==='overview'  && <CashflowOverview />}
+      {tab==='agenda'    && <Calendario />}
       {tab==='in'        && <MoneyIn />}
-      {tab==='out'       && <MoneyOut />}
-      {tab==='purchases' && <PurchasePayments />}
+      {tab==='out'       && (
+        <>
+          <PurchasePayments />
+          <div style={{ height: 20 }} />
+          <MoneyOut />
+        </>
+      )}
       {tab==='holding'   && <JbmHoldingPanel />}
       {tab==='caixa'     && <Caixa />}
-      {tab==='calendario' && <Calendario />}
     </AdminPage>
   )
 }
@@ -89,7 +102,6 @@ function CashflowOverview() {
   }
   const maxVal = Math.max(...weeks.map(w=>Math.max(w.in,w.out)), 1)
 
-  // Next 30 days projected
   const next30 = []
   for (let i=0; i<30; i++) {
     const d = new Date(); d.setDate(d.getDate()+i)
@@ -104,8 +116,34 @@ function CashflowOverview() {
     if (inAmt>0||outAmt>0) next30.push({ date:ds, in:inAmt, out:outAmt })
   }
 
+  const weekAhead = []
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(); d.setDate(d.getDate() + i)
+    weekAhead.push(d.toISOString().slice(0, 10))
+  }
+  const weekItems = next30.filter(d => weekAhead.includes(d.date))
+  const weekText = weekItems.length
+    ? weekItems.map(d => `${fmtDate(d.date)}: ${d.in ? `receber ${fmtYen(d.in)}` : ''}${d.in && d.out ? ' · ' : ''}${d.out ? `pagar ${fmtYen(d.out)}` : ''}`).join('\n')
+    : ''
+  const collectText = faturaSplit.overdue.length
+    ? faturaSplit.overdue.map(f => `${f.bars?.nome || 'Bar'}: ${fmtYen(f.amount)} (venceu ${fmtDate(f.dueDate)})`).join('\n')
+    : ''
+  const payText = pendingSplit.overdue.length
+    ? pendingSplit.overdue.map(c => `${c.fornecedor || 'Fornecedor'}: ${fmtYen(c.amount)} (venceu ${fmtDate(c.dueDate)})`).join('\n')
+    : ''
+  const whyText = netCash < 0
+    ? `Caixa líquido ${fmtYen(netCash)} porque já pagamos ${fmtYen(paidOut)} e só entrou ${fmtYen(paidIn)}. Ainda dá para receber ${fmtYen(pendingIn)}.`
+    : `Caixa líquido ${fmtYen(netCash)}. Entradas confirmadas ${fmtYen(paidIn)}, saídas pagas ${fmtYen(paidOut)}.`
+
+  const aiSnap = {
+    paidIn, paidOut, netCash, pendingIn, pendingOut,
+    overdueIn: faturaSplit.overdueTotal, overdueOut,
+    weekText, collectText, payText, whyText,
+  }
+
   return (
     <div>
+      <CashflowAi snapshot={aiSnap} />
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))', gap:12, marginBottom:20 }}>
         {[
           { label: t('cashflow.receivedBars'), value: fmtYen(paidIn), color: 'var(--green)', sub: t('cashflow.receivedBarsSub') },
@@ -585,6 +623,19 @@ function Calendario() {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState(null)
   const [popup, setPopup] = useState(null)
+  const [notes, setNotes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('jbm_cash_agenda') || '[]') } catch { return [] }
+  })
+  const [noteForm, setNoteForm] = useState({
+    date: new Date().toISOString().slice(0, 10),
+    title: '',
+    kind: 'outro',
+  })
+
+  function saveNotes(next) {
+    setNotes(next)
+    try { localStorage.setItem('jbm_cash_agenda', JSON.stringify(next)) } catch {}
+  }
 
   useEffect(() => { load(); const iv=setInterval(load,30000); return ()=>clearInterval(iv) }, [])
   async function load() {
@@ -623,8 +674,22 @@ function Calendario() {
       if (!map[day]) map[day] = []
       map[day].push(ev)
     }
+    for (const n of notes) {
+      if (!n.date?.startsWith(monthStr)) continue
+      const day = +n.date.slice(8, 10)
+      if (!map[day]) map[day] = []
+      map[day].push({
+        type: n.kind === 'receber' ? 'in' : n.kind === 'pagar' ? 'out' : 'note',
+        amount: 0,
+        label: n.title,
+        note: t('cashflow.agendaNote'),
+        status: 'agenda',
+        date: n.date,
+        agendaId: n.id,
+      })
+    }
     return map
-  }, [allEvents, monthStr])
+  }, [allEvents, monthStr, notes, t])
 
   const overdueFaturas = allEvents.filter(e => e.status === 'atrasado' && e.type === 'in')
   const overdueCompras = allEvents.filter(e => e.status === 'atrasado' && e.type === 'out')
@@ -643,6 +708,44 @@ function Calendario() {
 
   return (
     <div>
+      <CashflowAi snapshot={{
+        weekText: upcomingEvents.map(ev => `${fmtDate(ev.date)} ${ev.type === 'in' ? 'receber' : 'pagar'} ${fmtYen(ev.amount)} ${ev.label}`).join('\n'),
+        collectText: overdueFaturas.map(ev => `${ev.label} ${fmtYen(ev.amount)}`).join('\n'),
+        payText: overdueCompras.map(ev => `${ev.label} ${fmtYen(ev.amount)}`).join('\n'),
+        netCash: 0, paidIn: 0, paidOut: 0, pendingIn: 0, pendingOut: 0,
+      }} />
+
+      <PortalSurface title={t('cashflow.agendaAddTitle')} sub={t('cashflow.agendaAddSub')} style={{ marginBottom: 16 }}>
+        <form
+          onSubmit={e => {
+            e.preventDefault()
+            if (!noteForm.title.trim() || !noteForm.date) return
+            saveNotes([...notes, { id: Date.now(), ...noteForm, title: noteForm.title.trim() }])
+            setNoteForm({ ...noteForm, title: '' })
+          }}
+          style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}
+        >
+          <input type="date" value={noteForm.date} onChange={e => setNoteForm({ ...noteForm, date: e.target.value })} style={{ minWidth: 140 }} />
+          <input value={noteForm.title} onChange={e => setNoteForm({ ...noteForm, title: e.target.value })} placeholder={t('cashflow.agendaPlaceholder')} style={{ flex: 1, minWidth: 180 }} />
+          <select value={noteForm.kind} onChange={e => setNoteForm({ ...noteForm, kind: e.target.value })} style={{ minWidth: 120 }}>
+            <option value="receber">{t('cashflow.agendaKindIn')}</option>
+            <option value="pagar">{t('cashflow.agendaKindOut')}</option>
+            <option value="outro">{t('cashflow.agendaKindOther')}</option>
+          </select>
+          <button type="submit" className="btn-primary" style={{ padding: '8px 14px', fontSize: 12 }}>{t('cashflow.agendaSave')}</button>
+        </form>
+        {notes.filter(n => n.date >= todayStr).slice(0, 6).length > 0 && (
+          <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {notes.filter(n => n.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 8).map(n => (
+              <div key={n.id} style={{ background: '#f6f3ee', borderRadius: 10, padding: '8px 10px', fontSize: 12 }}>
+                <strong>{fmtDate(n.date)}</strong> · {n.title}
+                <button type="button" onClick={() => saveNotes(notes.filter(x => x.id !== n.id))} style={{ marginLeft: 8, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--red)' }}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </PortalSurface>
+
       {overdueEvents.length > 0 && (
         <>
           {overdueFaturas.length > 0 && (
@@ -741,10 +844,10 @@ function Calendario() {
                   </div>
                   {dayEvents.slice(0,3).map((ev,ei)=>(
                     <div key={ei} style={{ fontSize:9, padding:'2px 4px', borderRadius:3, marginTop:2,
-                      background: ev.status==='atrasado' ? '#fef2f2' : ev.type==='in' ? '#f0fdf4' : '#fffbeb',
-                      color: ev.status==='atrasado' ? '#dc2626' : ev.type==='in' ? '#16a34a' : '#b45309',
+                      background: ev.status==='atrasado' ? '#fef2f2' : ev.type==='in' ? '#f0fdf4' : ev.type==='note' ? '#eef2ff' : '#fffbeb',
+                      color: ev.status==='atrasado' ? '#dc2626' : ev.type==='in' ? '#16a34a' : ev.type==='note' ? '#3730a3' : '#b45309',
                       fontWeight:600, lineHeight:1.3 }}>
-                      {ev.type==='in'?'↑':'↓'} {Math.round(ev.amount/1000)}k
+                      {ev.type==='note' ? ev.label : `${ev.type==='in'?'↑':'↓'} ${Math.round(ev.amount/1000)}k`}
                     </div>
                   ))}
                 </div>
@@ -769,7 +872,7 @@ function Calendario() {
                     <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:20,
                       background:ev.type==='in'?'#f0fdf4':ev.status==='atrasado'?'#fef2f2':'#fffbeb',
                       color:ev.type==='in'?'var(--green)':ev.status==='atrasado'?'var(--red)':'var(--amber)' }}>
-                      {ev.type==='in'?t('cashflow.receive'):t('cashflow.pay')}
+                      {ev.type==='in'?t('cashflow.receive'):ev.type==='note'?t('cashflow.agendaNote'):t('cashflow.pay')}
                     </span>
                     <span style={{ fontSize:10, fontWeight:700, color: ev.status==='atrasado' ? 'var(--red)' : 'var(--text3)' }}>
                       {statusLabel[ev.status] || ev.status}
@@ -779,8 +882,8 @@ function Calendario() {
                   <div style={{ fontSize:11, color:'var(--text2)', marginTop:2 }}>{ev.note}</div>
                   {ev.docUrl && <a href={ev.docUrl} target="_blank" rel="noreferrer" style={{ fontSize:11, color:'var(--blue)', marginTop:4, display:'inline-block' }}>{t('cashflow.viewDocument')}</a>}
                 </div>
-                <div style={{ fontSize:16, fontWeight:800, color:ev.type==='in'?'var(--green)':'var(--red)' }}>
-                  {ev.type==='in'?'+':'-'}{fmtYen(ev.amount)}
+                <div style={{ fontSize:16, fontWeight:800, color:ev.type==='in'?'var(--green)':ev.type==='note'?'var(--navy)':'var(--red)' }}>
+                  {ev.type==='note' ? '' : `${ev.type==='in'?'+':'-'}${fmtYen(ev.amount)}`}
                 </div>
               </div>
             ))}

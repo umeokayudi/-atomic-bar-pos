@@ -2484,6 +2484,54 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
   word-break: break-all;
 }
 
+.cash-ai {
+  background: #fff;
+  border: 1px solid rgba(193, 156, 86, 0.28);
+  border-radius: 16px;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+}
+.cash-ai-head { margin-bottom: 10px; }
+.cash-ai-title { font-size: 15px; font-weight: 800; color: var(--navy); }
+.cash-ai-hint { font-size: 12px; color: var(--text2); margin-top: 4px; line-height: 1.45; }
+.cash-ai-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.cash-ai-chip {
+  border: 1px solid rgba(193, 156, 86, 0.35);
+  background: rgba(193, 156, 86, 0.08);
+  color: var(--navy);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.cash-ai-log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow: auto;
+  padding: 4px 0 8px;
+}
+.cash-ai-bubble {
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.cash-ai-user { background: rgba(193, 156, 86, 0.16); align-self: flex-end; max-width: 92%; }
+.cash-ai-assistant { background: #f6f3ee; align-self: flex-start; max-width: 96%; }
+.cash-ai-compose { display: flex; gap: 8px; }
+.cash-ai-compose input {
+  flex: 1;
+  min-height: 42px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  padding: 0 12px;
+  font-size: 13px;
+}
+
 .hq-ai-dock {
   background: linear-gradient(165deg, #001028 0%, #002855 52%, #0b1c33 100%);
   color: #e8ecf2;
