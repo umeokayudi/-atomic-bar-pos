@@ -15,8 +15,12 @@ function resolveDrinksUrl() {
 
 function resolveAnonKey() {
   const raw = (process.env.VITE_SUPABASE_ANON_KEY || '').trim()
-  if (raw && raw !== '[SENSITIVE]' && raw.startsWith('eyJ') && raw.length >= 40) return raw
-  return DRINKS_ANON_KEY
+  if (!raw || raw === '[SENSITIVE]' || /placeholder/i.test(raw) || raw.length < 80) return DRINKS_ANON_KEY
+  try {
+    const payload = JSON.parse(Buffer.from(raw.split('.')[1], 'base64url').toString())
+    if (payload.ref && payload.ref !== DRINKS_PROJECT_REF) return DRINKS_ANON_KEY
+  } catch { /* use drinks */ }
+  return raw.startsWith('eyJ') ? raw : DRINKS_ANON_KEY
 }
 
 function serviceRoleProjectRef(key) {

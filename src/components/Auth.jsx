@@ -1,6 +1,6 @@
 import { LogoLogin } from './Logo'
 import { createContext, useContext, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, drinksAuth } from '../lib/supabase'
 import { useI18n, LANGS } from '../lib/i18n'
 import {
   readLanePerfil,
@@ -45,7 +45,7 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    drinksAuth.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUser(session.user)
         loadPerfil(session.user.id)
@@ -56,7 +56,7 @@ export function AuthProvider({ children }) {
       if (lane && token) applyLane(lane)
       else setLoading(false)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+    const { data: { subscription } } = drinksAuth.auth.onAuthStateChange((_e, session) => {
       if (session?.user) {
         clearLaneSession()
         setUser(session.user)
@@ -90,7 +90,7 @@ export function AuthProvider({ children }) {
     }
 
     clearLaneSession()
-    const result = await supabase.auth.signInWithPassword({ email: e, password: p })
+    const result = await drinksAuth.auth.signInWithPassword({ email: e, password: p })
     if (!result.error) {
       const uid = result.data?.user?.id
       let perfil = null
@@ -103,13 +103,6 @@ export function AuthProvider({ children }) {
       }
       return { error: null, perfil }
     }
-
-    const lane = await tryLaneLogin(e, p)
-    if (!lane.error) {
-      writeLaneSession(lane.token, lane.perfil, !!keep)
-      applyLane(lane.perfil)
-      return { error: null, perfil: lane.perfil }
-    }
     return result
   }
 
@@ -117,7 +110,7 @@ export function AuthProvider({ children }) {
     clearLaneSession()
     setUser(null)
     setPerfil(null)
-    try { await supabase.auth.signOut({ scope: 'local' }) } catch { /* already cleared */ }
+    try { await drinksAuth.auth.signOut({ scope: 'local' }) } catch { /* already cleared */ }
   }
 
   return (
@@ -171,14 +164,24 @@ export function LoginPage() {
   const submit = async () => {
     setErr('')
     if (!email.trim() || !pass) {
-      setErr(t('auth.wrongCredentials'))
+      setErr(t('auth.enterEmailPassword'))
       return
     }
     setBusy(true)
     try {
       const { error, perfil } = await signIn(email, pass, { keep })
-      if (error) setErr(t('auth.wrongCredentials'))
-      else setHashForRole(perfil?.role)
+      if (error) {
+        const msg = String(error.message || '').toLowerCase()
+        if (msg.includes('api key') || msg.includes('jwt') || msg.includes('not configured')) {
+          setErr(t('auth.badProject'))
+        } else if (msg.includes('fetch') || msg.includes('network') || msg.includes('failed')) {
+          setErr(t('auth.network'))
+        } else {
+          setErr(t('auth.wrongCredentials'))
+        }
+      } else {
+        setHashForRole(perfil?.role)
+      }
     } finally { setBusy(false) }
   }
 
@@ -216,6 +219,7 @@ export function LoginPage() {
           backdropFilter: 'blur(10px)',
         }}>
           <LoginLanguagePicker />
+          <form onSubmit={e => { e.preventDefault(); submit() }}>
           <div style={{
             fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.55)',
             marginBottom: 8, textAlign: 'center', letterSpacing: '0.08em', textTransform: 'uppercase',
@@ -264,12 +268,13 @@ export function LoginPage() {
             }}>{err}</div>
           )}
 
-          <button className="btn-gold" onClick={submit} disabled={busy}
+          <button type="submit" className="btn-gold" disabled={busy}
             style={{ width: '100%', padding: 13, fontSize: 14, borderRadius: 10, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
             {busy
               ? <><span className="spinner" />{t('common.wait')}</>
               : t('auth.enter')}
           </button>
+          </form>
         </div>
       </div>
     </div>

@@ -36,7 +36,7 @@ export const WRITTEN_LOGINS = {
   jbm: {
     lane: 'jbm',
     email: 'umeokagroup@gmail.com',
-    password: 'JbmVer#2026',
+    password: 'Jbm#Fornecedor2026',
     role: 'admin',
     nome: 'Alexandre Umeoka',
     via: 'supabase',
