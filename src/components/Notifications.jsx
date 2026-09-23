@@ -154,7 +154,9 @@ const TIPO_ICON = {
 }
 
 function timeAgo(iso, t) {
-  const diff = Date.now() - new Date(iso).getTime()
+  const when = new Date(iso).getTime()
+  if (!iso || Number.isNaN(when)) return ''
+  const diff = Date.now() - when
   const m = Math.floor(diff / 60000)
   const h = Math.floor(m / 60)
   const d = Math.floor(h / 24)
@@ -274,7 +276,7 @@ export function NotificationBell({
                   onClick={() => go(f.tab || 'faturas')}
                 >
                   <span className="notif-overdue-kind">{t('notifications.invoiceKind')}</span>
-                  <span className="notif-overdue-label">{f.label}</span>
+                  <span className="notif-overdue-label">{asReactText(f.label)}</span>
                   <span className="notif-overdue-amount">{fmtYen(f.amount)}</span>
                   <span className="notif-overdue-date">{t('notifications.expiredOn', { date: fmtDate(f.date) })}</span>
                 </button>
@@ -287,7 +289,7 @@ export function NotificationBell({
                   onClick={() => go(c.tab || 'cashflow')}
                 >
                   <span className="notif-overdue-kind">{t('notifications.purchaseKind')}</span>
-                  <span className="notif-overdue-label">{c.label}</span>
+                  <span className="notif-overdue-label">{asReactText(c.label)}</span>
                   <span className="notif-overdue-amount">{fmtYen(c.amount)}</span>
                   <span className="notif-overdue-date">{t('notifications.expiredOn', { date: fmtDate(c.date) })}</span>
                 </button>
@@ -312,7 +314,7 @@ export function NotificationBell({
                 >
                   <span className="notif-row-icon" style={{ background: tipo.bg }}>{tipo.icon}</span>
                   <span className="notif-row-content">
-                    <span className="notif-row-title">{n.titulo}</span>
+                    <span className="notif-row-title">{asReactText(n.titulo)}</span>
                     {n.mensagem && <span className="notif-row-msg">{asReactText(n.mensagem)}</span>}
                     <span className="notif-row-time">{timeAgo(n.criado_em, t)}</span>
                   </span>
@@ -342,22 +344,7 @@ export function NotificationBell({
         ref={btnRef}
         type="button"
         className={`notif-bell-btn${open ? ' is-on' : ''}`}
-        onClick={() => {
-          setOpen(x => {
-            const next = !x
-            if (next && btnRef.current) {
-              const rect = btnRef.current.getBoundingClientRect()
-              const vv = window.visualViewport
-              setPanelStyle(panelBoxStyle(placeNotifPanel({
-                rect,
-                placement,
-                vw: vv?.width || window.innerWidth,
-                vh: vv?.height || window.innerHeight,
-              })))
-            }
-            return next
-          })
-        }}
+        onClick={() => setOpen(open => !open)}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={badgeCount > 0 ? t('notifications.badgeCount', { count: badgeCount }) : t('notifications.title')}

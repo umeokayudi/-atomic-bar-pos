@@ -3942,4 +3942,55 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
   .people-add { grid-template-columns: 1fr; }
 }
 
+.house-page { max-width: 920px; }
+.house-page h1 { font-size: 26px; font-weight: 800; margin: 0 0 8px; }
+.house-lead { font-size: 15px; line-height: 1.5; color: var(--text2); max-width: 640px; margin: 0 0 18px; }
+.house-block {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 18px 16px;
+  margin-bottom: 14px;
+}
+.house-kicker {
+  width: 28px; height: 28px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--navy); color: #fff; font-size: 13px; font-weight: 800;
+}
+.house-block h2 { margin: 8px 0 4px; font-size: 18px; }
+.house-block p { margin: 0 0 12px; color: var(--text2); font-size: 13px; line-height: 1.45; }
+.house-person, .house-line {
+  display: flex; justify-content: space-between; gap: 12px; align-items: center;
+  padding: 10px 0; border-top: 1px solid var(--border); font-size: 14px;
+}
+.house-meta { font-size: 12px; color: var(--text2); margin-top: 2px; }
+.house-actions { display: flex; gap: 8px; align-items: center; }
+.house-text {
+  background: none; border: none; color: var(--navy); font-weight: 700; cursor: pointer; font-size: 13px;
+}
+.house-add { margin-top: 12px; }
+.house-editor {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
+}
+.house-editor label, .house-month { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: var(--text2); }
+.house-check { flex-direction: row; align-items: center; grid-column: 1 / -1; }
+.house-editor .house-actions { grid-column: 1 / -1; }
+.house-empty { color: var(--text3); font-size: 13px; padding: 8px 0; }
+.house-casts { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.house-cast {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 999px;
+  padding: 6px 10px; font-size: 13px; font-weight: 700;
+}
+.house-sales { margin-top: 12px; }
+.house-split { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.house-sub { font-weight: 800; margin-bottom: 4px; }
+.house-form { display: grid; grid-template-columns: 1fr 120px auto; gap: 8px; margin-top: 8px; }
+.house-total { margin-top: 8px; font-size: 13px; font-weight: 800; }
+.house-month { max-width: 220px; margin-bottom: 12px; }
+.house-month input { font-weight: 600; }
+@media (max-width: 800px) {
+  .house-editor, .house-split, .house-form { grid-template-columns: 1fr; }
+}
+
 

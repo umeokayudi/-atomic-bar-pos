@@ -116,8 +116,15 @@ export default async function handler(req, res) {
         listStaffWithExtras(db, barId),
         loadBarWithGeo(db, barId),
       ])
+      const peopleLive = await runLiveOp(db, {
+        table: 'bar_people',
+        mode: 'select',
+        columns: '*',
+        filters: [{ op: 'eq', k: 'bar_id', v: barId }],
+      })
       return res.status(200).json({
         staff: staff || [],
+        people: peopleLive.data || [],
         bar: {
           id: bar?.id,
           nome: bar?.nome,
@@ -145,6 +152,55 @@ export default async function handler(req, res) {
         geofence_m: Math.max(50, Math.min(500, +body.geofence_m || 150)),
       })
       if (!saved.ok) return res.status(400).json({ error: saved.error })
+      return res.status(200).json({ ok: true })
+    }
+
+    if (req.method === 'POST' && body.action === 'savePerson') {
+      const nome = String(body.nome || '').trim()
+      if (!nome) return res.status(400).json({ error: 'name required' })
+      const id = body.id || (globalThis.crypto?.randomUUID?.() || `person-${Date.now()}`)
+      const row = {
+        id,
+        bar_id: barId,
+        nome,
+        salario_hora: +body.salario_hora || 0,
+        salario_mes: +body.salario_mes || 0,
+        drink_back: !!body.drink_back,
+        comissao_pct: body.drink_back ? (+body.comissao_pct || 0) : 0,
+      }
+      const existing = await runLiveOp(db, {
+        table: 'bar_people',
+        mode: 'select',
+        columns: '*',
+        filters: [{ op: 'eq', k: 'id', v: id }],
+        wantSingle: 'maybe',
+      })
+      const saved = await runLiveOp(db, {
+        table: 'bar_people',
+        mode: existing.data ? 'update' : 'insert',
+        filters: [{ op: 'eq', k: 'id', v: id }],
+        insertRows: [row],
+        updatePatch: row,
+        wantSingle: true,
+      })
+      if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not save' })
+      const drink = await syncDrinkBackAgent(db, barId, id, {
+        nome,
+        drink_back: row.drink_back,
+        comissao_pct: row.comissao_pct,
+      })
+      if (!drink.ok) return res.status(400).json({ error: drink.error })
+      return res.status(200).json({ ok: true, person: row })
+    }
+
+    if (req.method === 'POST' && body.action === 'deletePerson') {
+      if (!body.id) return res.status(400).json({ error: 'id required' })
+      await runLiveOp(db, {
+        table: 'bar_people',
+        mode: 'delete',
+        filters: [{ op: 'eq', k: 'id', v: body.id }, { op: 'eq', k: 'bar_id', v: barId }],
+      })
+      await syncDrinkBackAgent(db, barId, body.id, { nome: '', drink_back: false, comissao_pct: 0 })
       return res.status(200).json({ ok: true })
     }
 

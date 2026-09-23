@@ -23,6 +23,7 @@ export const LIVE_TABLES = new Set([
   'bar_hq_meta',
   'pos_shifts',
   'pos_settings',
+  'bar_people',
 ])
 
 let sourcePromise = null
