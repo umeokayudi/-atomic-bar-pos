@@ -356,7 +356,18 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
     setSaleErr('')
     const openVisit = matchCheckoutVisit(visits, { spaceId, guestId })
     const guest = guests.find(g => g.id === guestId)
+    const bottleBase = cart
+      .filter(it => it.kind === 'shot' || it.produto_id)
+      .reduce((sum, it) => sum + lineUnitPrice(it) * (it.qtd || 1), 0)
+    if (bottleBase > 0 && agents.some(a => a.ativo !== false) && !agentId) {
+      setSaving(false)
+      setSaleErr(t('atomicPos.bottleCastRequired'))
+      return
+    }
     const agent = agents.find(a => a.id === agentId)
+    const bottleFee = bottleBase > 0 && agent
+      ? Math.round(bottleBase * (+agent.comissao_pct || 0) / 100)
+      : null
     const obs = packTicketObs({
       details: ticketNote,
       castName: agent?.nome || '',
@@ -369,6 +380,7 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
       roomMin: space?.tipo === 'vip_room' ? settings.room_min : 0,
       keepId,
       keepPourPct: +keepPourPct || 0,
+      commission: bottleFee,
       payNote: payRecordNote({
         method: payMethod,
         total: ticketTotal,
@@ -450,7 +462,7 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
                 type="button"
                 className={`pos-chip pos-chip-cast${agentId === a.id ? ' is-on' : ''}`}
                 onClick={() => setAgentId(agentId === a.id ? '' : a.id)}
-              >💃 {a.nome}</button>
+              >💃 {a.nome}{a.comissao_pct ? ` ${a.comissao_pct}%` : ''}</button>
             ))}
             <button type="button" className="pos-chip" onClick={() => setAddCastOpen(v => !v)}>{t('atomicPos.addCast')}</button>
             {!ticketReady && !agents.some(a => a.ativo !== false) && spaces.length === 0 && (
@@ -674,6 +686,24 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
         )}
         {saleErr && <div className="pos-sale-err">{saleErr}</div>}
         <div className="pos-cart-title">{t('atomicPos.stepCharge')}</div>
+        {cart.some(it => it.kind === 'shot' || it.produto_id) && (
+          <div className="pos-cart-ticket">
+            <div>{t('atomicPos.bottleCast')}</div>
+            {agentId ? (
+              <strong>
+                {t('atomicPos.bottleCommission', {
+                  pct: agents.find(a => a.id === agentId)?.comissao_pct || 0,
+                  amount: fmtYen(Math.round(
+                    cart.filter(it => it.kind === 'shot' || it.produto_id).reduce((sum, it) => sum + lineUnitPrice(it) * (it.qtd || 1), 0)
+                    * (+agents.find(a => a.id === agentId)?.comissao_pct || 0) / 100,
+                  )),
+                })}
+              </strong>
+            ) : (
+              <span>{t('atomicPos.bottleCastRequired')}</span>
+            )}
+          </div>
+        )}
         {(agentId || spaceId || guestId) && (
           <div className="pos-cart-ticket">
             {agentId && <span>💃 {(agents.find(a => a.id === agentId)?.nome) || 'CAST'}</span>}
@@ -1206,7 +1236,7 @@ function PosDashboardTab({ bar, todaySales, salesList, onOrder }) {
         supabase.from('estoque_regras').select('produto_id,minimo').eq('bar_id', bar.id),
         supabase.from('produtos_public').select('id,nome,categoria').eq('ativo', true),
         supabase.from('drink_back_agents').select('id,nome,comissao_pct').eq('bar_id', bar.id).eq('ativo', true),
-        supabase.from('pos_vendas').select('total,drink_back_agent_id').eq('bar_id', bar.id).eq('data', todayKey()).not('drink_back_agent_id', 'is', null),
+        supabase.from('pos_vendas').select('total,obs,drink_back_agent_id').eq('bar_id', bar.id).eq('data', todayKey()).not('drink_back_agent_id', 'is', null),
         supabase.from('pedidos').select('id,status,obs,total_estimado,pedidos_itens(produto_id,qtd,produtos(nome))').eq('bar_id', bar.id).in('status', ['pendente', 'confirmado']),
       ])
 
@@ -1220,15 +1250,20 @@ function PosDashboardTab({ bar, todaySales, salesList, onOrder }) {
       const agentMap = {}
       for (const s of sales) {
         if (!s.drink_back_agent_id) continue
-        if (!agentMap[s.drink_back_agent_id]) agentMap[s.drink_back_agent_id] = { total: 0, count: 0 }
+        if (!agentMap[s.drink_back_agent_id]) agentMap[s.drink_back_agent_id] = { total: 0, count: 0, comissao: 0 }
         agentMap[s.drink_back_agent_id].total += +s.total || 0
         agentMap[s.drink_back_agent_id].count += 1
+        const posted = String(s.obs || '').match(/^Comm:\s*([\d.]+)/m)
+        const pct = +(agents.find(a => a.id === s.drink_back_agent_id)?.comissao_pct || 0)
+        agentMap[s.drink_back_agent_id].comissao += posted
+          ? Math.round(+posted[1])
+          : Math.round((+s.total || 0) * pct / 100)
       }
       setAgentStats(agents.map(a => ({
         ...a,
         vendas: agentMap[a.id]?.count || 0,
         faturamento: agentMap[a.id]?.total || 0,
-        comissao: Math.round((agentMap[a.id]?.total || 0) * (+a.comissao_pct || 0) / 100),
+        comissao: agentMap[a.id]?.comissao || 0,
       })).filter(a => a.vendas > 0).sort((a, b) => b.faturamento - a.faturamento))
 
       setOpenRestock((pedR.data || []).filter(isRestockPedido))

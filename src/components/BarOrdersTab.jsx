@@ -304,7 +304,6 @@ export default function BarOrdersTab({ bar }) {
                   {meta.details && !isRestockPedido(p) && <div className="ord-details-box compact">{meta.details}</div>}
                 </div>
                 <div className="ord-card-right">
-                  <strong>{fmtYen(p.total_estimado)}</strong>
                   <Badge status={p.status} />
                 </div>
               </div>

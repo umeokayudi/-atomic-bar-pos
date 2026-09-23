@@ -43,6 +43,18 @@ export function booksGrandTotal(books) {
   return null
 }
 
+export function splitOverhead(rows = [], monthKey) {
+  const fixed = (rows || []).filter(r => r.kind === 'fixo')
+  const variable = (rows || []).filter(r => r.kind === 'variavel' && r.month_key === monthKey)
+  const sum = list => Math.round(list.reduce((a, r) => a + (+r.amount || 0), 0))
+  return {
+    fixed,
+    variable,
+    fixedTotal: sum(fixed),
+    variableTotal: sum(variable),
+  }
+}
+
 export function rentForMonth(rows = [], monthKey) {
   const match = (rows || []).find(r => r.kind === 'rent' && r.month_key === monthKey)
   return Math.round(+match?.amount || 0)

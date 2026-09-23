@@ -561,10 +561,24 @@ export async function loadStaffWithExtras(admin, staffId) {
   }
 }
 
+const PERFIL_EXTRA_KEYS = ['cargo', 'salario_hora', 'ativo', 'clock_pin_hash']
+const STAFF_ONLY_KEYS = ['drink_back', 'comissao_pct', 'salario_mes']
+
 export async function saveStaffExtras(admin, staffId, patch) {
-  const { error } = await admin.from('perfis').update(patch).eq('id', staffId)
-  if (!error) return { ok: true, via: 'postgres' }
-  if (!isMissingSchemaError(error)) return { ok: false, error: error.message }
+  const perfilPatch = {}
+  const extraPatch = {}
+  for (const [k, v] of Object.entries(patch || {})) {
+    if (PERFIL_EXTRA_KEYS.includes(k)) perfilPatch[k] = v
+    else extraPatch[k] = v
+  }
+  if (Object.keys(perfilPatch).length) {
+    const { error } = await admin.from('perfis').update(perfilPatch).eq('id', staffId)
+    if (error) {
+      if (!isMissingSchemaError(error)) return { ok: false, error: error.message }
+      Object.assign(extraPatch, perfilPatch)
+    }
+  }
+  if (!Object.keys(extraPatch).length) return { ok: true, via: 'postgres' }
   const existing = await runLiveOp(admin, {
     table: 'staff_extras',
     mode: 'select',
@@ -572,27 +586,37 @@ export async function saveStaffExtras(admin, staffId, patch) {
     filters: [{ op: 'eq', k: 'id', v: staffId }],
     wantSingle: 'maybe',
   })
-  const row = { id: staffId, ...(existing.data || {}), ...patch }
+  const row = { id: staffId, ...(existing.data || {}), ...extraPatch }
   await runLiveOp(admin, {
     table: 'staff_extras',
     mode: existing.data ? 'update' : 'insert',
     filters: [{ op: 'eq', k: 'id', v: staffId }],
     insertRows: [row],
-    updatePatch: patch,
+    updatePatch: extraPatch,
     wantSingle: true,
   })
-  return { ok: true, via: 'live-store' }
+  return { ok: true, via: existing.data ? 'live-store' : 'live-store' }
+}
+
+function mergeStaffExtra(row, extra) {
+  if (!extra) return row
+  const out = { ...row }
+  for (const k of [...PERFIL_EXTRA_KEYS, ...STAFF_ONLY_KEYS]) {
+    if (extra[k] == null) continue
+    if (STAFF_ONLY_KEYS.includes(k) || out[k] == null) out[k] = extra[k]
+  }
+  return out
 }
 
 export async function listStaffWithExtras(admin, barId) {
   const full = await admin.from('perfis').select('id,nome,email,role,cargo,salario_hora,ativo,bar_id').eq('bar_id', barId).in('role', ['cliente', 'caixa', 'bar_staff', 'gerente']).order('nome')
   let rows = []
-  if (!full.error) rows = full.data || []
+  const extras = await runLiveOp(admin, { table: 'staff_extras', mode: 'select', columns: '*' })
+  const byId = Object.fromEntries((extras.data || []).map(r => [r.id, r]))
+  if (!full.error) rows = (full.data || []).map(p => mergeStaffExtra(p, byId[p.id]))
   else {
     const basic = await admin.from('perfis').select('id,nome,email,role,bar_id').eq('bar_id', barId).in('role', ['cliente', 'caixa', 'bar_staff']).order('nome')
-    const extras = await runLiveOp(admin, { table: 'staff_extras', mode: 'select', columns: '*' })
-    const byId = Object.fromEntries((extras.data || []).map(r => [r.id, r]))
-    rows = (basic.data || []).map(p => ({ ativo: true, ...p, ...(byId[p.id] || {}) }))
+    rows = (basic.data || []).map(p => mergeStaffExtra({ ativo: true, ...p }, byId[p.id]))
   }
   const lanes = await runLiveOp(admin, {
     table: 'bar_logins',
@@ -602,7 +626,7 @@ export async function listStaffWithExtras(admin, barId) {
   })
   for (const login of lanes.data || []) {
     if (rows.some(r => r.id === login.id || r.email === login.email)) continue
-    rows.push({
+    rows.push(mergeStaffExtra({
       id: login.id,
       nome: login.nome,
       email: login.email,
@@ -611,7 +635,7 @@ export async function listStaffWithExtras(admin, barId) {
       salario_hora: login.salario_hora || 0,
       ativo: login.ativo !== false,
       bar_id: login.bar_id,
-    })
+    }, byId[login.id]))
   }
   return rows
 }

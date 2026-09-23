@@ -17,7 +17,9 @@ export default function BarTeamTab({ bar }) {
   const [busyId, setBusyId] = useState('')
   const [err, setErr] = useState('')
   const [created, setCreated] = useState(null)
-  const [form, setForm] = useState({ nome: '', email: '', password: '', salario_hora: '1200' })
+  const [form, setForm] = useState({ nome: '', email: '', password: '', salario_hora: '1200', salario_mes: '', drink_back: false, comissao_pct: '10' })
+  const [payId, setPayId] = useState('')
+  const [pay, setPay] = useState({ salario_hora: '', salario_mes: '', drink_back: false, comissao_pct: '10' })
   const range = monthRange()
 
   async function load() {
@@ -61,16 +63,51 @@ export default function BarTeamTab({ bar }) {
         email,
         password,
         salario_hora: +form.salario_hora || 0,
+        salario_mes: +form.salario_mes || 0,
+        drink_back: !!form.drink_back,
+        comissao_pct: form.drink_back ? (+form.comissao_pct || 0) : 0,
       }),
     })
     const json = await res.json().catch(() => ({}))
     if (!res.ok) setErr(errText(json.error, t('team.createFailed')))
     else {
       setCreated({ email: json.email || email, password: json.password || password, nome: json.nome || form.nome })
-      setForm({ nome: '', email: '', password: '', salario_hora: '1200' })
+      setForm({ nome: '', email: '', password: '', salario_hora: '1200', salario_mes: '', drink_back: false, comissao_pct: '10' })
       await load()
     }
     setSaving(false)
+  }
+
+  function openPay(s) {
+    setPayId(s.id)
+    setPay({
+      salario_hora: String(s.salario_hora ?? ''),
+      salario_mes: String(s.salario_mes ?? ''),
+      drink_back: !!s.drink_back,
+      comissao_pct: String(s.comissao_pct ?? 10),
+    })
+  }
+
+  async function savePay(id) {
+    setErr(''); setBusyId(id)
+    const res = await staffFetch('/api/bar-staff', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id,
+        salario_hora: +pay.salario_hora || 0,
+        salario_mes: +pay.salario_mes || 0,
+        drink_back: !!pay.drink_back,
+        comissao_pct: pay.drink_back ? (+pay.comissao_pct || 0) : 0,
+      }),
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) setErr(errText(json.error, t('team.saveFailed')))
+    else {
+      setPayId('')
+      await load()
+    }
+    setBusyId('')
   }
 
   async function mark(staffId, tipo) {
@@ -96,9 +133,17 @@ export default function BarTeamTab({ bar }) {
         <div className="people-add" style={{ gridTemplateColumns: '1fr 1fr' }}>
           <input placeholder={t('auth.name')} value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} />
           <input type="number" placeholder={t('team.hourly')} value={form.salario_hora} onChange={e => setForm({ ...form, salario_hora: e.target.value })} />
+          <input type="number" placeholder={t('team.monthly')} value={form.salario_mes} onChange={e => setForm({ ...form, salario_mes: e.target.value })} />
           <input type="email" placeholder={t('auth.email')} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
           <input type="text" autoComplete="new-password" placeholder={t('auth.password')} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
         </div>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10, fontSize: 13 }}>
+          <input type="checkbox" checked={!!form.drink_back} onChange={e => setForm({ ...form, drink_back: e.target.checked })} />
+          {t('team.drinkBack')}
+        </label>
+        {form.drink_back && (
+          <input type="number" min="0" max="100" placeholder={t('team.commission')} value={form.comissao_pct} onChange={e => setForm({ ...form, comissao_pct: e.target.value })} style={{ marginTop: 8, maxWidth: 180 }} />
+        )}
         <button className="btn-primary" disabled={saving} onClick={createLogin} style={{ marginTop: 8, padding: '10px 16px' }}>
           {saving ? t('common.wait') : t('team.createLogin')}
         </button>
@@ -110,6 +155,48 @@ export default function BarTeamTab({ bar }) {
             <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 8 }}>{t('team.staffCanDo')}</div>
           </div>
         )}
+      </div>
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
+        <div style={{ padding: '14px 16px 0' }}>
+          <SectionTitle>{t('team.roster')}</SectionTitle>
+          <p style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 8 }}>{t('team.payHint')}</p>
+        </div>
+        {loading ? <div style={{ padding: 16 }}><Spinner /></div> : staff.map(s => (
+          <div key={s.id} className="people-row" style={{ alignItems: 'flex-start' }}>
+            <div className="people-who">
+              <div className="people-avatar">{(s.nome || '?')[0]}</div>
+              <div>
+                <div style={{ fontWeight: 800 }}>{s.nome}</div>
+                <div style={{ fontSize: 11, color: 'var(--text2)' }}>
+                  {fmtYen(s.salario_hora || 0)}/h
+                  {+s.salario_mes > 0 ? ` · ${fmtYen(s.salario_mes)}${t('team.perMonth')}` : ''}
+                  {' · '}
+                  {s.drink_back ? `${t('team.drinkBackOn')} ${s.comissao_pct || 0}%` : t('team.drinkBackOff')}
+                </div>
+              </div>
+            </div>
+            {payId === s.id ? (
+              <div style={{ display: 'grid', gap: 6, minWidth: 220 }}>
+                <input type="number" placeholder={t('team.hourly')} value={pay.salario_hora} onChange={e => setPay({ ...pay, salario_hora: e.target.value })} />
+                <input type="number" placeholder={t('team.monthly')} value={pay.salario_mes} onChange={e => setPay({ ...pay, salario_mes: e.target.value })} />
+                <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
+                  <input type="checkbox" checked={!!pay.drink_back} onChange={e => setPay({ ...pay, drink_back: e.target.checked })} />
+                  {t('team.drinkBack')}
+                </label>
+                {pay.drink_back && (
+                  <input type="number" min="0" max="100" placeholder={t('team.commission')} value={pay.comissao_pct} onChange={e => setPay({ ...pay, comissao_pct: e.target.value })} />
+                )}
+                <button type="button" className="btn-primary" disabled={busyId === s.id} onClick={() => savePay(s.id)}>
+                  {busyId === s.id ? t('common.wait') : t('team.savePay')}
+                </button>
+              </div>
+            ) : (
+              <button type="button" className="people-in" onClick={() => openPay(s)}>{t('team.editPay')}</button>
+            )}
+          </div>
+        ))}
+        {!loading && !staff.length && <div style={{ padding: 16, color: 'var(--text3)', fontSize: 13 }}>{t('clock.noStaff')}</div>}
       </div>
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>

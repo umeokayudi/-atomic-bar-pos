@@ -4,7 +4,7 @@ import { filterSupplierVendas } from './_supplierVenda.js'
 import { filterJbmDrinksFaturas, faturaRemaining, faturaValor, faturaPago } from '../src/lib/barPortal.js'
 import { payrollFromPunches } from '../src/lib/timeClock.js'
 import { tokyoMonthKey, monthRange, recentMonthKeys } from '../src/lib/tokyo.js'
-import { splitCostBooks, rentForMonth, lastKnownRent } from '../src/lib/costBooks.js'
+import { splitCostBooks, rentForMonth, lastKnownRent, splitOverhead } from '../src/lib/costBooks.js'
 import { monthKeyOf, explainJbmGap, buildMonthSeries, invoiceOverlapsMonth, lowStockFromLedger } from '../src/lib/hqFilters.js'
 import { coalesceStockMoves, deliveryNoteMoves, posPourMoves } from '../src/lib/barStock.js'
 import {
@@ -261,6 +261,7 @@ export async function buildHqSnapshot(admin, barId, barNome = '', monthKey) {
         ? { month_key: rentPrev.month_key, amount: Math.round(+rentPrev.amount || 0), note: rentPrev.note || '' }
         : null,
     },
+    overhead: splitOverhead(rentR.rows || [], mes),
     pos: {
       salesCount: posMonthRows.length,
       till: books.pos.amount,
@@ -362,4 +363,44 @@ export async function saveHqRent(admin, barId, { amount, note, month_key } = {})
     wantSingle: true,
   })
   return { ok: true, via: 'live-store', row }
+}
+
+export async function saveBarCost(admin, barId, body = {}) {
+  await ensureBarLiveReady(admin)
+  if (body.action === 'delete') {
+    if (!body.id) return { ok: false, error: 'id required' }
+    const pg = await admin.from('bar_overhead').delete().eq('id', body.id).eq('bar_id', barId)
+    if (pg.error) {
+      if (!isMissingSchemaError(pg.error)) return { ok: false, error: pg.error.message }
+      await runLiveOp(admin, {
+        table: 'bar_overhead',
+        mode: 'delete',
+        filters: [{ op: 'eq', k: 'id', v: body.id }, { op: 'eq', k: 'bar_id', v: barId }],
+      })
+    }
+    return { ok: true }
+  }
+  const kind = body.kind === 'variavel' ? 'variavel' : 'fixo'
+  const note = String(body.name || body.note || '').trim()
+  const amount = Math.round(+body.amount || 0)
+  if (!note) return { ok: false, error: 'name required' }
+  if (amount < 0) return { ok: false, error: 'amount required' }
+  const row = {
+    bar_id: barId,
+    kind,
+    month_key: kind === 'variavel' ? (body.month_key || tokyoMonthKey()) : 'fixo',
+    amount,
+    note,
+  }
+  const pg = await admin.from('bar_overhead').insert(row).select('*').single()
+  if (!pg.error) return { ok: true, via: 'postgres', row: pg.data }
+  if (!isMissingSchemaError(pg.error)) return { ok: false, error: pg.error.message }
+  const live = await runLiveOp(admin, {
+    table: 'bar_overhead',
+    mode: 'insert',
+    insertRows: [row],
+    wantSingle: true,
+  })
+  if (live.error) return { ok: false, error: live.error.message || 'Cost save failed' }
+  return { ok: true, via: 'live-store', row: live.data }
 }

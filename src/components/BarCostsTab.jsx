@@ -12,7 +12,7 @@ import { payrollFromPunches, monthRange, localHoursPay } from '../lib/timeClock'
 import { splitCostBooks } from '../lib/costBooks'
 import { asReactText, errText } from '../lib/errText'
 import { costAccessForRole } from '../lib/access'
-import { fetchHqSnapshot, saveHqRent } from '../lib/hqSnapshot'
+import { fetchHqSnapshot, saveHqRent, saveBarCost } from '../lib/hqSnapshot'
 import { useI18n } from '../lib/i18n'
 import HqAiDock from './HqAiDock'
 import BarOpsGlance from './BarOpsGlance'
@@ -121,6 +121,69 @@ export async function loadCostBooks(barId, monthKey) {
   const staffMonthPay = payroll.reduce((a, r) => a + (+r.pay || 0), 0)
   const rentMonth = (rentR.data || []).reduce((a, r) => a + (+r.amount || 0), 0)
   return splitCostBooks({ posMonthTotal, jbmMonthBill: account.contaMes, staffMonthPay, rentMonth })
+}
+
+function HouseCosts({ month, overhead, busy, onSave }) {
+  const { t } = useI18n()
+  const [fixedName, setFixedName] = useState('')
+  const [fixedAmount, setFixedAmount] = useState('')
+  const [varName, setVarName] = useState('')
+  const [varAmount, setVarAmount] = useState('')
+  const fixed = overhead?.fixed || []
+  const variable = overhead?.variable || []
+
+  async function add(kind, name, amount, clear) {
+    const label = String(name || '').trim()
+    if (!label) return
+    try {
+      await onSave({ kind, name: label, amount: +amount || 0, month_key: month })
+      clear()
+    } catch {
+      /* parent shows the error */
+    }
+  }
+
+  return (
+    <div className="hq-panel" style={{ marginBottom: 16 }}>
+      <div className="hq-panel-title">{t('portal.costs.houseTitle')}</div>
+      <div className="hq-kpis">
+        <div><b>{fmtYen(overhead?.fixedTotal || 0)}</b><span>{t('portal.costs.fixedTotal')}</span></div>
+        <div><b>{fmtYen(overhead?.variableTotal || 0)}</b><span>{t('portal.costs.variableTotal')}</span></div>
+      </div>
+      <div className="hq-panel-title" style={{ marginTop: 12 }}>{t('portal.costs.fixedTitle')}</div>
+      <div className="hq-panel-hint">{t('portal.costs.fixedHint')}</div>
+      {fixed.map(r => (
+        <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+          <span>{r.note}</span>
+          <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <strong>{fmtYen(r.amount)}</strong>
+            <button type="button" className="hq-chip" disabled={busy} onClick={() => onSave({ action: 'delete', id: r.id, month_key: month })}>{t('portal.costs.removeCost')}</button>
+          </span>
+        </div>
+      ))}
+      <div className="hq-rent-row">
+        <label>{t('portal.costs.costName')}<input value={fixedName} onChange={e => setFixedName(e.target.value)} /></label>
+        <label>{t('portal.costs.costAmount')}<input type="number" min="0" step="100" value={fixedAmount} onChange={e => setFixedAmount(e.target.value)} /></label>
+        <button type="button" className="btn-primary" disabled={busy} onClick={() => add('fixo', fixedName, fixedAmount, () => { setFixedName(''); setFixedAmount('') })}>{t('portal.costs.addCost')}</button>
+      </div>
+      <div className="hq-panel-title" style={{ marginTop: 16 }}>{t('portal.costs.variableTitle')}</div>
+      <div className="hq-panel-hint">{t('portal.costs.variableHint')}</div>
+      {variable.map(r => (
+        <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+          <span>{r.note}</span>
+          <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <strong>{fmtYen(r.amount)}</strong>
+            <button type="button" className="hq-chip" disabled={busy} onClick={() => onSave({ action: 'delete', id: r.id, month_key: month })}>{t('portal.costs.removeCost')}</button>
+          </span>
+        </div>
+      ))}
+      <div className="hq-rent-row">
+        <label>{t('portal.costs.costName')}<input value={varName} onChange={e => setVarName(e.target.value)} /></label>
+        <label>{t('portal.costs.costAmount')}<input type="number" min="0" step="100" value={varAmount} onChange={e => setVarAmount(e.target.value)} /></label>
+        <button type="button" className="btn-primary" disabled={busy} onClick={() => add('variavel', varName, varAmount, () => { setVarName(''); setVarAmount('') })}>{t('portal.costs.addCost')}</button>
+      </div>
+    </div>
+  )
 }
 
 function HoursCalculator() {
@@ -386,6 +449,26 @@ export default function BarCostsTab({ bar, onTab }) {
 
       {loading && <Spinner text={t('portal.costs.loading')} />}
       {books && <CostBooksHero books={books} access={access} selected={book} onSelect={setBook} />}
+
+      <HouseCosts
+        month={month}
+        overhead={hq?.overhead}
+        busy={busy}
+        onSave={async (cost) => {
+          setBusy(true)
+          setErr('')
+          try {
+            const snap = await saveBarCost(cost)
+            setHq(snap)
+            setBooks(snap.books)
+          } catch (e) {
+            setErr(errText(e))
+            setBusy(false)
+            throw e
+          }
+          setBusy(false)
+        }}
+      />
 
       {books && emptyBook && (
         <div className="hq-empty" style={{ marginBottom: 12 }}>{t('portal.hq.emptyMonth')}</div>

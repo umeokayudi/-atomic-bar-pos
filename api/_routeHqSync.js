@@ -3,7 +3,7 @@
 import { tryDrinksAdminClient, createStaffUserClient } from './_supabaseAdmin.js'
 import { handleCorsPreflight, setCorsHeaders } from './_cors.js'
 import { requireBarAccount } from './_requireStaff.js'
-import { buildHqSnapshot, saveHqRent } from './_hqSnapshot.js'
+import { buildHqSnapshot, saveHqRent, saveBarCost } from './_hqSnapshot.js'
 import { errText } from '../src/lib/errText.js'
 
 function bodyOf(req) {
@@ -26,6 +26,10 @@ export default async function handler(req, res) {
       if (body.rent && (body.rent.amount != null || body.rent.note != null)) {
         const saved = await saveHqRent(db, auth.perfil.bar_id, body.rent)
         if (!saved.ok) return res.status(400).json({ error: errText(saved.error, 'Rent save failed') })
+      }
+      if (body.cost) {
+        const saved = await saveBarCost(db, auth.perfil.bar_id, body.cost)
+        if (!saved.ok) return res.status(400).json({ error: errText(saved.error, 'Cost save failed') })
       }
     } else if (req.method !== 'GET') {
       return res.status(405).json({ error: 'Method not allowed' })

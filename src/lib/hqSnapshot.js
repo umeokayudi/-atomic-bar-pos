@@ -38,6 +38,18 @@ export async function saveHqRent({ amount, note, month_key }) {
   return j
 }
 
+export async function saveBarCost(cost) {
+  const r = await staffFetch('/api/bar/hq-sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ month: cost.month_key, cost }),
+  })
+  const j = await r.json().catch(() => ({ error: r.statusText }))
+  if (!r.ok || j.error) throw new Error(errText(j.error || j, 'Cost save failed'))
+  invalidateHqSnapshot()
+  return j
+}
+
 export function buildHqChatSystem(snapshot) {
   return buildHqChatSystemBase(snapshot, getGlobalLang())
 }

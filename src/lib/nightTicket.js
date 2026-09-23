@@ -10,6 +10,7 @@ const LINE = {
   room: /^RoomMin:\s*([\d.]+)$/im,
   keep: /^Keep:\s*([^:]+):([\d.]+)$/im,
   pay: /^Pay:\s*(.+)$/im,
+  comm: /^Comm:\s*([\d.]+)$/im,
 }
 
 export const DEFAULT_POS_SETTINGS = {
@@ -37,6 +38,7 @@ export function readTicketMeta(obs) {
     keepId: keep ? keep[1].trim() : '',
     keepPourPct: keep ? +keep[2] : 0,
     payNote: text.match(LINE.pay)?.[1]?.trim() || '',
+    commission: text.match(LINE.comm) ? Math.round(+text.match(LINE.comm)[1]) : null,
     details: orderDetailsFromObs(text),
   }
 }
@@ -54,6 +56,7 @@ export function packTicketObs({
   keepId = '',
   keepPourPct = 0,
   payNote = '',
+  commission = null,
 } = {}) {
   const head = []
   const castLine = withOrderCast('', { name: castName, id: castId })
@@ -65,6 +68,7 @@ export function packTicketObs({
   if (+setMinutes > 0 || +setPrice > 0) head.push(`Set: ${Math.round(+setMinutes || 0)}@${Math.round(+setPrice || 0)}`)
   if (+roomMin > 0) head.push(`RoomMin: ${Math.round(+roomMin)}`)
   if (keepId && +keepPourPct > 0) head.push(`Keep: ${keepId}:${Math.round(+keepPourPct)}`)
+  if (commission != null && commission !== '') head.push(`Comm: ${Math.round(+commission || 0)}`)
   const body = orderDetailsFromObs(details)
   return [...head, body].filter(Boolean).join('\n')
 }
