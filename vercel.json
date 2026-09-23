@@ -1,0 +1,17 @@
+{
+  "buildCommand": "npm run build",
+  "rewrites": [
+    { "source": "/api/time-clock", "destination": "/api/bar/time-clock" },
+    { "source": "/api/bar-staff", "destination": "/api/bar/bar-staff" },
+    { "source": "/api/pos-reorder", "destination": "/api/bar/pos-reorder" },
+    { "source": "/api/pos-status", "destination": "/api/bar/pos-status" },
+    { "source": "/api/lane-login", "destination": "/api/bar/lane-login" },
+    { "source": "/api/holding-modules", "destination": "/api/holding/holding-modules" },
+    { "source": "/api/holding-audit", "destination": "/api/holding/holding-audit" },
+    { "source": "/api/cashflow-export", "destination": "/api/holding/cashflow-export" },
+    {
+      "source": "/((?!api/|holding/|assets/|logo|favicon\\.svg|favicon\\.ico).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
