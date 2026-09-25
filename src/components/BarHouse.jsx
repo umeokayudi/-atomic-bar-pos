@@ -1,14 +1,20 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
 import { fmtYen, Spinner } from './utils'
 import { staffFetch } from '../lib/apiAuth'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 import { tokyoMonthKey } from '../lib/tokyo'
-import { fetchHqSnapshot, saveBarCost } from '../lib/hqSnapshot'
-import { readTicketMeta } from '../lib/nightTicket'
 
-const EMPTY = { nome: '', salario_hora: '', salario_mes: '', drink_back: false, comissao_pct: '10' }
+const EMPTY_PERSON = { nome: '', salario_hora: '', salario_mes: '', drink_back: false, comissao_pct: '10' }
+
+const REGISTERS = [
+  { kind: 'fornecedor', title: 'suppliers', body: 'suppliersBody', fields: ['nome', 'detalhe', 'contato'], detalheLabel: 'supplies' },
+  { kind: 'parceiro', title: 'partners', body: 'partnersBody', fields: ['nome', 'detalhe', 'contato'], detalheLabel: 'role' },
+  { kind: 'cartao', title: 'card', body: 'cardBody', fields: ['nome', 'pct', 'detalhe'], nomeLabel: 'company', detalheLabel: 'note' },
+  { kind: 'energia', title: 'power', body: 'powerBody', fields: ['nome', 'amount', 'detalhe'], nomeLabel: 'company', detalheLabel: 'note' },
+  { kind: 'aluguel', title: 'rent', body: 'rentBody', fields: ['nome', 'amount', 'detalhe'], detalheLabel: 'note' },
+  { kind: 'outro', title: 'other', body: 'otherBody', fields: ['nome', 'amount', 'recorrente', 'detalhe'], detalheLabel: 'note' },
+]
 
 function personFrom(row, source) {
   return {
@@ -22,138 +28,121 @@ function personFrom(row, source) {
   }
 }
 
-function HouseCosts({ month, overhead, busy, onSave }) {
-  const { t } = useI18n()
-  const [fixedName, setFixedName] = useState('')
-  const [fixedAmount, setFixedAmount] = useState('')
-  const [varName, setVarName] = useState('')
-  const [varAmount, setVarAmount] = useState('')
-  const fixed = overhead?.fixed || []
-  const variable = overhead?.variable || []
+function blankRegistry(kind) {
+  return { id: '', kind, nome: '', contato: '', detalhe: '', amount: '', pct: '', recorrente: true, month_key: tokyoMonthKey() }
+}
 
-  async function add(kind, name, amount, clear) {
-    const label = String(name || '').trim()
-    if (!label) return
-    try {
-      await onSave({ kind, name: label, amount: +amount || 0, month_key: month })
-      clear()
-    } catch {
-      /* parent shows the error */
-    }
+function registryLine(row, t) {
+  const bits = [row.nome]
+  if (row.detalhe) bits.push(row.detalhe)
+  if (row.contato) bits.push(row.contato)
+  if (+row.pct) bits.push(`${row.pct}%`)
+  if (+row.amount) bits.push(fmtYen(row.amount))
+  if (row.kind === 'outro') bits.push(row.recorrente === false ? (row.month_key || '') : t('house.repeats'))
+  return bits.filter(Boolean).join(' · ')
+}
+
+function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
+  const { t } = useI18n()
+  const [form, setForm] = useState(null)
+  const label = (field) => {
+    if (field === 'nome') return t(`house.${spec.nomeLabel || 'name'}`)
+    if (field === 'detalhe') return t(`house.${spec.detalheLabel || 'note'}`)
+    if (field === 'contato') return t('house.contact')
+    if (field === 'pct') return t('house.fee')
+    if (field === 'amount') return t('house.monthlyAmount')
+    if (field === 'recorrente') return t('house.repeats')
+    return field
   }
 
   return (
-    <div className="house-costs">
-      <div className="house-split">
-        <div>
-          <div className="house-sub">{t('house.fixedTitle')}</div>
-          <p>{t('house.fixedBody')}</p>
-          {fixed.map(r => (
-            <div key={r.id} className="house-line">
-              <span>{r.note}</span>
-              <span>
-                <strong>{fmtYen(r.amount)}</strong>
-                <button type="button" className="house-text" disabled={busy} onClick={() => onSave({ action: 'delete', id: r.id, month_key: month })}>{t('house.remove')}</button>
-              </span>
-            </div>
-          ))}
-          <div className="house-form">
-            <input placeholder={t('house.costName')} value={fixedName} onChange={e => setFixedName(e.target.value)} />
-            <input type="number" min="0" step="100" placeholder={t('house.costAmount')} value={fixedAmount} onChange={e => setFixedAmount(e.target.value)} />
-            <button type="button" className="btn-primary" disabled={busy} onClick={() => add('fixo', fixedName, fixedAmount, () => { setFixedName(''); setFixedAmount('') })}>{t('house.addCost')}</button>
+    <section className="house-block">
+      <h2>{t(`house.${spec.title}`)}</h2>
+      <p>{t(`house.${spec.body}`)}</p>
+      {!rows.length && <div className="house-empty">{t('house.empty')}</div>}
+      {rows.map(row => (
+        <div key={row.id} className="house-person">
+          <div>{registryLine(row, t)}</div>
+          <div className="house-actions">
+            <button type="button" className="house-text" onClick={() => setForm({
+              id: row.id,
+              kind: spec.kind,
+              nome: row.nome || '',
+              contato: row.contato || '',
+              detalhe: row.detalhe || '',
+              amount: row.amount ? String(row.amount) : '',
+              pct: row.pct ? String(row.pct) : '',
+              recorrente: row.recorrente !== false,
+              month_key: row.month_key || tokyoMonthKey(),
+            })}>{t('house.edit')}</button>
+            <button type="button" className="house-text" disabled={busy} onClick={() => onDelete(row.id)}>{t('house.remove')}</button>
           </div>
-          <div className="house-total">{t('house.fixedTotal')}: {fmtYen(overhead?.fixedTotal || 0)}</div>
         </div>
-        <div>
-          <div className="house-sub">{t('house.variableTitle')}</div>
-          <p>{t('house.variableBody')}</p>
-          {variable.map(r => (
-            <div key={r.id} className="house-line">
-              <span>{r.note}</span>
-              <span>
-                <strong>{fmtYen(r.amount)}</strong>
-                <button type="button" className="house-text" disabled={busy} onClick={() => onSave({ action: 'delete', id: r.id, month_key: month })}>{t('house.remove')}</button>
-              </span>
-            </div>
+      ))}
+      {form ? (
+        <div className="house-editor">
+          {spec.fields.map(field => (
+            field === 'recorrente' ? (
+              <label key={field} className="house-check">
+                <input type="checkbox" checked={form.recorrente !== false} onChange={e => setForm({ ...form, recorrente: e.target.checked })} />
+                {label(field)}
+              </label>
+            ) : (
+              <label key={field}>
+                {label(field)}
+                <input
+                  type={field === 'amount' || field === 'pct' ? 'number' : 'text'}
+                  min={field === 'pct' ? '0' : undefined}
+                  value={form[field]}
+                  onChange={e => setForm({ ...form, [field]: e.target.value })}
+                />
+              </label>
+            )
           ))}
-          <div className="house-form">
-            <input placeholder={t('house.costName')} value={varName} onChange={e => setVarName(e.target.value)} />
-            <input type="number" min="0" step="100" placeholder={t('house.costAmount')} value={varAmount} onChange={e => setVarAmount(e.target.value)} />
-            <button type="button" className="btn-primary" disabled={busy} onClick={() => add('variavel', varName, varAmount, () => { setVarName(''); setVarAmount('') })}>{t('house.addCost')}</button>
+          {spec.kind === 'outro' && form.recorrente === false && (
+            <label>{t('house.month')}
+              <input type="month" value={form.month_key} onChange={e => setForm({ ...form, month_key: e.target.value })} />
+            </label>
+          )}
+          <div className="house-actions">
+            <button type="button" className="btn-primary" disabled={busy || !form.nome.trim()} onClick={() => onSave(form).then(() => setForm(null))}>{t('house.save')}</button>
+            <button type="button" className="house-text" onClick={() => setForm(null)}>{t('house.cancel')}</button>
           </div>
-          <div className="house-total">{t('house.variableTotal')}: {fmtYen(overhead?.variableTotal || 0)}</div>
         </div>
-      </div>
-    </div>
+      ) : (
+        <button type="button" className="btn-primary house-add" onClick={() => setForm(blankRegistry(spec.kind))}>{t('house.add')}</button>
+      )}
+    </section>
   )
 }
 
 export default function BarHouseTab({ bar, onTab }) {
   const { t } = useI18n()
-  const [month, setMonth] = useState(tokyoMonthKey())
-  const [overhead, setOverhead] = useState(null)
   const [people, setPeople] = useState([])
-  const [sales, setSales] = useState([])
+  const [registry, setRegistry] = useState([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [form, setForm] = useState(null)
 
-  async function loadPeople() {
+  async function load() {
     const team = await staffFetch('/api/bar-staff').then(r => r.json())
     if (team.error) throw new Error(errText(team.error))
     const fromStaff = (team.staff || []).map(s => personFrom(s, 'staff'))
     const ids = new Set(fromStaff.map(p => p.id))
     const extra = (team.people || []).filter(p => p?.id && !ids.has(p.id)).map(p => personFrom(p, 'house'))
     setPeople([...fromStaff, ...extra].sort((a, b) => a.nome.localeCompare(b.nome)))
-  }
-
-  async function loadSales() {
-    const [salesR, agentsR] = await Promise.all([
-      supabase.from('pos_vendas').select('id,data,obs,drink_back_agent_id,criado_em').eq('bar_id', bar.id).order('criado_em', { ascending: false }).limit(40),
-      supabase.from('drink_back_agents').select('id,nome,comissao_pct').eq('bar_id', bar.id),
-    ])
-    const byId = Object.fromEntries((agentsR.data || []).map(a => [a.id, a]))
-    setSales((salesR.data || []).map(s => {
-      const meta = readTicketMeta(s.obs)
-      const agent = byId[s.drink_back_agent_id]
-      return { id: s.id, data: s.data, nome: agent?.nome || '', amount: meta.commission, pct: agent?.comissao_pct }
-    }).filter(r => r.amount != null))
-  }
-
-  async function loadCosts(mes = month) {
-    try {
-      const snap = await fetchHqSnapshot(mes, { fresh: true })
-      setOverhead(snap.overhead || { fixed: [], variable: [], fixedTotal: 0, variableTotal: 0 })
-    } catch (e) {
-      setErr(errText(e))
-    }
+    setRegistry(team.registry || [])
   }
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    Promise.all([loadPeople(), loadSales(), loadCosts(month)])
+    load()
       .catch(e => { if (!cancelled) setErr(errText(e)) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [bar.id, month])
-
-  function openNew() {
-    setForm({ ...EMPTY, id: '', source: 'house' })
-  }
-
-  function openEdit(p) {
-    setForm({
-      id: p.id,
-      source: p.source,
-      nome: p.nome,
-      salario_hora: String(p.salario_hora || ''),
-      salario_mes: String(p.salario_mes || ''),
-      drink_back: p.drink_back,
-      comissao_pct: String(p.comissao_pct || 10),
-    })
-  }
+  }, [bar.id])
 
   async function savePerson() {
     if (!form?.nome.trim()) return
@@ -168,21 +157,13 @@ export default function BarHouseTab({ bar, onTab }) {
       comissao_pct: form.drink_back ? (+form.comissao_pct || 0) : 0,
     }
     const res = form.source === 'staff' && form.id
-      ? await staffFetch('/api/bar-staff', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      : await staffFetch('/api/bar-staff', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'savePerson', ...payload }),
-      })
+      ? await staffFetch('/api/bar-staff', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      : await staffFetch('/api/bar-staff', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'savePerson', ...payload }) })
     const json = await res.json().catch(() => ({}))
     if (!res.ok) setErr(errText(json.error, t('team.saveFailed')))
     else {
       setForm(null)
-      await loadPeople()
+      await load()
     }
     setBusy(false)
   }
@@ -190,7 +171,6 @@ export default function BarHouseTab({ bar, onTab }) {
   async function removePerson(p) {
     if (p.source !== 'house') return
     setBusy(true)
-    setErr('')
     const res = await staffFetch('/api/bar-staff', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -198,11 +178,52 @@ export default function BarHouseTab({ bar, onTab }) {
     })
     const json = await res.json().catch(() => ({}))
     if (!res.ok) setErr(errText(json.error))
-    else await loadPeople()
+    else await load()
     setBusy(false)
   }
 
-  const casts = people.filter(p => p.drink_back)
+  async function saveRegistry(row) {
+    setBusy(true)
+    setErr('')
+    const res = await staffFetch('/api/bar-staff', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'saveRegistry',
+        id: row.id || undefined,
+        kind: row.kind,
+        nome: row.nome.trim(),
+        contato: row.contato,
+        detalhe: row.detalhe,
+        amount: +row.amount || 0,
+        pct: +row.pct || 0,
+        recorrente: row.recorrente !== false,
+        month_key: row.month_key,
+      }),
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      setErr(errText(json.error))
+      setBusy(false)
+      throw new Error(errText(json.error))
+    }
+    await load()
+    setBusy(false)
+  }
+
+  async function deleteRegistry(id) {
+    setBusy(true)
+    setErr('')
+    const res = await staffFetch('/api/bar-staff', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'deleteRegistry', id }),
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) setErr(errText(json.error))
+    else await load()
+    setBusy(false)
+  }
 
   return (
     <div className="fade-in house-page">
@@ -212,7 +233,6 @@ export default function BarHouseTab({ bar, onTab }) {
       {loading && <Spinner />}
 
       <section className="house-block">
-        <div className="house-kicker">1</div>
         <h2>{t('house.staffTitle')}</h2>
         <p>{t('house.staffBody')}</p>
         {!people.length && !loading && <div className="house-empty">{t('house.empty')}</div>}
@@ -228,10 +248,16 @@ export default function BarHouseTab({ bar, onTab }) {
               </div>
             </div>
             <div className="house-actions">
-              <button type="button" className="house-text" onClick={() => openEdit(p)}>{t('house.edit')}</button>
-              {p.source === 'house' && (
-                <button type="button" className="house-text" disabled={busy} onClick={() => removePerson(p)}>{t('house.remove')}</button>
-              )}
+              <button type="button" className="house-text" onClick={() => setForm({
+                id: p.id,
+                source: p.source,
+                nome: p.nome,
+                salario_hora: String(p.salario_hora || ''),
+                salario_mes: String(p.salario_mes || ''),
+                drink_back: p.drink_back,
+                comissao_pct: String(p.comissao_pct || 10),
+              })}>{t('house.edit')}</button>
+              {p.source === 'house' && <button type="button" className="house-text" disabled={busy} onClick={() => removePerson(p)}>{t('house.remove')}</button>}
             </div>
           </div>
         ))}
@@ -253,61 +279,21 @@ export default function BarHouseTab({ bar, onTab }) {
             </div>
           </div>
         ) : (
-          <button type="button" className="btn-primary house-add" onClick={openNew}>{t('house.add')}</button>
+          <button type="button" className="btn-primary house-add" onClick={() => setForm({ ...EMPTY_PERSON, id: '', source: 'house' })}>{t('house.add')}</button>
         )}
+        <button type="button" className="house-text" style={{ marginTop: 10 }} onClick={() => onTab?.('pos')}>{t('house.openTill')}</button>
       </section>
 
-      <section className="house-block">
-        <div className="house-kicker">2</div>
-        <h2>{t('house.bottleTitle')}</h2>
-        <p>{t('house.bottleBody')}</p>
-        {casts.length ? (
-          <div className="house-casts">
-            {casts.map(p => (
-              <span key={p.id} className="house-cast">{p.nome} · {p.comissao_pct}%</span>
-            ))}
-          </div>
-        ) : (
-          <div className="house-empty">{t('house.noDrink')}</div>
-        )}
-        <button type="button" className="btn-primary" onClick={() => onTab?.('pos')}>{t('house.openTill')}</button>
-        <div className="house-sales">
-          {!sales.length && <div className="house-empty">{t('house.noCommission')}</div>}
-          {sales.map(r => (
-            <div key={r.id} className="house-line">
-              <span>{r.data} · {r.nome || t('house.cast')}{r.pct != null ? ` · ${r.pct}%` : ''}</span>
-              <strong>{fmtYen(r.amount)}</strong>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="house-block">
-        <div className="house-kicker">3</div>
-        <h2>{t('house.costsTitle')}</h2>
-        <p>{t('house.costsBody')}</p>
-        <label className="house-month">{t('house.month')}
-          <input type="month" value={month} onChange={e => setMonth(e.target.value)} />
-        </label>
-        <HouseCosts
-          month={month}
-          overhead={overhead}
+      {REGISTERS.map(spec => (
+        <RegisterBlock
+          key={spec.kind}
+          spec={spec}
+          rows={registry.filter(r => r.kind === spec.kind)}
           busy={busy}
-          onSave={async (cost) => {
-            setBusy(true)
-            setErr('')
-            try {
-              const snap = await saveBarCost({ ...cost, month_key: cost.month_key || month })
-              setOverhead(snap.overhead || { fixed: [], variable: [], fixedTotal: 0, variableTotal: 0 })
-            } catch (e) {
-              setErr(errText(e))
-              setBusy(false)
-              throw e
-            }
-            setBusy(false)
-          }}
+          onSave={saveRegistry}
+          onDelete={deleteRegistry}
         />
-      </section>
+      ))}
     </div>
   )
 }

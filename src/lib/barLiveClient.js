@@ -24,6 +24,7 @@ export const LIVE_TABLES = new Set([
   'pos_shifts',
   'pos_settings',
   'bar_people',
+  'bar_registry',
 ])
 
 let sourcePromise = null

@@ -125,6 +125,12 @@ export default async function handler(req, res) {
       return res.status(200).json({
         staff: staff || [],
         people: peopleLive.data || [],
+        registry: (await runLiveOp(db, {
+          table: 'bar_registry',
+          mode: 'select',
+          columns: '*',
+          filters: [{ op: 'eq', k: 'bar_id', v: barId }],
+        })).data || [],
         bar: {
           id: bar?.id,
           nome: bar?.nome,
@@ -152,6 +158,54 @@ export default async function handler(req, res) {
         geofence_m: Math.max(50, Math.min(500, +body.geofence_m || 150)),
       })
       if (!saved.ok) return res.status(400).json({ error: saved.error })
+      return res.status(200).json({ ok: true })
+    }
+
+    if (req.method === 'POST' && body.action === 'saveRegistry') {
+      const kind = String(body.kind || '')
+      const allowed = ['fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'outro']
+      if (!allowed.includes(kind)) return res.status(400).json({ error: 'kind required' })
+      const nome = String(body.nome || '').trim()
+      if (!nome) return res.status(400).json({ error: 'name required' })
+      const id = body.id || (globalThis.crypto?.randomUUID?.() || `reg-${Date.now()}`)
+      const row = {
+        id,
+        bar_id: barId,
+        kind,
+        nome,
+        contato: String(body.contato || '').trim(),
+        detalhe: String(body.detalhe || '').trim(),
+        amount: Math.round(+body.amount || 0),
+        pct: +body.pct || 0,
+        recorrente: body.recorrente !== false,
+        month_key: body.recorrente === false ? String(body.month_key || '') : '',
+      }
+      const existing = await runLiveOp(db, {
+        table: 'bar_registry',
+        mode: 'select',
+        columns: '*',
+        filters: [{ op: 'eq', k: 'id', v: id }],
+        wantSingle: 'maybe',
+      })
+      const saved = await runLiveOp(db, {
+        table: 'bar_registry',
+        mode: existing.data ? 'update' : 'insert',
+        filters: [{ op: 'eq', k: 'id', v: id }],
+        insertRows: [row],
+        updatePatch: row,
+        wantSingle: true,
+      })
+      if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not save' })
+      return res.status(200).json({ ok: true, row })
+    }
+
+    if (req.method === 'POST' && body.action === 'deleteRegistry') {
+      if (!body.id) return res.status(400).json({ error: 'id required' })
+      await runLiveOp(db, {
+        table: 'bar_registry',
+        mode: 'delete',
+        filters: [{ op: 'eq', k: 'id', v: body.id }, { op: 'eq', k: 'bar_id', v: barId }],
+      })
       return res.status(200).json({ ok: true })
     }
 
