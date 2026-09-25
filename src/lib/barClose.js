@@ -94,10 +94,25 @@ export function commissionOf(tickets) {
   return (tickets || []).reduce((a, s) => a + (readTicketMeta(s.obs).commission || 0), 0)
 }
 
+export function primaryCard(registry) {
+  const rows = (registry || []).filter(r => r.kind === 'cartao')
+  if (!rows.length) return { pct: 0, days: 0, nome: '', due: 0 }
+  const ranked = rows.slice().sort((a, b) => (+b.pct || 0) - (+a.pct || 0))
+  const row = ranked[0]
+  return {
+    pct: +row.pct || 0,
+    days: Math.max(0, Math.min(90, Math.round(+row.prazo_dias || 0))),
+    nome: row.nome || '',
+    due: Math.max(0, Math.min(31, Math.round(+row.vence_dia || 0))),
+  }
+}
+
 function cardPct(registry) {
-  const rows = (registry || []).filter(r => r.kind === 'cartao' && +r.pct > 0)
-  if (!rows.length) return 0
-  return Math.max(...rows.map(r => +r.pct || 0))
+  return primaryCard(registry).pct
+}
+
+function taxRate(registry) {
+  return (registry || []).reduce((a, r) => (r.kind === 'imposto' ? a + (+r.pct || 0) : a), 0)
 }
 
 export function fixedMonthCost(registry, hq, monthKey) {
@@ -116,7 +131,35 @@ export function fixedMonthCost(registry, hq, monthKey) {
     variable: sum('variavel'),
     jbm: Math.round(+hq?.books?.jbm?.amount || 0),
     wages: Math.round(+hq?.books?.staff?.amount || (hq?.payroll || []).reduce((a, r) => a + (+r.pay || 0), 0)),
+    accountant: sum('contador'),
+    taxFixed: sum('imposto'),
   }
+}
+
+export function cardCash({ tickets = [], registry = [], today = tokyoNightKey() } = {}) {
+  const plan = primaryCard(registry)
+  let waiting = 0
+  let landed = 0
+  let grossWaiting = 0
+  const deposits = new Map()
+  for (const s of tickets || []) {
+    const card = tenderOf([s]).card
+    if (!card) continue
+    const land = addDays(nightKeyOfSale(s), plan.days)
+    const net = Math.round(card * (1 - plan.pct / 100))
+    if (land > today) {
+      waiting += net
+      grossWaiting += card
+      deposits.set(land, (deposits.get(land) || 0) + net)
+    } else {
+      landed += net
+    }
+  }
+  const upcoming = [...deposits.entries()]
+    .map(([date, amount]) => ({ date, amount, days: daysUntil(today, date) }))
+    .filter(row => row.days >= 0 && row.days <= 45)
+    .sort((a, b) => a.days - b.days)
+  return { ...plan, waiting, landed, grossWaiting, upcoming }
 }
 
 function share(nights, dim) {
@@ -137,6 +180,10 @@ export function periodReport({ tickets, start, end, registry, hq, monthKey }) {
   const ratio = share(nights, dim)
   const allocated = Math.round((costs.rent + costs.energy + costs.fixed + costs.variable + costs.jbm + costs.wages) * ratio)
   const profit = Math.round(sales - fee - comm - allocated)
+  const tax = Math.round(sales * taxRate(registry) / 100) + Math.round(costs.taxFixed * ratio)
+  const accountant = Math.round(costs.accountant * ratio)
+  const net = profit - tax - accountant
+  const card = cardCash({ tickets: rows, registry, today: tokyoNightKey() })
   const byNight = nightsBetween(start, end).map(date => ({
     date,
     label: WEEK[weekdayOf(date)],
@@ -145,7 +192,7 @@ export function periodReport({ tickets, start, end, registry, hq, monthKey }) {
   return {
     start, end, nights, sales, count: rows.length,
     ticket: rows.length ? Math.round(sales / rows.length) : 0,
-    tender, fee, comm, vip: vipOf(rows), profit, allocated, costs, byNight,
+    tender, fee, comm, vip: vipOf(rows), profit, net, tax, accountant, card, allocated, costs, byNight,
   }
 }
 
@@ -204,7 +251,13 @@ export function paymentAgenda({
   push({ id: 'drink', kind: 'drink', amount: comm, day: goals.dia_drink || 10, tab: 'pagamentos' })
   push({ id: 'aluguel', kind: 'aluguel', amount: costs.rent, day: (registry.find(r => r.kind === 'aluguel' && r.vence_dia) || {}).vence_dia || 1, tab: 'aluguel' })
   push({ id: 'energia', kind: 'energia', amount: costs.energy, day: (registry.find(r => r.kind === 'energia' && r.vence_dia) || {}).vence_dia || 1, tab: 'energia' })
-  push({ id: 'cartao', kind: 'cartao', amount: fee, day: (registry.find(r => r.kind === 'cartao' && r.vence_dia) || {}).vence_dia || 15, tab: 'cartao' })
+  push({ id: 'contador', kind: 'contador', amount: costs.accountant, day: (registry.find(r => r.kind === 'contador' && r.vence_dia) || {}).vence_dia || 1, tab: 'contador' })
+  const monthSales = monthTickets.reduce((a, s) => a + (+s.total || 0), 0)
+  for (const r of registry || []) {
+    if (r.kind !== 'imposto') continue
+    const amount = Math.round(monthSales * (+r.pct || 0) / 100) + Math.round(+r.amount || 0)
+    push({ id: r.id, kind: 'imposto', title: r.nome, amount, day: r.vence_dia || 15, tab: 'imposto' })
+  }
   push({ id: 'variavel', kind: 'variavel', amount: costs.variable, day: goals.dia_mes || 1, tab: 'variavel' })
   for (const r of registry || []) {
     if (r.kind !== 'fixo' || !(+r.amount)) continue
@@ -223,6 +276,20 @@ export function paymentAgenda({
       date,
       days: daysUntil(today, date),
       tab: 'faturas',
+    })
+  }
+  const flow = cardCash({ tickets, registry, today })
+  for (const row of flow.upcoming) {
+    if (!row.amount) continue
+    items.push({
+      id: `card-${row.date}`,
+      kind: 'cartao_cai',
+      title: flow.nome,
+      amount: row.amount,
+      date: row.date,
+      days: row.days,
+      tab: 'cartao',
+      inflow: true,
     })
   }
   return items.sort((a, b) => a.days - b.days)

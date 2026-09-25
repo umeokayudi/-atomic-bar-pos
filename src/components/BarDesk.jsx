@@ -93,6 +93,9 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
           <div><span>{t('portal.desk.cashOut')}</span><strong>{money(desk.cash.out)}</strong></div>
           <div className={desk.cash.net >= 0 ? 'is-up' : 'is-down'}><span>{t('portal.desk.cashNet')}</span><strong>{money(desk.cash.net)}</strong></div>
         </div>
+        {desk.cardWaiting > 0 && (
+          <p className="desk-note">{t('portal.desk.cardWait', { amount: money(desk.cardWaiting), days: desk.cardDays })}</p>
+        )}
         <div className="desk-lines">
           {desk.cash.lines.map(l => (
             <div key={l.key}>

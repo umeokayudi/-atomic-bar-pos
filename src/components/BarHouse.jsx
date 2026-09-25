@@ -18,11 +18,13 @@ const EMPTY_PERSON = {
 const REGISTERS = [
   { kind: 'fornecedor', title: 'suppliers', body: 'suppliersBody', fields: ['nome', 'detalhe', 'contato', 'email', 'notas'], detalheLabel: 'supplies', profile: ['cargo', 'dias', 'idiomas'], cargoLabel: 'category', daysLabel: 'deliveryDays' },
   { kind: 'parceiro', title: 'partners', body: 'partnersBody', fields: ['nome', 'contato', 'email', 'aniversario', 'notas'], profile: ['cargo', 'dias', 'idiomas', 'estilo'], daysLabel: 'workDays' },
-  { kind: 'cartao', title: 'card', body: 'cardBody', fields: ['nome', 'cargo', 'contato', 'email', 'pct', 'vence_dia', 'notas'], nomeLabel: 'company', cargoLabel: 'contactPerson', profile: [] },
+  { kind: 'cartao', title: 'card', body: 'cardBody', fields: ['nome', 'cargo', 'contato', 'email', 'pct', 'prazo_dias', 'vence_dia', 'notas'], nomeLabel: 'company', cargoLabel: 'contactPerson', profile: [] },
   { kind: 'energia', title: 'power', body: 'powerBody', fields: ['nome', 'cargo', 'contato', 'email', 'amount', 'vence_dia', 'notas'], nomeLabel: 'company', cargoLabel: 'contactPerson', profile: [] },
   { kind: 'aluguel', title: 'rent', body: 'rentBody', fields: ['nome', 'cargo', 'contato', 'email', 'endereco', 'amount', 'vence_dia', 'notas'], nomeLabel: 'agency', cargoLabel: 'contactPerson', profile: [] },
   { kind: 'fixo', title: 'fixedCosts', body: 'fixedBody', fields: ['nome', 'amount', 'contato', 'vence_dia', 'notas'], profile: [] },
   { kind: 'variavel', title: 'variableCosts', body: 'variableBody', fields: ['nome', 'amount', 'contato', 'notas'], profile: [], month: true },
+  { kind: 'contador', title: 'accountant', body: 'accountantBody', fields: ['nome', 'cargo', 'contato', 'email', 'amount', 'vence_dia', 'notas'], nomeLabel: 'office', cargoLabel: 'contactPerson', profile: [] },
+  { kind: 'imposto', title: 'tax', body: 'taxBody', fields: ['nome', 'pct', 'amount', 'vence_dia', 'notas'], nomeLabel: 'taxName', profile: [] },
 ]
 
 function asList(value) {
@@ -59,7 +61,7 @@ function personFrom(row, source) {
 
 function blankRegistry(kind) {
   return {
-    id: '', kind, nome: '', contato: '', email: '', endereco: '', detalhe: '', amount: '', pct: '', vence_dia: '',
+    id: '', kind, nome: '', contato: '', email: '', endereco: '', detalhe: '', amount: '', pct: '', vence_dia: '', prazo_dias: '',
     recorrente: kind !== 'variavel', month_key: tokyoMonthKey(),
     cargo: '', dias: [], idiomas: [], estilo: '', notas: '',
   }
@@ -230,6 +232,7 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
     if (field === 'pct') return t('house.fee')
     if (field === 'amount') return t('house.monthlyAmount')
     if (field === 'vence_dia') return t('house.dueDay')
+    if (field === 'prazo_dias') return t('house.settleDays')
     if (field === 'recorrente') return t('house.repeats')
     return field
   }
@@ -248,6 +251,7 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
             <strong>{row.nome}</strong>
             <div className="house-meta">
               {+row.pct ? `${row.pct}%` : ''}
+              {row.kind === 'cartao' && +row.prazo_dias ? `${+row.pct ? ' · ' : ''}${t('house.settlesIn', { days: row.prazo_dias })}` : ''}
               {+row.pct && +row.amount ? ' · ' : ''}
               {+row.amount ? fmtYen(row.amount) : ''}
               {(row.kind === 'fixo' || (row.kind === 'outro' && row.recorrente !== false)) ? `${(+row.pct || +row.amount) ? ' · ' : ''}${t('house.repeats')}` : ''}
@@ -267,6 +271,7 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
               amount: row.amount ? String(row.amount) : '',
               pct: row.pct ? String(row.pct) : '',
               vence_dia: row.vence_dia ? String(row.vence_dia) : '',
+              prazo_dias: row.prazo_dias ? String(row.prazo_dias) : '',
               recorrente: row.recorrente !== false,
               month_key: row.month_key || tokyoMonthKey(),
               cargo: row.cargo || '',
@@ -292,7 +297,7 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
               <label key={field} className={field === 'notas' || field === 'detalhe' || field === 'endereco' ? 'house-span' : ''}>
                 {label(field)}
                 <input
-                  type={field === 'amount' || field === 'pct' ? 'number' : field === 'aniversario' ? 'date' : 'text'}
+                  type={field === 'amount' || field === 'pct' || field === 'vence_dia' || field === 'prazo_dias' ? 'number' : field === 'aniversario' ? 'date' : 'text'}
                   min={field === 'pct' ? '0' : undefined}
                   value={form[field] || ''}
                   onChange={e => setForm({ ...form, [field]: e.target.value })}
@@ -427,6 +432,7 @@ export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
       contato: source.contato || '',
       aniversario: String(source.aniversario || '').slice(0, 10),
       vence_dia: Math.max(0, Math.min(31, Math.round(+source.vence_dia || 0))),
+      prazo_dias: Math.max(0, Math.min(90, Math.round(+source.prazo_dias || 0))),
       email: source.email || '',
       endereco: source.endereco || '',
       notas: source.notas || '',

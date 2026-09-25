@@ -185,9 +185,10 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
           <div className="goal-hero">
             <div>
               <div className="goal-hero-kicker">{current.start} → {current.end}</div>
-              <div className="goal-hero-value">{money(current.profit)}</div>
+              <div className="goal-hero-value">{money(current.net)}</div>
+              <div className="goal-hero-goal">{t('portal.close.net')}</div>
               <div className="goal-hero-goal">
-                {t('portal.close.profit')}
+                {t('portal.close.profit')} {money(current.profit)}
                 {' · '}
                 {previous.profit === current.profit
                   ? t('portal.close.flat')
@@ -218,7 +219,28 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
               <div><span>{t('portal.close.comm')}</span><b>−{money(current.comm)}</b></div>
               <div><span>{t('portal.close.costs')}</span><b>−{money(current.allocated)}</b></div>
               <div><span>{t('portal.close.rent')}</span><b>{money(current.costs.rent)}</b></div>
+              <div><span>{t('portal.close.accountant')}</span><b>−{money(current.accountant)}</b></div>
+              <div><span>{t('portal.close.tax')}</span><b>−{money(current.tax)}</b></div>
+              <div><span>{t('portal.close.net')}</span><b>{money(current.net)}</b></div>
             </div>
+          </section>
+
+          <section className="desk-card">
+            <h3>{t('portal.close.cardFlow')}</h3>
+            <p className="desk-note">
+              {current.card.nome ? `${current.card.nome} · ` : ''}
+              {t('portal.close.cardRule', { pct: current.card.pct || 0, days: current.card.days || 0 })}
+            </p>
+            <div className="desk-cash">
+              <Stat label={t('portal.close.cardLanded')} value={money(current.card.landed)} />
+              <Stat label={t('portal.close.cardWaiting')} value={money(current.card.waiting)} />
+            </div>
+            {current.card.upcoming.map(row => (
+              <div key={row.date} className="desk-row">
+                <div><strong>{row.date}</strong><em>{t('portal.desk.dueSoon', { days: row.days })}</em></div>
+                <b>+{money(row.amount)}</b>
+              </div>
+            ))}
           </section>
 
           <section className="desk-card">
@@ -254,7 +276,7 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
           <section className="desk-card">
             {!agenda.length && <div className="desk-empty">{t('portal.pay.empty')}</div>}
             {agenda.map(item => (
-              <button key={item.id} type="button" className={`desk-alert ${item.days < 0 ? 'is-bad' : item.days <= 7 ? 'is-soon' : ''}`} onClick={() => onTab?.(item.tab)}>
+              <button key={item.id} type="button" className={`desk-alert ${item.inflow ? 'is-in' : item.days < 0 ? 'is-bad' : item.days <= 7 ? 'is-soon' : ''}`} onClick={() => onTab?.(item.tab)}>
                 <span>
                   <strong>{item.title || t(`portal.pay.kind.${item.kind}`)}</strong>
                   <em>
@@ -265,7 +287,7 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
                     {item.days > 0 && t('portal.desk.dueSoon', { days: item.days })}
                   </em>
                 </span>
-                <b>{money(item.amount)}</b>
+                <b>{item.inflow ? '+' : ''}{money(item.amount)}</b>
               </button>
             ))}
           </section>

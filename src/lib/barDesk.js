@@ -2,7 +2,7 @@
 
 import { aggregateHourlySales } from './atomicPos.js'
 import { faturaRemaining } from './barPortal.js'
-import { commissionOf, tenderOf } from './barClose.js'
+import { cardCash, commissionOf, tenderOf } from './barClose.js'
 import { nightKeyOfSale, prevTokyoDateKey } from './nightClose.js'
 import { readTicketMeta } from './nightTicket.js'
 import { orderCastFromObs, orderCastIdFromObs } from './orderMeta.js'
@@ -46,7 +46,12 @@ export function buildBarDesk({
   const tender = tenderOf(monthTickets)
   const fee = Math.round(tender.card * cardRate / 100)
   const commission = commissionOf(monthTickets)
-  const out = wages + rent + energy + fixed + variable + jbm + fee + commission
+  const accountant = sumKind(registry, 'contador', monthKey)
+  const taxFixed = sumKind(registry, 'imposto', monthKey)
+  const taxPct = (registry || []).reduce((a, r) => (r.kind === 'imposto' ? a + (+r.pct || 0) : a), 0)
+  const tax = Math.round(posIn * taxPct / 100) + taxFixed
+  const cardFlow = cardCash({ tickets: monthTickets, registry, today: nightKey })
+  const out = wages + rent + energy + fixed + variable + jbm + fee + commission + accountant + tax
 
   const alerts = []
   for (const f of invoices || []) {
@@ -130,6 +135,8 @@ export function buildBarDesk({
         { key: 'jbm', amount: jbm, sign: -1 },
         { key: 'fee', amount: fee, sign: -1 },
         { key: 'commission', amount: commission, sign: -1 },
+        { key: 'accountant', amount: accountant, sign: -1 },
+        { key: 'tax', amount: tax, sign: -1 },
       ].filter(l => l.amount > 0),
     },
     alerts,
@@ -138,6 +145,8 @@ export function buildBarDesk({
     hourNight,
     peak: peak?.total ? peak : null,
     cast,
+    cardWaiting: cardFlow.waiting,
+    cardDays: cardFlow.days,
     labor: {
       total: wages,
       hours: hq?.hoursTotal || 0,

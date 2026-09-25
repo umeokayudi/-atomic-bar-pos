@@ -55,6 +55,8 @@ const GERENTE_NAV = [
   { id: 'aluguel', labelKey: 'house.rent', icon: '🏢' },
   { id: 'fixo', labelKey: 'house.fixedCosts', icon: '📌' },
   { id: 'variavel', labelKey: 'house.variableCosts', icon: '📈' },
+  { id: 'contador', labelKey: 'house.accountant', icon: '🧮' },
+  { id: 'imposto', labelKey: 'house.tax', icon: '🏛' },
   { id: 'estoque', labelKey: 'nav.portalInventory', icon: '📊' },
   { id: 'entregas', labelKey: 'nav.portalDeliveries', icon: '📦' },
   { id: 'faturas', labelKey: 'nav.portalInvoices', icon: '💳' },
@@ -66,7 +68,7 @@ const GERENTE_NAV = [
 
 const NAV_GROUPS = [
   { id: 'tonight', labelKey: 'nav.groupTonight', ids: ['inicio', 'metas', 'fechamento', 'pagamentos', 'salarios', 'eventos', 'ia', 'pos', 'pedidos', 'espacos', 'clientes', 'ponto'] },
-  { id: 'house', labelKey: 'nav.groupHouse', ids: ['staff', 'fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel'] },
+  { id: 'house', labelKey: 'nav.groupHouse', ids: ['staff', 'fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'] },
   { id: 'supply', labelKey: 'nav.groupSupply', ids: ['estoque', 'entregas', 'faturas'] },
   { id: 'office', labelKey: 'nav.groupOffice', ids: ['custos', 'precos', 'recibos'] },
 ]
