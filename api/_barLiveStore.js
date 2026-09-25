@@ -27,6 +27,7 @@ export const LIVE_TABLES = [
   'pos_settings',
   'bar_people',
   'bar_registry',
+  'bar_goals',
 ]
 
 const locks = new Map()
@@ -440,6 +441,7 @@ async function seedAtomic(admin) {
   await saveTable(admin, 'staff_extras', [])
   await saveTable(admin, 'bar_people', [])
   await saveTable(admin, 'bar_registry', [])
+  await saveTable(admin, 'bar_goals', [])
   await saveTable(admin, 'bar_logins', [])
   await saveTable(admin, 'bar_sessions', [])
   await saveTable(admin, 'bar_overhead', [])

@@ -30,6 +30,7 @@ import AtomicPosPanel from './AtomicPos'
 import TimeClockPanel from './TimeClock'
 import BarTeamTab from './BarTeamTab'
 import BarHouseTab from './BarHouse'
+import BarGoalsTab from './BarGoals'
 import BarGuestsTab from './BarGuestsTab'
 import BarSpacesTab from './BarSpacesTab'
 import { fetchAllStockMovements } from '../lib/posSupply'
@@ -2226,6 +2227,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
           <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
         </WorkspaceChrome>
         {tab==='custos'    && isGerente(perfil?.role) && <BarCostsTab bar={bar} onTab={selectTab} />}
+        {tab==='metas' && canManageBarTeam(perfil?.role) && <BarGoalsTab bar={bar} />}
         {tab==='inicio' && posAccess !== 'cashier' && (
           <HomeTab bar={bar} onTab={selectTab} />
         )}

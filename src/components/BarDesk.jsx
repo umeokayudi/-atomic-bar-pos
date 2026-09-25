@@ -135,6 +135,7 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
           <button type="button" onClick={() => onTab?.('espacos')}>{t('portal.desk.floor')} · {floor?.seated || 0}</button>
           <button type="button" onClick={() => onTab?.('custos')}>{t('portal.desk.books')}</button>
           <button type="button" onClick={() => onTab?.('pos')}>{t('portal.desk.till')}</button>
+          <button type="button" onClick={() => onTab?.('metas')}>{t('nav.portalGoals')}</button>
         </div>
       </section>
 

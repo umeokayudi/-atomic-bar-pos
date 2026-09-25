@@ -150,6 +150,13 @@ export default async function handler(req, res) {
           columns: '*',
           filters: [{ op: 'eq', k: 'bar_id', v: barId }],
         })).data || [],
+        goals: (await runLiveOp(db, {
+          table: 'bar_goals',
+          mode: 'select',
+          columns: '*',
+          filters: [{ op: 'eq', k: 'bar_id', v: barId }],
+          wantSingle: 'maybe',
+        })).data || null,
         bar: {
           id: bar?.id,
           nome: bar?.nome,
@@ -178,6 +185,49 @@ export default async function handler(req, res) {
       })
       if (!saved.ok) return res.status(400).json({ error: saved.error })
       return res.status(200).json({ ok: true })
+    }
+
+    if (req.method === 'POST' && body.action === 'saveGoals') {
+      const hour = (n, fallback) => {
+        const v = body[n] == null || body[n] === '' ? fallback : Math.round(+body[n])
+        return ((v % 24) + 24) % 24
+      }
+      const pessoas = Array.isArray(body.pessoas) ? body.pessoas.map(p => ({
+        id: String(p.id || ''),
+        nome: String(p.nome || '').trim(),
+        noite: Math.round(+p.noite || 0),
+        semana: Math.round(+p.semana || 0),
+      })).filter(p => p.id && p.nome) : []
+      const row = {
+        id: barId,
+        bar_id: barId,
+        noite: Math.round(+body.noite || 0),
+        hora: Math.round(+body.hora || 0),
+        semana: Math.round(+body.semana || 0),
+        turno: Math.round(+body.turno || 0),
+        lucro: Math.round(+body.lucro || 0),
+        abre: hour('abre', 20),
+        fecha: hour('fecha', 5),
+        corta: hour('corta', 0),
+        pessoas,
+      }
+      const existing = await runLiveOp(db, {
+        table: 'bar_goals',
+        mode: 'select',
+        columns: '*',
+        filters: [{ op: 'eq', k: 'id', v: barId }],
+        wantSingle: 'maybe',
+      })
+      const saved = await runLiveOp(db, {
+        table: 'bar_goals',
+        mode: existing.data ? 'update' : 'insert',
+        filters: [{ op: 'eq', k: 'id', v: barId }],
+        insertRows: [row],
+        updatePatch: row,
+        wantSingle: true,
+      })
+      if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not save' })
+      return res.status(200).json({ ok: true, goals: row })
     }
 
     if (req.method === 'POST' && body.action === 'saveRegistry') {
