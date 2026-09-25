@@ -158,3 +158,93 @@ export function summarizeVipRooms({
 
   return { rows, totals, openMinutes }
 }
+
+function spaceOfSale(sale, spaceById, visitById, visitBySale) {
+  if (sale?.space_id && spaceById.has(sale.space_id)) return sale.space_id
+  const visit = visitById.get(sale?.visit_id) || visitBySale.get(sale?.id)
+  if (visit?.space_id && spaceById.has(visit.space_id)) return visit.space_id
+  return null
+}
+
+function guestOfSale(sale, guestsById, membersById, visitById, visitBySale) {
+  const visit = visitById.get(sale?.visit_id) || visitBySale.get(sale?.id)
+  const guestId = sale?.guest_id || visit?.guest_id || ''
+  if (guestId) {
+    const known = guestsById.get(guestId)
+    const nome = known?.nome || visit?.bar_guests?.nome || ''
+    if (!nome) return null
+    return { key: `g:${guestId}`, nome }
+  }
+  const memberId = sale?.vip_member_id || ''
+  if (memberId && membersById.get(memberId)) {
+    return { key: `v:${memberId}`, nome: membersById.get(memberId) }
+  }
+  return null
+}
+
+/** Floor till and VIP-room till stay apart. One ticket lands in one place. */
+export function placeRevenue({
+  spaces = [],
+  visits = [],
+  sales = [],
+  guests = [],
+  members = [],
+  from = '',
+  to = '',
+} = {}) {
+  const active = (spaces || []).filter(s => s.ativo !== false)
+  const spaceById = new Map(active.map(s => [s.id, s]))
+  const vipIds = new Set(active.filter(s => s.tipo === 'vip_room' || s.zona === 'vip').map(s => s.id))
+  const visitById = new Map((visits || []).map(v => [v.id, v]))
+  const visitBySale = new Map()
+  for (const visit of visits || []) {
+    if (visit?.pos_venda_id) visitBySale.set(visit.pos_venda_id, visit)
+  }
+  const guestsById = new Map((guests || []).map(g => [g.id, g]))
+  const membersById = new Map((members || []).filter(m => m?.id && m?.nome).map(m => [m.id, m.nome]))
+  const bySpace = new Map()
+  const byClient = new Map()
+  const buckets = {
+    floor: { revenue: 0, tickets: 0 },
+    vip: { revenue: 0, tickets: 0 },
+    open: { revenue: 0, tickets: 0 },
+  }
+  const seen = new Set()
+  for (const sale of sales || []) {
+    if (!sale?.id || seen.has(sale.id)) continue
+    if (!inSpan(saleNight(sale), from, to)) continue
+    seen.add(sale.id)
+    const amount = +sale.total || 0
+    const spaceId = spaceOfSale(sale, spaceById, visitById, visitBySale)
+    let lane = 'open'
+    if (spaceId && vipIds.has(spaceId)) lane = 'vip'
+    else if (spaceId) lane = 'floor'
+    buckets[lane].revenue += amount
+    buckets[lane].tickets += 1
+    if (spaceId) bySpace.set(spaceId, (bySpace.get(spaceId) || 0) + amount)
+    const guest = guestOfSale(sale, guestsById, membersById, visitById, visitBySale)
+    if (!guest) continue
+    const row = byClient.get(guest.key) || { key: guest.key, nome: guest.nome, total: 0, vip: 0, floor: 0, open: 0, tickets: 0 }
+    row.nome = guest.nome || row.nome
+    row.total += amount
+    row[lane] += amount
+    row.tickets += 1
+    byClient.set(guest.key, row)
+  }
+  for (const lane of Object.values(buckets)) lane.revenue = Math.round(lane.revenue)
+  const clients = [...byClient.values()].map(row => ({
+    ...row,
+    total: Math.round(row.total),
+    vip: Math.round(row.vip),
+    floor: Math.round(row.floor),
+    open: Math.round(row.open),
+  })).sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome))
+  const spaceRevenue = new Map([...bySpace.entries()].map(([id, n]) => [id, Math.round(n)]))
+  return { ...buckets, spaceRevenue, clients }
+}
+
+export function filterClients(clients = [], query = '') {
+  const q = String(query || '').trim().toLowerCase()
+  if (!q) return (clients || []).filter(c => c.vip > 0)
+  return (clients || []).filter(c => String(c.nome || '').toLowerCase().includes(q))
+}
