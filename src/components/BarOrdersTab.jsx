@@ -7,6 +7,7 @@ import { useI18n } from '../lib/i18n'
 import { orderDetailsFromObs } from '../lib/orderMeta'
 import { filterJbmDrinksFaturas } from '../lib/barPortal'
 import { tokyoMonthKey } from '../lib/tokyo'
+import { dateInRange, invoiceInRange, monthBounds } from '../lib/barCalendar'
 import BillMatch from './BillMatch'
 
 const STATUS_PEDIDO = {
@@ -168,7 +169,24 @@ export default function BarOrdersTab({ bar }) {
         </div>
       </div>
 
-      <BillMatch orders={pedidos} notes={notes} invoices={faturas} monthKey={mesFiltro || tokyoMonthKey()} />
+      <div className="date-filter">
+        <input
+          type="month"
+          value={summaryMes}
+          onChange={e => setSummaryMes(e.target.value)}
+          aria-label={t('common.month')}
+        />
+        <button type="button" className="date-filter-chip" onClick={() => setSummaryMes(tokyoMonthKey())}>{t('portal.home.rangeMonth')}</button>
+        {summaryMes && (
+          <button type="button" className="date-filter-chip" onClick={() => setSummaryMes('')}>{t('portal.home.rangeAll')}</button>
+        )}
+      </div>
+      <BillMatch
+        orders={summaryMes ? pedidos.filter(p => dateInRange(p.data_pedido || p.criado_em, monthBounds(summaryMes).from, monthBounds(summaryMes).to)) : pedidos}
+        notes={summaryMes ? notes.filter(n => dateInRange(n.data || n.data_venda, monthBounds(summaryMes).from, monthBounds(summaryMes).to)) : notes}
+        invoices={summaryMes ? faturas.filter(f => invoiceInRange(f, monthBounds(summaryMes).from, monthBounds(summaryMes).to)) : faturas}
+        monthKey={summaryMes || tokyoMonthKey()}
+      />
 
       {viewMode === 'summary' && (
         <div className="card" style={{ marginBottom: 16 }}>

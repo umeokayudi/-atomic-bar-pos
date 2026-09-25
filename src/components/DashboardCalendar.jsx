@@ -13,7 +13,7 @@ function kindColor(kind, dir, amount) {
   return 'var(--navy)'
 }
 
-export default function DashboardCalendar({ events = [], onNav, month, onMonthChange, onPay }) {
+export default function DashboardCalendar({ events = [], onNav, month, onMonthChange, onPay, title, sub }) {
   const { t } = useI18n()
   const [filter, setFilter] = useState('all')
   const [openDay, setOpenDay] = useState(null)
@@ -77,8 +77,8 @@ export default function DashboardCalendar({ events = [], onNav, month, onMonthCh
 
   return (
     <PortalSurface
-      title={t('dashboard.calTitle')}
-      sub={t('dashboard.calSub')}
+      title={title || t('dashboard.calTitle')}
+      sub={sub || t('dashboard.calSub')}
       style={{ marginTop: 20 }}
       headerRight={(
         <div className="dash-cal-nav">

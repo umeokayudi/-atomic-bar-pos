@@ -4157,6 +4157,30 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
 .bill-match.is-off { border-color: rgba(255,59,48,.45); background: #fff6f5; }
 .bill-match.is-match { border-color: rgba(52,199,89,.45); }
 .bill-match-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 4px 0; }
+.date-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 16px;
+}
+.date-filter input {
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  padding: 8px 10px;
+}
+.date-filter-chip {
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
 .bill-match-row.is-paid b { color: var(--green); }
 .bill-match-row.is-open b { color: var(--red); }
 .bill-match-verdict { margin: 8px 0 0; font-weight: 800; font-size: 14px; }

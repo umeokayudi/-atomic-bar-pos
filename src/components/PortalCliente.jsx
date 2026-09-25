@@ -45,6 +45,7 @@ import { isTillKiosk, isClockKiosk, loginDoorFromHash, setDoorHash, doorAllowsRo
 import UiPrefsPanel from './UiPrefsPanel'
 import { useI18n } from '../lib/i18n'
 import { tokyoMonthKey } from '../lib/tokyo'
+import { buildBarCalendarEvents, dateInRange, invoiceInRange, monthBounds, shiftMonth } from '../lib/barCalendar'
 import { birthdayThisMonth, decorateSpaces } from '../lib/barCrm'
 import BarCostsTab, { CostBooksHero, loadCostBooks, BarCommandActions } from './BarCostsTab'
 import BarOpsGlance from './BarOpsGlance'
@@ -54,6 +55,7 @@ import { booksAreSeparate } from '../lib/costBooks'
 import { asReactText } from '../lib/errText'
 import { NotificationBell, useBarOverdueAlerts } from './Notifications'
 const BarOrdersTab = lazy(() => import('./BarOrdersTab'))
+const DashboardCalendar = lazy(() => import('./DashboardCalendar'))
 
 function TabHold({ children }) {
   return <Suspense fallback={<div style={{ padding: 28, color: 'var(--text2)' }}>…</div>}>{children}</Suspense>
@@ -110,6 +112,7 @@ function HomeTab({ bar, onTab }) {
   const [periodo,     setPeriodo]     = useState('30')
   const [chartMonth,  setChartMonth]   = useState(null)
   const [showMore,    setShowMore]    = useState(false)
+  const [calMonth,    setCalMonth]    = useState(() => tokyoMonthKey())
 
   function sinceKey() {
     const [y, mo] = tokyoMonthKey().split('-').map(Number)
@@ -285,6 +288,16 @@ function HomeTab({ bar, onTab }) {
         floor={floorGlance}
         onTab={onTab}
       />
+
+      <Suspense fallback={null}>
+        <DashboardCalendar
+          events={buildBarCalendarEvents({ invoices: faturas, orders: pedidos, notes: vendas, tickets: posTickets })}
+          onNav={onTab}
+          month={calMonth}
+          onMonthChange={setCalMonth}
+          sub={t('portal.home.calSub')}
+        />
+      </Suspense>
 
       <section className="home-band">
       <BarOpsGlance
@@ -1814,13 +1827,10 @@ function FaturasTab({ bar }) {
     setSaving(false); setPayModal(null); setPayForm({ valor:"", metodo:"transfer", notas:"" }); setImage(null); setScannedData(null); load()
   }
 
-  const filtered = faturas.filter(f => {
-    const emissao = faturaEmissao(f)
-    const venc = faturaVencimento(f)
-    if (dateFrom && emissao && emissao < dateFrom) return false
-    if (dateTo && venc && venc > dateTo) return false
-    return true
-  })
+  const filtered = faturas.filter(f => invoiceInRange(f, dateFrom, dateTo))
+  const ordersInRange = pedidos.filter(p => dateInRange(p.data_pedido || p.criado_em, dateFrom, dateTo))
+  const notesInRange = vendas.filter(v => dateInRange(v.data || v.data_venda, dateFrom, dateTo))
+  const activeMonth = dateFrom && dateTo && dateFrom.slice(0, 7) === dateTo.slice(0, 7) ? dateFrom.slice(0, 7) : ''
   const pending = filtered.filter(f=>f.status!=="pago")
   const totalPending = pending.reduce((a,f)=>a+faturaRemaining(f),0)
   const overdue = pending.filter(f=>faturaVencimento(f) && new Date(faturaVencimento(f))<new Date())
@@ -1841,7 +1851,36 @@ function FaturasTab({ bar }) {
   return (
     <div className="fade-in portal-page" style={{ maxWidth:860 }}>
       <SectionTitle sub={t('portal.invoices.subtitle')}>{t('portal.invoices.title')}</SectionTitle>
-      <BillMatch orders={pedidos} notes={vendas} invoices={filtered} />
+      <div className="date-filter">
+        {[
+          ['all', t('portal.home.rangeAll')],
+          ['month', t('portal.home.rangeMonth')],
+          ['prev', t('portal.home.rangePrev')],
+          ['90', t('portal.home.range90')],
+        ].map(([id, label]) => (
+          <button key={id} type="button" className="date-filter-chip" onClick={() => {
+            const now = tokyoMonthKey()
+            if (id === 'all') { setDateFrom(''); setDateTo(''); return }
+            if (id === 'month') { const b = monthBounds(now); setDateFrom(b.from); setDateTo(b.to); return }
+            if (id === 'prev') { const b = monthBounds(shiftMonth(now, -1)); setDateFrom(b.from); setDateTo(b.to); return }
+            const end = new Date()
+            const start = new Date(); start.setDate(start.getDate() - 90)
+            setDateFrom(start.toISOString().slice(0, 10))
+            setDateTo(end.toISOString().slice(0, 10))
+          }}>{label}</button>
+        ))}
+        <input type="month" value={activeMonth} onChange={e => {
+          const b = monthBounds(e.target.value)
+          setDateFrom(b.from)
+          setDateTo(b.to)
+        }} aria-label={t('common.month')} />
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} aria-label={t('common.from')} />
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} aria-label={t('common.to')} />
+        {(dateFrom || dateTo) && (
+          <button type="button" className="date-filter-chip" onClick={() => { setDateFrom(''); setDateTo('') }}>{t('portal.invoices.clear')}</button>
+        )}
+      </div>
+      <BillMatch orders={ordersInRange} notes={notesInRange} invoices={filtered} monthKey={activeMonth} />
       <div className="ar-war">
         <div className="ar-war-head">
           <div>
@@ -1941,12 +1980,6 @@ function FaturasTab({ bar }) {
           })}
         </div>
       )}
-      <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:16 }}>
-        <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{ padding:"7px 10px", borderRadius:8, fontSize:12 }} />
-        <span style={{ color:"var(--text2)", fontSize:12 }}>{t('portal.invoices.dateTo')}</span>
-        <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{ padding:"7px 10px", borderRadius:8, fontSize:12 }} />
-        {(dateFrom||dateTo)&&<button onClick={()=>{setDateFrom("");setDateTo("")}} style={{ fontSize:12, padding:"6px 12px", borderRadius:8, border:"1px solid var(--border)", background:"transparent", cursor:"pointer" }}>{t('portal.invoices.clear')}</button>}
-      </div>
       <div style={{ fontSize:14, fontWeight:700, marginBottom:12 }}>{t('portal.invoices.history')}</div>
       {filtered.length===0?<Empty text={t('portal.invoices.noInvoices')} icon="🧾" />:(
         <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
