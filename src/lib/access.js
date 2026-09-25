@@ -53,6 +53,7 @@ const GERENTE_NAV = [
   { id: 'staff', labelKey: 'house.staffTitle', icon: '👤' },
   { id: 'fornecedor', labelKey: 'house.suppliers', icon: '🚚' },
   { id: 'parceiro', labelKey: 'house.partners', icon: '🤝' },
+  { id: 'drinkback', labelKey: 'house.drinkBackNav', icon: '🥂' },
   { id: 'cartao', labelKey: 'house.card', icon: '💳' },
   { id: 'energia', labelKey: 'house.power', icon: '⚡' },
   { id: 'aluguel', labelKey: 'house.rent', icon: '🏢' },
@@ -69,7 +70,7 @@ const GERENTE_NAV = [
 const NAV_GROUPS = [
   { id: 'tonight', labelKey: 'nav.groupTonight', ids: ['inicio', 'pos', 'pedidos', 'entregas', 'faturas', 'espacos', 'clientes', 'ponto', 'fechamento'] },
   { id: 'numbers', labelKey: 'nav.groupNumbers', ids: ['metas', 'pagamentos', 'salarios', 'eventos', 'ia'] },
-  { id: 'house', labelKey: 'nav.groupHouse', ids: ['staff', 'fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'] },
+  { id: 'house', labelKey: 'nav.groupHouse', ids: ['staff', 'fornecedor', 'parceiro', 'drinkback', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'] },
   { id: 'supply', labelKey: 'nav.groupSupply', ids: ['estoque'] },
   { id: 'office', labelKey: 'nav.groupOffice', ids: ['custos', 'precos', 'recibos'] },
 ]

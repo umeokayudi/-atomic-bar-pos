@@ -18,7 +18,7 @@ const EMPTY_PERSON = {
 
 const REGISTERS = [
   { kind: 'fornecedor', title: 'suppliers', body: 'suppliersBody', fields: ['nome', 'detalhe', 'contato', 'email', 'notas'], detalheLabel: 'supplies', profile: ['cargo', 'dias', 'idiomas'], cargoLabel: 'category', daysLabel: 'deliveryDays' },
-  { kind: 'parceiro', title: 'partners', body: 'partnersBody', fields: ['nome', 'contato', 'email', 'aniversario', 'notas'], profile: ['cargo', 'dias', 'idiomas', 'estilo'], daysLabel: 'workDays' },
+  { kind: 'parceiro', title: 'partners', body: 'partnersBody', fields: ['nome', 'detalhe', 'endereco', 'contato', 'email', 'estilo', 'notas'], nomeLabel: 'partnerName', detalheLabel: 'theirBars', brings: true, profile: [] },
   { kind: 'cartao', title: 'card', body: 'cardBody', fields: ['nome', 'cargo', 'contato', 'email', 'pct', 'prazo_dias', 'vence_dia', 'notas'], nomeLabel: 'company', cargoLabel: 'contactPerson', profile: [] },
   { kind: 'energia', title: 'power', body: 'powerBody', fields: ['nome', 'cargo', 'contato', 'email', 'amount', 'vence_dia', 'notas'], nomeLabel: 'company', cargoLabel: 'contactPerson', profile: [] },
   { kind: 'aluguel', title: 'rent', body: 'rentBody', fields: ['nome', 'cargo', 'contato', 'email', 'endereco', 'amount', 'vence_dia', 'notas'], nomeLabel: 'agency', cargoLabel: 'contactPerson', profile: [] },
@@ -228,8 +228,9 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
     if (field === 'cargo') return t(`house.${spec.cargoLabel || 'job'}`)
     if (field === 'email') return t('house.email')
     if (field === 'aniversario') return t('house.birthday')
-    if (field === 'endereco') return t('house.address')
-    if (field === 'notas') return t('house.notes')
+    if (field === 'endereco') return t(spec.kind === 'parceiro' ? 'house.positioning' : 'house.address')
+    if (field === 'estilo') return t('house.weHelp')
+    if (field === 'notas') return t(spec.kind === 'parceiro' ? 'house.theyHelp' : 'house.notes')
     if (field === 'pct') return t('house.fee')
     if (field === 'amount') return t('house.monthlyAmount')
     if (field === 'vence_dia') return t('house.dueDay')
@@ -258,7 +259,15 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
               {(row.kind === 'fixo' || (row.kind === 'outro' && row.recorrente !== false)) ? `${(+row.pct || +row.amount) ? ' · ' : ''}${t('house.repeats')}` : ''}
               {(row.kind === 'variavel' || (row.kind === 'outro' && row.recorrente === false)) ? `${(+row.pct || +row.amount) ? ' · ' : ''}${row.month_key || ''}` : ''}
             </div>
-            <Tags row={row} />
+            {row.kind === 'parceiro' ? (
+              <>
+                <div className="house-meta">
+                  {[row.detalhe, row.endereco, row.cargo ? named(t, 'brings', row.cargo) : ''].filter(Boolean).join(' · ')}
+                </div>
+                {row.estilo && <div className="house-meta">{t('house.weHelp')}: {row.estilo}</div>}
+                {row.notas && <div className="house-meta">{t('house.theyHelp')}: {row.notas}</div>}
+              </>
+            ) : <Tags row={row} />}
           </div>
           <div className="house-actions">
             <button type="button" className="house-text" onClick={() => setForm({
@@ -295,7 +304,7 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
                 {label(field)}
               </label>
             ) : (
-              <label key={field} className={field === 'notas' || field === 'detalhe' || field === 'endereco' ? 'house-span' : ''}>
+              <label key={field} className={field === 'notas' || field === 'detalhe' || field === 'endereco' || field === 'estilo' ? 'house-span' : ''}>
                 {label(field)}
                 <input
                   type={field === 'amount' || field === 'pct' || field === 'vence_dia' || field === 'prazo_dias' ? 'number' : field === 'aniversario' ? 'date' : 'text'}
@@ -306,6 +315,9 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
               </label>
             )
           ))}
+          {spec.brings && (
+            <ChipPick label={t('house.bringsLabel')} group="brings" keys={['clients', 'bars', 'both']} value={form.cargo} onChange={cargo => setForm({ ...form, cargo })} />
+          )}
           <ProfileFields form={form} setForm={setForm} profile={spec.profile} cargoLabel={spec.cargoLabel} daysLabel={spec.daysLabel} />
           {spec.month && (
             <label>{t('house.month')}

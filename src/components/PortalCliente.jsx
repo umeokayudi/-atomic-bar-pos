@@ -34,6 +34,7 @@ const AtomicPosPanel = lazy(() => import('./AtomicPos'))
 const TimeClockPanel = lazy(() => import('./TimeClock'))
 const BarTeamTab = lazy(() => import('./BarTeamTab'))
 const BarHouseTab = lazy(() => import('./BarHouse'))
+const DrinkBackTab = lazy(() => import('./DrinkBackTab'))
 const BarGoalsTab = lazy(() => import('./BarGoals'))
 const BarEventsTab = lazy(() => import('./BarEvents'))
 const BarFinance = lazy(() => import('./BarFinance'))
@@ -2247,6 +2248,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
             <TabHold><BarHouseTab bar={bar} section={['staff', 'fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'].includes(tab) ? tab : 'staff'} onTab={selectTab} /></TabHold>
           </div>
         )}
+        {tab==='drinkback' && canManageBarTeam(perfil?.role) && <TabHold><DrinkBackTab bar={bar} /></TabHold>}
         {tab==='equipe'    && canManageBarTeam(perfil?.role) && <TabHold><BarTeamTab bar={bar} /></TabHold>}
         {tab==='clientes'  && canManageBarTeam(perfil?.role) && <TabHold><BarGuestsTab bar={bar} /></TabHold>}
         {tab==='espacos'   && canManageBarTeam(perfil?.role) && <TabHold><BarSpacesTab bar={bar} /></TabHold>}
