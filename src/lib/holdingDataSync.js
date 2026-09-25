@@ -74,9 +74,9 @@ export async function fetchHoldingSystemSnapshot(supabase, holdingProfile = null
   checks.push({ ok: (produtosR.data || []).length > 0, label: 'Produtos ativos', detail: `${(produtosR.data || []).length}` })
   checks.push({ ok: (vendasR.data || []).filter(v => !isSupplierVenda(v)).length === 0, label: 'Vendas POS separadas', detail: `${(vendasR.data || []).filter(v => !isSupplierVenda(v)).length} POS` })
   checks.push({ ok: faturas.length > 0, label: 'Faturas Atomic', detail: `${faturas.length}` })
-  checks.push({ ok: bpAtomic >= 10, label: 'Preços POS Atomic', detail: `${bpAtomic}` })
+  checks.push({ ok: bpAtomic >= 10, label: 'Atomic POS prices', detail: `${bpAtomic}` })
   checks.push({ ok: aReceber >= 0, label: 'A receber bars', detail: `¥${Math.round(aReceber).toLocaleString('ja-JP')}` })
-  checks.push({ ok: (cashflow.netCash ?? 0) > -500000, label: 'Caixa líquido', detail: `¥${Math.round(cashflow.netCash || 0).toLocaleString('ja-JP')}` })
+  checks.push({ ok: (cashflow.netCash ?? 0) > -500000, label: 'Net cash', detail: `¥${Math.round(cashflow.netCash || 0).toLocaleString('ja-JP')}` })
 
   return {
     geradoEm: new Date().toISOString(),
@@ -132,7 +132,7 @@ export function buildHoldingFullAuditPrompt(snapshot, userQuestion = '') {
     system: `Você é o CFO-IA da JBM Holding — grupo que inclui JBM Drinks (fornecedor de bebidas no Japão, cliente Atomic Bar) e outros negócios.
 
 REGRAS:
-- Responda SEMPRE em português do Brasil, direto, sem enrolação.
+- Always answer in English, short and direct.
 - Use os dados REAIS do snapshot abaixo — não invente números.
 - Avalie sustentabilidade: caixa, custo de oportunidade entre negócios, cobranças, pagamentos a fornecedores.
 - Diga o que está OK, o que está em risco, e 3 ações prioritárias.
@@ -178,7 +178,7 @@ USUÁRIOS: ${JSON.stringify(s.usuarios)}`,
 export function buildHoldingChatSystem(snapshot) {
   const s = snapshot || {}
   return `Você é o assistente da JBM Holding com acesso aos dados reais do sistema JBM Drinks.
-Responda em português do Brasil. Seja conciso e prático.
+Answer in English. Be concise and practical.
 
 Snapshot financeiro:
 - Caixa líquido: ¥${s.financeiro?.caixaLiquido ?? 0}

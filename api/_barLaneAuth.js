@@ -61,7 +61,7 @@ const ACTOR_TTL_MS = 60_000
 
 export async function resolveBarActor(req, admin) {
   const token = bearerToken(req)
-  if (!token) return { error: 'Não autenticado', status: 401 }
+  if (!token) return { error: 'Not signed in', status: 401 }
   const cached = actorCache.get(token)
   if (cached && Date.now() - cached.at < ACTOR_TTL_MS) return cached.actor
 
@@ -73,7 +73,7 @@ export async function resolveBarActor(req, admin) {
 
   const authClient = drinksAuthClient()
   const { data: { user }, error } = await authClient.auth.getUser(token)
-  if (error || !user) return { error: 'Sessão inválida', status: 401 }
+  if (error || !user) return { error: 'Invalid session', status: 401 }
   const userDb = createStaffUserClient(token)
   const { data: perfil } = await userDb.from('perfis').select('*').eq('id', user.id).single()
   if (!perfil) return { error: 'Sem perfil', status: 403 }

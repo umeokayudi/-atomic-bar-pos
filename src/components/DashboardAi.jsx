@@ -35,21 +35,21 @@ function localDashAnswer(question, snap, t) {
 function dashSystem(snap, lang) {
   const speak = lang === 'ja'
     ? '日本語で短く答える。円表記。'
-    : 'Responda em português, curto, com yen. Sem enrolação.'
-  return `Você é o assistente JBM Drinks no dashboard. ${speak}
-Mês: ${snap.monthLabel}
-Lucro projetado: ${snap.lucro}
-Faturado: ${snap.faturamento}
-Compras: ${snap.compras}
-Margem: ${snap.margem}%
-A receber: ${snap.aReceber}
-Entregas: ${snap.entregas}
-Pedidos pendentes: ${snap.pedidosPendentes || 0}
-Atrasado a receber: ${snap.overdueText || 'nenhum'}
-Atrasado a pagar: ${snap.payText || 'nenhum'}
-Calendário do mês: ${snap.calText || 'sem eventos'}
-Ajude a decidir o que cobrar, o que pagar e o que o calendário mostra.
-Não misture caixa do bar, fatura JBM e salário.`
+    : 'Answer in English, short, with yen. No filler.'
+  return `You are the JBM Drinks dashboard assistant. ${speak}
+Month: ${snap.monthLabel}
+Projected profit: ${snap.lucro}
+Billed: ${snap.faturamento}
+Purchases: ${snap.compras}
+Margin: ${snap.margem}%
+To collect: ${snap.aReceber}
+Deliveries: ${snap.entregas}
+Pending orders: ${snap.pedidosPendentes || 0}
+Overdue to collect: ${snap.overdueText || 'none'}
+Overdue to pay: ${snap.payText || 'none'}
+Month calendar: ${snap.calText || 'no events'}
+Help decide what to collect, what to pay, and what the calendar shows.
+Do not mix the bar till, the JBM invoice and wages.`
 }
 
 export default function DashboardAi({ snapshot }) {

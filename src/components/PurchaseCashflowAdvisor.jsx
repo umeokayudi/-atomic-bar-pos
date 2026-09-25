@@ -11,14 +11,14 @@ import {
 import { loadHoldingLocal, syncHoldingFromCloud } from '../lib/jbmHolding'
 
 const VERDICT_STYLE = {
-  pay_now: { bg: '#f0fdf4', border: '#86efac', icon: '💵', label: 'Pagar à vista' },
-  pay_later: { bg: '#eff6ff', border: '#93c5fd', icon: '📅', label: 'Pagar a prazo' },
-  caution: { bg: '#fffbeb', border: '#fcd34d', icon: '⚠️', label: 'Atenção' },
-  neutral: { bg: 'var(--bg3)', border: 'var(--border)', icon: '📊', label: 'Análise' },
-  incomplete: { bg: 'var(--bg3)', border: 'var(--border)', icon: '—', label: 'Aguardando' },
+  pay_now: { bg: '#f0fdf4', border: '#86efac', icon: '💵', label: 'Pay cash' },
+  pay_later: { bg: '#eff6ff', border: '#93c5fd', icon: '📅', label: 'Pay on terms' },
+  caution: { bg: '#fffbeb', border: '#fcd34d', icon: '⚠️', label: 'Caution' },
+  neutral: { bg: 'var(--bg3)', border: 'var(--border)', icon: '📊', label: 'Analysis' },
+  incomplete: { bg: 'var(--bg3)', border: 'var(--border)', icon: '—', label: 'Waiting' },
 }
 
-const PRESSURE_LABEL = { alta: 'Alta', média: 'Média', baixa: 'Baixa' }
+const PRESSURE_LABEL = { alta: 'High', média: 'Medium', baixa: 'Low' }
 
 export default function PurchaseCashflowAdvisor({
   purchaseAmount = 0,
@@ -83,7 +83,7 @@ export default function PurchaseCashflowAdvisor({
     if (compact) return null
     return (
       <div style={{ background: 'var(--bg3)', borderRadius: 12, padding: 14, fontSize: 12, color: 'var(--text2)' }}>
-        💡 Informe fornecedor e valor — a IA compara pagar à vista vs a prazo com base na <strong>JBM Holding</strong>.
+        💡 Enter the supplier and the amount — AI compares paying cash vs on terms using <strong>JBM Holding</strong>.
       </div>
     )
   }
@@ -110,17 +110,17 @@ export default function PurchaseCashflowAdvisor({
           onClick={() => setShowSettings(s => !s)}
           style={{ fontSize: 11, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'white', cursor: 'pointer' }}
         >
-          ⚙️ {showSettings ? 'Ocultar' : 'Premissas'}
+          ⚙️ {showSettings ? 'Hide' : 'Assumptions'}
         </button>
       </div>
 
       {showSettings && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))', gap: 10, marginBottom: 14, fontSize: 12 }}>
           {[
-            ['cashDiscountPct', 'Desconto à vista %'],
-            ['cardFeePct', 'Taxa cartão %'],
-            ['daysToCollectBar', 'Dias p/ cobrar bar'],
-            ['minCashBuffer', 'Buffer mínimo ¥'],
+            ['cashDiscountPct', 'Cash discount %'],
+            ['cardFeePct', 'Card fee %'],
+            ['daysToCollectBar', 'Days to collect from bar'],
+            ['minCashBuffer', 'Minimum buffer ¥'],
           ].map(([key, label]) => (
             <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <span style={{ fontSize: 10, color: 'var(--text2)' }}>{label}</span>
@@ -138,17 +138,17 @@ export default function PurchaseCashflowAdvisor({
       {cashflow && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 14, fontSize: 11 }}>
           <div style={{ background: 'rgba(255,255,255,0.6)', borderRadius: 10, padding: '8px 10px' }}>
-            <div style={{ color: 'var(--text2)' }}>Caixa líquido</div>
+            <div style={{ color: 'var(--text2)' }}>Net cash</div>
             <strong>{fmtYen(analysis.cashflow.netCash)}</strong>
           </div>
           <div style={{ background: 'rgba(255,255,255,0.6)', borderRadius: 10, padding: '8px 10px' }}>
-            <div style={{ color: 'var(--text2)' }}>Projetado 30d</div>
+            <div style={{ color: 'var(--text2)' }}>Projected 30d</div>
             <strong style={{ color: analysis.cashflow.projectedCash >= 0 ? 'var(--green)' : 'var(--red)' }}>
               {fmtYen(analysis.cashflow.projectedCash)}
             </strong>
           </div>
           <div style={{ background: 'rgba(255,255,255,0.6)', borderRadius: 10, padding: '8px 10px' }}>
-            <div style={{ color: 'var(--text2)' }}>Cobrar do bar</div>
+            <div style={{ color: 'var(--text2)' }}>Collect from bar</div>
             <strong>~dia {analysis.timeline.collectDay}</strong>
           </div>
         </div>
@@ -158,7 +158,7 @@ export default function PurchaseCashflowAdvisor({
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)' }}>
-              {['Opção', 'Paga dia', 'Custo efetivo', 'Pressão caixa'].map(h => (
+              {['Option', 'Pays on day', 'Effective cost', 'Cash pressure'].map(h => (
                 <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 10, color: 'var(--text2)', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
@@ -206,10 +206,10 @@ export default function PurchaseCashflowAdvisor({
           background: 'var(--navy)', color: 'white', fontWeight: 700, fontSize: 12, cursor: 'pointer',
         }}
       >
-        {aiLoading ? 'Analisando...' : '🤖 IA Holding: à vista ou a prazo?'}
+        {aiLoading ? 'Analyzing...' : '🤖 Holding AI: cash or terms?'}
       </button>
 
-      {aiLoading && <div style={{ marginTop: 10 }}><Spinner text="IA sincronizada com JBM Holding..." /></div>}
+      {aiLoading && <div style={{ marginTop: 10 }}><Spinner text="AI synced with JBM Holding..." /></div>}
       {aiText && !aiLoading && (
         <div style={{
           marginTop: 12, padding: '12px 14px', background: 'white',

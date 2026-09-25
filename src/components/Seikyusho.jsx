@@ -34,7 +34,7 @@ export default function SeikyushoTab() {
       `Bares: ${(bars || []).map(b => b.nome).join(', ')}`,
       `Fornecedores: ${(forn || []).map(f => f.nome).join(', ')}`,
       `Produtos (amostra): ${(prods || []).map(p => p.nome).join(', ')}`,
-      'Entrega direta ao bar: pedidos do cliente serão marcados entregue com data do pedido.',
+      'Direct delivery to the bar: the client orders will be marked delivered on the order date.',
     ].join('\n'))
     setCatalog(prods || [])
   }

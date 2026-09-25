@@ -89,9 +89,9 @@ export function localHqAnswer(question, snapshot, lang = 'en', strategy = '') {
   if (/estrat|estratég|anivers|evento|festa|birthday|strategy|戦略|誕生日/.test(q)) {
     const body = strategy || (ja
       ? 'まだ戦略データがありません。イベントページでキャスト、パートナー、客の誕生日を見てください。'
-      : 'Ainda não há digest de estratégia. Abra Eventos e use o aniversário do cast, dos parceiros e dos clientes.')
+      : 'No strategy digest yet. Open Events and use cast, partner and guest birthdays.')
     if (ja) return `これまでの実績に基づく戦略：\n${body}\nイベントは店長が決めます。`
-    return `Estratégia com o que já funcionou:\n${body}\nO gerente decide se o evento acontece.`
+    return `Strategy from what already worked:\n${body}\nThe manager decides whether the event happens.`
   }
   if (/stock|estoque|在庫|restock/.test(q)) {
     const low = (s.jbm?.estoqueBaixo || []).map(e => `${e.nome} ${e.qtd}/${e.minimo}`).join(', ')

@@ -30,17 +30,17 @@ function localCashAnswer(question, snap, t) {
 }
 
 function cashSystem(snap) {
-  return `Você é o assistente de caixa da JBM Drinks no Japão. Responda em português, curto, com yen.
-Números atuais:
-- Recebido dos bares: ${snap.paidIn}
-- Pago a fornecedores: ${snap.paidOut}
-- Caixa líquido: ${snap.netCash}
-- Ainda a receber: ${snap.pendingIn}
-- Ainda a pagar: ${snap.pendingOut}
-- Atrasado a receber: ${snap.overdueIn || 0}
-- Atrasado a pagar: ${snap.overdueOut || 0}
-Agenda da semana: ${snap.weekText || 'sem eventos'}
-Não misture caixa do bar, fatura JBM e salário.`
+  return `You are the cash assistant for JBM Drinks in Japan. Answer in English, short, with yen.
+Current numbers:
+- Received from bars: ${snap.paidIn}
+- Paid to suppliers: ${snap.paidOut}
+- Net cash: ${snap.netCash}
+- Still to collect: ${snap.pendingIn}
+- Still to pay: ${snap.pendingOut}
+- Overdue to collect: ${snap.overdueIn || 0}
+- Overdue to pay: ${snap.overdueOut || 0}
+Week agenda: ${snap.weekText || 'no events'}
+Do not mix the bar till, the JBM invoice and wages.`
 }
 
 export default function CashflowAi({ snapshot }) {

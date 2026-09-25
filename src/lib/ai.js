@@ -5,7 +5,7 @@ async function readApiJson(res) {
   try {
     return JSON.parse(text)
   } catch {
-    return { error: text?.slice(0, 200) || res.statusText || 'Resposta inválida do servidor' }
+    return { error: text?.slice(0, 200) || res.statusText || 'Invalid server response' }
   }
 }
 

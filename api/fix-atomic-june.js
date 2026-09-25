@@ -14,7 +14,7 @@ export default async function handler(req, res) {
   const secret = process.env.FIX_ATOMIC_SECRET || 'jbm-atomic-june-2026'
   const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
   if (body.confirm !== secret && body.confirm !== 'atomic-june-465000' && body.confirm !== 'atomic-pos-2026') {
-    return res.status(403).json({ error: 'confirm inválido' })
+    return res.status(403).json({ error: 'Invalid confirm' })
   }
 
   try {
@@ -109,7 +109,7 @@ export default async function handler(req, res) {
     }
 
     return res.status(400).json({
-      error: 'action inválida',
+      error: 'Invalid action',
       actions: ['fix', 'setupPos', 'revertPedidos', 'markEntregue', 'dedupeVendas', 'fixVendaDates', 'reconcileSales', 'resyncJuneVendas', 'syncMissingVendas', 'backfillVendaItens', 'fixSeikyushoCompraDates'],
     })
   } catch (e) {

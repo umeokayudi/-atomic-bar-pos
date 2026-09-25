@@ -10,7 +10,7 @@ export const DEFAULT_HOLDING = {
   custoOportunidadeBasePct: 28,
   capitalDisponivel: 0,
   regraCapital:
-    'Se o capital estiver apertado, priorizar contratação/expansão dos outros negócios antes de comprar bebidas à vista.',
+    'If capital is tight, hire and expand the other businesses before buying drinks for cash.',
   negocios: [
     {
       id: 'jbm-drinks',
@@ -18,15 +18,15 @@ export const DEFAULT_HOLDING = {
       tipo: 'bebidas',
       custoOportunidadePct: 22,
       prioridade: 'media',
-      notas: 'Fornecedor Atomic, estoque, entregas',
+      notas: 'Atomic supplier, stock, deliveries',
     },
     {
       id: 'outro-negocio',
-      nome: 'Outro negócio',
+      nome: 'Other business',
       tipo: 'servicos',
       custoOportunidadePct: 45,
       prioridade: 'alta',
-      notas: 'Ex.: contratar pessoas, expandir operação',
+      notas: 'E.g. hire people, expand the operation',
     },
   ],
 }
@@ -60,7 +60,7 @@ export function describeForsakenAlternatives(holding, amount) {
   return outros.map(n => ({
     negocio: n.nome,
     custoOportunidadePct: n.custoOportunidadePct,
-    mensagem: `¥${Math.round(amount).toLocaleString('ja-JP')} à vista em bebidas poderia ir para ${n.nome} (${n.notas || 'expansão'}) — custo de oportunidade ~${n.custoOportunidadePct}%/ano`,
+    mensagem: `¥${Math.round(amount).toLocaleString('ja-JP')} cash on drinks could go to ${n.nome} (${n.notas || 'expansion'}) — opportunity cost ~${n.custoOportunidadePct}%/year`,
   }))
 }
 

@@ -125,17 +125,17 @@ function CashflowOverview() {
   }
   const weekItems = next30.filter(d => weekAhead.includes(d.date))
   const weekText = weekItems.length
-    ? weekItems.map(d => `${fmtDate(d.date)}: ${d.in ? `receber ${fmtYen(d.in)}` : ''}${d.in && d.out ? ' · ' : ''}${d.out ? `pagar ${fmtYen(d.out)}` : ''}`).join('\n')
+    ? weekItems.map(d => `${fmtDate(d.date)}: ${d.in ? `in ${fmtYen(d.in)}` : ''}${d.in && d.out ? ' · ' : ''}${d.out ? `out ${fmtYen(d.out)}` : ''}`).join('\n')
     : ''
   const collectText = faturaSplit.overdue.length
-    ? faturaSplit.overdue.map(f => `${f.bars?.nome || 'Bar'}: ${fmtYen(f.amount)} (venceu ${fmtDate(f.dueDate)})`).join('\n')
+    ? faturaSplit.overdue.map(f => `${f.bars?.nome || 'Bar'}: ${fmtYen(f.amount)} (due ${fmtDate(f.dueDate)})`).join('\n')
     : ''
   const payText = pendingSplit.overdue.length
-    ? pendingSplit.overdue.map(c => `${c.fornecedor || 'Fornecedor'}: ${fmtYen(c.amount)} (venceu ${fmtDate(c.dueDate)})`).join('\n')
+    ? pendingSplit.overdue.map(c => `${c.fornecedor || 'Supplier'}: ${fmtYen(c.amount)} (due ${fmtDate(c.dueDate)})`).join('\n')
     : ''
   const whyText = netCash < 0
-    ? `Caixa líquido ${fmtYen(netCash)} porque já pagamos ${fmtYen(paidOut)} e só entrou ${fmtYen(paidIn)}. Ainda dá para receber ${fmtYen(pendingIn)}.`
-    : `Caixa líquido ${fmtYen(netCash)}. Entradas confirmadas ${fmtYen(paidIn)}, saídas pagas ${fmtYen(paidOut)}.`
+    ? `Net cash ${fmtYen(netCash)} because we already paid ${fmtYen(paidOut)} and only ${fmtYen(paidIn)} came in. ${fmtYen(pendingIn)} can still be collected.`
+    : `Net cash ${fmtYen(netCash)}. Confirmed in ${fmtYen(paidIn)}, paid out ${fmtYen(paidOut)}.`
 
   const aiSnap = {
     paidIn, paidOut, netCash, pendingIn, pendingOut,

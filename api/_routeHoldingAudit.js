@@ -63,7 +63,7 @@ export default async function handler(req, res) {
       }
       const ping = JSON.stringify({ ok: true, at: new Date().toISOString() })
       const { error: pingErr } = await holdingSb.storage.from(BUCKET).upload('sync_ping.json', ping, { upsert: true, contentType: 'application/json' })
-      if (pingErr) return res.status(400).json({ error: 'Chave inválida: ' + pingErr.message })
+      if (pingErr) return res.status(400).json({ error: 'Invalid key: ' + pingErr.message })
 
       const { data: dbuckets } = await sb.storage.listBuckets()
       if (!dbuckets?.some(b => b.name === BUCKET)) {
@@ -153,7 +153,7 @@ export default async function handler(req, res) {
       { ok: (produtos.data || []).length > 0, label: 'Produtos', detail: String(produtos.data?.length ?? 0) },
       { ok: (vendas.data || []).filter(v => !isSupplierVenda(v)).length === 0, label: 'POS separado', detail: 'OK' },
       { ok: faturasData.length > 0, label: 'Faturas', detail: String(faturasData.length) },
-      { ok: (barPricing.count || 0) >= 10, label: 'Preços POS', detail: String(barPricing.count || 0) },
+      { ok: (barPricing.count || 0) >= 10, label: 'POS prices', detail: String(barPricing.count || 0) },
       { ok: paidIn + aReceber >= paidOut, label: 'Caixa', detail: `¥${paidIn - paidOut} (projetado ¥${paidIn + aReceber - paidOut})` },
     ]
 

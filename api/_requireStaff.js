@@ -41,22 +41,22 @@ export async function requireStaff(req, _admin, opts = {}) {
   }
 
   const token = bearerToken(req)
-  if (!token) return { error: 'Não autenticado', status: 401 }
+  if (!token) return { error: 'Not signed in', status: 401 }
 
   const authClient = drinksAuthClient()
   const { data: { user }, error } = await authClient.auth.getUser(token)
-  if (error || !user) return { error: 'Sessão inválida', status: 401 }
+  if (error || !user) return { error: 'Invalid session', status: 401 }
 
   const userDb = createStaffUserClient(token)
   const { data: perfil } = await userDb.from('perfis').select('role').eq('id', user.id).single()
   if (!perfil || perfil.role === 'cliente' || perfil.role === 'caixa' || perfil.role === 'bar_staff') {
-    return { error: 'Sem permissão', status: 403 }
+    return { error: 'No permission', status: 403 }
   }
   if (adminOnly && perfil.role !== 'admin' && perfil.role !== 'staff') {
-    return { error: 'Sem permissão', status: 403 }
+    return { error: 'No permission', status: 403 }
   }
   if (!roles.includes(perfil.role) && perfil.role !== 'admin') {
-    return { error: 'Sem permissão', status: 403 }
+    return { error: 'No permission', status: 403 }
   }
 
   return { user, perfil, token }
@@ -73,7 +73,7 @@ export async function requireBarAccount(req, _admin, opts = {}) {
   const { resolveBarActor } = await import('./_barLaneAuth.js')
   const actor = await resolveBarActor(req, admin)
   if (actor.error) return actor
-  if (!allowed.includes(actor.perfil.role)) return { error: 'Sem permissão', status: 403 }
+  if (!allowed.includes(actor.perfil.role)) return { error: 'No permission', status: 403 }
   if (!actor.perfil.bar_id) return { error: 'Conta sem bar vinculado', status: 403 }
   return actor
 }

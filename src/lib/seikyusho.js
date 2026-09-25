@@ -3,7 +3,7 @@ async function readApiJson(res) {
   try {
     return JSON.parse(text)
   } catch {
-    throw new Error(text?.slice(0, 200) || res.statusText || 'Resposta inválida do servidor')
+    throw new Error(text?.slice(0, 200) || res.statusText || 'Invalid server response')
   }
 }
 

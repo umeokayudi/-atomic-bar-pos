@@ -10,12 +10,13 @@ import {
 } from './_deliveryMargin.js'
 import { buildPurchaseCostIndex, unitCostAtDate } from './_marginCost.js'
 
-const SEIKYUSHO_SYSTEM = `Você lê 請求書 (seikyusho) — fatura do FORNECEDOR que a JBM Drinks paga (custo de compra).
-O cliente bar (ex: Atomic) já fez pedidos no portal; a entrega pode ser direta ao bar.
+const SEIKYUSHO_SYSTEM = `You read 請求書 (seikyusho) — the SUPPLIER invoice that JBM Drinks pays (purchase cost).
+The bar client (e.g. Atomic) already placed orders in the portal; delivery may go straight to the bar.
+Write every text field in English.
 
-Retorne APENAS JSON válido:
+Return ONLY valid JSON:
 {
-  "fornecedor": "nome do fornecedor",
+  "fornecedor": "supplier name",
   "cliente_bar": "Atomic",
   "entrega_direta": true,
   "numero_fatura": "",
@@ -26,25 +27,25 @@ Retorne APENAS JSON válido:
   "pagamento": "Transfer",
   "subtotal": 0,
   "total": 0,
-  "itens_custo": [{"nome": "produto", "qtd": 1, "custo_unitario": 0}],
+  "itens_custo": [{"nome": "product", "qtd": 1, "custo_unitario": 0}],
   "observacoes": "",
   "plano": {
-    "resumo": "Resumo em português do que você entendeu da fatura",
-    "acoes": ["O que o sistema fará ao confirmar — lista clara"],
-    "alertas": ["Dúvidas ou inconsistências, se houver"],
-    "pergunta": "Pergunta ao usuário se está correto para registrar no sistema"
+    "resumo": "Short English summary of what you understood from the invoice",
+    "acoes": ["Clear list of what the system will do when confirmed"],
+    "alertas": ["Questions or mismatches, if any"],
+    "pergunta": "Ask the user if this is correct to save in the system"
   }
 }
 
-Regras:
-- itens_custo = o que JBM PAGOU ao fornecedor (custo JBM, não preço ao bar).
-- periodo_inicio/fim = período da fatura ou das entregas.
-- entrega_direta=true quando a mercadoria foi entregue ao bar; pedidos do cliente já existem no sistema.
-- NÃO invente preço de venda ao bar — isso vem dos pedidos do cliente.
-- Valores em iene (inteiros).
-- O COMENTÁRIO DO USUÁRIO tem prioridade sobre a imagem quando houver conflito.
-- Em plano.acoes, liste passos concretos: registrar compra, atualizar preços fornecedor, sincronizar pedidos entregues, etc.
-- Em plano.pergunta, pergunte explicitamente se pode registrar no sistema.`
+Rules:
+- itens_custo = what JBM PAID the supplier (JBM cost, not the bar selling price).
+- periodo_inicio/fim = the invoice period or the delivery period.
+- entrega_direta=true when the goods went to the bar; the client orders already exist in the system.
+- Do NOT invent the bar selling price — that comes from the client orders.
+- Amounts in yen (integers).
+- The USER COMMENT wins over the image when they conflict.
+- In plano.acoes, list concrete steps: record the purchase, update supplier prices, mark delivered orders, and so on.
+- In plano.pergunta, ask explicitly whether it may be saved in the system.`
 
 function leVinDueDate(compraDate) {
   if (!compraDate) return null
@@ -84,22 +85,22 @@ function parseJson(text) {
   try {
     return JSON.parse(cleaned)
   } catch {
-    throw new Error(`IA não retornou JSON válido: ${cleaned.slice(0, 120)}…`)
+    throw new Error(`AI did not return valid JSON: ${cleaned.slice(0, 120)}…`)
   }
 }
 
 function buildAnalyzePrompt({ context, comentario, previous }) {
   const parts = []
   if (comentario?.trim()) {
-    parts.push(`COMENTÁRIO DO USUÁRIO (prioridade máxima):\n${comentario.trim()}`)
+    parts.push(`USER COMMENT (highest priority):\n${comentario.trim()}`)
   }
   if (previous) {
-    parts.push(`ANÁLISE ANTERIOR (ajuste conforme o comentário de correção):\n${JSON.stringify(previous, null, 2)}`)
+    parts.push(`PREVIOUS READING (adjust it to the correction comment):\n${JSON.stringify(previous, null, 2)}`)
   }
   if (context) {
     parts.push(`Contexto do sistema:\n${context}`)
   }
-  parts.push('Analise esta 請求書 (custo JBM). Gere o plano de ações e pergunte se está correto antes de registrar.')
+  parts.push('Read this 請求書 (JBM cost). Build the action plan and ask if it is correct before saving.')
   return parts.join('\n\n')
 }
 
@@ -128,19 +129,19 @@ function defaultPlano(extracted) {
   if (extracted.entrega_direta !== false) {
     acoes.push(`Sincronizar pedidos de ${extracted.cliente_bar || 'Atomic'} como entregues (${extracted.periodo_inicio || extracted.data} – ${extracted.periodo_fim || extracted.data})`)
   }
-  acoes.push('Atualizar preços do fornecedor')
+  acoes.push('Update supplier prices')
   return {
-    resumo: `Fatura ${extracted.fornecedor || '?'} — total ${extracted.total || 0} iene`,
+    resumo: `Invoice ${extracted.fornecedor || '?'} — total ${extracted.total || 0} yen`,
     acoes,
     alertas: [],
-    pergunta: 'Está correto? Posso registrar estas informações no sistema?',
+    pergunta: 'Is this correct? May I save this in the system?',
   }
 }
 
 export async function registerSeikyusho(body) {
   const extracted = body.extracted
   if (!extracted?.fornecedor && !extracted?.total) {
-    throw new Error('Dados extraídos inválidos — confirme a análise primeiro')
+    throw new Error('Extracted data is invalid — confirm the reading first')
   }
 
   const sb = adminClient()
@@ -299,7 +300,7 @@ export async function handleSeikyushoRequest(res, body) {
 
     if (action === 'register') {
       if (!body.confirmed) {
-        return res.status(400).json({ error: 'Confirme que os dados estão corretos antes de registrar' })
+        return res.status(400).json({ error: 'Confirm the data is correct before saving' })
       }
       const result = await registerSeikyusho(body)
       return res.status(200).json({ ok: true, ...result })

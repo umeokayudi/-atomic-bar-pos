@@ -5,9 +5,9 @@ export function pagamentoEmAnalise(p) {
 
 /** Rótulo de status para pagamentos de fatura (confirmado vs em análise). */
 export function pagamentoStatus(p) {
-  if (p?.confirmado) return { label: 'Confirmado', tone: 'green' }
-  if (pagamentoEmAnalise(p)) return { label: 'Em análise', tone: 'amber' }
-  return { label: 'Aguardando confirmação', tone: 'amber' }
+  if (p?.confirmado) return { label: 'Confirmed', tone: 'green' }
+  if (pagamentoEmAnalise(p)) return { label: 'Under review', tone: 'amber' }
+  return { label: 'Waiting for confirmation', tone: 'amber' }
 }
 
 export function pagamentosPendentes(pagamentos, faturaId) {

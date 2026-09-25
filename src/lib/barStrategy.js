@@ -5,7 +5,7 @@ import { nightKeyOfSale } from './nightClose.js'
 import { orderCastFromObs } from './orderMeta.js'
 import { tokyoDateKey, tokyoParts } from './tokyo.js'
 
-const WEEK = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+const WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 function weekday(dateKey) {
   const [y, m, d] = String(dateKey).slice(0, 10).split('-').map(Number)
@@ -102,14 +102,14 @@ export function birthdayIdeas({ cast = [], partners = [], guests = [], worked, t
       }
     }
     const bits = []
-    if (best) bits.push(`${best.label} é o dia que mais vendeu (média ¥${best.avg.toLocaleString('ja-JP')}).`)
-    if (peak) bits.push(`O pico foi ${peak.label}.`)
-    if (castName) bits.push(`Quem mais vendeu garrafa: ${castName}.`)
-    if (move !== data) bits.push(`O aniversário cai ${falls}. Melhor puxar o evento para ${move} (${best.label}).`)
-    else if (strong) bits.push(`O aniversário já cai num dia forte (${falls}).`)
+    if (best) bits.push(`${best.label} is the day that sold the most (average ¥${best.avg.toLocaleString('ja-JP')}).`)
+    if (peak) bits.push(`The peak was ${peak.label}.`)
+    if (castName) bits.push(`Top bottle seller: ${castName}.`)
+    if (move !== data) bits.push(`The birthday falls on ${falls}. Better to move the event to ${move} (${best.label}).`)
+    else if (strong) bits.push(`The birthday already falls on a strong day (${falls}).`)
     return [{
       id: `bday-${p.origem}-${p.id}`,
-      titulo: `Aniversário de ${p.nome}`,
+      titulo: `${p.nome}'s birthday`,
       data: move,
       aniversario: data,
       origem: p.origem,
@@ -121,17 +121,17 @@ export function birthdayIdeas({ cast = [], partners = [], guests = [], worked, t
 }
 
 export function strategyText(worked, ideas = []) {
-  if (!worked?.nights) return 'Ainda não há vendas suficientes para dizer o que funcionou.'
+  if (!worked?.nights) return 'Not enough sales yet to say what worked.'
   const days = (worked.bestDays || []).map(d => `${d.label} ¥${d.avg.toLocaleString('ja-JP')}`).join(', ')
   const hours = (worked.peakHours || []).map(h => h.label).join(', ')
   const cast = (worked.topCast || []).map(c => c.nome).join(', ')
   const next = ideas.slice(0, 3).map(i => `${i.pessoa_nome} (${i.data})`).join(', ')
   return [
-    `Noites analisadas: ${worked.nights}.`,
-    days && `Dias que funcionaram: ${days}.`,
-    hours && `Horas que funcionaram: ${hours}.`,
-    cast && `Cast que funcionou: ${cast}.`,
-    next && `Próximos aniversários para o gerente decidir: ${next}.`,
+    `Nights reviewed: ${worked.nights}.`,
+    days && `Days that worked: ${days}.`,
+    hours && `Hours that worked: ${hours}.`,
+    cast && `Cast that worked: ${cast}.`,
+    next && `Upcoming birthdays for the manager to decide: ${next}.`,
   ].filter(Boolean).join(' ')
 }
 

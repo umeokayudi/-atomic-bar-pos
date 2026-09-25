@@ -386,7 +386,7 @@ function InvoiceList() {
               {t('invoices.paymentModalTotal', { total: fmtYen(payModal.total || payModal.valor), remaining: fmtYen((+payModal.total || +payModal.valor || 0) - (+payModal.pago || 0)) })}
             </div>
             <div style={{ marginBottom:12 }}><label className="form-label">{t('invoices.paymentAmount')}</label><input type="number" value={payForm.valor} onChange={e=>setPayForm({...payForm,valor:e.target.value})} autoFocus /></div>
-            <div style={{ marginBottom:12 }}><label className="form-label">{t('invoices.paymentMethod')}</label><select value={payForm.metodo} onChange={e=>setPayForm({...payForm,metodo:e.target.value, emAnalise:pagamentoEmAnalise({ metodo:e.target.value })?true:payForm.emAnalise})}>{['Dinheiro','Transferência','Stripe','Cartão'].map(m=><option key={m}>{m}</option>)}</select></div>
+            <div style={{ marginBottom:12 }}><label className="form-label">{t('invoices.paymentMethod')}</label><select value={payForm.metodo} onChange={e=>setPayForm({...payForm,metodo:e.target.value, emAnalise:pagamentoEmAnalise({ metodo:e.target.value })?true:payForm.emAnalise})}>{['Cash','Transfer','Stripe','Card'].map(m=><option key={m}>{m}</option>)}</select></div>
             <div style={{ marginBottom:12 }}>
               <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
                 <input type="checkbox" checked={payForm.emAnalise} onChange={e=>setPayForm({...payForm, emAnalise:e.target.checked})} />

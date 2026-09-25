@@ -10,11 +10,11 @@ import {
 } from '../lib/holdingDataSync'
 
 const QUICK_PROMPTS = [
-  'Checagem completa: está tudo sustentável?',
-  'Posso comprar bebidas à vista agora ou é melhor a prazo?',
-  'O caixa aguenta mais uma compra grande esta semana?',
-  'O que está em risco urgente?',
-  'Como alocar capital entre JBM Drinks e outros negócios?',
+  'Full check: is everything sustainable?',
+  'Can I buy drinks for cash now, or is it better on terms?',
+  'Can cash take another large purchase this week?',
+  'What is at urgent risk?',
+  'How should capital be split between JBM Drinks and the other businesses?',
 ]
 
 export default function JbmHoldingAI({ holdingProfile }) {
@@ -23,7 +23,7 @@ export default function JbmHoldingAI({ holdingProfile }) {
   const [auditText, setAuditText] = useState('')
   const [auditLoading, setAuditLoading] = useState(false)
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Olá. Sou a IA da JBM Holding, ligada aos dados reais do sistema. Clique em "Checar tudo" ou faça uma pergunta.' },
+    { role: 'assistant', content: 'Hello. I am the JBM Holding AI, connected to the real system data. Click “Check everything” or ask a question.' },
   ])
   const [input, setInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
@@ -92,15 +92,15 @@ export default function JbmHoldingAI({ holdingProfile }) {
         <div>
           <div style={{ fontSize: 16, fontWeight: 800 }}>🤖 IA Gemini — JBM Holding</div>
           <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4 }}>
-            Conectada aos dados do sistema: caixa, faturas, compras, vendas, fornecedores, preços POS
+            Connected to system data: cash, invoices, purchases, sales, suppliers, POS prices
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="button" onClick={refreshSnapshot} disabled={loadingSnap} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'white', fontSize: 12, cursor: 'pointer' }}>
-            {loadingSnap ? '...' : '🔄 Atualizar dados'}
+            {loadingSnap ? '...' : '🔄 Refresh data'}
           </button>
           <button type="button" onClick={runFullAudit} disabled={auditLoading} className="btn-primary" style={{ padding: '8px 14px', fontSize: 12, borderRadius: 8 }}>
-            {auditLoading ? 'Analisando...' : '🔍 Checar tudo'}
+            {auditLoading ? 'Analyzing...' : '🔍 Check everything'}
           </button>
         </div>
       </div>
@@ -166,7 +166,7 @@ export default function JbmHoldingAI({ holdingProfile }) {
               </div>
             </div>
           ))}
-          {chatLoading && <Spinner text="Pensando com dados do sistema..." />}
+          {chatLoading && <Spinner text="Thinking with system data..." />}
           <div ref={bottomRef} />
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -174,7 +174,7 @@ export default function JbmHoldingAI({ holdingProfile }) {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && sendChat()}
-            placeholder="Pergunte sobre caixa, compras, cobranças, holding..."
+            placeholder="Ask about cash, purchases, collections, the holding..."
             style={{ flex: 1, padding: '10px 14px', borderRadius: 10, fontSize: 13 }}
           />
           <button type="button" onClick={() => sendChat()} disabled={chatLoading || !input.trim()} className="btn-primary" style={{ padding: '10px 16px', borderRadius: 10, fontSize: 12 }}>

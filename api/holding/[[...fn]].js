@@ -47,7 +47,7 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const profile = req.body?.profile
       if (!profile?.nome) {
-        return res.status(400).json({ error: 'profile inválido' })
+        return res.status(400).json({ error: 'Invalid profile' })
       }
       const { data: buckets } = await sb.storage.listBuckets()
       if (!buckets?.some(b => b.name === BUCKET)) {

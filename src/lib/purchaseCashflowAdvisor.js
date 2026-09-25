@@ -29,13 +29,13 @@ export function parsePaymentTerms(pagamento = '') {
   const dayOfMonth = p.match(/dia\s*(\d{1,2})/i) || p.match(/day\s*(\d{1,2})/i) || p.match(/every\s*(\d{1,2})/i)
   if (dayOfMonth) {
     const n = +dayOfMonth[1]
-    return { mode: 'deferred', days: 30, paymentDay: n, label: `Dia ${n} do mês` }
+    return { mode: 'deferred', days: 30, paymentDay: n, label: `Day ${n} of the month` }
   }
   if (/60/.test(p)) return { mode: 'deferred', days: 60, paymentDay: 60, label: 'Fatura 60 dias' }
   if (/30|invoice|fatura/.test(p)) return { mode: 'deferred', days: 30, paymentDay: 30, label: 'Fatura 30 dias' }
-  if (/transfer|bank|transferência/.test(p)) return { mode: 'deferred', days: 7, label: 'Transferência (~7d)' }
-  if (/card|cartão|credit|debit/.test(p)) return { mode: 'immediate', days: 0, label: 'Cartão (imediato)' }
-  if (/cash|dinheiro|à vista|avista/.test(p)) return { mode: 'immediate', days: 0, label: 'À vista' }
+  if (/transfer|bank|transferência/.test(p)) return { mode: 'deferred', days: 7, label: 'Transfer (~7d)' }
+  if (/card|cartão|credit|debit/.test(p)) return { mode: 'immediate', days: 0, label: 'Card (immediate)' }
+  if (/cash|dinheiro|à vista|avista/.test(p)) return { mode: 'immediate', days: 0, label: 'Cash' }
   return { mode: 'immediate', days: 0, label: pagamento || 'Imediato' }
 }
 
@@ -72,7 +72,7 @@ export function buildPaymentScenarios({
   const scenarios = [
     {
       id: 'cash_now',
-      label: 'Pagar à vista — dinheiro',
+      label: 'Pay cash now',
       paymentDay: 0,
       grossOut: base,
       cashDiscount: Math.round(base * s.cashDiscountPct / 100),
@@ -80,11 +80,11 @@ export function buildPaymentScenarios({
       effectiveCost: Math.round(base * (1 - s.cashDiscountPct / 100) + oppCostNow),
       pointsValue: 0,
       financingCost: 0,
-      notes: `Desconto ${s.cashDiscountPct}% + custo oportunidade ${oppPct}% (${daysCapitalLocked}d capital preso)`,
+      notes: `${s.cashDiscountPct}% discount + opportunity cost ${oppPct}% (${daysCapitalLocked}d of capital locked)`,
     },
     {
       id: 'card_now',
-      label: 'Pagar à vista — cartão',
+      label: 'Pay by card now',
       paymentDay: 0,
       grossOut: base,
       cashDiscount: 0,
@@ -96,11 +96,11 @@ export function buildPaymentScenarios({
       ),
       pointsValue: pointsBenefit(base, pointsPct, s.pointsValuePct),
       financingCost: Math.round(base * s.cardFeePct / 100),
-      notes: `Taxa cartão ${s.cardFeePct}% + metade do custo de oportunidade`,
+      notes: `Card fee ${s.cardFeePct}% + half the opportunity cost`,
     },
     {
       id: 'terms',
-      label: `Pagar a prazo — ${terms.label}`,
+      label: `Pay on terms — ${terms.label}`,
       paymentDay: deferredDays,
       grossOut: base,
       cashDiscount: 0,
@@ -108,21 +108,21 @@ export function buildPaymentScenarios({
       effectiveCost: base + financingCost(base, deferredDays, oppPct) - pointsBenefit(base, pointsPct, s.pointsValuePct),
       pointsValue: pointsBenefit(base, pointsPct, s.pointsValuePct),
       financingCost: financingCost(base, deferredDays, oppPct),
-      notes: `Custo do dinheiro ${oppPct}%/ano × ${deferredDays}d — libera caixa agora`,
+      notes: `Cost of money ${oppPct}%/year × ${deferredDays}d — frees cash now`,
     },
   ]
 
   if (terms.mode === 'deferred') {
     scenarios.push({
       id: 'supplier_default',
-      label: `Padrão do fornecedor — ${supplierPayment}`,
+      label: `Supplier default — ${supplierPayment}`,
       paymentDay: terms.days,
       grossOut: base,
       opportunityCost: 0,
       effectiveCost: base + financingCost(base, terms.days, oppPct) - pointsBenefit(base, pointsPct, s.pointsValuePct),
       pointsValue: pointsBenefit(base, pointsPct, s.pointsValuePct),
       financingCost: financingCost(base, terms.days, oppPct),
-      notes: 'Condição cadastrada no fornecedor',
+      notes: 'Terms saved on the supplier',
       isSupplierDefault: true,
     })
   }
@@ -194,7 +194,7 @@ export function analyzePurchaseCashflow({
   if (!amount) {
     return {
       verdict: 'incomplete',
-      headline: 'Informe o valor da compra para analisar',
+      headline: 'Enter the purchase amount to analyze',
       scenarios: [],
       reasons: [],
       opportunityCostPct,
@@ -203,11 +203,11 @@ export function analyzePurchaseCashflow({
     }
   }
 
-  reasons.push(`Custo de oportunidade JBM Holding: ${opportunityCostPct}%/ano (não é só 12% — inclui outros negócios)`)
+  reasons.push(`JBM Holding opportunity cost: ${opportunityCostPct}%/year (not just 12% — it includes the other businesses)`)
 
   if (payNow?.opportunityCost > 0) {
     reasons.push(
-      `Pagar à vista prende ¥${Math.round(amount).toLocaleString('ja-JP')} por ~${collectDay} dias até cobrar o bar → custo oportunidade +${fmt(payNow.opportunityCost)}`
+      `Paying cash locks ¥${Math.round(amount).toLocaleString('ja-JP')} for ~${collectDay} days until the bar pays → opportunity cost +${fmt(payNow.opportunityCost)}`
     )
   }
 
@@ -221,29 +221,29 @@ export function analyzePurchaseCashflow({
     const savingNow = payTerms.effectiveCost - payNow.effectiveCost
     if (payNow.opportunityCost > savingNow + 500 && payTerms.paymentDay > 0) {
       verdict = 'pay_later'
-      headline = `A prazo — custo de oportunidade maior que o desconto à vista`
-      reasons.push(`À vista economiza ${fmt(savingNow)} no preço, mas oportunidade custa ${fmt(payNow.opportunityCost)}`)
+      headline = `On terms — opportunity cost is higher than the cash discount`
+      reasons.push(`Cash saves ${fmt(savingNow)} on price, but opportunity costs ${fmt(payNow.opportunityCost)}`)
     } else if (!cashNowAffordable && payTerms.paymentDay > 0) {
       verdict = 'pay_later'
-      headline = `A prazo — protege o caixa da holding`
-      reasons.push(`Caixa projetado 30d: ${fmt(projectedCash)} — pagar agora aperta a operação`)
+      headline = `On terms — protects the holding’s cash`
+      reasons.push(`30-day projected cash: ${fmt(projectedCash)} — paying now squeezes the operation`)
     } else if (recoverBeforePay && margin > 0) {
       verdict = 'pay_later'
-      headline = `A prazo — você cobra o bar antes de pagar o fornecedor`
-      reasons.push(`Cobrança do bar ~dia ${collectDay} vs vencimento fornecedor dia ${payTerms.paymentDay}`)
+      headline = `On terms — you collect from the bar before you pay the supplier`
+      reasons.push(`Bar collection ~day ${collectDay} vs supplier due day ${payTerms.paymentDay}`)
     } else if (workingCapitalGap > 0) {
       verdict = 'caution'
-      headline = `Atenção: ${workingCapitalGap} dias pagando antes de receber`
-      reasons.push(`Precisa de capital de giro de ${fmt(amount)} por ${workingCapitalGap} dias`)
+      headline = `Caution: ${workingCapitalGap} days paying before you collect`
+      reasons.push(`Needs ${fmt(amount)} of working capital for ${workingCapitalGap} days`)
     } else if (savingNow > 1000 && cashNowAffordable && payNow.opportunityCost < savingNow) {
       verdict = 'pay_now'
-      headline = `À vista — desconto supera custo de oportunidade`
+      headline = `Cash — the discount beats the opportunity cost`
     } else if (savingNow <= 0) {
       verdict = 'pay_later'
-      headline = `A prazo — sem vantagem em pagar cedo`
+      headline = `On terms — no gain in paying early`
     } else {
       verdict = capitalTight ? 'pay_later' : 'pay_now'
-      headline = capitalTight ? `A prazo — holding com capital apertado` : `À vista — menor custo efetivo`
+      headline = capitalTight ? `On terms — the holding’s capital is tight` : `Cash — lowest effective cost`
     }
   }
 
@@ -281,9 +281,9 @@ export function buildAIAdvisorPrompt(analysis, context = {}) {
     .join('\n')
 
   return {
-    system: `Você é o advisor financeiro da JBM Holding (grupo que inclui JBM Drinks e outros negócios).
-Responda SEMPRE em português do Brasil, direto e sem enrolação — o usuário está cansado de texto em inglês.
-Explique se vale pagar à vista ou a prazo considerando:
+    system: `You are the finance advisor for JBM Holding (the group that includes JBM Drinks and other businesses).
+Always answer in English, short and direct.
+Explain whether to pay cash now or on terms, considering:
 - Custo de oportunidade REAL (muito acima de 12% quando capital poderia ir para contratar gente em outro negócio)
 - Fluxo de caixa sustentável da holding
 - Prazo para vender no bar e cobrar o Atomic

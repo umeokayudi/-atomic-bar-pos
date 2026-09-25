@@ -11,17 +11,17 @@ export default function ComprasDetailModal({ open, onClose, compras, monthLabel:
     <ModalShell
       open={open}
       onClose={onClose}
-      title={`Compras — ${monthLbl}`}
+      title={`Purchases — ${monthLbl}`}
       subtitle={
         <>
-          {sorted.length} nota(s) · Total pago {fmtYen(totalCompras)}
-          {creditoBar > 0 && <> · Crédito bar {fmtYen(creditoBar)}</>}
+          {sorted.length} note(s) · Total paid {fmtYen(totalCompras)}
+          {creditoBar > 0 && <> · Bar credit {fmtYen(creditoBar)}</>}
         </>
       }
     >
           {sorted.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 32, color: 'var(--text3)', fontSize: 13 }}>
-              Nenhuma compra neste mês
+              No purchases this month
             </div>
           ) : sorted.map(c => (
             <div

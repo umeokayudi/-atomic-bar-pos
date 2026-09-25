@@ -21,7 +21,7 @@ export async function resolveHoldingKey() {
 
 export async function holdingAdminClient() {
   const key = await resolveHoldingKey()
-  if (!key) throw new Error('HOLDING_SERVICE_ROLE_KEY não configurada')
+  if (!key) throw new Error('HOLDING_SERVICE_ROLE_KEY is not configured')
   return createClient(HOLDING_URL, key, { auth: { autoRefreshToken: false, persistSession: false } })
 }
 

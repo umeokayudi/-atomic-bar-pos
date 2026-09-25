@@ -501,7 +501,7 @@ export function PedidosAdminTab() {
   async function registerVendaForPedido(pedido) {
     const fresh = await fetchPedidoCompleto(pedido.id)
     const { venda } = await ensureVendaFromPedido(supabase, fresh)
-    if (!venda) throw new Error('Não foi possível criar a venda')
+    if (!venda) throw new Error('Could not create the sale')
     try { await addStockFromDelivery(supabase, fresh) } catch (e) { console.warn('estoque entrega:', e.message) }
     return venda
   }

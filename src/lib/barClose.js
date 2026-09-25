@@ -6,7 +6,7 @@ import { readTicketMeta } from './nightTicket.js'
 import { orderCastFromObs } from './orderMeta.js'
 import { lastDayOfMonth, tokyoNightKey } from './tokyo.js'
 
-export const WEEK = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+export const WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 export function weekdayOf(dateKey) {
   const [y, m, d] = String(dateKey).slice(0, 10).split('-').map(Number)

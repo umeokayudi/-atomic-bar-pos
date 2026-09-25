@@ -143,7 +143,7 @@ export function buildCashflowEvents({ faturas = [], compras = [], fornecedores =
       label: p.metodo || 'Pagamento',
       amount: +p.valor || 0,
       status: 'em_analise',
-      note: 'Stripe / cartão — crédito previsto',
+      note: 'Stripe / card — expected credit',
       id: p.id,
       kind: 'pagamento',
     })

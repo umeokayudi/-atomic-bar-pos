@@ -6,7 +6,7 @@ const BUCKET = 'cobrancas'
 /** Gera texto/HTML de cobrança a partir da compra + itens */
 export function buildCobrancaDocument(compra, itens = []) {
   const lines = [
-    'COBRANÇA / 請求書',
+    'INVOICE / 請求書',
     '================',
     `Fornecedor: ${compra.fornecedor || '—'}`,
     `Data compra: ${fmtDate(compra.data)}`,
@@ -50,7 +50,7 @@ export async function uploadCobrancaDoc(compraId, file) {
 
   const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path)
   const publicUrl = urlData?.publicUrl
-  if (!publicUrl) throw new Error('URL do documento indisponível')
+  if (!publicUrl) throw new Error('Document URL unavailable')
 
   const { error: dbErr } = await supabase.from('compras').update({ foto_url: publicUrl }).eq('id', compraId)
   if (dbErr) throw dbErr
