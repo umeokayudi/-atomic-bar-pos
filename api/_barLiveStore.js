@@ -566,7 +566,7 @@ export async function loadStaffWithExtras(admin, staffId) {
 }
 
 const PERFIL_EXTRA_KEYS = ['cargo', 'salario_hora', 'ativo', 'clock_pin_hash']
-const STAFF_ONLY_KEYS = ['drink_back', 'comissao_pct', 'salario_mes']
+const STAFF_ONLY_KEYS = ['drink_back', 'comissao_pct', 'salario_mes', 'dias', 'idiomas', 'estilo', 'contato', 'notas']
 
 export async function saveStaffExtras(admin, staffId, patch) {
   const perfilPatch = {}

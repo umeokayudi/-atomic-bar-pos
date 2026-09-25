@@ -9,6 +9,23 @@ function bodyOf(req) {
   return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
 }
 
+function asList(value) {
+  if (Array.isArray(value)) return value.map(v => String(v || '').trim()).filter(Boolean)
+  if (!value) return []
+  return String(value).split(',').map(v => v.trim()).filter(Boolean)
+}
+
+function profileExtras(body) {
+  const extra = {}
+  if (body.cargo != null) extra.cargo = String(body.cargo || '').trim()
+  if (body.dias != null) extra.dias = asList(body.dias)
+  if (body.idiomas != null) extra.idiomas = asList(body.idiomas)
+  if (body.estilo != null) extra.estilo = String(body.estilo || '').trim()
+  if (body.contato != null) extra.contato = String(body.contato || '').trim()
+  if (body.notas != null) extra.notas = String(body.notas || '').trim()
+  return extra
+}
+
 function payExtras(body) {
   const extra = {}
   if (body.salario_hora != null) extra.salario_hora = +body.salario_hora || 0
@@ -179,6 +196,7 @@ export default async function handler(req, res) {
         pct: +body.pct || 0,
         recorrente: body.recorrente !== false,
         month_key: body.recorrente === false ? String(body.month_key || '') : '',
+        ...profileExtras(body),
       }
       const existing = await runLiveOp(db, {
         table: 'bar_registry',
@@ -221,6 +239,7 @@ export default async function handler(req, res) {
         salario_mes: +body.salario_mes || 0,
         drink_back: !!body.drink_back,
         comissao_pct: body.drink_back ? (+body.comissao_pct || 0) : 0,
+        ...profileExtras(body),
       }
       const existing = await runLiveOp(db, {
         table: 'bar_people',
@@ -312,8 +331,7 @@ export default async function handler(req, res) {
       const patch = {}
       const extraPatch = {}
       if (body.nome != null) patch.nome = body.nome
-      if (body.cargo != null) extraPatch.cargo = body.cargo
-      Object.assign(extraPatch, payExtras(body))
+      Object.assign(extraPatch, profileExtras(body), payExtras(body))
       if (body.ativo != null) extraPatch.ativo = !!body.ativo
       if (body.pin) extraPatch.clock_pin_hash = hashSecret(String(body.pin))
       if (body.role === 'caixa' || body.role === 'bar_staff') patch.role = body.role

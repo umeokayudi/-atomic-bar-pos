@@ -3989,8 +3989,48 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
 .house-total { margin-top: 8px; font-size: 13px; font-weight: 800; }
 .house-month { max-width: 220px; margin-bottom: 12px; }
 .house-month input { font-weight: 600; }
+.house-filters { display: flex; flex-direction: column; gap: 8px; margin: 0 0 4px; }
+.house-search { width: 100%; }
+.house-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.house-chip {
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--navy);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.house-chip.is-on { background: var(--navy); color: #fff; border-color: var(--navy); }
+.house-count { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 700; color: var(--text2); }
+.house-pick { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 700; color: var(--text2); }
+.house-span { grid-column: 1 / -1; }
+.house-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg2);
+}
+.house-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.house-tag {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--navy);
+}
+.house-tag.is-strong { background: rgba(193, 156, 86, 0.2); border-color: transparent; }
 @media (max-width: 800px) {
   .house-editor, .house-split, .house-form { grid-template-columns: 1fr; }
+  .house-card { flex-direction: column; }
 }
 
 
