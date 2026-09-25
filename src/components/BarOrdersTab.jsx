@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
-import { fmtYen, fmtDate, Spinner, Empty, SectionTitle, isSupplierProduct, PedidoItemChip } from './utils'
+import { fmtYen, fmtDate, Spinner, Empty, SectionTitle, isSupplierProduct, PedidoItemChip, filterSupplierVendas } from './utils'
 import { isRestockPedido } from '../lib/posSupply'
 import { useI18n } from '../lib/i18n'
 import { orderDetailsFromObs } from '../lib/orderMeta'
+import { filterJbmDrinksFaturas } from '../lib/barPortal'
+import { tokyoMonthKey } from '../lib/tokyo'
+import BillMatch from './BillMatch'
 
 const STATUS_PEDIDO = {
   pendente:   { labelKey: 'orderStatus.pendente',   color: '#8A5A00', bg: '#FDF3E0' },
@@ -38,16 +41,22 @@ export default function BarOrdersTab({ bar }) {
   const [statusFilter, setStatusFilter] = useState('open')
   const [viewMode, setViewMode] = useState('list')
   const [summaryMes, setSummaryMes] = useState('')
+  const [faturas, setFaturas] = useState([])
+  const [notes, setNotes] = useState([])
 
   useEffect(() => { load() }, [bar])
 
   async function load() {
-    const [pR, pedR] = await Promise.all([
+    const [pR, pedR, fatR, noteR] = await Promise.all([
       supabase.from('produtos_public').select('*').eq('ativo', true).order('categoria').order('nome'),
       supabase.from('pedidos').select('*, pedidos_itens(*, produtos(nome,preco_venda,categoria,volume_ml))').eq('bar_id', bar.id).order('criado_em', { ascending: false }).limit(80),
+      supabase.from('faturas').select('*').eq('bar_id', bar.id).order('data_vencimento', { ascending: false }).limit(24),
+      supabase.from('vendas').select('total,data,data_venda,obs').eq('bar_id', bar.id).order('data', { ascending: false }).limit(200),
     ])
     setProdutos((pR.data || []).filter(isSupplierProduct))
     setPedidos(pedR.data || [])
+    setFaturas(filterJbmDrinksFaturas(fatR.data || []))
+    setNotes(filterSupplierVendas(noteR.data || []))
     setLoading(false)
   }
 
@@ -158,6 +167,8 @@ export default function BarOrdersTab({ bar }) {
           </button>
         </div>
       </div>
+
+      <BillMatch orders={pedidos} notes={notes} invoices={faturas} monthKey={mesFiltro || tokyoMonthKey()} />
 
       {viewMode === 'summary' && (
         <div className="card" style={{ marginBottom: 16 }}>

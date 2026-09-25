@@ -27,6 +27,7 @@ import PortalRecibosTab from './PortalRecibosTab'
 import PortalClienteAI from './PortalClienteAI'
 import BarDesk from './BarDesk'
 import AutoReorder from './AutoReorder'
+import BillMatch from './BillMatch'
 import AtomicPosPanel from './AtomicPos'
 import TimeClockPanel from './TimeClock'
 import BarTeamTab from './BarTeamTab'
@@ -1690,6 +1691,7 @@ function FaturasTab({ bar }) {
   const { user } = useAuth()
   const [faturas, setFaturas] = useState([])
   const [vendas, setVendas] = useState([])
+  const [pedidos, setPedidos] = useState([])
   const [pagamentos, setPagamentos] = useState([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
@@ -1712,13 +1714,15 @@ function FaturasTab({ bar }) {
   useEffect(() => { load() }, [bar])
 
   async function load() {
-    const [fR, vR, pR] = await Promise.all([
+    const [fR, vR, pR, pedR] = await Promise.all([
       supabase.from("faturas").select("*").eq("bar_id", bar.id).order("data_vencimento", { ascending:false }),
-      supabase.from("vendas").select("total,data").eq("bar_id", bar.id).order("data", { ascending:false }),
+      supabase.from("vendas").select("total,data,data_venda").eq("bar_id", bar.id).order("data", { ascending:false }),
       supabase.from("fatura_pagamentos").select("*, faturas!inner(bar_id)").eq("faturas.bar_id", bar.id).order("criado_em", { ascending:false }),
+      supabase.from("pedidos").select("id,status,total_estimado,data_pedido,criado_em,pedidos_itens(qtd,preco_unitario)").eq("bar_id", bar.id).order("criado_em", { ascending:false }).limit(200),
     ])
     const jbmFaturas = filterJbmDrinksFaturas(fR.data || [])
     setFaturas(jbmFaturas)
+    setPedidos(pedR.data || [])
     setVendas(filterSupplierVendas(vR.data||[]))
     setPagamentos(pR.data||[])
     const { count } = await supabase.from('ryoshusho').select('id', { count: 'exact', head: true }).eq('bar_id', bar.id)
@@ -1832,6 +1836,7 @@ function FaturasTab({ bar }) {
   return (
     <div className="fade-in portal-page" style={{ maxWidth:860 }}>
       <SectionTitle sub={t('portal.invoices.subtitle')}>{t('portal.invoices.title')}</SectionTitle>
+      <BillMatch orders={pedidos} notes={vendas} invoices={filtered} />
       <div className="ar-war">
         <div className="ar-war-head">
           <div>

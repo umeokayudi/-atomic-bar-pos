@@ -1332,6 +1332,17 @@ export default {
       fail: '発注を作れませんでした。',
       now: '今すぐ発注',
     },
+    bill: {
+      title: '請求との照合',
+      orders: '発注',
+      notes: '届いた金額',
+      invoice: '請求',
+      noInvoice: '請求はまだ',
+      match: '請求と一致しています。',
+      matchPending: '発注と届いた金額は一致。請求はまだです。',
+      waiting: '照合するには、もう一方の金額が必要です。',
+      off: '一致しません。差額 {amount}。',
+    },
     salary: {
       title: '給与',
       lead: '誰が自分の人件費を売上で賄っているか、どこを調整できるか。',

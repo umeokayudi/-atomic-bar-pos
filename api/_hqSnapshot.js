@@ -6,6 +6,7 @@ import { payrollFromPunches } from '../src/lib/timeClock.js'
 import { tokyoMonthKey, tokyoNightKey, monthRange, recentMonthKeys } from '../src/lib/tokyo.js'
 import { splitCostBooks, rentForMonth, lastKnownRent, splitOverhead } from '../src/lib/costBooks.js'
 import { monthKeyOf, explainJbmGap, buildMonthSeries, invoiceOverlapsMonth, lowStockFromLedger } from '../src/lib/hqFilters.js'
+import { billChecks } from '../src/lib/billMatch.js'
 import { coalesceStockMoves, deliveryNoteMoves, posPourMoves } from '../src/lib/barStock.js'
 import {
   isMissingSchemaError,
@@ -136,7 +137,7 @@ async function computeHqSnapshot(admin, barId, barNome = '', mes, { lite = false
 
   const [vendasR, pedR, fatR, posR, clockR, rentR, staff, regrasR, movR, prodR, itemR, posItemR, priceR] = await Promise.all([
     admin.from('vendas').select('id,data,data_venda,total,obs,bar_id,cast_id,criado_em').eq('bar_id', barId).order('data', { ascending: false }).limit(400),
-    admin.from('pedidos').select('id,status,total_estimado,criado_em,obs').eq('bar_id', barId).order('criado_em', { ascending: false }).limit(200),
+    admin.from('pedidos').select('id,status,total_estimado,data_pedido,criado_em,obs').eq('bar_id', barId).order('criado_em', { ascending: false }).limit(200),
     admin.from('faturas').select('*').eq('bar_id', barId).order('data_vencimento', { ascending: false }).limit(24),
     pgOrLive(admin, 'pos_vendas', [
       { op: 'eq', k: 'bar_id', v: barId },
@@ -375,6 +376,12 @@ async function computeHqSnapshot(admin, barId, barNome = '', mes, { lite = false
       pedidosMesTotal: pedMes.reduce((a, p) => a + (+p.total_estimado || 0), 0),
       notesMes: supplier.filter(v => monthKeyOf(v.data || v.data_venda) === mes).slice(0, 12).map(mapNote),
       gap,
+      billCheck: billChecks({
+        orders: pedidos,
+        notes: supplier,
+        invoices: filterJbmDrinksFaturas(fatR.data || []),
+        monthKey: mes,
+      }).headline,
       estoqueBaixo,
     },
   }

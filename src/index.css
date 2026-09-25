@@ -4007,6 +4007,13 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
 .close-doc th:first-child, .close-doc td:first-child { text-align: left; font-weight: 700; }
 .close-doc .is-up { color: var(--green); }
 .close-doc .is-down { color: var(--red); }
+.bill-stack { display: flex; flex-direction: column; gap: 10px; margin: 0 0 14px; }
+.bill-match { background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; }
+.bill-match h3 { margin: 0 0 6px; font-size: 15px; }
+.bill-match.is-off { border-color: rgba(255,59,48,.45); background: #fff6f5; }
+.bill-match.is-match { border-color: rgba(52,199,89,.45); }
+.bill-match-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 4px 0; }
+.bill-match-verdict { margin: 8px 0 0; font-weight: 800; font-size: 14px; }
 .desk-pay-label { margin: 12px 0 0; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text2); }
 .salary-hint.is-pays { color: var(--green); }
 .salary-hint.is-tight { color: #9a7430; }

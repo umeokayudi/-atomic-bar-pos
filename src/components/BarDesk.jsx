@@ -292,6 +292,16 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
 
       {ask && <BarOwnerAi bar={bar} hq={hq} />}
 
+      {hq?.jbm?.billCheck?.status === 'off' && (
+        <button type="button" className="desk-alert is-bad" onClick={() => onTab?.('faturas')}>
+          <span>
+            <strong>{t('portal.bill.title')}</strong>
+            <em>{t('portal.bill.off', { amount: money(Math.abs(hq.jbm.billCheck.delta || 0)) })}</em>
+          </span>
+          <b>{money(hq.jbm.billCheck.invoice ?? hq.jbm.billCheck.notes)}</b>
+        </button>
+      )}
+
       <section className="desk-card">
         <h3>{t('portal.desk.alerts')}</h3>
         {!nextBills.length && !incoming.length && <div className="desk-empty">{t('portal.desk.noAlerts')}</div>}

@@ -1332,6 +1332,17 @@ export default {
       fail: 'Não foi possível criar o pedido.',
       now: 'Pedir agora',
     },
+    bill: {
+      title: 'Conferência com a fatura',
+      orders: 'Pedidos',
+      notes: 'Valores que chegaram',
+      invoice: 'Fatura',
+      noInvoice: 'Ainda sem fatura',
+      match: 'Bate com a fatura.',
+      matchPending: 'Pedidos e valores batem. A fatura ainda não chegou.',
+      waiting: 'Ainda falta um lado para conferir com a fatura.',
+      off: 'Não bate. Diferença {amount}.',
+    },
     salary: {
       title: 'Salários',
       lead: 'Quem cobre o próprio custo e onde dá para ajustar turno, meta ou drink back.',
