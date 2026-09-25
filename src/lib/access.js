@@ -42,7 +42,13 @@ const GERENTE_NAV = [
   { id: 'espacos', labelKey: 'nav.portalSpaces', icon: '🪑' },
   { id: 'clientes', labelKey: 'nav.portalGuests', icon: '🥂' },
   { id: 'ponto', labelKey: 'nav.portalClock', icon: '🕒' },
-  { id: 'casa', labelKey: 'nav.portalHouse', icon: '📒' },
+  { id: 'staff', labelKey: 'house.staffTitle', icon: '👤' },
+  { id: 'fornecedor', labelKey: 'house.suppliers', icon: '🚚' },
+  { id: 'parceiro', labelKey: 'house.partners', icon: '🤝' },
+  { id: 'cartao', labelKey: 'house.card', icon: '💳' },
+  { id: 'energia', labelKey: 'house.power', icon: '⚡' },
+  { id: 'aluguel', labelKey: 'house.rent', icon: '🏢' },
+  { id: 'outro', labelKey: 'house.other', icon: '📌' },
   { id: 'estoque', labelKey: 'nav.portalInventory', icon: '📊' },
   { id: 'entregas', labelKey: 'nav.portalDeliveries', icon: '📦' },
   { id: 'faturas', labelKey: 'nav.portalInvoices', icon: '💳' },
@@ -54,7 +60,7 @@ const GERENTE_NAV = [
 
 const NAV_GROUPS = [
   { id: 'tonight', labelKey: 'nav.groupTonight', ids: ['inicio', 'ia', 'pos', 'pedidos', 'espacos', 'clientes', 'ponto'] },
-  { id: 'house', labelKey: 'nav.groupHouse', ids: ['casa'] },
+  { id: 'house', labelKey: 'nav.groupHouse', ids: ['staff', 'fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'outro'] },
   { id: 'supply', labelKey: 'nav.groupSupply', ids: ['estoque', 'entregas', 'faturas'] },
   { id: 'office', labelKey: 'nav.groupOffice', ids: ['custos', 'precos', 'recibos'] },
 ]
@@ -102,7 +108,6 @@ export function primaryDockForRole(role) {
     { id: 'pos', icon: '🧾', labelKey: 'nav.portalPos' },
     { id: 'pedidos', icon: '🛒', labelKey: 'nav.portalOrders' },
     { id: 'ponto', icon: '🕒', labelKey: 'nav.portalClock' },
-    { id: 'casa', icon: '📒', labelKey: 'nav.portalHouse' },
   ]
 }
 

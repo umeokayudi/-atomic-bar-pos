@@ -57,8 +57,8 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
 
   return (
     <section className="house-block">
-      <h2>{t(`house.${spec.title}`)}</h2>
-      <p>{t(`house.${spec.body}`)}</p>
+      <h1>{t(`house.${spec.title}`)}</h1>
+      <p className="house-lead">{t(`house.${spec.body}`)}</p>
       {!rows.length && <div className="house-empty">{t('house.empty')}</div>}
       {rows.map(row => (
         <div key={row.id} className="house-person">
@@ -116,7 +116,7 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
   )
 }
 
-export default function BarHouseTab({ bar, onTab }) {
+export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
   const { t } = useI18n()
   const [people, setPeople] = useState([])
   const [registry, setRegistry] = useState([])
@@ -225,16 +225,17 @@ export default function BarHouseTab({ bar, onTab }) {
     setBusy(false)
   }
 
+  const spec = REGISTERS.find(r => r.kind === section)
+
   return (
     <div className="fade-in house-page">
-      <h1>{t('house.title')}</h1>
-      <p className="house-lead">{t('house.lead')}</p>
       {err && <div className="pos-sale-err">{asReactText(err)}</div>}
       {loading && <Spinner />}
 
+      {section === 'staff' && (
       <section className="house-block">
-        <h2>{t('house.staffTitle')}</h2>
-        <p>{t('house.staffBody')}</p>
+        <h1>{t('house.staffTitle')}</h1>
+        <p className="house-lead">{t('house.staffBody')}</p>
         {!people.length && !loading && <div className="house-empty">{t('house.empty')}</div>}
         {people.map(p => (
           <div key={p.id} className="house-person">
@@ -283,17 +284,17 @@ export default function BarHouseTab({ bar, onTab }) {
         )}
         <button type="button" className="house-text" style={{ marginTop: 10 }} onClick={() => onTab?.('pos')}>{t('house.openTill')}</button>
       </section>
+      )}
 
-      {REGISTERS.map(spec => (
+      {spec && (
         <RegisterBlock
-          key={spec.kind}
           spec={spec}
           rows={registry.filter(r => r.kind === spec.kind)}
           busy={busy}
           onSave={saveRegistry}
           onDelete={deleteRegistry}
         />
-      ))}
+      )}
     </div>
   )
 }

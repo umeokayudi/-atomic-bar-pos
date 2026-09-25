@@ -25,7 +25,7 @@ const ACTIONS = [
   { id: 'espacos', icon: '🪑', labelKey: 'portal.home.goFloor', hintKey: 'portal.home.goFloorHint' },
   { id: 'clientes', icon: '🥂', labelKey: 'portal.home.goGuests', hintKey: 'portal.home.goGuestsHint' },
   { id: 'ponto', icon: '🕒', labelKey: 'portal.home.goClock', hintKey: 'portal.home.goClockHint' },
-  { id: 'equipe', icon: '👤', labelKey: 'nav.portalTeam', hintKey: 'portal.home.goStaffHint' },
+  { id: 'staff', icon: '👤', labelKey: 'nav.portalTeam', hintKey: 'portal.home.goStaffHint' },
   { id: 'custos', icon: '🏛️', labelKey: 'portal.home.goHq', hintKey: 'portal.home.goHqHint' },
   { id: 'estoque', icon: '📊', labelKey: 'nav.portalInventory' },
   { id: 'faturas', icon: '💳', labelKey: 'nav.portalInvoices' },
