@@ -28,6 +28,7 @@ import PortalClienteAI from './PortalClienteAI'
 import BarDesk from './BarDesk'
 import AutoReorder from './AutoReorder'
 import BillMatch from './BillMatch'
+import AutoClose from './AutoClose'
 import AtomicPosPanel from './AtomicPos'
 import TimeClockPanel from './TimeClock'
 import BarTeamTab from './BarTeamTab'
@@ -2185,6 +2186,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
           </div>
         </header>
         <main className="app-main app-main-wide till-kiosk-main">
+          <AutoClose bar={bar} />
           {tillKiosk && posAccess !== 'none' && (
             <AtomicPosPanel bar={bar} access={kioskAccess} />
           )}
@@ -2232,6 +2234,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         </div>
       </aside>
       <main className="app-main app-main-wide">
+        <AutoClose bar={bar} />
         <WorkspaceChrome>
           <UiPrefsPanel compact />
           {isGerente(perfil?.role) && (

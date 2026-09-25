@@ -314,6 +314,20 @@ export default async function handler(req, res) {
       if (body.pedido_min != null) row.pedido_min = Math.max(0, Math.min(999, Math.round(+body.pedido_min || 0)))
       if (body.pedido_em != null) row.pedido_em = String(body.pedido_em || '').slice(0, 10)
       if (body.pedido_feito != null) row.pedido_feito = String(body.pedido_feito || '').slice(0, 10)
+      const hourOf = (name, fallback) => ((Math.round(body[name] == null ? fallback : +body[name]) % 24) + 24) % 24
+      if (body.abre != null) row.abre = hourOf('abre', 20)
+      if (body.corta != null) row.corta = hourOf('corta', 0)
+      if (body.hora_noite != null) {
+        row.hora_noite = hourOf('hora_noite', 5)
+        row.fecha = row.hora_noite
+      }
+      if (body.min_noite != null) row.min_noite = Math.max(0, Math.min(59, Math.round(+body.min_noite || 0)))
+      if (body.hora_dia != null) row.hora_dia = hourOf('hora_dia', 18)
+      if (body.min_dia != null) row.min_dia = Math.max(0, Math.min(59, Math.round(+body.min_dia || 0)))
+      if (body.auto_noite != null) row.auto_noite = body.auto_noite !== false && body.auto_noite !== 'false'
+      if (body.auto_dia != null) row.auto_dia = body.auto_dia !== false && body.auto_dia !== 'false'
+      if (body.fechou_noite != null) row.fechou_noite = String(body.fechou_noite || '').slice(0, 10)
+      if (body.fechou_dia != null) row.fechou_dia = String(body.fechou_dia || '').slice(0, 10)
       const saved = await runLiveOp(db, {
         table: 'bar_goals',
         mode: existing.data ? 'update' : 'insert',

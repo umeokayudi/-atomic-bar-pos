@@ -15,11 +15,75 @@ import {
   weekdayOf,
 } from '../lib/barClose'
 import { tokyoNightKey } from '../lib/tokyo'
+import { clockLabel, closeSettings } from '../lib/autoClose'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 
 function money(n) {
   return fmtYen(Math.round(+n || 0))
+}
+
+function CloseHours({ goals, busy, onSave }) {
+  const { t } = useI18n()
+  const cfg = closeSettings(goals)
+  function fromClock(value) {
+    const [h, m] = String(value || '00:00').split(':')
+    return { hour: h, minute: m }
+  }
+  return (
+    <section className="desk-card">
+      <h3>{t('portal.close.autoTitle')}</h3>
+      <p className="desk-note">{t('portal.close.autoLead')}</p>
+      <div className="house-editor">
+        <label>
+          {t('portal.close.openAt')}
+          <input type="time" defaultValue={clockLabel(cfg.abre, 0)} disabled={busy} onBlur={e => onSave({ abre: fromClock(e.target.value).hour })} />
+        </label>
+        <label>
+          {t('portal.close.splitAt')}
+          <input type="time" defaultValue={clockLabel(cfg.corta, 0)} disabled={busy} onBlur={e => onSave({ corta: fromClock(e.target.value).hour })} />
+        </label>
+        <label>
+          {t('portal.close.nightAt')}
+          <input
+            type="time"
+            defaultValue={clockLabel(cfg.horaNoite, cfg.minNoite)}
+            disabled={busy}
+            onBlur={e => {
+              const clock = fromClock(e.target.value)
+              onSave({ hora_noite: clock.hour, min_noite: clock.minute, auto_noite: true })
+            }}
+          />
+        </label>
+        <label>
+          {t('portal.close.dayAt')}
+          <input
+            type="time"
+            defaultValue={clockLabel(cfg.horaDia, cfg.minDia)}
+            disabled={busy}
+            onBlur={e => {
+              const clock = fromClock(e.target.value)
+              onSave({ hora_dia: clock.hour, min_dia: clock.minute, auto_dia: true })
+            }}
+          />
+        </label>
+      </div>
+      <div className="goal-modes">
+        <button type="button" className={cfg.autoNoite ? 'is-on' : ''} disabled={busy} onClick={() => onSave({ auto_noite: !cfg.autoNoite })}>
+          {t('portal.close.autoNight')} · {cfg.autoNoite ? t('portal.close.autoOn') : t('portal.close.autoOff')}
+        </button>
+        <button type="button" className={cfg.autoDia ? 'is-on' : ''} disabled={busy} onClick={() => onSave({ auto_dia: !cfg.autoDia })}>
+          {t('portal.close.autoDay')} · {cfg.autoDia ? t('portal.close.autoOn') : t('portal.close.autoOff')}
+        </button>
+      </div>
+      <p className="desk-note">
+        {t('portal.close.autoHint', {
+          night: clockLabel(cfg.horaNoite, cfg.minNoite),
+          day: clockLabel(cfg.horaDia, cfg.minDia),
+        })}
+      </p>
+    </section>
+  )
 }
 
 function mondayOf(date) {
@@ -208,6 +272,8 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
             </label>
             <p className="desk-note">{t('portal.close.monthHint', { day: goals.dia_mes || 1 })}</p>
           </section>
+
+          <CloseHours goals={goals} busy={busy} onSave={saveSettings} />
 
           <div className="goal-modes">
             <button type="button" className={view === 'week' ? 'is-on' : ''} onClick={() => setView('week')}>{t('portal.close.week')}</button>
