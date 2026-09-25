@@ -28,6 +28,7 @@ export const LIVE_TABLES = [
   'bar_people',
   'bar_registry',
   'bar_goals',
+  'bar_events',
 ]
 
 const locks = new Map()
@@ -442,6 +443,7 @@ async function seedAtomic(admin) {
   await saveTable(admin, 'bar_people', [])
   await saveTable(admin, 'bar_registry', [])
   await saveTable(admin, 'bar_goals', [])
+  await saveTable(admin, 'bar_events', [])
   await saveTable(admin, 'bar_logins', [])
   await saveTable(admin, 'bar_sessions', [])
   await saveTable(admin, 'bar_overhead', [])
@@ -568,7 +570,7 @@ export async function loadStaffWithExtras(admin, staffId) {
 }
 
 const PERFIL_EXTRA_KEYS = ['cargo', 'salario_hora', 'ativo', 'clock_pin_hash']
-const STAFF_ONLY_KEYS = ['drink_back', 'comissao_pct', 'salario_mes', 'dias', 'idiomas', 'estilo', 'contato', 'notas']
+const STAFF_ONLY_KEYS = ['drink_back', 'comissao_pct', 'salario_mes', 'dias', 'idiomas', 'estilo', 'contato', 'notas', 'aniversario']
 
 export async function saveStaffExtras(admin, staffId, patch) {
   const perfilPatch = {}

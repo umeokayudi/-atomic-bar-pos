@@ -25,6 +25,7 @@ function profileExtras(body) {
   if (body.email != null) extra.email = String(body.email || '').trim()
   if (body.endereco != null) extra.endereco = String(body.endereco || '').trim()
   if (body.notas != null) extra.notas = String(body.notas || '').trim()
+  if (body.aniversario != null) extra.aniversario = String(body.aniversario || '').slice(0, 10)
   return extra
 }
 
@@ -157,6 +158,12 @@ export default async function handler(req, res) {
           filters: [{ op: 'eq', k: 'bar_id', v: barId }],
           wantSingle: 'maybe',
         })).data || null,
+        events: (await runLiveOp(db, {
+          table: 'bar_events',
+          mode: 'select',
+          columns: '*',
+          filters: [{ op: 'eq', k: 'bar_id', v: barId }],
+        })).data || [],
         bar: {
           id: bar?.id,
           nome: bar?.nome,
@@ -185,6 +192,41 @@ export default async function handler(req, res) {
       })
       if (!saved.ok) return res.status(400).json({ error: saved.error })
       return res.status(200).json({ ok: true })
+    }
+
+    if (req.method === 'POST' && body.action === 'saveEvent') {
+      const titulo = String(body.titulo || '').trim()
+      if (!titulo) return res.status(400).json({ error: 'title required' })
+      const status = ['ideia', 'confirmado', 'descartado'].includes(body.status) ? body.status : 'ideia'
+      const id = body.id || (globalThis.crypto?.randomUUID?.() || `evt-${Date.now()}`)
+      const row = {
+        id,
+        bar_id: barId,
+        titulo,
+        data: String(body.data || '').slice(0, 10),
+        origem: String(body.origem || ''),
+        pessoa_id: String(body.pessoa_id || ''),
+        pessoa_nome: String(body.pessoa_nome || '').trim(),
+        nota: String(body.nota || '').trim(),
+        status,
+      }
+      const existing = await runLiveOp(db, {
+        table: 'bar_events',
+        mode: 'select',
+        columns: '*',
+        filters: [{ op: 'eq', k: 'id', v: id }],
+        wantSingle: 'maybe',
+      })
+      const saved = await runLiveOp(db, {
+        table: 'bar_events',
+        mode: existing.data ? 'update' : 'insert',
+        filters: [{ op: 'eq', k: 'id', v: id }],
+        insertRows: [row],
+        updatePatch: row,
+        wantSingle: true,
+      })
+      if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not save' })
+      return res.status(200).json({ ok: true, event: row })
     }
 
     if (req.method === 'POST' && body.action === 'saveGoals') {

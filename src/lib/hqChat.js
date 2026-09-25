@@ -1,6 +1,6 @@
 /** HQ AI prompt. Never imports React. Four books stay separate. */
 
-export function buildHqChatSystem(snapshot, lang = 'en') {
+export function buildHqChatSystem(snapshot, lang = 'en', strategy = '') {
   const s = snapshot || {}
   const yen = n => `¥${Math.round(n || 0).toLocaleString('ja-JP')}`
   const books = s.books || {}
@@ -25,16 +25,22 @@ Recent supplier orders: ${JSON.stringify(s.jbm?.pedidosRecentes || [])}
 Low stock: ${JSON.stringify(s.jbm?.estoqueBaixo || [])}
 
 Scope: this bar HQ — POS till, JBM supplier, local staff hours, rent.
-Do not mix the four books. Do not invent numbers. Do not talk about other bars or the holding.`
+Do not mix the four books. Do not invent numbers. Do not talk about other bars or the holding.
+
+STRATEGY FROM WHAT ALREADY WORKED (nights, hours, cast) AND UPCOMING BIRTHDAYS.
+The manager decides events. Suggest, do not pretend an event is already confirmed.
+${strategy || 'No strategy digest yet.'}`
 
   if (lang === 'ja') {
     return `あなたはバー「${s.bar?.nome || 'client'}」の本部AIです。
 日本語で短く答えてください。下のデータを根拠にし、4つの帳簿を足し合わせないでください。
+これまでの売上（曜日、時間、キャスト）から戦略を提案し、誕生日イベントは店長が決める前提で出してください。
 ${facts}`
   }
 
   return `You are the bar HQ AI for "${s.bar?.nome || 'client'}".
-Answer in clear English. Use the data below. Never add the four books together.
+If the user writes in Portuguese, answer in Portuguese. Otherwise answer in clear English. Use the data below. Never add the four books together.
+When asked for strategy, use only what already sold (weekdays, hours, cast) and upcoming birthdays. The manager decides the event. Do not invent a result.
 ${facts}`
 }
 
@@ -43,7 +49,7 @@ function yen(n) {
 }
 
 /** Offline HQ answers until an external AI API key is plugged into /api/chat. Never mixes books. */
-export function localHqAnswer(question, snapshot, lang = 'en') {
+export function localHqAnswer(question, snapshot, lang = 'en', strategy = '') {
   const s = snapshot || {}
   const books = s.books || {}
   const q = String(question || '').toLowerCase()
@@ -79,6 +85,13 @@ export function localHqAnswer(question, snapshot, lang = 'en') {
     return ja
       ? `POSレジ：今月 ${yen(books.pos?.amount)}（${s.pos?.salesCount || 0}件）。JBM請求ではありません。`
       : `POS till: ${yen(books.pos?.amount)} this month (${s.pos?.salesCount || 0} tickets). Not the JBM bill.`
+  }
+  if (/estrat|estratég|anivers|evento|festa|birthday|strategy|戦略|誕生日/.test(q)) {
+    const body = strategy || (ja
+      ? 'まだ戦略データがありません。イベントページでキャスト、パートナー、客の誕生日を見てください。'
+      : 'Ainda não há digest de estratégia. Abra Eventos e use o aniversário do cast, dos parceiros e dos clientes.')
+    if (ja) return `これまでの実績に基づく戦略：\n${body}\nイベントは店長が決めます。`
+    return `Estratégia com o que já funcionou:\n${body}\nO gerente decide se o evento acontece.`
   }
   if (/stock|estoque|在庫|restock/.test(q)) {
     const low = (s.jbm?.estoqueBaixo || []).map(e => `${e.nome} ${e.qtd}/${e.minimo}`).join(', ')

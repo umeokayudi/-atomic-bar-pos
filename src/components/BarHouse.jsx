@@ -12,12 +12,12 @@ const ESTILO_KEYS = ['cute', 'cool', 'sexy', 'elegante', 'natural', 'gal', 'sist
 
 const EMPTY_PERSON = {
   nome: '', salario_hora: '', salario_mes: '', drink_back: false, comissao_pct: '10',
-  cargo: '', dias: [], idiomas: [], estilo: '', contato: '', notas: '',
+  cargo: '', dias: [], idiomas: [], estilo: '', contato: '', notas: '', aniversario: '',
 }
 
 const REGISTERS = [
   { kind: 'fornecedor', title: 'suppliers', body: 'suppliersBody', fields: ['nome', 'detalhe', 'contato', 'email', 'notas'], detalheLabel: 'supplies', profile: ['cargo', 'dias', 'idiomas'], cargoLabel: 'category', daysLabel: 'deliveryDays' },
-  { kind: 'parceiro', title: 'partners', body: 'partnersBody', fields: ['nome', 'contato', 'email', 'notas'], profile: ['cargo', 'dias', 'idiomas', 'estilo'], daysLabel: 'workDays' },
+  { kind: 'parceiro', title: 'partners', body: 'partnersBody', fields: ['nome', 'contato', 'email', 'aniversario', 'notas'], profile: ['cargo', 'dias', 'idiomas', 'estilo'], daysLabel: 'workDays' },
   { kind: 'cartao', title: 'card', body: 'cardBody', fields: ['nome', 'cargo', 'contato', 'email', 'pct', 'notas'], nomeLabel: 'company', cargoLabel: 'contactPerson', profile: [] },
   { kind: 'energia', title: 'power', body: 'powerBody', fields: ['nome', 'cargo', 'contato', 'email', 'amount', 'notas'], nomeLabel: 'company', cargoLabel: 'contactPerson', profile: [] },
   { kind: 'aluguel', title: 'rent', body: 'rentBody', fields: ['nome', 'cargo', 'contato', 'email', 'endereco', 'amount', 'notas'], nomeLabel: 'agency', cargoLabel: 'contactPerson', profile: [] },
@@ -53,6 +53,7 @@ function personFrom(row, source) {
     estilo: row.estilo || '',
     contato: row.contato || '',
     notas: row.notas || '',
+    aniversario: String(row.aniversario || '').slice(0, 10),
   }
 }
 
@@ -140,6 +141,7 @@ function Tags({ row }) {
     ...asList(row.idiomas).map(d => ({ key: `l-${d}`, text: named(t, 'lang', d) })),
     row.detalhe && { key: 'detalhe', text: row.detalhe },
     row.contato && { key: 'contato', text: row.contato },
+    row.aniversario && { key: 'aniversario', text: String(row.aniversario).slice(0, 10) },
     row.email && { key: 'email', text: row.email },
     row.endereco && { key: 'endereco', text: row.endereco },
   ].filter(Boolean)
@@ -222,6 +224,7 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
     if (field === 'contato') return t('house.phone')
     if (field === 'cargo') return t(`house.${spec.cargoLabel || 'job'}`)
     if (field === 'email') return t('house.email')
+    if (field === 'aniversario') return t('house.birthday')
     if (field === 'endereco') return t('house.address')
     if (field === 'notas') return t('house.notes')
     if (field === 'pct') return t('house.fee')
@@ -269,6 +272,7 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
               idiomas: asList(row.idiomas),
               estilo: row.estilo || '',
               notas: row.notas || '',
+              aniversario: String(row.aniversario || '').slice(0, 10),
             })}>{t('house.edit')}</button>
             <button type="button" className="house-text" disabled={busy} onClick={() => onDelete(row.id)}>{t('house.remove')}</button>
           </div>
@@ -286,7 +290,7 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
               <label key={field} className={field === 'notas' || field === 'detalhe' || field === 'endereco' ? 'house-span' : ''}>
                 {label(field)}
                 <input
-                  type={field === 'amount' || field === 'pct' ? 'number' : 'text'}
+                  type={field === 'amount' || field === 'pct' ? 'number' : field === 'aniversario' ? 'date' : 'text'}
                   min={field === 'pct' ? '0' : undefined}
                   value={form[field] || ''}
                   onChange={e => setForm({ ...form, [field]: e.target.value })}
@@ -349,6 +353,7 @@ function StaffBlock({ people, loading, busy, form, setForm, onSave, onRemove, on
               estilo: p.estilo || '',
               contato: p.contato || '',
               notas: p.notas || '',
+              aniversario: p.aniversario || '',
             })}>{t('house.edit')}</button>
             {p.source === 'house' && <button type="button" className="house-text" disabled={busy} onClick={() => onRemove(p)}>{t('house.remove')}</button>}
           </div>
@@ -358,6 +363,7 @@ function StaffBlock({ people, loading, busy, form, setForm, onSave, onRemove, on
         <div className="house-editor">
           <label>{t('house.name')}<input value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} /></label>
           <label>{t('house.phone')}<input value={form.contato || ''} onChange={e => setForm({ ...form, contato: e.target.value })} /></label>
+          <label>{t('house.birthday')}<input type="date" value={form.aniversario || ''} onChange={e => setForm({ ...form, aniversario: e.target.value })} /></label>
           <ProfileFields form={form} setForm={setForm} profile={['cargo', 'dias', 'idiomas', 'estilo']} />
           <label className="house-span">{t('house.notes')}<input value={form.notas || ''} onChange={e => setForm({ ...form, notas: e.target.value })} /></label>
           <label>{t('house.hourly')}<input type="number" min="0" value={form.salario_hora} onChange={e => setForm({ ...form, salario_hora: e.target.value })} /></label>
@@ -417,6 +423,7 @@ export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
       idiomas: asList(source.idiomas),
       estilo: source.estilo || '',
       contato: source.contato || '',
+      aniversario: String(source.aniversario || '').slice(0, 10),
       email: source.email || '',
       endereco: source.endereco || '',
       notas: source.notas || '',

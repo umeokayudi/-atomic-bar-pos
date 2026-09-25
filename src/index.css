@@ -3942,6 +3942,12 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
   .people-add { grid-template-columns: 1fr; }
 }
 
+.event-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.event-facts div { background: var(--bg2); border-radius: 12px; padding: 10px; }
+.event-facts span, .event-facts em { display: block; font-style: normal; color: var(--text2); font-size: 11px; font-weight: 700; }
+.event-facts strong { display: block; font-size: 18px; margin: 2px 0; }
+.event-idea { border-top: 1px solid var(--border); padding: 12px 0; }
+.event-idea p { margin: 6px 0 8px; color: var(--text2); font-size: 13px; line-height: 1.45; }
 .goal-page { max-width: 980px; }
 .goal-modes { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .goal-modes button {

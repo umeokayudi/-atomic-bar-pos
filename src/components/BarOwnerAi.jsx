@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { callGeminiChat, imageDataUrlToParts } from '../lib/ai'
 import { buildHqChatSystem, localHqAnswer } from '../lib/hqChat'
+import { strategyText, birthdayIdeas, whatWorked } from '../lib/barStrategy'
+import { staffFetch } from '../lib/apiAuth'
+import { supabase } from '../lib/supabase'
 import { buildClientChatSystem } from '../lib/clientPortalSnapshot'
 import { useI18n } from '../lib/i18n'
 import { asReactText } from '../lib/errText'
@@ -20,12 +23,33 @@ export default function BarOwnerAi({ bar, hq }) {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [photo, setPhoto] = useState(null)
+  const [strategy, setStrategy] = useState('')
   const listRef = useRef(null)
   const fileRef = useRef(null)
 
   useEffect(() => {
     setMessages([{ role: 'assistant', content: t(hq?.books ? 'portal.aiHqIntro' : 'portal.aiIntro', { bar: bar?.nome || '' }) }])
   }, [bar?.nome, hq?.mes, t, hq?.books])
+
+  useEffect(() => {
+    if (!bar?.id) return
+    let cancelled = false
+    Promise.all([
+      staffFetch('/api/bar-staff').then(r => r.json()).catch(() => ({})),
+      supabase.from('bar_guests').select('id,nome,aniversario,ativo').eq('bar_id', bar.id).eq('ativo', true),
+    ]).then(([team, guestsRes]) => {
+      if (cancelled) return
+      const staff = team.staff || []
+      const extra = (team.people || []).filter(p => p?.id && !staff.some(s => s.id === p.id))
+      const cast = [...staff, ...extra].filter(p => p.drink_back || p.aniversario).map(p => ({ id: p.id, nome: p.nome, aniversario: p.aniversario }))
+      const partners = (team.registry || []).filter(r => r.kind === 'parceiro').map(r => ({ id: r.id, nome: r.nome, aniversario: r.aniversario }))
+      const guests = (guestsRes.data || []).map(g => ({ id: g.id, nome: g.nome, aniversario: g.aniversario }))
+      const worked = whatWorked(hq?.pos?.tickets || [])
+      const ideas = birthdayIdeas({ cast, partners, guests, worked })
+      setStrategy(strategyText(worked, ideas))
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [bar?.id, hq?.mes])
 
   useEffect(() => {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight
@@ -38,7 +62,7 @@ export default function BarOwnerAi({ bar, hq }) {
     const userLabel = text || t('portal.aiReadPrompt')
     const userMsg = { role: 'user', content: photo ? `${userLabel}\n📷` : userLabel }
     const local = hq
-      ? localHqAnswer(text || 'summary', hq, lang)
+      ? localHqAnswer(text || 'summary', hq, lang, strategy)
       : t('portal.aiAskHint')
     setMessages(m => [...m, userMsg, { role: 'assistant', content: local }])
     const image = photo ? imageDataUrlToParts(photo) : null
@@ -46,7 +70,7 @@ export default function BarOwnerAi({ bar, hq }) {
     setBusy(true)
     try {
       const system = hq?.books
-        ? `${buildHqChatSystem(hq, lang)}\nIf the user sends a photo, read the invoice/receipt/delivery and explain amount, date and what to do. Yen.`
+        ? `${buildHqChatSystem(hq, lang, strategy)}\nIf the user sends a photo, read the invoice/receipt/delivery and explain amount, date and what to do. Yen.`
         : `${buildClientChatSystem({ bar, mes: new Date().toISOString().slice(0, 7) })}\nIf the user sends a photo, read it and explain in short.`
       const api = await Promise.race([
         callGeminiChat({
@@ -74,6 +98,7 @@ export default function BarOwnerAi({ bar, hq }) {
     t('portal.aiQ1'),
     t('portal.aiQ5'),
     t('portal.hq.aiChipPos'),
+    t('portal.events.askAi'),
   ]
 
   return (
