@@ -1216,7 +1216,7 @@ export default {
       birthdaysLabel: 'Birthdays (Tokyo month)',
       birthdaysMonth: '{count} guest birthday(s) this Tokyo month',
       opsTitle: 'Bar ops now',
-      kpiPosToday: 'POS hoje',
+      kpiPosToday: 'POS Live',
       kpiPosMonth: 'POS this month',
       kpiJbm: 'JBM bill (month)',
       kpiAr: 'Open JBM AR',
