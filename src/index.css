@@ -982,6 +982,53 @@ html[data-layout="tablet"] .workspace-chrome {
   display: none;
 }
 
+.mobile-who {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.mobile-who-title {
+  min-width: 0;
+  color: white;
+  font-size: 14px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mobile-who-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mobile-who-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.72);
+}
+
+.mobile-device-pill {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--navy);
+  background: var(--gold);
+  border-radius: 99px;
+  padding: 1px 6px;
+}
+
 .shell-overlay {
   display: none;
 }
@@ -1017,9 +1064,10 @@ body.menu-open {
     top: 0;
     left: 0;
     right: 0;
-    height: 56px;
-    padding: 0 14px;
-    padding-top: env(safe-area-inset-top, 0);
+    min-height: 56px;
+    height: auto;
+    padding: 8px 14px;
+    padding-top: calc(8px + env(safe-area-inset-top, 0));
     background: var(--navy);
     border-bottom: 1px solid rgba(193,156,86,0.2);
     z-index: 180;
@@ -1114,7 +1162,7 @@ body.menu-open {
   }
 
   .app-main {
-    padding: calc(72px + env(safe-area-inset-top, 0)) 16px 24px;
+    padding: calc(84px + env(safe-area-inset-top, 0)) 16px 24px;
     max-width: none;
   }
   .has-easy-dock .app-main {
@@ -1972,9 +2020,105 @@ html[data-device="phone"] .fluid-2 {
 
 html[data-device="phone"] input,
 html[data-device="phone"] select,
+html[data-device="phone"] textarea,
 html[data-device="tablet"] input,
-html[data-device="tablet"] select {
+html[data-device="tablet"] select,
+html[data-device="tablet"] textarea {
   font-size: 16px;
+}
+
+/* Phone, including landscape: drawer + bottom dock, not a tablet sidebar. */
+html[data-device="phone"] .mobile-topbar {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  min-height: 56px;
+  height: auto;
+  padding: 8px 12px;
+  padding-top: calc(8px + env(safe-area-inset-top, 0));
+  background: var(--navy);
+  border-bottom: 1px solid rgba(193,156,86,0.2);
+  z-index: 180;
+}
+html[data-device="phone"] .workspace-chrome {
+  display: none !important;
+}
+html[data-device="phone"] .app-shell:not(.is-till-kiosk) {
+  flex-direction: column !important;
+  min-width: 0 !important;
+}
+html[data-device="phone"] .sidebar {
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: min(288px, 88vw) !important;
+  height: 100dvh !important;
+  transform: translateX(-105%) !important;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 200;
+}
+html[data-device="phone"] .sidebar.open {
+  transform: translateX(0) !important;
+  visibility: visible;
+  pointer-events: auto;
+}
+html[data-device="phone"] .app-shell:not(.is-till-kiosk) .app-main {
+  padding: calc(88px + env(safe-area-inset-top, 0)) 14px calc(92px + env(safe-area-inset-bottom, 0)) !important;
+  max-width: none !important;
+}
+html[data-device="phone"] .easy-dock {
+  display: flex;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 170;
+  gap: 2px;
+  padding: 6px 6px calc(8px + env(safe-area-inset-bottom, 0));
+  background: var(--navy);
+  border-top: 1px solid rgba(193,156,86,0.28);
+}
+html[data-device="phone"] .easy-dock button {
+  flex: 1;
+  min-height: 52px;
+  border: none;
+  background: transparent;
+  color: rgba(255,255,255,0.55);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+html[data-device="phone"] .easy-dock button.is-on { color: var(--gold); }
+html[data-device="phone"] .house-editor,
+html[data-device="phone"] .house-split,
+html[data-device="phone"] .house-form,
+html[data-device="phone"] .grid2,
+html[data-device="phone"] .grid3,
+html[data-device="phone"] .grid4 {
+  grid-template-columns: 1fr !important;
+}
+html[data-device="phone"] .timecard,
+html[data-device="phone"] .house-block {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 140px;
+}
+html[data-pointer="coarse"] .shell-overlay {
+  backdrop-filter: none;
+}
+html[data-pointer="coarse"] button,
+html[data-pointer="coarse"] .nav-item {
+  touch-action: manipulation;
 }
 
 html[data-pointer="coarse"] .btn-primary,

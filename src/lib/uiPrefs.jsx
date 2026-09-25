@@ -10,9 +10,13 @@ export const LAYOUTS = { auto: 'auto', desktop: 'desktop', tablet: 'tablet', mob
 function detectDevice() {
   if (typeof window === 'undefined') return { device: 'desktop', pointer: 'fine', orientation: 'landscape' }
   const w = window.innerWidth
-  const device = w < 768 ? 'phone' : w < 1280 ? 'tablet' : 'desktop'
+  const h = window.innerHeight
+  const screenShort = Math.min(window.screen?.width || w, window.screen?.height || h)
   const pointer = window.matchMedia('(pointer: coarse)').matches ? 'coarse' : 'fine'
-  const orientation = window.innerHeight >= window.innerWidth ? 'portrait' : 'landscape'
+  const orientation = h >= w ? 'portrait' : 'landscape'
+  // Phones stay phones in landscape. Width alone was treating them as tablets.
+  const phone = screenShort <= 700 || (pointer === 'coarse' && Math.min(w, h) <= 520)
+  const device = phone ? 'phone' : (w < 1280 || pointer === 'coarse' ? 'tablet' : 'desktop')
   return { device, pointer, orientation }
 }
 
@@ -43,6 +47,7 @@ function loadTheme() {
 const UiPrefsContext = createContext({
   theme: THEMES.modern,
   layout: LAYOUTS.desktop,
+  device: 'desktop',
   setTheme: () => {},
   toggleTheme: () => {},
 })
@@ -53,6 +58,7 @@ export function UiPrefsProvider({ children }) {
     if (typeof window === 'undefined') return LAYOUTS.desktop
     return layoutFromDevice(detectDevice().device)
   })
+  const [device, setDevice] = useState(() => (typeof window === 'undefined' ? 'desktop' : detectDevice().device))
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -60,13 +66,28 @@ export function UiPrefsProvider({ children }) {
   }, [theme])
 
   useEffect(() => {
-    const onChange = () => setLayoutState(applyDeviceAttrs())
+    let last = ''
+    let frame = 0
+    const onChange = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const snap = detectDevice()
+        const nextLayout = layoutFromDevice(snap.device)
+        const sig = `${snap.device}|${snap.pointer}|${snap.orientation}|${nextLayout}`
+        if (sig === last) return
+        last = sig
+        applyDeviceAttrs()
+        setDevice(snap.device)
+        setLayoutState(nextLayout)
+      })
+    }
     onChange()
     window.addEventListener('resize', onChange)
     window.addEventListener('orientationchange', onChange)
     const mq = window.matchMedia('(pointer: coarse)')
     mq.addEventListener?.('change', onChange)
     return () => {
+      cancelAnimationFrame(frame)
       window.removeEventListener('resize', onChange)
       window.removeEventListener('orientationchange', onChange)
       mq.removeEventListener?.('change', onChange)
@@ -82,7 +103,7 @@ export function UiPrefsProvider({ children }) {
   }
 
   return (
-    <UiPrefsContext.Provider value={{ theme, layout, setTheme, toggleTheme }}>
+    <UiPrefsContext.Provider value={{ theme, layout, device, setTheme, toggleTheme }}>
       {children}
     </UiPrefsContext.Provider>
   )

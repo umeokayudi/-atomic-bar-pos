@@ -868,6 +868,11 @@ export default {
     langJaOptional: '日本語（任意）',
     clientPortal: 'クライアントポータル',
     adminPanel: '管理パネル',
+    devicePhone: 'スマホ',
+    deviceTablet: 'タブレット',
+    deviceDesktop: 'デスクトップ',
+    openMenu: 'メニューを開く',
+    closeMenu: 'メニューを閉じる',
   },
   nav: {
     dashboard: 'ダッシュボード',

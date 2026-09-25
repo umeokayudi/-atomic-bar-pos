@@ -17,7 +17,11 @@
         if (t === 'dark') t = 'classic';
         var lang = localStorage.getItem('jbm_drinks_lang') === 'ja' ? 'ja' : 'en';
         var w = window.innerWidth;
-        var device = w < 768 ? 'phone' : w < 1280 ? 'tablet' : 'desktop';
+        var h = window.innerHeight;
+        var screenShort = Math.min((window.screen && window.screen.width) || w, (window.screen && window.screen.height) || h);
+        var coarse = window.matchMedia('(pointer: coarse)').matches;
+        var phone = screenShort <= 700 || (coarse && Math.min(w, h) <= 520);
+        var device = phone ? 'phone' : (w < 1280 || coarse ? 'tablet' : 'desktop');
         var layout = device === 'phone' ? 'mobile' : device;
         try { localStorage.removeItem('jbm_drinks_layout'); } catch (e) {}
         document.documentElement.setAttribute('data-theme', t);

@@ -26,8 +26,13 @@ export function useNotifications() {
 
   useEffect(() => {
     load()
-    const interval = setInterval(load, 30000)
-    return () => clearInterval(interval)
+    const interval = setInterval(() => { if (!document.hidden) load() }, 30000)
+    const onVis = () => { if (!document.hidden) load() }
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVis)
+    }
   }, [load])
 
   async function markRead(id) {
@@ -94,8 +99,13 @@ export function useOverdueAlerts() {
 
   useEffect(() => {
     load()
-    const interval = setInterval(load, 60000)
-    return () => clearInterval(interval)
+    const interval = setInterval(() => { if (!document.hidden) load() }, 60000)
+    const onVis = () => { if (!document.hidden) load() }
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVis)
+    }
   }, [load])
 
   return alerts
@@ -139,8 +149,13 @@ export function useBarOverdueAlerts(barId) {
 
   useEffect(() => {
     load()
-    const interval = setInterval(load, 60000)
-    return () => clearInterval(interval)
+    const interval = setInterval(() => { if (!document.hidden) load() }, 60000)
+    const onVis = () => { if (!document.hidden) load() }
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVis)
+    }
   }, [load])
 
   return alerts

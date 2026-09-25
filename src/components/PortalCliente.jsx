@@ -4,7 +4,7 @@ import { useAuth } from './Auth'
 import { callGeminiChat, imageDataUrlToParts, parseJsonFromAI } from '../lib/ai'
 import { LogoSidebar } from './Logo'
 import { MobileTopBar, ShellOverlay, WorkspaceChrome, useMobileMenuLock } from './MobileShell'
-import { fmtYen, fmtDate, Spinner, Empty, SectionTitle, isSupplierProduct, filterSupplierVendas } from './utils'
+import { fmtYen, fmtDate, Spinner, Empty, SectionTitle, isSupplierProduct, filterSupplierVendas, roleLabel } from './utils'
 import {
   filterJbmDrinksFaturas,
   faturaValor,
@@ -2180,7 +2180,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         <header className="till-kiosk-bar">
           <div>
             <div className="till-kiosk-name">{bar.nome}</div>
-            <div className="till-kiosk-lane">{tillKiosk ? t('auth.lanePos') : t('auth.laneStaff')}</div>
+            <div className="till-kiosk-lane">{perfil?.nome ? `${perfil.nome} · ` : ''}{tillKiosk ? t('auth.lanePos') : t('auth.laneStaff')}</div>
           </div>
           <div className="till-kiosk-actions">
             {tillKiosk && isGerente(perfil?.role) && (
@@ -2230,7 +2230,9 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         </nav>
         <div className="sidebar-footer">
           <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.06em'}}>{t('shell.clientPortal')}</div>
-          <div style={{fontSize:13,fontWeight:700,color:'var(--gold)',marginBottom:12}}>{bar.nome}</div>
+          <div style={{fontSize:13,fontWeight:700,color:'var(--gold)',marginBottom:2}}>{bar.nome}</div>
+          <div style={{fontSize:12,fontWeight:700,color:'rgba(255,255,255,0.85)',marginBottom:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{perfil?.nome || ''}</div>
+          <div style={{fontSize:10,color:'rgba(193,156,86,0.75)',marginBottom:12}}>{perfil?.role ? roleLabel(perfil.role) : ''}</div>
           <div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginBottom:10,lineHeight:1.5}}>
             {t(footerKey)}
           </div>
