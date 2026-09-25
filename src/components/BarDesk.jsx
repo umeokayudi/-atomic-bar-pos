@@ -3,14 +3,17 @@ import { fmtYen } from './utils'
 import { staffFetch } from '../lib/apiAuth'
 import { invalidateBarTeam, loadBarTeam, peekBarTeam } from '../lib/barTeam'
 import { buildBarDesk } from '../lib/barDesk'
-import { paymentAgenda, sameWeekdaySales, stillToSell, weekdayOf } from '../lib/barClose'
+import { addDays, cardCash, monthBounds, paymentAgenda, periodReport, sameWeekdaySales, stillToSell, tenderOf, weekdayOf } from '../lib/barClose'
 import { buildGoalProgress, shiftOf } from '../lib/barGoals'
+import { whatWorked } from '../lib/barStrategy'
+import { nightKeyOfSale } from '../lib/nightClose'
 import { lastDayOfMonth, tokyoHour, tokyoNightKey } from '../lib/tokyo'
 import { useI18n } from '../lib/i18n'
 import { errText } from '../lib/errText'
 import BarOwnerAi from './BarOwnerAi'
 
 const SPANS = ['turno', 'noite', 'semana', 'mes']
+const DAY_KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
 
 function GoalChart({ rows, goal }) {
   const max = Math.max(1, goal || 0, ...rows.map(r => r.sales || 0))
@@ -42,15 +45,40 @@ function money(n) {
   return fmtYen(Math.round(+n || 0))
 }
 
+function nightsThrough(start, end) {
+  const out = []
+  let cursor = start
+  for (let i = 0; i < 31 && cursor <= end; i += 1) {
+    out.push(cursor)
+    cursor = addDays(cursor, 1)
+  }
+  return out
+}
+
+function birthdayWithin(aniversario, today, within = 7) {
+  const mmdd = String(aniversario || '').slice(5, 10)
+  if (!/^\d{2}-\d{2}$/.test(mmdd)) return false
+  const year = +String(today).slice(0, 4)
+  let date = `${year}-${mmdd}`
+  if (date < today) date = `${year + 1}-${mmdd}`
+  const [y, m, d] = today.split('-').map(Number)
+  const [y2, m2, d2] = date.split('-').map(Number)
+  const days = Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y, m - 1, d)) / 86400000)
+  return days >= 0 && days <= within
+}
+
 export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, floor, onTab }) {
   const { t } = useI18n()
   const cachedTeam = peekBarTeam()
   const [registry, setRegistry] = useState(() => cachedTeam?.registry || [])
   const [goals, setGoals] = useState(() => cachedTeam?.goals || {})
+  const [staff, setStaff] = useState(() => cachedTeam?.staff || [])
+  const [people, setPeople] = useState(() => cachedTeam?.people || [])
   const [span, setSpan] = useState('noite')
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
+  const [ask, setAsk] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -59,6 +87,8 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
         if (cancelled || j?.error) return
         setRegistry(j.registry || [])
         setGoals(j.goals || {})
+        setStaff(j.staff || [])
+        setPeople(j.people || [])
       })
       .catch(() => {})
     return () => { cancelled = true }
@@ -66,8 +96,13 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
 
   const desk = buildBarDesk({ tickets, hq, invoices, registry })
   const night = tokyoNightKey()
+  const monthKey = night.slice(0, 7)
   const cmp = sameWeekdaySales(tickets, night)
-  const progress = buildGoalProgress({ tickets, hq, registry, goals, nightKey: night })
+  const drinkPeople = [
+    ...(staff || []).filter(p => p.drink_back),
+    ...(people || []).filter(p => p.drink_back && !(staff || []).some(s => s.id === p.id)),
+  ]
+  const progress = buildGoalProgress({ tickets, hq, registry, goals, people: drinkPeople, nightKey: night })
   const hourNow = tokyoHour(new Date())
   const shiftId = shiftOf(hourNow, goals.abre ?? 20, goals.corta ?? 0)
   const shift = progress.turnos.find(s => s.id === shiftId) || progress.turnos[0]
@@ -80,28 +115,70 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
   const pct = view.goal > 0 ? Math.round((view.sales / view.goal) * 100) : null
   const dim = lastDayOfMonth(+night.slice(0, 4), +night.slice(5, 7)) || 30
   const monthLine = progress.mes.goal > 0 ? Math.round(progress.mes.goal / dim) : 0
-  const chart = span === 'turno'
-    ? progress.turnos.map(s => ({ key: s.id, label: s.id === 1 ? t('portal.goals.shift1') : t('portal.goals.shift2'), sales: s.sales }))
-    : span === 'semana'
-      ? progress.semana.days.map(d => ({ key: d.date, label: d.date.slice(8), sales: d.sales }))
-      : span === 'mes'
-        ? desk.days.map(d => ({ key: d.date, label: d.date.slice(8), sales: d.total }))
-        : progress.hora.series.map(h => ({ key: h.hour, label: String(h.hour).padStart(2, '0'), sales: h.sales }))
-  const chartGoal = span === 'turno' ? (shift?.goal || 0)
-    : span === 'semana' ? (progress.noite.goal || 0)
-      : span === 'mes' ? monthLine
-        : (progress.hora.goal || 0)
+  const monthSales = new Map()
+  for (const s of tickets || []) {
+    const key = nightKeyOfSale(s)
+    if (!key || !key.startsWith(monthKey) || key > night) continue
+    monthSales.set(key, (monthSales.get(key) || 0) + (+s.total || 0))
+  }
+  const chart = span === 'semana'
+    ? progress.semana.days.map(d => ({ key: d.date, label: t(`house.day.${DAY_KEY[weekdayOf(d.date)]}`), sales: d.sales }))
+    : span === 'mes'
+      ? nightsThrough(`${monthKey}-01`, night).map(date => ({ key: date, label: date.slice(8), sales: monthSales.get(date) || 0 }))
+      : progress.hora.series.map(h => ({ key: h.hour, label: String(h.hour).padStart(2, '0'), sales: h.sales }))
+  const chartGoal = span === 'semana' ? (progress.noite.goal || 0)
+    : span === 'mes' ? monthLine
+      : (progress.hora.goal || 0)
+  const bounds = monthBounds(night)
+  const monthNet = periodReport({
+    tickets,
+    registry,
+    hq,
+    start: bounds.start,
+    end: night < bounds.end ? night : bounds.end,
+    monthKey,
+  })
+  const profitGap = stillToSell(monthNet.net, progress.lucro.goal)
   const agenda = paymentAgenda({ registry, hq, invoices, tickets, goals, today: night })
   const bills = agenda.filter(a => !a.inflow)
-  const incoming = agenda.filter(a => a.inflow)
-  const payGroups = [
-    { id: 'late', items: bills.filter(a => a.days < 0) },
-    { id: 'today', items: bills.filter(a => a.days === 0) },
-    { id: 'week', items: bills.filter(a => a.days > 0 && a.days <= 7) },
-    { id: 'later', items: bills.filter(a => a.days > 7).slice(0, 8) },
-  ].filter(g => g.items.length)
-  const maxDay = Math.max(...desk.days.map(d => d.total), 1)
-  const maxHour = Math.max(...desk.hourly.map(h => h.total), 1)
+  const incoming = agenda.filter(a => a.inflow).slice(0, 3)
+  const nextBills = bills.slice(0, 5)
+  const monthTickets = (tickets || []).filter(s => {
+    const key = nightKeyOfSale(s)
+    return key && key.startsWith(monthKey)
+  })
+  const tender = tenderOf(monthTickets)
+  const card = cardCash({ tickets: monthTickets, registry, today: night })
+  const inHand = tender.cash + tender.paypay + card.landed
+  const toPay = bills.filter(a => a.days <= 7).reduce((sum, a) => sum + (+a.amount || 0), 0)
+  const worked = whatWorked(tickets)
+  const peak = worked.peakHours?.[0]
+  const birthdays = new Map()
+  for (const p of [...(staff || []), ...(people || [])]) {
+    if (p?.id && p.aniversario) birthdays.set(p.id, p.aniversario)
+  }
+  const commById = new Map(desk.cast.map(c => [c.id, c]))
+  const commByName = new Map(desk.cast.map(c => [String(c.name || '').trim().toLowerCase(), c]))
+  const castRows = progress.pessoas.length
+    ? progress.pessoas.map(p => {
+      const hit = commById.get(p.id) || commByName.get(String(p.nome || '').trim().toLowerCase())
+      return {
+        id: p.id,
+        name: p.nome,
+        sales: p.noite,
+        pct: p.noitePct,
+        commission: hit?.commission || 0,
+        birthday: birthdayWithin(birthdays.get(p.id), night),
+      }
+    })
+    : desk.cast.map(c => ({ ...c, pct: null, birthday: birthdayWithin(birthdays.get(c.id), night) }))
+  const onClock = (hq?.payroll || []).filter(r => r.open)
+
+  function whenLabel(date) {
+    const day = +String(date || '').slice(8, 10)
+    const key = DAY_KEY[weekdayOf(date)] || 'sun'
+    return `${t(`house.day.${key}`)} ${day || ''}`
+  }
 
   async function saveSpanGoal() {
     setBusy(true)
@@ -170,7 +247,22 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
         ) : (
           <button type="button" className="house-text" onClick={() => { setDraft(String(view.goal || '')); setEditing(true) }}>{t('portal.desk.changeGoal')}</button>
         )}
-        <GoalChart rows={chart} goal={chartGoal} />
+        {span === 'turno' ? (
+          <div className="goal-shifts">
+            {progress.turnos.map(s => {
+              const left = stillToSell(s.sales, s.goal)
+              return (
+                <div key={s.id} className={s.id === shiftId ? 'is-now' : ''}>
+                  <strong>{s.id === 1 ? t('portal.goals.shift1') : t('portal.goals.shift2')}</strong>
+                  <em>{money(s.sales)}{s.goal > 0 ? ` / ${money(s.goal)}` : ''}</em>
+                  <em>{left == null ? t('portal.goals.noGoal') : left === 0 ? t('portal.desk.goalHit') : t('portal.desk.stillPeriod', { amount: money(left) })}</em>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <GoalChart rows={chart} goal={chartGoal} />
+        )}
         {span === 'noite' && (
           <p className="desk-note">
             {t('portal.desk.vsWeek', {
@@ -181,100 +273,79 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
             })}
           </p>
         )}
+        {span === 'mes' && progress.lucro.goal > 0 && (
+          <p className="desk-note">
+            {t('portal.desk.netLine', {
+              profit: money(monthNet.net),
+              goal: money(progress.lucro.goal),
+              left: profitGap == null ? '' : money(profitGap),
+            })}
+          </p>
+        )}
+        {peak && (
+          <p className="desk-ai-line">
+            {t('portal.desk.aiLine', { hour: peak.label || String(peak.hour || ''), amount: money(peak.total) })}
+          </p>
+        )}
+        <button type="button" className="house-text" onClick={() => setAsk(v => !v)}>{t('portal.desk.ask')}</button>
       </section>
+
+      {ask && <BarOwnerAi bar={bar} hq={hq} />}
 
       <section className="desk-card">
         <h3>{t('portal.desk.alerts')}</h3>
-        {!payGroups.length && !incoming.length && <div className="desk-empty">{t('portal.desk.noAlerts')}</div>}
-        {payGroups.map(group => (
-          <div key={group.id}>
-            <div className="desk-pay-label">{t(`portal.desk.pay.${group.id}`)}</div>
-            {group.items.map(a => (
-              <button key={a.id} type="button" className={`desk-alert ${a.days < 0 ? 'is-bad' : a.days <= 7 ? 'is-soon' : ''}`} onClick={() => onTab?.(a.tab)}>
-                <span>
-                  <strong>{a.title || t(`portal.pay.kind.${a.kind}`)}</strong>
-                  <em>
-                    {a.date}
-                    {' · '}
-                    {a.days < 0 && t('portal.desk.overdue', { days: Math.abs(a.days) })}
-                    {a.days === 0 && t('portal.desk.dueToday')}
-                    {a.days > 0 && t('portal.desk.dueSoon', { days: a.days })}
-                  </em>
-                </span>
-                <b>{money(a.amount)}</b>
-              </button>
-            ))}
-          </div>
+        {!nextBills.length && !incoming.length && <div className="desk-empty">{t('portal.desk.noAlerts')}</div>}
+        {nextBills.map(a => (
+          <button key={a.id} type="button" className={`desk-alert ${a.days < 0 ? 'is-bad' : a.days <= 7 ? 'is-soon' : ''}`} onClick={() => onTab?.(a.tab)}>
+            <span>
+              <strong>{a.title || t(`portal.pay.kind.${a.kind}`)}</strong>
+              <em>{whenLabel(a.date)}</em>
+            </span>
+            <b>{money(a.amount)}</b>
+          </button>
         ))}
         {!!incoming.length && (
           <div>
             <div className="desk-pay-label">{t('portal.desk.pay.in')}</div>
-            {incoming.slice(0, 6).map(a => (
+            {incoming.map(a => (
               <button key={a.id} type="button" className="desk-alert is-in" onClick={() => onTab?.(a.tab)}>
                 <span>
                   <strong>{a.title || t(`portal.pay.kind.${a.kind}`)}</strong>
-                  <em>{a.date} · {a.days === 0 ? t('portal.desk.dueToday') : t('portal.desk.dueSoon', { days: a.days })}</em>
+                  <em>{whenLabel(a.date)}</em>
                 </span>
                 <b>+{money(a.amount)}</b>
               </button>
             ))}
           </div>
         )}
+        <button type="button" className="house-text" onClick={() => onTab?.('pagamentos')}>{t('portal.desk.seeAll')}</button>
       </section>
 
       <section className="desk-card">
         <h3>{t('portal.desk.cash')}</h3>
         <div className="desk-cash">
-          <div><span>{t('portal.desk.cashIn')}</span><strong>{money(desk.cash.inn)}</strong></div>
-          <div><span>{t('portal.desk.cashOut')}</span><strong>{money(desk.cash.out)}</strong></div>
-          <div className={desk.cash.net >= 0 ? 'is-up' : 'is-down'}><span>{t('portal.desk.cashNet')}</span><strong>{money(desk.cash.net)}</strong></div>
-        </div>
-        {desk.cardWaiting > 0 && (
-          <p className="desk-note">{t('portal.desk.cardWait', { amount: money(desk.cardWaiting), days: desk.cardDays })}</p>
-        )}
-        <div className="desk-lines">
-          {desk.cash.lines.map(l => (
-            <div key={l.key}>
-              <span>{t(`portal.desk.${l.key}`)}</span>
-              <b>{l.sign < 0 ? '−' : ''}{money(l.amount)}</b>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="desk-card">
-        <h3>{t('portal.desk.daily')}</h3>
-        <div className="desk-bars">
-          {desk.days.map(d => (
-            <div key={d.date} className="desk-bar" title={`${d.date} ${money(d.total)}`}>
-              <i style={{ height: `${Math.max(d.total ? 8 : 0, (d.total / maxDay) * 100)}%` }} />
-              <span>{d.date.slice(8)}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="desk-card">
-        <h3>{t('portal.desk.hourly')} · {desk.hourNight}</h3>
-        {desk.peak && <p className="desk-note">{t('portal.desk.peak', { hour: desk.peak.label, amount: money(desk.peak.total) })}</p>}
-        <div className="desk-bars is-hour">
-          {desk.hourly.map(h => (
-            <div key={h.hour} className="desk-bar" title={`${h.label} ${money(h.total)}`}>
-              <i style={{ height: `${Math.max(h.total ? 8 : 0, (h.total / maxHour) * 100)}%` }} />
-              <span>{String(h.hour).padStart(2, '0')}</span>
-            </div>
-          ))}
+          <div><span>{t('portal.desk.inHand')}</span><strong>{money(inHand)}</strong></div>
+          <div><span>{t('portal.desk.toReceive')}</span><strong>{money(card.waiting)}</strong></div>
+          <div><span>{t('portal.desk.toPay7')}</span><strong>{money(toPay)}</strong></div>
         </div>
       </section>
 
       <section className="desk-card">
         <h3>{t('portal.desk.cast')}</h3>
-        {!desk.cast.length && <div className="desk-empty">{t('portal.desk.emptyCast')}</div>}
-        {desk.cast.map(c => (
+        {!castRows.length && <div className="desk-empty">{t('portal.desk.emptyCast')}</div>}
+        {castRows.map(c => (
           <div key={c.id} className="desk-row">
             <div>
-              <strong>{c.name}</strong>
-              <em>{t('portal.desk.tickets', { count: c.tickets })}</em>
+              <strong>
+                {c.name}
+                {c.birthday && <span className="desk-bday">{t('portal.desk.bday')}</span>}
+              </strong>
+              {c.pct != null && (
+                <div className="goal-meter">
+                  <span>{c.pct}%</span>
+                  <i><b style={{ width: `${Math.max(0, Math.min(c.pct, 100))}%` }} className={c.pct >= 100 ? 'is-hit' : ''} /></i>
+                </div>
+              )}
             </div>
             <div className="desk-row-money">
               <b>{money(c.sales)}</b>
@@ -286,18 +357,14 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
 
       <section className="desk-card">
         <h3>{t('portal.desk.labor')}</h3>
-        <div className="desk-cash">
-          <div><span>{t('portal.desk.labor')}</span><strong>{money(desk.labor.total)}</strong></div>
-          <div><span>{t('portal.desk.hours')}</span><strong>{desk.labor.hours}h</strong></div>
-        </div>
-        {!desk.labor.rows.length && <div className="desk-empty">{t('portal.desk.emptyLabor')}</div>}
-        {desk.labor.rows.map(r => (
+        {!onClock.length && <div className="desk-empty">{t('portal.desk.emptyClock')}</div>}
+        {onClock.map(r => (
           <div key={r.staff_id} className="desk-row">
             <div>
               <strong>{r.nome}</strong>
-              <em>{r.hours}h{r.cargo ? ` · ${r.cargo}` : ''}</em>
+              <em>{t('portal.desk.perHour', { amount: money(r.salario_hora || 0) })}</em>
             </div>
-            <b>{money(r.pay)}</b>
+            <b>{t('portal.desk.onClock')}</b>
           </div>
         ))}
       </section>
@@ -315,8 +382,6 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
           <button type="button" onClick={() => onTab?.('salarios')}>{t('nav.portalSalary')}</button>
         </div>
       </section>
-
-      <BarOwnerAi bar={bar} hq={hq} />
     </div>
   )
 }

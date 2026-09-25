@@ -306,6 +306,14 @@ export default async function handler(req, res) {
       if (body.dia_salario != null) row.dia_salario = Math.max(1, Math.min(28, Math.round(+body.dia_salario || 25)))
       if (body.dia_drink != null) row.dia_drink = Math.max(1, Math.min(28, Math.round(+body.dia_drink || 10)))
       if (body.dia_mes != null) row.dia_mes = Math.max(1, Math.min(28, Math.round(+body.dia_mes || 1)))
+      if (body.pedido_modo != null) {
+        const modo = String(body.pedido_modo)
+        row.pedido_modo = ['queda', 'volume', 'segunda'].includes(modo) ? modo : 'queda'
+      }
+      if (body.pedido_qtd != null) row.pedido_qtd = Math.max(1, Math.min(99, Math.round(+body.pedido_qtd || 1)))
+      if (body.pedido_min != null) row.pedido_min = Math.max(0, Math.min(999, Math.round(+body.pedido_min || 0)))
+      if (body.pedido_em != null) row.pedido_em = String(body.pedido_em || '').slice(0, 10)
+      if (body.pedido_feito != null) row.pedido_feito = String(body.pedido_feito || '').slice(0, 10)
       const saved = await runLiveOp(db, {
         table: 'bar_goals',
         mode: existing.data ? 'update' : 'insert',

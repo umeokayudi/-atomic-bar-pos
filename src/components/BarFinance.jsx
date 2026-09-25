@@ -5,12 +5,14 @@ import { invalidateBarTeam, loadBarTeam, peekBarTeam } from '../lib/barTeam'
 import { fetchHqSnapshot, peekHqSnapshot } from '../lib/hqSnapshot'
 import {
   WEEK,
+  addDays,
   lastClosedWeek,
   monthBounds,
   paymentAgenda,
   periodReport,
   salaryBoard,
   stillToSell,
+  weekdayOf,
 } from '../lib/barClose'
 import { tokyoNightKey } from '../lib/tokyo'
 import { useI18n } from '../lib/i18n'
@@ -20,26 +22,49 @@ function money(n) {
   return fmtYen(Math.round(+n || 0))
 }
 
-function Bars({ rows }) {
-  const max = Math.max(1, ...rows.map(r => r.sales || 0))
-  return (
-    <div className="desk-bars">
-      {rows.map(r => (
-        <div key={r.date} className="desk-bar" title={`${r.date} ${money(r.sales)}`}>
-          <i style={{ height: `${Math.max(r.sales ? 8 : 0, (r.sales / max) * 100)}%` }} />
-          <span>{r.label}</span>
-        </div>
-      ))}
-    </div>
-  )
+function mondayOf(date) {
+  const wd = weekdayOf(date)
+  return addDays(date, wd === 0 ? -6 : 1 - wd)
 }
 
-function Stat({ label, value, tone }) {
+function CloseDoc({ t, current, previous }) {
+  const rows = [
+    ['sales', current.sales, previous.sales],
+    ['cash', current.tender.cash, previous.tender.cash],
+    ['card', current.tender.card, previous.tender.card],
+    ['paypay', current.tender.paypay, previous.tender.paypay],
+    ['vip', current.vip, previous.vip],
+    ['fee', current.fee, previous.fee],
+    ['comm', current.comm, previous.comm],
+    ['costs', current.allocated, previous.allocated],
+    ['accountant', current.accountant, previous.accountant],
+    ['tax', current.tax, previous.tax],
+    ['net', current.net, previous.net],
+  ]
   return (
-    <div className={tone || ''}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
+    <table className="close-doc">
+      <thead>
+        <tr>
+          <th />
+          <th>{t('portal.close.now')}</th>
+          <th>{t('portal.close.before')}</th>
+          <th>{t('portal.close.delta')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map(([key, now, before]) => {
+          const delta = Math.round((+now || 0) - (+before || 0))
+          return (
+            <tr key={key}>
+              <td>{t(`portal.close.${key}`)}</td>
+              <td>{money(now)}</td>
+              <td>{money(before)}</td>
+              <td className={delta > 0 ? 'is-up' : delta < 0 ? 'is-down' : ''}>{delta > 0 ? '+' : ''}{money(delta)}</td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
   )
 }
 
@@ -210,58 +235,18 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
           </div>
 
           <section className="desk-card">
-            <div className="desk-cash">
-              <Stat label={t('portal.close.sales')} value={money(current.sales)} />
-              <Stat label={t('portal.close.ticket')} value={money(current.ticket)} />
-              <Stat label={t('portal.close.count')} value={String(current.count)} />
-            </div>
-            <div className="desk-cash" style={{ marginTop: 8 }}>
-              <Stat label={t('portal.close.cash')} value={money(current.tender.cash)} />
-              <Stat label={t('portal.close.card')} value={money(current.tender.card)} />
-              <Stat label={t('portal.close.paypay')} value={money(current.tender.paypay)} />
-            </div>
-            <div className="desk-lines">
-              <div><span>{t('portal.close.vip')}</span><b>{money(current.vip)}</b></div>
-              <div><span>{t('portal.close.fee')}</span><b>−{money(current.fee)}</b></div>
-              <div><span>{t('portal.close.comm')}</span><b>−{money(current.comm)}</b></div>
-              <div><span>{t('portal.close.costs')}</span><b>−{money(current.allocated)}</b></div>
-              <div><span>{t('portal.close.rent')}</span><b>{money(current.costs.rent)}</b></div>
-              <div><span>{t('portal.close.accountant')}</span><b>−{money(current.accountant)}</b></div>
-              <div><span>{t('portal.close.tax')}</span><b>−{money(current.tax)}</b></div>
-              <div><span>{t('portal.close.net')}</span><b>{money(current.net)}</b></div>
-            </div>
-          </section>
-
-          <section className="desk-card">
-            <h3>{t('portal.close.cardFlow')}</h3>
-            <p className="desk-note">
-              {current.card.nome ? `${current.card.nome} · ` : ''}
-              {t('portal.close.cardRule', { pct: current.card.pct || 0, days: current.card.days || 0 })}
-            </p>
-            <div className="desk-cash">
-              <Stat label={t('portal.close.cardLanded')} value={money(current.card.landed)} />
-              <Stat label={t('portal.close.cardWaiting')} value={money(current.card.waiting)} />
-            </div>
-            {current.card.upcoming.map(row => (
-              <div key={row.date} className="desk-row">
-                <div><strong>{row.date}</strong><em>{t('portal.desk.dueSoon', { days: row.days })}</em></div>
-                <b>+{money(row.amount)}</b>
-              </div>
-            ))}
-          </section>
-
-          <section className="desk-card">
-            <h3>{t('portal.close.nights')}</h3>
-            <Bars rows={current.byNight} />
-          </section>
-
-          <section className="desk-card">
-            <h3>{view === 'month' ? t('portal.close.prevMonth') : t('portal.close.prevWeek')}</h3>
             <p className="desk-note">{previous.start} → {previous.end}</p>
-            <div className="desk-cash">
-              <Stat label={t('portal.close.sales')} value={money(previous.sales)} />
-              <Stat label={t('portal.close.profit')} value={money(previous.profit)} tone={previous.profit >= 0 ? 'is-up' : 'is-down'} />
-            </div>
+            <CloseDoc t={t} current={current} previous={previous} />
+            <p className="desk-note">
+              {t('portal.close.ticket')} {money(current.ticket)} · {t('portal.close.count')} {current.count}
+              {current.card.nome ? ` · ${current.card.nome}` : ''}
+              {' · '}
+              {t('portal.close.cardRule', { pct: current.card.pct || 0, days: current.card.days || 0 })}
+              {' · '}
+              {t('portal.close.cardLanded')} {money(current.card.landed)}
+              {' · '}
+              {t('portal.close.cardWaiting')} {money(current.card.waiting)}
+            </p>
           </section>
         </>
       )}
@@ -280,24 +265,33 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
               </label>
             </div>
           </section>
-          <section className="desk-card">
-            {!agenda.length && <div className="desk-empty">{t('portal.pay.empty')}</div>}
-            {agenda.map(item => (
-              <button key={item.id} type="button" className={`desk-alert ${item.inflow ? 'is-in' : item.days < 0 ? 'is-bad' : item.days <= 7 ? 'is-soon' : ''}`} onClick={() => onTab?.(item.tab)}>
-                <span>
-                  <strong>{item.title || t(`portal.pay.kind.${item.kind}`)}</strong>
-                  <em>
-                    {item.date}
-                    {' · '}
-                    {item.days < 0 && t('portal.desk.overdue', { days: Math.abs(item.days) })}
-                    {item.days === 0 && t('portal.desk.dueToday')}
-                    {item.days > 0 && t('portal.desk.dueSoon', { days: item.days })}
-                  </em>
-                </span>
-                <b>{item.inflow ? '+' : ''}{money(item.amount)}</b>
-              </button>
-            ))}
-          </section>
+          {!agenda.length && <div className="desk-empty">{t('portal.pay.empty')}</div>}
+          {[...agenda.reduce((map, item) => {
+            const start = mondayOf(item.date)
+            const list = map.get(start) || []
+            list.push(item)
+            map.set(start, list)
+            return map
+          }, new Map()).entries()].sort((a, b) => a[0] < b[0] ? -1 : 1).map(([start, items]) => (
+            <section key={start} className="desk-card">
+              <h3>{t('portal.pay.weekOf', { date: start })}</h3>
+              {items.map(item => (
+                <button key={item.id} type="button" className={`desk-alert ${item.inflow ? 'is-in' : item.days < 0 ? 'is-bad' : item.days <= 7 ? 'is-soon' : ''}`} onClick={() => onTab?.(item.tab)}>
+                  <span>
+                    <strong>{item.title || t(`portal.pay.kind.${item.kind}`)}</strong>
+                    <em>
+                      {item.date}
+                      {' · '}
+                      {item.days < 0 && t('portal.desk.overdue', { days: Math.abs(item.days) })}
+                      {item.days === 0 && t('portal.desk.dueToday')}
+                      {item.days > 0 && t('portal.desk.dueSoon', { days: item.days })}
+                    </em>
+                  </span>
+                  <b>{item.inflow ? '+' : ''}{money(item.amount)}</b>
+                </button>
+              ))}
+            </section>
+          ))}
         </>
       )}
 

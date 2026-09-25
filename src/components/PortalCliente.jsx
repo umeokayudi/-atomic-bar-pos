@@ -26,6 +26,7 @@ import ClientAnalyticsTab from './ClientAnalyticsTab'
 import PortalRecibosTab from './PortalRecibosTab'
 import PortalClienteAI from './PortalClienteAI'
 import BarDesk from './BarDesk'
+import AutoReorder from './AutoReorder'
 import AtomicPosPanel from './AtomicPos'
 import TimeClockPanel from './TimeClock'
 import BarTeamTab from './BarTeamTab'
@@ -756,21 +757,24 @@ function InventoryTab({ bar, onOrder }) {
   const [editMin,    setEditMin]     = useState(null)
   const [editMinVal, setEditMinVal]  = useState('')
   const [search, setSearch] = useState('')
+  const [orders, setOrders] = useState([])
 
   useEffect(() => { load() }, [bar])
 
   async function load() {
     setLoading(true)
     try {
-      const [movimentos, pR, rR, vR, pourR, priceR] = await Promise.all([
+      const [movimentos, pR, rR, vR, pourR, priceR, orderR] = await Promise.all([
         fetchAllStockMovements(supabase, bar.id, '*').catch(() => []),
         supabase.from('produtos_public').select('*').eq('ativo', true).order('categoria').order('nome'),
         supabase.from('estoque_regras').select('*').eq('bar_id', bar.id),
         supabase.from('vendas').select('*, vendas_itens(*, produtos(id,nome))').eq('bar_id', bar.id).order('data', { ascending: false }),
         supabase.from('pos_vendas_itens').select('produto_id,nome,qtd,pos_venda_id'),
         supabase.from('bar_pricing').select('produto_id,drinks_por_garrafa').eq('bar_id', bar.id),
+        supabase.from('pedidos').select('id,status,pedidos_itens(produto_id)').eq('bar_id', bar.id),
       ])
       setProdutos((pR.data || []).filter(isSupplierProduct))
+      setOrders(orderR?.data || [])
       setMovimentos(movimentos || [])
       setNotes(filterSupplierVendas(vR.data || []))
       setPours(pourR?.data || [])
@@ -877,6 +881,8 @@ function InventoryTab({ bar, onOrder }) {
           }}>{t('portal.inventory.orderNow')}</button>
         </div>
       )}
+
+      <AutoReorder bar={bar} products={list} orders={orders} />
 
       {/* Search */}
       <div style={{ position:'relative', marginBottom:16 }}>

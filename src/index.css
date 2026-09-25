@@ -3999,6 +3999,14 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
 .desk-goal-edit { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
 .desk-goal-edit input { width: 140px; }
 .desk-goal .house-text { color: #c19c56; margin-top: 8px; }
+.desk-ai-line { margin: 10px 0 0; color: rgba(255,255,255,0.85); font-size: 14px; }
+.desk-bday { display: inline-block; margin-left: 6px; background: #c19c56; color: #1a1408; border-radius: 99px; padding: 1px 8px; font-size: 11px; font-weight: 800; }
+.goal-shifts .is-now strong { color: #c19c56; }
+.close-doc { width: 100%; border-collapse: collapse; font-size: 13px; }
+.close-doc th, .close-doc td { text-align: right; padding: 8px 6px; border-top: 1px solid var(--border); }
+.close-doc th:first-child, .close-doc td:first-child { text-align: left; font-weight: 700; }
+.close-doc .is-up { color: var(--green); }
+.close-doc .is-down { color: var(--red); }
 .desk-pay-label { margin: 12px 0 0; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text2); }
 .salary-hint.is-pays { color: var(--green); }
 .salary-hint.is-tight { color: #9a7430; }
