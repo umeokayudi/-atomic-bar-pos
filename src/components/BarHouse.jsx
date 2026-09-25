@@ -16,12 +16,13 @@ const EMPTY_PERSON = {
 }
 
 const REGISTERS = [
-  { kind: 'fornecedor', title: 'suppliers', body: 'suppliersBody', fields: ['nome', 'detalhe', 'contato', 'notas'], detalheLabel: 'supplies', profile: ['cargo', 'dias', 'idiomas'], cargoLabel: 'category', daysLabel: 'deliveryDays' },
-  { kind: 'parceiro', title: 'partners', body: 'partnersBody', fields: ['nome', 'contato', 'notas'], profile: ['cargo', 'dias', 'idiomas', 'estilo'], daysLabel: 'workDays' },
-  { kind: 'cartao', title: 'card', body: 'cardBody', fields: ['nome', 'pct', 'contato', 'detalhe'], nomeLabel: 'company', detalheLabel: 'note', profile: ['idiomas'] },
-  { kind: 'energia', title: 'power', body: 'powerBody', fields: ['nome', 'amount', 'contato', 'detalhe'], nomeLabel: 'company', detalheLabel: 'note', profile: ['idiomas'] },
-  { kind: 'aluguel', title: 'rent', body: 'rentBody', fields: ['nome', 'amount', 'contato', 'detalhe'], detalheLabel: 'note', profile: ['idiomas'] },
-  { kind: 'outro', title: 'other', body: 'otherBody', fields: ['nome', 'amount', 'recorrente', 'contato', 'detalhe'], detalheLabel: 'note', profile: [] },
+  { kind: 'fornecedor', title: 'suppliers', body: 'suppliersBody', fields: ['nome', 'detalhe', 'contato', 'email', 'notas'], detalheLabel: 'supplies', profile: ['cargo', 'dias', 'idiomas'], cargoLabel: 'category', daysLabel: 'deliveryDays' },
+  { kind: 'parceiro', title: 'partners', body: 'partnersBody', fields: ['nome', 'contato', 'email', 'notas'], profile: ['cargo', 'dias', 'idiomas', 'estilo'], daysLabel: 'workDays' },
+  { kind: 'cartao', title: 'card', body: 'cardBody', fields: ['nome', 'cargo', 'contato', 'email', 'pct', 'notas'], nomeLabel: 'company', cargoLabel: 'contactPerson', profile: [] },
+  { kind: 'energia', title: 'power', body: 'powerBody', fields: ['nome', 'cargo', 'contato', 'email', 'amount', 'notas'], nomeLabel: 'company', cargoLabel: 'contactPerson', profile: [] },
+  { kind: 'aluguel', title: 'rent', body: 'rentBody', fields: ['nome', 'cargo', 'contato', 'email', 'endereco', 'amount', 'notas'], nomeLabel: 'agency', cargoLabel: 'contactPerson', profile: [] },
+  { kind: 'fixo', title: 'fixedCosts', body: 'fixedBody', fields: ['nome', 'amount', 'contato', 'notas'], profile: [] },
+  { kind: 'variavel', title: 'variableCosts', body: 'variableBody', fields: ['nome', 'amount', 'contato', 'notas'], profile: [], month: true },
 ]
 
 function asList(value) {
@@ -57,15 +58,15 @@ function personFrom(row, source) {
 
 function blankRegistry(kind) {
   return {
-    id: '', kind, nome: '', contato: '', detalhe: '', amount: '', pct: '',
-    recorrente: true, month_key: tokyoMonthKey(),
+    id: '', kind, nome: '', contato: '', email: '', endereco: '', detalhe: '', amount: '', pct: '',
+    recorrente: kind !== 'variavel', month_key: tokyoMonthKey(),
     cargo: '', dias: [], idiomas: [], estilo: '', notas: '',
   }
 }
 
 function haystack(row, t) {
   return [
-    row.nome, row.cargo, row.estilo, row.detalhe, row.contato, row.notas,
+    row.nome, row.cargo, row.estilo, row.detalhe, row.contato, row.email, row.endereco, row.notas,
     named(t, 'cargo', row.cargo), named(t, 'estilo', row.estilo),
     ...asList(row.dias).map(d => named(t, 'day', d)),
     ...asList(row.idiomas).map(d => named(t, 'lang', d)),
@@ -139,6 +140,8 @@ function Tags({ row }) {
     ...asList(row.idiomas).map(d => ({ key: `l-${d}`, text: named(t, 'lang', d) })),
     row.detalhe && { key: 'detalhe', text: row.detalhe },
     row.contato && { key: 'contato', text: row.contato },
+    row.email && { key: 'email', text: row.email },
+    row.endereco && { key: 'endereco', text: row.endereco },
   ].filter(Boolean)
   if (!tags.length && !row.notas) return null
   return (
@@ -217,6 +220,9 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
     if (field === 'nome') return t(`house.${spec.nomeLabel || 'name'}`)
     if (field === 'detalhe') return t(`house.${spec.detalheLabel || 'note'}`)
     if (field === 'contato') return t('house.phone')
+    if (field === 'cargo') return t(`house.${spec.cargoLabel || 'job'}`)
+    if (field === 'email') return t('house.email')
+    if (field === 'endereco') return t('house.address')
     if (field === 'notas') return t('house.notes')
     if (field === 'pct') return t('house.fee')
     if (field === 'amount') return t('house.monthlyAmount')
@@ -240,7 +246,8 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
               {+row.pct ? `${row.pct}%` : ''}
               {+row.pct && +row.amount ? ' · ' : ''}
               {+row.amount ? fmtYen(row.amount) : ''}
-              {row.kind === 'outro' ? `${(+row.pct || +row.amount) ? ' · ' : ''}${row.recorrente === false ? (row.month_key || '') : t('house.repeats')}` : ''}
+              {(row.kind === 'fixo' || (row.kind === 'outro' && row.recorrente !== false)) ? `${(+row.pct || +row.amount) ? ' · ' : ''}${t('house.repeats')}` : ''}
+              {(row.kind === 'variavel' || (row.kind === 'outro' && row.recorrente === false)) ? `${(+row.pct || +row.amount) ? ' · ' : ''}${row.month_key || ''}` : ''}
             </div>
             <Tags row={row} />
           </div>
@@ -250,6 +257,8 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
               kind: spec.kind,
               nome: row.nome || '',
               contato: row.contato || '',
+              email: row.email || '',
+              endereco: row.endereco || '',
               detalhe: row.detalhe || '',
               amount: row.amount ? String(row.amount) : '',
               pct: row.pct ? String(row.pct) : '',
@@ -274,7 +283,7 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
                 {label(field)}
               </label>
             ) : (
-              <label key={field} className={field === 'notas' || field === 'detalhe' ? 'house-span' : ''}>
+              <label key={field} className={field === 'notas' || field === 'detalhe' || field === 'endereco' ? 'house-span' : ''}>
                 {label(field)}
                 <input
                   type={field === 'amount' || field === 'pct' ? 'number' : 'text'}
@@ -286,7 +295,7 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
             )
           ))}
           <ProfileFields form={form} setForm={setForm} profile={spec.profile} cargoLabel={spec.cargoLabel} daysLabel={spec.daysLabel} />
-          {spec.kind === 'outro' && form.recorrente === false && (
+          {spec.month && (
             <label>{t('house.month')}
               <input type="month" value={form.month_key} onChange={e => setForm({ ...form, month_key: e.target.value })} />
             </label>
@@ -408,6 +417,8 @@ export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
       idiomas: asList(source.idiomas),
       estilo: source.estilo || '',
       contato: source.contato || '',
+      email: source.email || '',
+      endereco: source.endereco || '',
       notas: source.notas || '',
     }
   }
@@ -466,7 +477,7 @@ export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
         detalhe: row.detalhe,
         amount: +row.amount || 0,
         pct: +row.pct || 0,
-        recorrente: row.recorrente !== false,
+        recorrente: row.kind === 'variavel' ? false : row.kind === 'fixo' ? true : row.recorrente !== false,
         month_key: row.month_key,
         ...profilePayload(row),
       }),
@@ -516,7 +527,11 @@ export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
       {spec && (
         <RegisterBlock
           spec={spec}
-          rows={registry.filter(r => r.kind === spec.kind)}
+          rows={registry.filter(r => (
+            spec.kind === 'fixo' ? (r.kind === 'fixo' || (r.kind === 'outro' && r.recorrente !== false))
+            : spec.kind === 'variavel' ? (r.kind === 'variavel' || (r.kind === 'outro' && r.recorrente === false))
+            : r.kind === spec.kind
+          ))}
           busy={busy}
           onSave={saveRegistry}
           onDelete={deleteRegistry}

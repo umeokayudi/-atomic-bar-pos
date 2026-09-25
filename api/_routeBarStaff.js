@@ -22,6 +22,8 @@ function profileExtras(body) {
   if (body.idiomas != null) extra.idiomas = asList(body.idiomas)
   if (body.estilo != null) extra.estilo = String(body.estilo || '').trim()
   if (body.contato != null) extra.contato = String(body.contato || '').trim()
+  if (body.email != null) extra.email = String(body.email || '').trim()
+  if (body.endereco != null) extra.endereco = String(body.endereco || '').trim()
   if (body.notas != null) extra.notas = String(body.notas || '').trim()
   return extra
 }
@@ -180,7 +182,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST' && body.action === 'saveRegistry') {
       const kind = String(body.kind || '')
-      const allowed = ['fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'outro']
+      const allowed = ['fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'outro', 'fixo', 'variavel']
       if (!allowed.includes(kind)) return res.status(400).json({ error: 'kind required' })
       const nome = String(body.nome || '').trim()
       if (!nome) return res.status(400).json({ error: 'name required' })

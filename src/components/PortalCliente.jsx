@@ -2121,7 +2121,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   }, [])
 
   function selectTab(id) {
-    setTab(id === 'equipe' || id === 'casa' ? 'staff' : id)
+    setTab(id === 'equipe' || id === 'casa' ? 'staff' : id === 'outro' ? 'fixo' : id)
     setMenuOpen(false)
   }
 
@@ -2222,7 +2222,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         )}
         {tab==='pos'       && posAccess !== 'none' && <AtomicPosPanel bar={bar} onOrder={posAccess === 'owner' ? () => selectTab('pedidos') : undefined} access={posAccess} />}
         {tab==='ponto'     && <TimeClockPanel bar={bar} onOpenStaff={() => selectTab('staff')} />}
-        {['staff', 'fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'outro'].includes(tab) && canManageBarTeam(perfil?.role) && (
+        {['staff', 'fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel'].includes(tab) && canManageBarTeam(perfil?.role) && (
           <BarHouseTab key={tab} bar={bar} section={tab} onTab={selectTab} />
         )}
         {tab==='equipe'    && canManageBarTeam(perfil?.role) && <BarTeamTab bar={bar} />}
