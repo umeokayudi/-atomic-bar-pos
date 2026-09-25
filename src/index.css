@@ -4031,7 +4031,16 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
 .desk-row { cursor: default; background: transparent; }
 .desk-alert strong, .desk-row strong { display: block; font-size: 14px; }
 .desk-alert em, .desk-row em { display: block; font-style: normal; color: var(--text2); font-size: 12px; margin-top: 2px; }
-.desk-alert.is-bad { border-color: rgba(255, 69, 58, 0.45); }
+.pay-late {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  background: #ff3b30; color: #fff; border-radius: 12px; padding: 12px 14px; margin: 8px 0 4px;
+  font-weight: 800;
+}
+.pay-late b { font-size: 18px; }
+.desk-alert.is-bad {
+  background: #fff1f0; border-color: #ff3b30; color: #c0392b;
+}
+.desk-alert.is-bad em, .desk-alert.is-bad b { color: #ff3b30; font-weight: 800; }
 .desk-alert.is-soon { border-color: rgba(255, 159, 10, 0.5); }
 .desk-alert.is-in { border-color: rgba(52, 199, 89, 0.55); }
 .desk-row-money { text-align: right; }

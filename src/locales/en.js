@@ -1223,6 +1223,7 @@ export default {
       alerts: 'Próximos pagamentos',
       noAlerts: 'Nenhum pagamento perto.',
       overdue: 'Atrasado há {days} dias',
+      lateAlert: 'Atrasado · {count}',
       dueSoon: 'Vence em {days} dias',
       dueToday: 'Vence hoje',
       thisMonth: 'Este mês',

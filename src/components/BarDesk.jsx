@@ -142,7 +142,9 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
   const agenda = paymentAgenda({ registry, hq, invoices, tickets, goals, today: night })
   const bills = agenda.filter(a => !a.inflow)
   const incoming = agenda.filter(a => a.inflow).slice(0, 3)
-  const nextBills = bills.slice(0, 5)
+  const lateBills = bills.filter(a => a.days < 0)
+  const nextBills = bills.filter(a => a.days >= 0).slice(0, 5)
+  const lateTotal = lateBills.reduce((sum, a) => sum + (+a.amount || 0), 0)
   const monthTickets = (tickets || []).filter(s => {
     const key = nightKeyOfSale(s)
     return key && key.startsWith(monthKey)
@@ -304,9 +306,24 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
 
       <section className="desk-card">
         <h3>{t('portal.desk.alerts')}</h3>
-        {!nextBills.length && !incoming.length && <div className="desk-empty">{t('portal.desk.noAlerts')}</div>}
+        {!!lateBills.length && (
+          <div className="pay-late">
+            <strong>{t('portal.desk.lateAlert', { count: lateBills.length })}</strong>
+            <b>{money(lateTotal)}</b>
+          </div>
+        )}
+        {!lateBills.length && !nextBills.length && !incoming.length && <div className="desk-empty">{t('portal.desk.noAlerts')}</div>}
+        {lateBills.map(a => (
+          <button key={a.id} type="button" className="desk-alert is-bad" onClick={() => onTab?.(a.tab)}>
+            <span>
+              <strong>{a.title || t(`portal.pay.kind.${a.kind}`)}</strong>
+              <em>{whenLabel(a.date)} · {t('portal.desk.overdue', { days: Math.abs(a.days) })}</em>
+            </span>
+            <b>{money(a.amount)}</b>
+          </button>
+        ))}
         {nextBills.map(a => (
-          <button key={a.id} type="button" className={`desk-alert ${a.days < 0 ? 'is-bad' : a.days <= 7 ? 'is-soon' : ''}`} onClick={() => onTab?.(a.tab)}>
+          <button key={a.id} type="button" className={`desk-alert ${a.days === 0 || a.days <= 7 ? 'is-soon' : ''}`} onClick={() => onTab?.(a.tab)}>
             <span>
               <strong>{a.title || t(`portal.pay.kind.${a.kind}`)}</strong>
               <em>{whenLabel(a.date)}</em>

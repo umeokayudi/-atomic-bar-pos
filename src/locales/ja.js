@@ -1223,6 +1223,7 @@ export default {
       alerts: '次の支払い',
       noAlerts: '近い支払いはありません。',
       overdue: '{days}日遅れ',
+      lateAlert: '延滞 · {count}',
       dueSoon: 'あと{days}日',
       dueToday: '今日',
       thisMonth: '今月',

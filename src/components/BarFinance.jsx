@@ -265,6 +265,17 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
               </label>
             </div>
           </section>
+          {(() => {
+            const late = agenda.filter(item => !item.inflow && item.days < 0)
+            if (!late.length) return null
+            const total = late.reduce((sum, item) => sum + (+item.amount || 0), 0)
+            return (
+              <div className="pay-late">
+                <strong>{t('portal.desk.lateAlert', { count: late.length })}</strong>
+                <b>{money(total)}</b>
+              </div>
+            )
+          })()}
           {!agenda.length && <div className="desk-empty">{t('portal.pay.empty')}</div>}
           {[...agenda.reduce((map, item) => {
             const start = mondayOf(item.date)
