@@ -181,13 +181,17 @@ export default function BarGoalsTab({ bar }) {
         </div>
         {mode === 'turno' && (
           <div className="goal-shifts">
-            {p.turnos.map(s => (
-              <div key={s.id}>
-                <Gauge pct={s.pct} />
-                <strong>{t(s.id === 1 ? 'portal.goals.shift1' : 'portal.goals.shift2')}</strong>
-                <em>{money(s.sales)}{s.goal ? ` / ${money(s.goal)}` : ''}</em>
-              </div>
-            ))}
+            {['noite', 'dia'].map(id => {
+              const s = p.bands?.[id]
+              if (!s) return null
+              return (
+                <div key={id}>
+                  <Gauge pct={s.pct} />
+                  <strong>{t(id === 'noite' ? 'portal.goals.nightShift' : 'portal.goals.dayShift')}</strong>
+                  <em>{money(s.sales)}{s.goal ? ` / ${money(s.goal)}` : ''}</em>
+                </div>
+              )
+            })}
           </div>
         )}
       </section>

@@ -23,6 +23,13 @@ export function openHours(abre = 20, fecha = 5) {
   return hours
 }
 
+/** Night window is open→close (default 20:00–05:00). Everything else that night is the day shift. */
+export function shiftBand(hour, abre = 20, fecha = 5) {
+  if (hour == null || Number.isNaN(+hour)) return 'noite'
+  const h = ((+hour % 24) + 24) % 24
+  return openHours(abre, fecha).includes(h) ? 'noite' : 'dia'
+}
+
 export function shiftOf(hour, abre = 20, corta = 0) {
   if (hour == null) return 0
   const first = []
@@ -125,6 +132,29 @@ export function buildGoalProgress({
     goal: +g.turno || 0,
     pct: goalPct(sumSales(tonight.filter(s => shiftOf(hourOf(s), abre, corta) === id)), g.turno),
   }))
+  function bandOf(id) {
+    const rows = tonight.filter(s => shiftBand(hourOf(s), abre, fecha) === id)
+    const byHour = new Map()
+    for (const s of rows) {
+      const h = hourOf(s)
+      if (h == null) continue
+      const prev = byHour.get(h) || { hour: h, label: `${String(h).padStart(2, '0')}:00`, sales: 0, count: 0 }
+      prev.sales += +s.total || 0
+      prev.count += 1
+      byHour.set(h, prev)
+    }
+    const hours = [...byHour.values()].filter(h => h.sales > 0).sort((a, b) => a.hour - b.hour)
+    const sales = sumSales(rows)
+    return {
+      id,
+      sales,
+      count: rows.length,
+      goal: +g.turno || 0,
+      pct: goalPct(sales, g.turno),
+      hours,
+    }
+  }
+  const bands = { noite: bandOf('noite'), dia: bandOf('dia') }
   const weekDays = weekKeys.map(date => ({
     date,
     sales: sumSales(monthTickets.filter(s => nightOf(s) === date)),
@@ -181,6 +211,7 @@ export function buildGoalProgress({
       days: weekDays,
     },
     turnos,
+    bands,
     lucro: {
       sales: salesMonth,
       cost: cost + commMonth,

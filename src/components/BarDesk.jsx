@@ -4,7 +4,7 @@ import { staffFetch } from '../lib/apiAuth'
 import { invalidateBarTeam, loadBarTeam, peekBarTeam } from '../lib/barTeam'
 import { buildBarDesk } from '../lib/barDesk'
 import { addDays, cardCash, monthBounds, paymentAgenda, periodReport, sameWeekdaySales, stillToSell, tenderOf, weekdayOf } from '../lib/barClose'
-import { buildGoalProgress, shiftOf } from '../lib/barGoals'
+import { buildGoalProgress, shiftBand } from '../lib/barGoals'
 import { whatWorked } from '../lib/barStrategy'
 import { nightKeyOfSale } from '../lib/nightClose'
 import { lastDayOfMonth, tokyoHour, tokyoNightKey } from '../lib/tokyo'
@@ -75,6 +75,7 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
   const [staff, setStaff] = useState(() => cachedTeam?.staff || [])
   const [people, setPeople] = useState(() => cachedTeam?.people || [])
   const [span, setSpan] = useState('noite')
+  const [band, setBand] = useState(() => shiftBand(tokyoHour(new Date())))
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
@@ -103,11 +104,9 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
     ...(people || []).filter(p => p.drink_back && !(staff || []).some(s => s.id === p.id)),
   ]
   const progress = buildGoalProgress({ tickets, hq, registry, goals, people: drinkPeople, nightKey: night })
-  const hourNow = tokyoHour(new Date())
-  const shiftId = shiftOf(hourNow, goals.abre ?? 20, goals.corta ?? 0)
-  const shift = progress.turnos.find(s => s.id === shiftId) || progress.turnos[0]
+  const activeBand = progress.bands?.[band] || progress.bands?.noite
   const view = span === 'turno'
-    ? { sales: shift?.sales || 0, goal: shift?.goal || 0 }
+    ? { sales: activeBand?.sales || 0, goal: activeBand?.goal || 0 }
     : span === 'semana' ? progress.semana
       : span === 'mes' ? progress.mes
         : progress.noite
@@ -250,15 +249,14 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
           <button type="button" className="house-text" onClick={() => { setDraft(String(view.goal || '')); setEditing(true) }}>{t('portal.desk.changeGoal')}</button>
         )}
         {span === 'turno' ? (
-          <div className="goal-shifts">
-            {progress.turnos.map(s => {
-              const left = stillToSell(s.sales, s.goal)
+          <div className="goal-modes">
+            {['noite', 'dia'].map(id => {
+              const row = progress.bands?.[id]
               return (
-                <div key={s.id} className={s.id === shiftId ? 'is-now' : ''}>
-                  <strong>{s.id === 1 ? t('portal.goals.shift1') : t('portal.goals.shift2')}</strong>
-                  <em>{money(s.sales)}{s.goal > 0 ? ` / ${money(s.goal)}` : ''}</em>
-                  <em>{left == null ? t('portal.goals.noGoal') : left === 0 ? t('portal.desk.goalHit') : t('portal.desk.stillPeriod', { amount: money(left) })}</em>
-                </div>
+                <button key={id} type="button" className={band === id ? 'is-on' : ''} onClick={() => setBand(id)}>
+                  {t(id === 'noite' ? 'portal.desk.nightShift' : 'portal.desk.dayShift')}
+                  {row ? ` · ${money(row.sales)}` : ''}
+                </button>
               )
             })}
           </div>
@@ -284,7 +282,19 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
             })}
           </p>
         )}
-        {peak && (
+        {span === 'turno' && (
+          <p className="desk-note">
+            {activeBand?.count
+              ? t('portal.desk.tillSource', {
+                count: activeBand.count,
+                detail: (activeBand.hours || []).map(h => `${h.label} ${money(h.sales)}`).join(' · ') || money(activeBand.sales),
+              })
+              : t('portal.desk.tillEmpty')}
+            {' '}
+            {t('portal.desk.tillNote')}
+          </p>
+        )}
+        {span !== 'turno' && peak && (
           <p className="desk-ai-line">
             {t('portal.desk.aiLine', { hour: peak.label || String(peak.hour || ''), amount: money(peak.total) })}
           </p>
