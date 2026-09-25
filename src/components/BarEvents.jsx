@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmtYen, Spinner } from './utils'
 import { staffFetch } from '../lib/apiAuth'
+import { invalidateBarTeam, loadBarTeam } from '../lib/barTeam'
 import { fetchHqSnapshot } from '../lib/hqSnapshot'
 import { birthdayIdeas, whatWorked } from '../lib/barStrategy'
 import { useI18n } from '../lib/i18n'
@@ -18,7 +19,7 @@ export default function BarEventsTab({ bar }) {
 
   async function load() {
     const [teamRes, hq, guestsRes] = await Promise.all([
-      staffFetch('/api/bar-staff').then(r => r.json()),
+      loadBarTeam(),
       fetchHqSnapshot().catch(() => null),
       supabase.from('bar_guests').select('id,nome,aniversario,ativo').eq('bar_id', bar.id).eq('ativo', true),
     ])
@@ -48,6 +49,7 @@ export default function BarEventsTab({ bar }) {
   async function decide(idea, status, data) {
     setBusy(true)
     setErr('')
+    invalidateBarTeam()
     const res = await staffFetch('/api/bar-staff', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

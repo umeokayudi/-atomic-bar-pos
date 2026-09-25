@@ -1,6 +1,7 @@
 import { useMemo, useEffect, useState } from 'react'
 import { fmtYen, Spinner } from './utils'
 import { staffFetch } from '../lib/apiAuth'
+import { invalidateBarTeam, loadBarTeam, peekBarTeam } from '../lib/barTeam'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 import { tokyoMonthKey } from '../lib/tokyo'
@@ -398,14 +399,14 @@ function StaffBlock({ people, loading, busy, form, setForm, onSave, onRemove, on
 export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
   const { t } = useI18n()
   const [people, setPeople] = useState([])
-  const [registry, setRegistry] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [registry, setRegistry] = useState(() => peekBarTeam()?.registry || [])
+  const [loading, setLoading] = useState(() => !peekBarTeam())
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [form, setForm] = useState(null)
 
   async function load() {
-    const team = await staffFetch('/api/bar-staff').then(r => r.json())
+    const team = await loadBarTeam()
     if (team.error) throw new Error(errText(team.error))
     const fromStaff = (team.staff || []).map(s => personFrom(s, 'staff'))
     const ids = new Set(fromStaff.map(p => p.id))
@@ -443,6 +444,7 @@ export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
     if (!form?.nome.trim()) return
     setBusy(true)
     setErr('')
+    invalidateBarTeam()
     const payload = {
       id: form.id || undefined,
       nome: form.nome.trim(),
@@ -467,6 +469,7 @@ export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
   async function removePerson(p) {
     if (p.source !== 'house') return
     setBusy(true)
+    invalidateBarTeam()
     const res = await staffFetch('/api/bar-staff', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -481,6 +484,7 @@ export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
   async function saveRegistry(row) {
     setBusy(true)
     setErr('')
+    invalidateBarTeam()
     const res = await staffFetch('/api/bar-staff', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -511,6 +515,7 @@ export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
   async function deleteRegistry(id) {
     setBusy(true)
     setErr('')
+    invalidateBarTeam()
     const res = await staffFetch('/api/bar-staff', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -542,6 +547,7 @@ export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
       )}
       {spec && (
         <RegisterBlock
+          key={section}
           spec={spec}
           rows={registry.filter(r => (
             spec.kind === 'fixo' ? (r.kind === 'fixo' || (r.kind === 'outro' && r.recorrente !== false))

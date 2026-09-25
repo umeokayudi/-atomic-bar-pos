@@ -6,24 +6,67 @@ import { errText } from './errText'
 
 export { localHoursPay }
 
-const HQ_TTL_MS = 120_000
+const HQ_TTL_MS = 20_000
 const hqCache = new Map()
+const hqInflight = new Map()
+
+function hqKey(month, full) {
+  return `${month || ''}:${full ? 'full' : 'lite'}`
+}
+
+function readStoredHq(key) {
+  try {
+    const raw = sessionStorage.getItem(`hq-snap:${key}`)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (parsed?.books) return parsed
+  } catch { /* private mode or old payload */ }
+  return null
+}
+
+export function peekHqSnapshot(month, { full } = {}) {
+  const key = hqKey(month, full)
+  const hit = hqCache.get(key)
+  if (hit?.data) return hit.data
+  const stored = readStoredHq(key)
+  if (stored) {
+    hqCache.set(key, { at: 0, data: stored })
+    return stored
+  }
+  return null
+}
 
 export function invalidateHqSnapshot() {
   hqCache.clear()
+  hqInflight.clear()
+  try {
+    for (let i = sessionStorage.length - 1; i >= 0; i -= 1) {
+      const k = sessionStorage.key(i)
+      if (k && k.startsWith('hq-snap:')) sessionStorage.removeItem(k)
+    }
+  } catch { /* ignore */ }
 }
 
-export async function fetchHqSnapshot(month, { fresh } = {}) {
-  const key = month || ''
+export async function fetchHqSnapshot(month, { fresh, full } = {}) {
+  const key = hqKey(month, full)
   const hit = hqCache.get(key)
-  if (!fresh && hit && Date.now() - hit.at < HQ_TTL_MS) return hit.data
+  if (!fresh && hit?.data && Date.now() - hit.at < HQ_TTL_MS) return hit.data
+  if (!fresh && hqInflight.has(key)) return hqInflight.get(key)
 
-  const q = month ? `?month=${encodeURIComponent(month)}` : ''
-  const r = await staffFetch(`/api/bar/hq-sync${q}`)
-  const j = await r.json().catch(() => ({ error: r.statusText }))
-  if (!r.ok || j.error || !j.books) throw new Error(errText(j.error || j, 'HQ sync failed'))
-  hqCache.set(key, { at: Date.now(), data: j })
-  return j
+  const params = new URLSearchParams()
+  if (month) params.set('month', month)
+  if (!full) params.set('lite', '1')
+  const q = params.toString() ? `?${params}` : ''
+  const job = staffFetch(`/api/bar/hq-sync${q}`)
+    .then(r => r.json().catch(() => ({ error: r.statusText })).then(j => {
+      if (!r.ok || j.error || !j.books) throw new Error(errText(j.error || j, 'HQ sync failed'))
+      hqCache.set(key, { at: Date.now(), data: j })
+      try { sessionStorage.setItem(`hq-snap:${key}`, JSON.stringify(j)) } catch { /* quota */ }
+      return j
+    }))
+    .finally(() => hqInflight.delete(key))
+  hqInflight.set(key, job)
+  return job
 }
 
 export async function saveHqRent({ amount, note, month_key }) {

@@ -97,7 +97,7 @@ export function BarCommandActions({ onTab, ids }) {
 export async function loadCostBooks(barId, monthKey) {
   const mes = isMonthKey(monthKey) ? monthKey : tokyoMonthKey()
   try {
-    const hq = await fetchHqSnapshot(mes)
+    const hq = await fetchHqSnapshot(mes, { full: true })
     if (hq?.books) return hq.books
   } catch {
     // fall through
@@ -176,7 +176,7 @@ export default function BarCostsTab({ bar, onTab }) {
           if (!r.ok) throw new Error(errText(j.error, 'Sync failed'))
           return j
         })
-        : await fetchHqSnapshot(mes)
+        : await fetchHqSnapshot(mes, { full: true, fresh: true })
       setHq(snap)
       setBooks(snap.books)
       setRentAmount(String(snap.rent?.amount ?? ''))

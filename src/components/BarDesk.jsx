@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fmtYen } from './utils'
-import { staffFetch } from '../lib/apiAuth'
+import { loadBarTeam, peekBarTeam } from '../lib/barTeam'
 import { buildBarDesk } from '../lib/barDesk'
 import { paymentAgenda, sameWeekdaySales, stillToSell, weekdayOf } from '../lib/barClose'
 import { tokyoNightKey } from '../lib/tokyo'
@@ -13,23 +13,19 @@ function money(n) {
 
 export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, floor, onTab }) {
   const { t } = useI18n()
-  const [registry, setRegistry] = useState([])
-  const [goals, setGoals] = useState({})
+  const cachedTeam = peekBarTeam()
+  const [registry, setRegistry] = useState(() => cachedTeam?.registry || [])
+  const [goals, setGoals] = useState(() => cachedTeam?.goals || {})
 
   useEffect(() => {
     let cancelled = false
-    staffFetch('/api/bar-staff')
-      .then(r => r.json())
+    loadBarTeam()
       .then(j => {
-        if (cancelled) return
+        if (cancelled || j?.error) return
         setRegistry(j.registry || [])
         setGoals(j.goals || {})
       })
-      .catch(() => {
-        if (cancelled) return
-        setRegistry([])
-        setGoals({})
-      })
+      .catch(() => {})
     return () => { cancelled = true }
   }, [bar?.id])
 

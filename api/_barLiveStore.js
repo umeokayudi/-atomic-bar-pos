@@ -486,13 +486,20 @@ export async function seedLaneLogins(admin) {
   return { seeded: true }
 }
 
+let liveReadyMemo = false
+
 export async function ensureBarLiveReady(admin) {
-  return withLock('_meta', async () => {
+  if (liveReadyMemo) return { seeded: false, via: 'live-store', cached: true }
+  const result = await withLock('_meta', async () => {
     const spaces = await loadTable(admin, 'bar_spaces')
     if (!spaces.length) await seedAtomic(admin)
-    const lanes = await seedLaneLogins(admin)
+    const existing = await loadTable(admin, 'bar_logins')
+    const hasLanes = existing.some(r => r.id === POS_LOGIN_ID) && existing.some(r => r.id === STAFF_LOGIN_ID)
+    const lanes = hasLanes ? { seeded: false } : await seedLaneLogins(admin)
     return { seeded: !spaces.length || !!lanes.seeded, via: 'live-store', lanes }
   })
+  liveReadyMemo = true
+  return result
 }
 
 export async function loadBarWithGeo(admin, barId) {

@@ -87,30 +87,74 @@ function monthBill(vendas, faturas, mes) {
   }
 }
 
-export async function buildHqSnapshot(admin, barId, barNome = '', monthKey) {
-  await ensureBarLiveReady(admin)
+const snapCache = new Map()
+const snapInflight = new Map()
+const SNAP_TTL_MS = 30_000
+
+function prevMonthKey(mes) {
+  const [y, m] = String(mes).split('-').map(Number)
+  const pm = m === 1 ? 12 : m - 1
+  const py = m === 1 ? y - 1 : y
+  return `${py}-${String(pm).padStart(2, '0')}`
+}
+
+export function invalidateHqSnapshotCache(barId) {
+  const prefix = `${barId}|`
+  for (const key of snapCache.keys()) {
+    if (String(key).startsWith(prefix)) snapCache.delete(key)
+  }
+}
+
+export async function buildHqSnapshot(admin, barId, barNome = '', monthKey, opts = {}) {
   const mes = /^\d{4}-\d{2}$/.test(String(monthKey || '')) ? String(monthKey) : tokyoMonthKey()
+  const lite = !!opts.lite
+  const key = `${barId}|${mes}|${lite ? 'lite' : 'full'}`
+  const hit = snapCache.get(key)
+  if (!opts.fresh && hit && Date.now() - hit.at < SNAP_TTL_MS) return hit.data
+  if (!opts.fresh && snapInflight.has(key)) return snapInflight.get(key)
+  const job = computeHqSnapshot(admin, barId, barNome, mes, { lite }).then(data => {
+    snapCache.set(key, { at: Date.now(), data })
+    return data
+  }).finally(() => snapInflight.delete(key))
+  snapInflight.set(key, job)
+  return job
+}
+
+async function computeHqSnapshot(admin, barId, barNome = '', mes, { lite = false } = {}) {
+  await ensureBarLiveReady(admin)
   const range = monthRange(`${mes}-01`)
+  const prevMes = prevMonthKey(mes)
+  const prevRange = monthRange(`${prevMes}-01`)
   const monthKeys = recentMonthKeys(6)
+  const historyCut = (() => {
+    const [y, m, d] = tokyoNightKey().split('-').map(Number)
+    const back = lite ? 80 : 200
+    const dt = new Date(Date.UTC(y, m - 1, d - back))
+    return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`
+  })()
+  const emptyPg = Promise.resolve({ data: [], error: null })
 
   const [vendasR, pedR, fatR, posR, clockR, rentR, staff, regrasR, movR, prodR, itemR, posItemR, priceR] = await Promise.all([
     admin.from('vendas').select('id,data,data_venda,total,obs,bar_id,cast_id,criado_em').eq('bar_id', barId).order('data', { ascending: false }).limit(400),
     admin.from('pedidos').select('id,status,total_estimado,criado_em,obs').eq('bar_id', barId).order('criado_em', { ascending: false }).limit(200),
     admin.from('faturas').select('*').eq('bar_id', barId).order('data_vencimento', { ascending: false }).limit(24),
-    pgOrLive(admin, 'pos_vendas', [{ op: 'eq', k: 'bar_id', v: barId }], 'id,total,data,obs,criado_em,metodo_pagamento,drink_back_agent_id'),
+    pgOrLive(admin, 'pos_vendas', [
+      { op: 'eq', k: 'bar_id', v: barId },
+      { op: 'gte', k: 'data', v: historyCut },
+    ], 'id,total,data,obs,criado_em,metodo_pagamento,drink_back_agent_id'),
     pgOrLive(admin, 'time_clock', [
       { op: 'eq', k: 'bar_id', v: barId },
-      { op: 'gte', k: 'punched_at', v: range.from },
+      { op: 'gte', k: 'punched_at', v: prevRange.from },
       { op: 'lte', k: 'punched_at', v: range.to },
     ]),
     pgOrLive(admin, 'bar_overhead', [{ op: 'eq', k: 'bar_id', v: barId }]),
     listStaffWithExtras(admin, barId).catch(() => []),
-    admin.from('estoque_regras').select('produto_id,minimo').eq('bar_id', barId).limit(400),
-    admin.from('estoque_movimentos').select('produto_id,tipo,qtd').eq('bar_id', barId).limit(4000),
-    admin.from('produtos').select('id,nome').limit(400),
-    admin.from('vendas_itens').select('produto_id,qtd,venda_id').limit(5000),
-    pgOrLive(admin, 'pos_vendas_itens', [], 'produto_id,nome,qtd,pos_venda_id'),
-    admin.from('bar_pricing').select('produto_id,drinks_por_garrafa').eq('bar_id', barId).limit(400),
+    lite ? emptyPg : admin.from('estoque_regras').select('produto_id,minimo').eq('bar_id', barId).limit(400),
+    lite ? emptyPg : admin.from('estoque_movimentos').select('produto_id,tipo,qtd').eq('bar_id', barId).limit(4000),
+    lite ? emptyPg : admin.from('produtos').select('id,nome').limit(400),
+    lite ? emptyPg : admin.from('vendas_itens').select('produto_id,qtd,venda_id').limit(5000),
+    lite ? Promise.resolve({ rows: [] }) : pgOrLive(admin, 'pos_vendas_itens', [], 'produto_id,nome,qtd,pos_venda_id'),
+    lite ? emptyPg : admin.from('bar_pricing').select('produto_id,drinks_por_garrafa').eq('bar_id', barId).limit(400),
   ])
 
   const jbmOk = !vendasR.error && !fatR.error
@@ -120,11 +164,7 @@ export async function buildHqSnapshot(admin, barId, barNome = '', monthKey) {
   const pedMes = pedidos.filter(p => monthKeyOf(p.criado_em) === mes)
   const posRows = [...(posR.rows || [])].sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')))
   const posMonthRows = posRows.filter(s => monthKeyOf(s.data) === mes)
-  const historyCut = (() => {
-    const [y, m, d] = tokyoNightKey().split('-').map(Number)
-    const dt = new Date(Date.UTC(y, m - 1, d - 75))
-    return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`
-  })()
+  const posPrevRows = posRows.filter(s => monthKeyOf(s.data) === prevMes)
   const mapPosTicket = s => ({
     id: s.id,
     data: s.data,
@@ -137,6 +177,7 @@ export async function buildHqSnapshot(admin, barId, barNome = '', monthKey) {
   const posMonthTotal = posMonthRows.reduce((a, s) => a + (+s.total || 0), 0)
 
   const payroll = payrollFromPunches(clockR.rows || [], staff || [], range)
+  const prevPayroll = payrollFromPunches(clockR.rows || [], staff || [], prevRange)
   const staffMonthPay = payroll.reduce((a, r) => a + (+r.pay || 0), 0)
   const hoursTotal = payroll.reduce((a, r) => a + (+r.hours || 0), 0)
 
@@ -174,6 +215,26 @@ export async function buildHqSnapshot(admin, barId, barNome = '', monthKey) {
     staffMonthPay,
     rentMonth: rentAmount,
   })
+  const prevJbm = monthBill(vendasR.data || [], fatR.data || [], prevMes)
+  const prevPosTotal = posPrevRows.reduce((a, s) => a + (+s.total || 0), 0)
+  const prevStaffPay = prevPayroll.reduce((a, r) => a + (+r.pay || 0), 0)
+  const prevRentAmount = rentForMonth(rentR.rows || [], prevMes)
+  const prevBooks = splitCostBooks({
+    posMonthTotal: prevPosTotal,
+    jbmMonthBill: prevJbm.contaMes,
+    staffMonthPay: prevStaffPay,
+    rentMonth: prevRentAmount,
+  })
+  const mapPay = rows => rows.map(r => ({
+    staff_id: r.staff_id,
+    nome: r.nome,
+    cargo: r.cargo,
+    salario_hora: r.salario_hora,
+    hours: r.hours,
+    lateHours: r.lateHours || 0,
+    pay: r.pay,
+    open: r.open,
+  }))
 
   const months = buildMonthSeries({
     keys: monthKeys,
@@ -241,10 +302,12 @@ export async function buildHqSnapshot(admin, barId, barNome = '', monthKey) {
   }
 
   const syncedAt = new Date().toISOString()
-  try {
-    await persistHqMeta(admin, barId, { last_sync: syncedAt, sources })
-  } catch {
-    // Snapshot still returns even if meta write is blocked.
+  if (!lite) {
+    try {
+      await persistHqMeta(admin, barId, { last_sync: syncedAt, sources })
+    } catch {
+      // Snapshot still returns even if meta write is blocked.
+    }
   }
 
   return {
@@ -254,16 +317,15 @@ export async function buildHqSnapshot(admin, barId, barNome = '', monthKey) {
     mixed: false,
     sources,
     books,
-    payroll: payroll.map(r => ({
-      staff_id: r.staff_id,
-      nome: r.nome,
-      cargo: r.cargo,
-      salario_hora: r.salario_hora,
-      hours: r.hours,
-      lateHours: r.lateHours || 0,
-      pay: r.pay,
-      open: r.open,
-    })),
+    prev: {
+      mes: prevMes,
+      books: prevBooks,
+      payroll: mapPay(prevPayroll),
+      hoursTotal: Math.round(prevPayroll.reduce((a, r) => a + (+r.hours || 0), 0) * 100) / 100,
+      rent: { amount: prevRentAmount, month_key: prevMes },
+      pos: { till: prevBooks.pos.amount, tickets: posPrevRows.map(mapPosTicket) },
+    },
+    payroll: mapPay(payroll),
     hoursTotal: Math.round(hoursTotal * 100) / 100,
     months,
     rent: {
@@ -348,6 +410,7 @@ async function persistHqMeta(admin, barId, patch) {
 }
 
 export async function saveHqRent(admin, barId, { amount, note, month_key } = {}) {
+  invalidateHqSnapshotCache(barId)
   await ensureBarLiveReady(admin)
   const mes = month_key || tokyoMonthKey()
   const loaded = await pgOrLive(admin, 'bar_overhead', [
@@ -381,6 +444,7 @@ export async function saveHqRent(admin, barId, { amount, note, month_key } = {})
 }
 
 export async function saveBarCost(admin, barId, body = {}) {
+  invalidateHqSnapshotCache(barId)
   await ensureBarLiveReady(admin)
   if (body.action === 'delete') {
     if (!body.id) return { ok: false, error: 'id required' }

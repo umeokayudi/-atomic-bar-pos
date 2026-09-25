@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { fmtYen, Spinner } from './utils'
 import { staffFetch } from '../lib/apiAuth'
-import { fetchHqSnapshot } from '../lib/hqSnapshot'
+import { invalidateBarTeam, loadBarTeam, peekBarTeam } from '../lib/barTeam'
+import { fetchHqSnapshot, peekHqSnapshot } from '../lib/hqSnapshot'
 import {
   WEEK,
   lastClosedWeek,
@@ -44,30 +45,35 @@ function Stat({ label, value, tone }) {
 
 export default function BarFinance({ bar, section = 'fechamento', onTab }) {
   const { t } = useI18n()
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !(peekBarTeam() && peekHqSnapshot()))
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [view, setView] = useState('week')
   const [pack, setPack] = useState(null)
   const [days, setDays] = useState({ dia_mes: 1, dia_salario: 25, dia_drink: 10 })
 
-  async function load() {
-    const night = tokyoNightKey()
-    const prevKey = monthBounds(night).prevStart.slice(0, 7)
-    const [teamRes, hq, prevHq] = await Promise.all([
-      staffFetch('/api/bar-staff').then(r => r.json()),
-      fetchHqSnapshot().catch(() => null),
-      fetchHqSnapshot(prevKey).catch(() => null),
-    ])
-    if (teamRes.error) throw new Error(errText(teamRes.error))
-    setPack({
+  function packFrom(teamRes, hq) {
+    const prev = hq?.prev
+    return {
       registry: teamRes.registry || [],
       goals: teamRes.goals || {},
       hq,
       tickets: hq?.pos?.history?.length ? hq.pos.history : (hq?.pos?.tickets || []),
       invoices: hq?.jbm?.openInvoices || [],
-      prevHq,
-    })
+      prevHq: prev ? { books: prev.books, payroll: prev.payroll, rent: prev.rent, pos: prev.pos } : null,
+    }
+  }
+
+  async function load() {
+    const cachedTeam = peekBarTeam()
+    const cachedHq = peekHqSnapshot()
+    if (cachedTeam && cachedHq) setPack(packFrom(cachedTeam, cachedHq))
+    const [teamRes, hq] = await Promise.all([
+      loadBarTeam(),
+      fetchHqSnapshot().catch(() => cachedHq),
+    ])
+    if (teamRes.error) throw new Error(errText(teamRes.error))
+    setPack(packFrom(teamRes, hq || cachedHq))
   }
 
   useEffect(() => {
@@ -81,7 +87,7 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
+    if (!peekBarTeam() || !peekHqSnapshot()) setLoading(true)
     load()
       .catch(e => { if (!cancelled) setErr(errText(e)) })
       .finally(() => { if (!cancelled) setLoading(false) })
@@ -91,6 +97,7 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
   async function saveSettings(patch) {
     setBusy(true)
     setErr('')
+    invalidateBarTeam()
     try {
       const r = await staffFetch('/api/bar-staff', {
         method: 'POST',
@@ -122,7 +129,7 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
   const closedReport = periodReport({ ...shared, start: week.start, end: week.end, monthKey: week.end.slice(0, 7) })
   const monthReport = periodReport({ ...shared, start: month.start, end: monthEnd, monthKey: night.slice(0, 7) })
   const prevReport = periodReport({
-    tickets: pack.prevHq?.pos?.history?.length ? pack.prevHq.pos.history : (pack.prevHq?.pos?.tickets || pack.tickets),
+    tickets: pack.prevHq?.pos?.tickets || pack.tickets,
     registry: pack.registry,
     hq: pack.prevHq || pack.hq,
     start: month.prevStart,

@@ -38,7 +38,8 @@ export default async function handler(req, res) {
     const month = req.method === 'GET'
       ? req.query?.month
       : (bodyOf(req).month || bodyOf(req).rent?.month_key)
-    const snap = await buildHqSnapshot(db, auth.perfil.bar_id, auth.perfil.nome, month)
+    const lite = req.method === 'GET' && String(req.query?.lite || '') === '1'
+    const snap = await buildHqSnapshot(db, auth.perfil.bar_id, auth.perfil.nome, month, { lite })
     return res.status(200).json(snap)
   } catch (e) {
     return res.status(500).json({ error: errText(e, 'HQ sync failed') })

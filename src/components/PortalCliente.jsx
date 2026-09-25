@@ -46,7 +46,7 @@ import { birthdayThisMonth, decorateSpaces } from '../lib/barCrm'
 import BarCostsTab, { CostBooksHero, loadCostBooks, BarCommandActions } from './BarCostsTab'
 import BarOpsGlance from './BarOpsGlance'
 import { buildBarOpsGlance } from '../lib/barOpsGlance'
-import { fetchHqSnapshot } from '../lib/hqSnapshot'
+import { fetchHqSnapshot, peekHqSnapshot } from '../lib/hqSnapshot'
 import { booksAreSeparate } from '../lib/costBooks'
 import { asReactText } from '../lib/errText'
 import { NotificationBell, useBarOverdueAlerts } from './Notifications'
@@ -89,100 +89,94 @@ function HomeTab({ bar, onTab }) {
   const [barPricing,  setBarPricing]  = useState([])
   const [faturas,     setFaturas]     = useState([])
   const [posMonthTotal, setPosMonthTotal] = useState(null)
-  const [posTickets,  setPosTickets]  = useState([])
-  const [costBooks,   setCostBooks]   = useState(null)
-  const [hq,          setHq]          = useState(null)
+  const [posTickets,  setPosTickets]  = useState(() => {
+    const snap = peekHqSnapshot()
+    return snap?.pos?.history?.length ? snap.pos.history : (snap?.pos?.tickets || [])
+  })
+  const [costBooks,   setCostBooks]   = useState(() => {
+    const snap = peekHqSnapshot()
+    return snap?.books && booksAreSeparate(snap.books) ? snap.books : null
+  })
+  const [hq,          setHq]          = useState(() => peekHqSnapshot())
   const [floorGlance, setFloorGlance] = useState(null)
-  const [loading,     setLoading]     = useState(true)
+  const [loading] = useState(false)
   const [periodo,     setPeriodo]     = useState('30')
   const [chartMonth,  setChartMonth]   = useState(null)
   const [showMore,    setShowMore]    = useState(false)
 
-  useEffect(() => { load() }, [bar])
+  function sinceKey() {
+    const [y, mo] = tokyoMonthKey().split('-').map(Number)
+    const d = new Date(y, mo - 1 - 8, 1)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+  }
+
+  function applySnap(snap) {
+    if (!snap) return
+    setHq(snap)
+    setCostBooks(booksAreSeparate(snap.books) ? snap.books : null)
+    if (snap.pos) {
+      setPosTickets(snap.pos.history?.length ? snap.pos.history : (snap.pos.tickets || []))
+      setPosMonthTotal(snap.pos.till != null ? snap.pos.till : null)
+    }
+  }
 
   async function load() {
-    const since = (() => {
-      const [y, mo] = tokyoMonthKey().split('-').map(Number)
-      const d = new Date(y, mo - 1 - 8, 1)
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-    })()
-
-    const fastP = Promise.all([
-      supabase.from('vendas').select('id,bar_id,data,total,obs').eq('bar_id', bar.id).gte('data', since).order('data', { ascending: false }).limit(400),
-      supabase.from('pedidos').select('id,status,total_estimado,criado_em').eq('bar_id', bar.id).order('criado_em', { ascending: false }).limit(80),
-      supabase.from('faturas').select('*').eq('bar_id', bar.id).order('data_vencimento', { ascending: false }).limit(36),
-      supabase.from('pos_vendas').select('total,data,criado_em').eq('bar_id', bar.id).gte('data', since),
-      supabase.from('bar_pricing').select('produto_id,drinks_por_garrafa,preco_drink').eq('bar_id', bar.id),
-    ])
-    const hqP = fetchHqSnapshot().catch(() => null)
-    const itensP = supabase
-      .from('vendas_itens')
-      .select('qtd,preco_unitario,produtos(nome,categoria,preco_venda,volume_ml), vendas(data,bar_id,obs)')
-      .eq('vendas.bar_id', bar.id)
-      .gte('vendas.data', since)
-      .limit(600)
-    const floorP = Promise.all([
-      supabase.from('bar_spaces').select('id,ativo,ordem,tipo,zona').eq('bar_id', bar.id).eq('ativo', true),
-      supabase.from('bar_visits').select('id,space_id,status,guest_id').eq('bar_id', bar.id).in('status', ['seated', 'reserved']),
-      supabase.from('bar_guests').select('id,nome,aniversario,ativo').eq('bar_id', bar.id).eq('ativo', true),
-    ]).catch(() => null)
-
-    const [vR, pR, fR, posR, bpR] = await fastP
-    setVendas(filterSupplierVendas(vR.data || []))
-    setPedidos(pR.data || [])
-    setFaturas(filterJbmDrinksFaturas(fR.data || []))
-    setBarPricing(bpR.data || [])
-    const mesKey = tokyoMonthKey()
-    if (!posR.error && (posR.data || []).length) {
-      const posSales = posR.data || []
-      setPosTickets(posSales)
-      setPosMonthTotal(posSales.filter(s => (s.data || '').startsWith(mesKey)).reduce((a, s) => a + (+s.total || 0), 0))
-    }
-    setLoading(false)
-
-    const snap = await hqP
-    if (snap) {
-      setHq(snap)
-      setCostBooks(booksAreSeparate(snap.books) ? snap.books : null)
-      if (snap?.pos) {
-        setPosTickets(snap.pos.tickets || [])
-        setPosMonthTotal(snap.pos.till != null ? snap.pos.till : null)
-      }
-    } else {
-      setHq(null)
+    const since = sinceKey()
+    const snapP = fetchHqSnapshot().then(applySnap).catch(async () => {
       try {
         const books = await loadCostBooks(bar.id)
         setCostBooks(booksAreSeparate(books) ? books : null)
       } catch {
         setCostBooks(null)
       }
-    }
-
-    const iR = await itensP
-    setItens((iR.data || []).filter(i => i.vendas && filterSupplierVendas([i.vendas]).length))
-
-    try {
-      const floorRes = await floorP
-      if (!floorRes) {
-        setFloorGlance(null)
-      } else {
-        const [spR, viR, guR] = floorRes
-        if (!spR.error) {
-          const floor = decorateSpaces(spR.data || [], viR.data || [])
-          setFloorGlance({
-            seated: floor.filter(s => s.occupied).length,
-            reserved: floor.filter(s => s.reserved).length,
-            free: floor.filter(s => !s.occupied && !s.reserved).length,
-            birthdays: birthdayThisMonth(guR.data || []).length,
-          })
-        } else {
-          setFloorGlance(null)
-        }
-      }
-    } catch {
-      setFloorGlance(null)
-    }
+    })
+    const listsP = Promise.all([
+      supabase.from('vendas').select('id,bar_id,data,total,obs').eq('bar_id', bar.id).gte('data', since).order('data', { ascending: false }).limit(400),
+      supabase.from('pedidos').select('id,status,total_estimado,criado_em').eq('bar_id', bar.id).order('criado_em', { ascending: false }).limit(80),
+      supabase.from('faturas').select('*').eq('bar_id', bar.id).order('data_vencimento', { ascending: false }).limit(24),
+    ]).then(([vR, pR, fR]) => {
+      setVendas(filterSupplierVendas(vR.data || []))
+      setPedidos(pR.data || [])
+      setFaturas(filterJbmDrinksFaturas(fR.data || []))
+    }).catch(() => {})
+    const floorP = Promise.all([
+      supabase.from('bar_spaces').select('id,ativo,ordem,tipo,zona').eq('bar_id', bar.id).eq('ativo', true),
+      supabase.from('bar_visits').select('id,space_id,status,guest_id').eq('bar_id', bar.id).in('status', ['seated', 'reserved']),
+      supabase.from('bar_guests').select('id,nome,aniversario,ativo').eq('bar_id', bar.id).eq('ativo', true),
+    ]).then(([spR, viR, guR]) => {
+      if (spR.error) return
+      const floor = decorateSpaces(spR.data || [], viR.data || [])
+      setFloorGlance({
+        seated: floor.filter(s => s.occupied).length,
+        reserved: floor.filter(s => s.reserved).length,
+        free: floor.filter(s => !s.occupied && !s.reserved).length,
+        birthdays: birthdayThisMonth(guR.data || []).length,
+      })
+    }).catch(() => {})
+    await Promise.all([snapP, listsP, floorP])
   }
+
+  useEffect(() => {
+    if (!showMore || !bar?.id) return
+    let cancelled = false
+    const since = sinceKey()
+    Promise.all([
+      supabase.from('bar_pricing').select('produto_id,drinks_por_garrafa,preco_drink').eq('bar_id', bar.id),
+      supabase
+        .from('vendas_itens')
+        .select('qtd,preco_unitario,produtos(nome,categoria,preco_venda,volume_ml), vendas(data,bar_id,obs)')
+        .eq('vendas.bar_id', bar.id)
+        .gte('vendas.data', since)
+        .limit(600),
+    ]).then(([bpR, iR]) => {
+      if (cancelled) return
+      setBarPricing(bpR.data || [])
+      setItens((iR.data || []).filter(i => i.vendas && filterSupplierVendas([i.vendas]).length))
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [showMore, bar?.id])
+
+  useEffect(() => { load() }, [bar?.id])
 
   const pricingMap = buildPricingMap(barPricing)
   const mes = tokyoMonthKey()
@@ -2119,6 +2113,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   const NAV_GROUPS = groupedNavForRole(perfil?.role)
   const DOCK = primaryDockForRole(perfil?.role)
   const [tab, setTab] = useState(() => defaultBarTab(perfil?.role))
+  const [opened, setOpened] = useState(() => new Set([defaultBarTab(perfil?.role)]))
   const [menuOpen, setMenuOpen] = useState(false)
   const [door, setDoor] = useState(() => loginDoorFromHash())
   const { t } = useI18n()
@@ -2133,7 +2128,14 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   }, [])
 
   function selectTab(id) {
-    setTab(id === 'equipe' || id === 'casa' ? 'staff' : id === 'outro' ? 'fixo' : id)
+    const next = id === 'equipe' || id === 'casa' ? 'staff' : id === 'outro' ? 'fixo' : id
+    setTab(next)
+    setOpened(prev => {
+      if (prev.has(next)) return prev
+      const copy = new Set(prev)
+      copy.add(next)
+      return copy
+    })
     setMenuOpen(false)
   }
 
@@ -2231,16 +2233,22 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         {tab==='custos'    && isGerente(perfil?.role) && <BarCostsTab bar={bar} onTab={selectTab} />}
         {tab==='metas' && canManageBarTeam(perfil?.role) && <BarGoalsTab bar={bar} />}
         {tab==='eventos' && canManageBarTeam(perfil?.role) && <BarEventsTab bar={bar} />}
-        {['fechamento', 'pagamentos', 'salarios'].includes(tab) && canManageBarTeam(perfil?.role) && (
-          <BarFinance key={tab} bar={bar} section={tab} onTab={selectTab} />
+        {['fechamento', 'pagamentos', 'salarios'].some(id => opened.has(id)) && canManageBarTeam(perfil?.role) && (
+          <div hidden={!['fechamento', 'pagamentos', 'salarios'].includes(tab)}>
+            <BarFinance bar={bar} section={['fechamento', 'pagamentos', 'salarios'].includes(tab) ? tab : 'fechamento'} onTab={selectTab} />
+          </div>
         )}
-        {tab==='inicio' && posAccess !== 'cashier' && (
-          <HomeTab bar={bar} onTab={selectTab} />
+        {opened.has('inicio') && posAccess !== 'cashier' && (
+          <div hidden={tab !== 'inicio'}>
+            <HomeTab bar={bar} onTab={selectTab} />
+          </div>
         )}
         {tab==='pos'       && posAccess !== 'none' && <AtomicPosPanel bar={bar} onOrder={posAccess === 'owner' ? () => selectTab('pedidos') : undefined} access={posAccess} />}
         {tab==='ponto'     && <TimeClockPanel bar={bar} onOpenStaff={() => selectTab('staff')} />}
-        {['staff', 'fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'].includes(tab) && canManageBarTeam(perfil?.role) && (
-          <BarHouseTab key={tab} bar={bar} section={tab} onTab={selectTab} />
+        {['staff', 'fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'].some(id => opened.has(id)) && canManageBarTeam(perfil?.role) && (
+          <div hidden={!['staff', 'fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'].includes(tab)}>
+            <BarHouseTab bar={bar} section={['staff', 'fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'].includes(tab) ? tab : 'staff'} onTab={selectTab} />
+          </div>
         )}
         {tab==='equipe'    && canManageBarTeam(perfil?.role) && <BarTeamTab bar={bar} />}
         {tab==='clientes'  && canManageBarTeam(perfil?.role) && <BarGuestsTab bar={bar} />}

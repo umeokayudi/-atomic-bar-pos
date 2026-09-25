@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fmtYen, Spinner } from './utils'
 import { staffFetch } from '../lib/apiAuth'
+import { invalidateBarTeam, loadBarTeam } from '../lib/barTeam'
 import { fetchHqSnapshot } from '../lib/hqSnapshot'
 import { buildGoalProgress } from '../lib/barGoals'
 import { useI18n } from '../lib/i18n'
@@ -74,7 +75,7 @@ export default function BarGoalsTab({ bar }) {
 
   async function load() {
     const [teamRes, hq] = await Promise.all([
-      staffFetch('/api/bar-staff').then(r => r.json()),
+      loadBarTeam(),
       fetchHqSnapshot().catch(() => null),
     ])
     if (teamRes.error) throw new Error(errText(teamRes.error))
@@ -122,6 +123,7 @@ export default function BarGoalsTab({ bar }) {
   async function save() {
     setBusy(true)
     setErr('')
+    invalidateBarTeam()
     const res = await staffFetch('/api/bar-staff', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

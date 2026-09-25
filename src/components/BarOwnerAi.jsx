@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { callGeminiChat, imageDataUrlToParts } from '../lib/ai'
 import { buildHqChatSystem, localHqAnswer } from '../lib/hqChat'
 import { strategyText, birthdayIdeas, whatWorked } from '../lib/barStrategy'
-import { staffFetch } from '../lib/apiAuth'
+import { loadBarTeam } from '../lib/barTeam'
 import { supabase } from '../lib/supabase'
 import { buildClientChatSystem } from '../lib/clientPortalSnapshot'
 import { useI18n } from '../lib/i18n'
@@ -35,7 +35,7 @@ export default function BarOwnerAi({ bar, hq }) {
     if (!bar?.id) return
     let cancelled = false
     Promise.all([
-      staffFetch('/api/bar-staff').then(r => r.json()).catch(() => ({})),
+      loadBarTeam().catch(() => ({})),
       supabase.from('bar_guests').select('id,nome,aniversario,ativo').eq('bar_id', bar.id).eq('ativo', true),
     ]).then(([team, guestsRes]) => {
       if (cancelled) return
