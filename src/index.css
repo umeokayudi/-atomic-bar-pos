@@ -3942,6 +3942,45 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
   .people-add { grid-template-columns: 1fr; }
 }
 
+.desk { display: flex; flex-direction: column; gap: 12px; margin: 8px 0 16px; }
+.desk-head h2 { margin: 0; font-size: 22px; }
+.desk-head p { margin: 4px 0 0; color: var(--text2); font-size: 14px; }
+.desk-card {
+  background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px;
+}
+.desk-card h3 { margin: 0 0 10px; font-size: 15px; }
+.desk-empty, .desk-note { color: var(--text2); font-size: 13px; margin: 0 0 8px; }
+.desk-alert, .desk-row {
+  width: 100%; display: flex; justify-content: space-between; gap: 12px; align-items: center;
+  text-align: left; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+  padding: 10px 12px; margin-top: 8px; cursor: pointer;
+}
+.desk-row { cursor: default; background: transparent; }
+.desk-alert strong, .desk-row strong { display: block; font-size: 14px; }
+.desk-alert em, .desk-row em { display: block; font-style: normal; color: var(--text2); font-size: 12px; margin-top: 2px; }
+.desk-alert.is-bad { border-color: rgba(255, 69, 58, 0.45); }
+.desk-alert.is-soon { border-color: rgba(255, 159, 10, 0.5); }
+.desk-row-money { text-align: right; }
+.desk-cash { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.desk-cash div { background: var(--bg2); border-radius: 12px; padding: 10px; }
+.desk-cash span, .desk-lines span { display: block; font-size: 11px; color: var(--text2); font-weight: 700; }
+.desk-cash strong { font-size: 18px; }
+.desk-cash .is-up strong { color: var(--green); }
+.desk-cash .is-down strong { color: var(--red); }
+.desk-lines { margin-top: 10px; }
+.desk-lines div { display: flex; justify-content: space-between; padding: 6px 0; border-top: 1px solid var(--border); font-size: 13px; }
+.desk-bars { display: flex; align-items: flex-end; gap: 4px; height: 120px; }
+.desk-bar { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; }
+.desk-bar i { display: block; width: 100%; background: var(--navy); border-radius: 6px 6px 0 0; }
+.desk-bar span { font-size: 10px; color: var(--text2); }
+.desk-more { display: flex; flex-wrap: wrap; gap: 8px; }
+.desk-more button {
+  border: 1px solid var(--border); background: var(--bg2); border-radius: 999px;
+  padding: 8px 12px; font-weight: 700; cursor: pointer;
+}
+@media (max-width: 800px) {
+  .desk-cash { grid-template-columns: 1fr; }
+}
 .house-page { max-width: 920px; }
 .house-page h1 { font-size: 26px; font-weight: 800; margin: 0 0 8px; }
 .house-lead { font-size: 15px; line-height: 1.5; color: var(--text2); max-width: 640px; margin: 0 0 18px; }

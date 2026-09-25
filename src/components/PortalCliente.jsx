@@ -25,7 +25,7 @@ import {
 import ClientAnalyticsTab from './ClientAnalyticsTab'
 import PortalRecibosTab from './PortalRecibosTab'
 import PortalClienteAI from './PortalClienteAI'
-import BarOwnerAi from './BarOwnerAi'
+import BarDesk from './BarDesk'
 import AtomicPosPanel from './AtomicPos'
 import TimeClockPanel from './TimeClock'
 import BarTeamTab from './BarTeamTab'
@@ -272,6 +272,16 @@ function HomeTab({ bar, onTab }) {
         <BarCommandActions onTab={onTab} ids={['pos', 'pedidos', 'espacos', 'clientes', 'ponto', 'custos']} />
       </section>
 
+      <BarDesk
+        bar={bar}
+        hq={hq}
+        tickets={posTickets}
+        invoices={faturas}
+        openOrders={ativos.length}
+        floor={floorGlance}
+        onTab={onTab}
+      />
+
       <section className="home-band">
       <BarOpsGlance
         glance={buildBarOpsGlance({
@@ -349,7 +359,6 @@ function HomeTab({ bar, onTab }) {
       ) : (
         <div className="easy-dash-ok">{t('portal.home.allClear')}</div>
       )}
-      <BarOwnerAi bar={bar} hq={hq} />
       </section>
 
       <button type="button" className="easy-dash-more" onClick={() => setShowMore(v => !v)}>
