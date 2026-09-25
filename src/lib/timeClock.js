@@ -137,6 +137,7 @@ export function payrollFromPunches(punches, staffList = [], { from, to } = {}) {
       nome: s.nome,
       cargo: s.cargo || '',
       salario_hora: +s.salario_hora || 0,
+      salario_mes: +s.salario_mes || 0,
       hours: 0,
       lateHours: 0,
       pay: 0,

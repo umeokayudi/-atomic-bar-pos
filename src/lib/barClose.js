@@ -313,7 +313,22 @@ export function salaryBoard({ payroll = [], tickets = [], monthKey }) {
     else if (cover >= 1) hint = 'tight'
     else if (sales === 0 && hours > 0) hint = 'floor'
     else hint = 'costly'
-    return { id: p.staff_id, nome: p.nome, hours, pay, perHour, sales, comm, cover, hint }
+    return {
+      id: p.staff_id,
+      nome: p.nome,
+      cargo: p.cargo || '',
+      hours,
+      lateHours: +p.lateHours || 0,
+      pay,
+      perHour,
+      sales,
+      comm,
+      cover,
+      hint,
+      open: !!p.open,
+      salario_mes: +p.salario_mes || 0,
+      shifts: p.shifts || [],
+    }
   }).sort((a, b) => b.pay - a.pay)
   const costly = rows.filter(r => r.hint === 'costly' || r.hint === 'floor')
   return {

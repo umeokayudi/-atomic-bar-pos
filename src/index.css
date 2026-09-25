@@ -4037,6 +4037,20 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
   font-weight: 800;
 }
 .pay-late b { font-size: 18px; }
+.timecards { display: flex; flex-direction: column; gap: 12px; }
+.timecard { background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; }
+.timecard.is-open { border-color: #34c759; }
+.timecard header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.timecard header strong { display: block; font-size: 16px; }
+.timecard header em { display: block; font-style: normal; color: var(--text2); font-size: 12px; }
+.timecard-live { background: #34c759; color: #fff; border-radius: 99px; padding: 3px 8px; font-size: 11px; font-weight: 800; }
+.timecard-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0; }
+.timecard-stats div { background: var(--bg2); border-radius: 10px; padding: 8px; }
+.timecard-stats span { display: block; font-size: 10px; color: var(--text2); font-weight: 700; text-transform: uppercase; }
+.timecard-stats b { font-size: 15px; }
+.timecard-shifts { width: 100%; border-collapse: collapse; font-size: 12px; }
+.timecard-shifts th, .timecard-shifts td { text-align: left; padding: 6px 4px; border-top: 1px solid var(--border); }
+@media (max-width: 800px) { .timecard-stats { grid-template-columns: 1fr 1fr; } }
 .desk-alert.is-bad {
   background: #fff1f0; border-color: #ff3b30; color: #c0392b;
 }

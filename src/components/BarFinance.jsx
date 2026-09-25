@@ -16,6 +16,8 @@ import {
 } from '../lib/barClose'
 import { tokyoNightKey } from '../lib/tokyo'
 import { clockLabel, closeSettings } from '../lib/autoClose'
+import { monthRange, payrollFromPunches } from '../lib/timeClock'
+import StaffPayCards from './StaffPayCards'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 
@@ -150,6 +152,7 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
       tickets: hq?.pos?.history?.length ? hq.pos.history : (hq?.pos?.tickets || []),
       invoices: hq?.jbm?.openInvoices || [],
       prevHq: prev ? { books: prev.books, payroll: prev.payroll, rent: prev.rent, pos: prev.pos } : null,
+      punched: teamRes.punched || [],
     }
   }
 
@@ -157,11 +160,14 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
     const cachedTeam = peekBarTeam()
     const cachedHq = peekHqSnapshot()
     if (cachedTeam && cachedHq) setPack(packFrom(cachedTeam, cachedHq))
-    const [teamRes, hq] = await Promise.all([
+    const range = monthRange()
+    const [teamRes, hq, clockRes] = await Promise.all([
       loadBarTeam(),
       fetchHqSnapshot().catch(() => cachedHq),
+      staffFetch(`/api/time-clock?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`).then(r => r.json()).catch(() => ({ punches: [] })),
     ])
     if (teamRes.error) throw new Error(errText(teamRes.error))
+    teamRes.punched = payrollFromPunches(clockRes.punches || [], teamRes.staff || [], range)
     setPack(packFrom(teamRes, hq || cachedHq))
   }
 
@@ -237,7 +243,7 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
     today: night,
   })
   const board = salaryBoard({
-    payroll: pack.hq?.payroll || [],
+    payroll: pack.punched?.length ? pack.punched : (pack.hq?.payroll || []),
     tickets: pack.tickets,
     monthKey: night.slice(0, 7),
   })
@@ -386,20 +392,7 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
             </div>
           </div>
           <section className="desk-card">
-            {!board.rows.length && <div className="desk-empty">{t('portal.salary.empty')}</div>}
-            {board.rows.map(row => (
-              <div key={row.id || row.nome} className="desk-row">
-                <div>
-                  <strong>{row.nome}</strong>
-                  <em>
-                    {row.hours}h · {money(row.perHour)}/h · {t('portal.salary.sales')} {money(row.sales)}
-                    {row.comm ? ` · ${t('portal.desk.commission')} ${money(row.comm)}` : ''}
-                  </em>
-                  <em className={`salary-hint is-${row.hint}`}>{t(`portal.salary.hint.${row.hint}`, { cover: row.cover ? row.cover.toFixed(1) : '0' })}</em>
-                </div>
-                <b>{money(row.pay)}</b>
-              </div>
-            ))}
+            <StaffPayCards rows={board.rows} showPay />
             <div className="desk-more" style={{ marginTop: 12 }}>
               <button type="button" onClick={() => onTab?.('staff')}>{t('portal.salary.openStaff')}</button>
               <button type="button" onClick={() => onTab?.('ponto')}>{t('nav.portalClock')}</button>

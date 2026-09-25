@@ -4,6 +4,8 @@ import { fmtYen, Spinner } from './utils'
 import { staffFetch } from '../lib/apiAuth'
 import { payrollFromPunches, monthRange, hoursBetween } from '../lib/timeClock'
 import { canManageBarTeam } from '../lib/access'
+import { loadBarTeam } from '../lib/barTeam'
+import StaffPayCards from './StaffPayCards'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 
@@ -24,6 +26,7 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
   const { perfil } = useAuth()
   const { t } = useI18n()
   const [punches, setPunches] = useState([])
+  const [staff, setStaff] = useState([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -33,8 +36,12 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
   async function load() {
     setLoading(true)
     try {
-      const j = await staffFetch(`/api/time-clock?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`).then(r => r.json())
+      const [j, team] = await Promise.all([
+        staffFetch(`/api/time-clock?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`).then(r => r.json()),
+        manager ? loadBarTeam().catch(() => null) : Promise.resolve(null),
+      ])
       setPunches(j.punches || [])
+      setStaff(team?.staff || [])
     } catch {
       setPunches([])
     } finally {
@@ -86,6 +93,12 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
           >
             {busy ? t('common.wait') : (meRow.open ? t('clock.bigOut') : t('clock.bigIn'))}
           </button>
+        </div>
+      )}
+      {manager && (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 8 }}>{t('clock.teamTitle')}</div>
+          <StaffPayCards rows={payrollFromPunches(punches, staff, range)} />
         </div>
       )}
       {manager && onOpenStaff && (
