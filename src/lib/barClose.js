@@ -292,7 +292,8 @@ export function paymentAgenda({
       inflow: true,
     })
   }
-  return items.sort((a, b) => a.days - b.days)
+  const rank = { salario: 0, aluguel: 1, bebidas: 2, imposto: 3, energia: 4, drink: 5, contador: 6, fixo: 7, variavel: 8, cartao: 9, cartao_cai: 20 }
+  return items.sort((a, b) => a.days - b.days || (rank[a.kind] ?? 12) - (rank[b.kind] ?? 12))
 }
 
 export function salaryBoard({ payroll = [], tickets = [], monthKey }) {

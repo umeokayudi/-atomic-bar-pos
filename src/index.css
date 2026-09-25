@@ -3991,6 +3991,15 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
 .desk-head h2 { margin: 0; font-size: 22px; }
 .desk-head p { margin: 4px 0 0; color: var(--text2); font-size: 14px; }
 .desk-headline { font-size: 20px; font-weight: 800; color: var(--navy); margin-top: 8px; }
+.desk-goal { display: block; }
+.desk-goal .goal-modes { margin-bottom: 10px; }
+.desk-goal .goal-modes button { background: transparent; color: #fff; border-color: rgba(255,255,255,0.25); }
+.desk-goal .goal-modes button.is-on { background: #c19c56; color: #1a1408; border-color: #c19c56; }
+.desk-goal-meter { margin-top: 10px; grid-template-columns: 1fr; }
+.desk-goal-edit { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+.desk-goal-edit input { width: 140px; }
+.desk-goal .house-text { color: #c19c56; margin-top: 8px; }
+.desk-pay-label { margin: 12px 0 0; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text2); }
 .salary-hint.is-pays { color: var(--green); }
 .salary-hint.is-tight { color: #9a7430; }
 .salary-hint.is-costly, .salary-hint.is-floor { color: var(--red); }

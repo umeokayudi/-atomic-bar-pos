@@ -101,6 +101,7 @@ export default function BarGoalsTab({ bar }) {
       semana: goals.semana || '',
       turno: goals.turno || '',
       lucro: goals.lucro || '',
+      mes: goals.mes || '',
       abre: goals.abre ?? 20,
       fecha: goals.fecha ?? 5,
       corta: goals.corta ?? 0,
@@ -127,7 +128,7 @@ export default function BarGoalsTab({ bar }) {
     const res = await staffFetch('/api/bar-staff', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'saveGoals', ...form }),
+        body: JSON.stringify({ action: 'saveGoals', ...form, mes: form.mes === '' ? 0 : form.mes }),
     })
     const json = await res.json().catch(() => ({}))
     if (!res.ok) setErr(errText(json.error))
@@ -227,6 +228,7 @@ export default function BarGoalsTab({ bar }) {
           <label>{t('portal.goals.weekGoal')}<input type="number" min="0" value={form.semana} onChange={e => setForm({ ...form, semana: e.target.value })} /></label>
           <label>{t('portal.goals.shiftGoal')}<input type="number" min="0" value={form.turno} onChange={e => setForm({ ...form, turno: e.target.value })} /></label>
           <label className="house-span">{t('portal.goals.profitGoal')}<input type="number" min="0" value={form.lucro} onChange={e => setForm({ ...form, lucro: e.target.value })} /></label>
+          <label>{t('portal.goals.monthGoal')}<input type="number" min="0" value={form.mes} onChange={e => setForm({ ...form, mes: e.target.value })} /></label>
           <label>{t('portal.goals.open')}<input type="number" min="0" max="23" value={form.abre} onChange={e => setForm({ ...form, abre: e.target.value })} /></label>
           <label>{t('portal.goals.split')}<input type="number" min="0" max="23" value={form.corta} onChange={e => setForm({ ...form, corta: e.target.value })} /></label>
           <label>{t('portal.goals.close')}<input type="number" min="0" max="23" value={form.fecha} onChange={e => setForm({ ...form, fecha: e.target.value })} /></label>

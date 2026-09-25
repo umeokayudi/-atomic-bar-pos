@@ -166,6 +166,7 @@ export function buildGoalProgress({
     fecha,
     corta,
     noite: { sales: sumSales(tonight), goal: +g.noite || 0, pct: goalPct(sumSales(tonight), g.noite) },
+    mes: { sales: salesMonth, goal: +g.mes || 0, pct: goalPct(salesMonth, g.mes) },
     hora: {
       hour: nowHour,
       sales: sumSales(hourRows),

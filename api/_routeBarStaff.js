@@ -242,7 +242,15 @@ export default async function handler(req, res) {
         noite: Math.round(+p.noite || 0),
         semana: Math.round(+p.semana || 0),
       })).filter(p => p.id && p.nome) : []
+      const existing = await runLiveOp(db, {
+        table: 'bar_goals',
+        mode: 'select',
+        columns: '*',
+        filters: [{ op: 'eq', k: 'id', v: barId }],
+        wantSingle: 'maybe',
+      })
       const row = {
+        ...(existing.data || {}),
         id: barId,
         bar_id: barId,
         noite: Math.round(+body.noite || 0),
@@ -255,17 +263,11 @@ export default async function handler(req, res) {
         corta: hour('corta', 0),
         pessoas,
       }
+      if (body.mes != null) row.mes = Math.max(0, Math.round(+body.mes || 0))
       if (body.fecha_semana != null) row.fecha_semana = ((Math.round(+body.fecha_semana) % 7) + 7) % 7
       if (body.dia_salario != null) row.dia_salario = Math.max(1, Math.min(28, Math.round(+body.dia_salario || 25)))
       if (body.dia_drink != null) row.dia_drink = Math.max(1, Math.min(28, Math.round(+body.dia_drink || 10)))
       if (body.dia_mes != null) row.dia_mes = Math.max(1, Math.min(28, Math.round(+body.dia_mes || 1)))
-      const existing = await runLiveOp(db, {
-        table: 'bar_goals',
-        mode: 'select',
-        columns: '*',
-        filters: [{ op: 'eq', k: 'id', v: barId }],
-        wantSingle: 'maybe',
-      })
       const saved = await runLiveOp(db, {
         table: 'bar_goals',
         mode: existing.data ? 'update' : 'insert',
