@@ -4157,6 +4157,8 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
 .bill-match.is-off { border-color: rgba(255,59,48,.45); background: #fff6f5; }
 .bill-match.is-match { border-color: rgba(52,199,89,.45); }
 .bill-match-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 4px 0; }
+.bill-match-row.is-paid b { color: var(--green); }
+.bill-match-row.is-open b { color: var(--red); }
 .bill-match-verdict { margin: 8px 0 0; font-weight: 800; font-size: 14px; }
 .desk-pay-label { margin: 12px 0 0; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text2); }
 .salary-hint.is-pays { color: var(--green); }

@@ -1869,7 +1869,11 @@ function FaturasTab({ bar }) {
               <div key={f.id} className="ar-overdue-row">
                 <div>
                   <strong>{t('portal.invoices.callNow')}</strong>
+                  <span> · {t('portal.invoices.periodRange', { from: fmtDate(faturaEmissao(f)), to: fmtDate(faturaPeriodoFim(f)) })}</span>
                   <span> · {t('portal.invoices.dueOn', { date: fmtDate(faturaVencimento(f)) })} · {f.daysOverdue}d</span>
+                  {faturaPago(f) > 0 && (
+                    <span> · {t('portal.invoices.paidPct', { amount: fmtYen(faturaPago(f)), pct: faturaValor(f) > 0 ? Math.round(faturaPago(f) / faturaValor(f) * 100) : 0 })}</span>
+                  )}
                 </div>
                 <b>{fmtYen(f.remain)}</b>
               </div>
@@ -1885,7 +1889,7 @@ function FaturasTab({ bar }) {
       <div className="portal-grid-4" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:20 }}>
         {[
           { label:t('portal.invoices.pending'), value:fmtYen(totalPending), color:totalPending>0?"var(--red)":"var(--green)", icon:"⏳" },
-          { label:t('portal.invoices.totalPaid'), value:fmtYen(filtered.filter(f=>f.status==="pago").reduce((a,f)=>a+faturaValor(f),0)), color:"var(--green)", icon:"✅" },
+          { label:t('portal.invoices.totalPaid'), value:fmtYen(filtered.reduce((a,f)=>a+faturaPago(f),0)), color:"var(--green)", icon:"✅" },
           { label:t('portal.invoices.overdue'), value:overdue.length, color:overdue.length>0?"var(--red)":"var(--green)", icon:"🚨" },
           { label:t('portal.invoices.avgMonthly'), value:fmtYen(avgMonthly), color:"var(--navy)", icon:"📊" },
         ].map(k=>(

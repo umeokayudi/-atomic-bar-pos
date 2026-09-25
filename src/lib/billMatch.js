@@ -1,6 +1,6 @@
 /** Compare JBM orders, arrived values, and the invoice for the same dates. */
 
-import { faturaValor } from './barPortal.js'
+import { faturaPago, faturaValor } from './barPortal.js'
 import { lastDayOfMonth } from './tokyo.js'
 
 const TOL = 1
@@ -40,6 +40,8 @@ export function matchBill({ orders = [], notes = [], invoice = null, start = '',
   const orderTotal = live.reduce((sum, p) => sum + orderValue(p), 0)
   const noteTotal = arrived.reduce((sum, n) => sum + Math.round(+n.total || 0), 0)
   const invoiceTotal = invoice ? Math.round(faturaValor(invoice)) : null
+  const paid = invoice ? Math.round(faturaPago(invoice)) : 0
+  const open = invoiceTotal == null ? null : Math.max(0, invoiceTotal - paid)
   const pairs = []
   if (orderTotal > 0 && noteTotal > 0) pairs.push(['orders', 'notes', orderTotal, noteTotal])
   if (orderTotal > 0 && invoiceTotal != null) pairs.push(['orders', 'invoice', orderTotal, invoiceTotal])
@@ -58,6 +60,8 @@ export function matchBill({ orders = [], notes = [], invoice = null, start = '',
     orders: orderTotal,
     notes: noteTotal,
     invoice: invoiceTotal,
+    paid,
+    open,
     orderCount: live.length,
     noteCount: arrived.length,
     delta,

@@ -20,10 +20,19 @@ export default function BillMatch({ orders = [], notes = [], invoices = [], mont
           <div className="bill-match-row"><span>{t('portal.bill.orders')}</span><b>{money(row.orders)}</b></div>
           <div className="bill-match-row"><span>{t('portal.bill.notes')}</span><b>{money(row.notes)}</b></div>
           <div className="bill-match-row"><span>{t('portal.bill.invoice')}</span><b>{row.invoice == null ? t('portal.bill.noInvoice') : money(row.invoice)}</b></div>
+          {row.paid > 0 && (
+            <>
+              <div className="bill-match-row is-paid"><span>{t('portal.bill.paid')}</span><b>{money(row.paid)}</b></div>
+              <div className="bill-match-row is-open"><span>{t('portal.bill.open')}</span><b>{money(row.open)}</b></div>
+            </>
+          )}
           <p className="bill-match-verdict">
-            {row.status === 'match' && (row.invoice == null ? t('portal.bill.matchPending') : t('portal.bill.match'))}
+            {row.status === 'match' && row.invoice == null && t('portal.bill.matchPending')}
+            {row.status === 'match' && row.invoice != null && row.paid > 0 && row.open > 0 && t('portal.bill.partPaid', { paid: money(row.paid), open: money(row.open) })}
+            {row.status === 'match' && row.invoice != null && !(row.paid > 0 && row.open > 0) && t('portal.bill.match')}
             {row.status === 'waiting' && t('portal.bill.waiting')}
             {row.status === 'off' && t('portal.bill.off', { amount: money(Math.abs(row.delta)) })}
+            {row.status === 'off' && row.paid > 0 && ` ${t('portal.bill.paidLine', { paid: money(row.paid), open: money(row.open) })}`}
           </p>
         </section>
       ))}
