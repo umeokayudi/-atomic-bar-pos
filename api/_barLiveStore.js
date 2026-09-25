@@ -29,6 +29,7 @@ export const LIVE_TABLES = [
   'bar_registry',
   'bar_goals',
   'bar_events',
+  'bar_day_sheet',
 ]
 
 const locks = new Map()
@@ -380,6 +381,7 @@ function tokyoFloorPreset() {
   })
   spaces.push({ nome: '個室 VIP 1', tipo: 'vip_room', capacidade: 6, zona: 'vip', ordem: 40 })
   spaces.push({ nome: '個室 VIP 2', tipo: 'vip_room', capacidade: 8, zona: 'vip', ordem: 41 })
+  spaces.push({ nome: '個室 VIP 3', tipo: 'vip_room', capacidade: 6, zona: 'vip', ordem: 42 })
   return spaces
 }
 

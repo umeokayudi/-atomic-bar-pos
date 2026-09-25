@@ -18,6 +18,7 @@ import { tokyoNightKey } from '../lib/tokyo'
 import { clockLabel, closeSettings } from '../lib/autoClose'
 import { monthRange, payrollFromPunches } from '../lib/timeClock'
 import StaffPayCards from './StaffPayCards'
+import DayStaffBoard from './DayStaffBoard'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 
@@ -274,6 +275,7 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
 
       {section === 'fechamento' && (
         <>
+          <DayStaffBoard />
           <section className="desk-card">
             <h3>{t('portal.close.weekday')}</h3>
             <div className="goal-modes">

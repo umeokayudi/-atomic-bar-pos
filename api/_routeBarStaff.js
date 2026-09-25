@@ -166,6 +166,14 @@ export default async function handler(req, res) {
           columns: '*',
           filters: [{ op: 'eq', k: 'bar_id', v: barId }],
         })).data || [],
+        sheets: (await runLiveOp(db, {
+          table: 'bar_day_sheet',
+          mode: 'select',
+          columns: '*',
+          filters: [{ op: 'eq', k: 'bar_id', v: barId }],
+          orderBy: { k: 'night_key', ascending: false },
+          limitN: 90,
+        })).data || [],
         bar: {
           id: bar?.id,
           nome: bar?.nome,
@@ -194,6 +202,57 @@ export default async function handler(req, res) {
       })
       if (!saved.ok) return res.status(400).json({ error: saved.error })
       return res.status(200).json({ ok: true })
+    }
+
+    if (req.method === 'POST' && body.action === 'saveDaySheet') {
+      const night = String(body.night_key || '').slice(0, 10)
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(night)) return res.status(400).json({ error: 'night required' })
+      const marks = (list) => {
+        if (!Array.isArray(list)) return []
+        const seen = new Set()
+        const out = []
+        for (const p of list) {
+          const id = String(p?.id || '').trim()
+          const nome = String(p?.nome || '').trim()
+          if (!id || !nome || seen.has(id)) continue
+          seen.add(id)
+          out.push({ id, nome })
+          if (out.length >= 80) break
+        }
+        return out
+      }
+      const absent = marks(body.absent)
+      const absentIds = new Set(absent.map(p => p.id))
+      const late = marks(body.late).filter(p => !absentIds.has(p.id))
+      const dj = body.dj === true || body.dj === 'true'
+      const id = `${barId}:${night}`
+      const row = {
+        id,
+        bar_id: barId,
+        night_key: night,
+        late,
+        absent,
+        dj,
+        dj_nome: dj ? String(body.dj_nome || '').trim().slice(0, 80) : '',
+        dj_custo: dj ? Math.max(0, Math.round(+body.dj_custo || 0)) : 0,
+      }
+      const existing = await runLiveOp(db, {
+        table: 'bar_day_sheet',
+        mode: 'select',
+        columns: '*',
+        filters: [{ op: 'eq', k: 'id', v: id }],
+        wantSingle: 'maybe',
+      })
+      const saved = await runLiveOp(db, {
+        table: 'bar_day_sheet',
+        mode: existing.data ? 'update' : 'insert',
+        filters: [{ op: 'eq', k: 'id', v: id }],
+        insertRows: [row],
+        updatePatch: row,
+        wantSingle: true,
+      })
+      if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not save' })
+      return res.status(200).json({ ok: true, sheet: row })
     }
 
     if (req.method === 'POST' && body.action === 'saveEvent') {

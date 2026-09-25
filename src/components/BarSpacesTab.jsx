@@ -49,6 +49,7 @@ export default function BarSpacesTab({ bar }) {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ nome: '', tipo: 'counter', capacidade: 1, zona: 'counter', notas: '' })
   const [seat, setSeat] = useState(null)
+  const [edit, setEdit] = useState(null)
   const [guestId, setGuestId] = useState('')
   const [party, setParty] = useState(1)
   const [hostNome, setHostNome] = useState('')
@@ -126,6 +127,66 @@ export default function BarSpacesTab({ bar }) {
     })
     setForm({ nome: '', tipo: 'counter', capacidade: 1, zona: 'counter', notas: '' })
     setSaving(false)
+    load()
+  }
+
+  function zonaOf(tipo) {
+    if (tipo === 'vip_room') return 'vip'
+    if (tipo === 'counter' || tipo === 'table') return tipo
+    return tipo
+  }
+
+  async function saveEdit() {
+    if (!edit?.nome.trim()) return
+    setSaving(true)
+    const { error } = await supabase.from('bar_spaces').update({
+      nome: edit.nome.trim(),
+      capacidade: Math.max(1, Math.round(+edit.capacidade || 1)),
+      tipo: edit.tipo,
+      zona: zonaOf(edit.tipo),
+    }).eq('id', edit.id)
+    setSaving(false)
+    if (error) {
+      setLoadErr(errText(error))
+      return
+    }
+    setEdit(null)
+    load()
+  }
+
+  async function addVipRoom() {
+    const used = new Set(spaces.map(s => s.nome))
+    let nome = ''
+    let ordem = 40
+    let capacidade = 6
+    for (let i = 1; i <= 3; i++) {
+      const candidate = `個室 VIP ${i}`
+      if (!used.has(candidate)) {
+        nome = candidate
+        ordem = 39 + i
+        capacidade = i === 2 ? 8 : 6
+        break
+      }
+    }
+    if (!nome) {
+      const n = vipRooms.length + 1
+      nome = `個室 VIP ${n}`
+      ordem = 39 + n
+    }
+    setSaving(true)
+    const { error } = await supabase.from('bar_spaces').insert({
+      bar_id: bar.id,
+      nome,
+      tipo: 'vip_room',
+      capacidade,
+      zona: 'vip',
+      ordem,
+    })
+    setSaving(false)
+    if (error) {
+      setLoadErr(errText(error))
+      return
+    }
     load()
   }
 
@@ -237,6 +298,10 @@ export default function BarSpacesTab({ bar }) {
         <h2>{t('spaces.vip.title')}</h2>
         <p>{t('spaces.vip.lead', { hours: vip.totals.openLabel })}</p>
         <RangeCalendar from={vipFrom} to={vipTo} onChange={(a, b) => { setVipFrom(a); setVipTo(b) }} />
+        <p className="desk-note">{t('spaces.vipHave', { count: vipRooms.length })}</p>
+        <button type="button" className="btn-primary" disabled={saving} onClick={addVipRoom} style={{ marginBottom: 12 }}>
+          {t('spaces.addVip')}
+        </button>
         {!vipRooms.length && <div className="house-empty">{t('spaces.vip.empty')}</div>}
         {!!vipRooms.length && (
           <div className="vip-room-grid">
@@ -285,7 +350,17 @@ export default function BarSpacesTab({ bar }) {
                 borderColor: s.occupied ? 'var(--navy)' : s.reserved ? 'var(--gold, #b8860b)' : 'var(--border)',
                 background: s.occupied ? 'rgba(26,78,138,0.06)' : 'var(--bg2)',
               }}>
-                <div style={{ fontWeight: 800, fontSize: 14 }}>{s.nome}</div>
+                <div className="floor-card-head">
+                  <div style={{ fontWeight: 800, fontSize: 14 }}>{s.nome}</div>
+                  <button type="button" className="floor-edit-btn" onClick={() => setEdit({
+                    id: s.id,
+                    nome: s.nome || '',
+                    capacidade: s.capacidade || 1,
+                    tipo: s.tipo || 'counter',
+                  })}>
+                    {t('spaces.editBtn')}
+                  </button>
+                </div>
                 <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 8 }}>
                   {typeLabel(t, s.tipo)} · {t('spaces.seats', { count: s.capacidade })}
                 </div>
@@ -334,6 +409,25 @@ export default function BarSpacesTab({ bar }) {
         </div>
         <button type="button" className="btn-primary" disabled={saving} onClick={addSpace} style={{ width: '100%', padding: 10 }}>{t('spaces.saveSpace')}</button>
       </div>
+
+      {edit && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setEdit(null)}>
+          <div className="card" style={{ width: '100%', maxWidth: 380 }} onClick={e => e.stopPropagation()}>
+            <SectionTitle>{t('spaces.editTitle', { name: edit.nome })}</SectionTitle>
+            <label className="form-label">{t('house.name')}</label>
+            <input value={edit.nome} onChange={e => setEdit({ ...edit, nome: e.target.value })} style={{ width: '100%', marginBottom: 10 }} />
+            <label className="form-label">{t('spaces.seats', { count: edit.capacidade || 1 })}</label>
+            <input type="number" min="1" value={edit.capacidade} onChange={e => setEdit({ ...edit, capacidade: e.target.value })} style={{ width: '100%', marginBottom: 10 }} />
+            <select value={edit.tipo} onChange={e => setEdit({ ...edit, tipo: e.target.value })} style={{ width: '100%', marginBottom: 12 }}>
+              {SPACE_TYPES.map(x => <option key={x.id} value={x.id}>{t(x.labelKey)}</option>)}
+            </select>
+            <button type="button" className="btn-primary" disabled={saving} onClick={saveEdit} style={{ width: '100%', padding: 12, marginBottom: 8 }}>
+              {t('spaces.editSave')}
+            </button>
+            <button type="button" onClick={() => setEdit(null)} style={{ width: '100%', padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: 'transparent' }}>{t('common.cancel')}</button>
+          </div>
+        </div>
+      )}
 
       {seat && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setSeat(null)}>

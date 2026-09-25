@@ -35,6 +35,7 @@ export function tokyoFloorPreset() {
   })
   spaces.push({ nome: '個室 VIP 1', tipo: 'vip_room', capacidade: 6, zona: 'vip', ordem: 40 })
   spaces.push({ nome: '個室 VIP 2', tipo: 'vip_room', capacidade: 8, zona: 'vip', ordem: 41 })
+  spaces.push({ nome: '個室 VIP 3', tipo: 'vip_room', capacidade: 6, zona: 'vip', ordem: 42 })
   return spaces
 }
 
