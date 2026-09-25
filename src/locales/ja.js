@@ -1808,6 +1808,8 @@ export default {
     markRead: '既読にする',
     overdueAlert: '⚠️ 延滞の支払期日',
     invoiceKind: '請求',
+    mismatchTitle: '請求が一致しません',
+    mismatchBody: '{from} ～ {to}。注文と請求の差額は {amount}。',
     purchaseKind: '仕入',
     expiredOn: '期限 {date}',
     badgeCount: '通知 {count}件',

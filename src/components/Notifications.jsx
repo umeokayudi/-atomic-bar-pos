@@ -5,6 +5,8 @@ import { useAuth } from './Auth'
 import { fmtYen, fmtDate } from './utils'
 import { splitPendingCompras, splitPendingFaturas } from '../lib/compraPagamentos'
 import { filterJbmDrinksFaturas, faturaRemaining } from '../lib/barPortal'
+import { billChecks } from '../lib/billMatch'
+import { filterSupplierVendas } from './utils'
 import { useI18n } from '../lib/i18n'
 import { asReactText } from '../lib/errText'
 import { panelBoxStyle, placeNotifPanel } from '../lib/notifPanel'
@@ -119,20 +121,33 @@ export function useBarOverdueAlerts(barId) {
   const load = useCallback(async () => {
     if (!user || !barId) return
     const today = new Date().toISOString().slice(0, 10)
-    const { data, error } = await supabase
-      .from('faturas')
-      .select('*')
-      .eq('bar_id', barId)
-      .order('data_vencimento')
-    if (error) {
-      setAlerts({ faturas: [], compras: [], faturasTotal: 0, comprasTotal: 0 })
+    const [fR, pR, vR] = await Promise.all([
+      supabase.from('faturas').select('*').eq('bar_id', barId).order('data_vencimento'),
+      supabase.from('pedidos').select('id,status,total_estimado,data_pedido,criado_em,pedidos_itens(qtd,preco_unitario)').eq('bar_id', barId).order('criado_em', { ascending: false }).limit(200),
+      supabase.from('vendas').select('total,data,data_venda,obs').eq('bar_id', barId).order('data', { ascending: false }).limit(200),
+    ])
+    if (fR.error) {
+      setAlerts({ faturas: [], compras: [], faturasTotal: 0, comprasTotal: 0, mismatches: [] })
       return
     }
-    const overdue = filterJbmDrinksFaturas(data || []).filter(f => {
+    const drinks = filterJbmDrinksFaturas(fR.data || [])
+    const overdue = drinks.filter(f => {
       if (f.status === 'pago') return false
       const venc = f.data_vencimento || f.periodo_fim
       return venc && venc < today && faturaRemaining(f) > 0
     })
+    const mismatches = billChecks({
+      orders: pR.data || [],
+      notes: filterSupplierVendas(vR.data || []),
+      invoices: drinks,
+    }).rows.filter(r => r.status === 'off').map(r => ({
+      id: r.invoiceId || `${r.start}-${r.end}`,
+      start: r.start,
+      end: r.end,
+      delta: Math.abs(r.delta || 0),
+      invoice: r.invoice,
+      tab: 'faturas',
+    }))
     setAlerts({
       faturas: overdue.map(f => ({
         id: f.id,
@@ -144,6 +159,7 @@ export function useBarOverdueAlerts(barId) {
       compras: [],
       faturasTotal: overdue.reduce((a, f) => a + faturaRemaining(f), 0),
       comprasTotal: 0,
+      mismatches,
     })
   }, [user, barId])
 
@@ -206,8 +222,9 @@ export function NotificationBell({
   const panelRef = useRef(null)
   const [panelStyle, setPanelStyle] = useState(null)
 
+  const mismatches = overdueAlerts?.mismatches || []
   const overdueCount = (overdueAlerts?.faturas?.length || 0) + (overdueAlerts?.compras?.length || 0)
-  const badgeCount = unread + overdueCount
+  const badgeCount = unread + overdueCount + mismatches.length
 
   const place = useCallback(() => {
     if (!open || !btnRef.current) {
@@ -226,7 +243,7 @@ export function NotificationBell({
 
   useLayoutEffect(() => {
     place()
-  }, [place, list.length, overdueCount])
+  }, [place, list.length, overdueCount, mismatches.length])
 
   useEffect(() => {
     if (!open) return
@@ -280,6 +297,23 @@ export function NotificationBell({
         </div>
 
         <div className="notif-panel-body">
+          {mismatches.length > 0 && (
+            <div className="notif-overdue-block">
+              <div className="notif-overdue-title">🔔 {t('notifications.mismatchTitle')}</div>
+              {mismatches.map(m => (
+                <button
+                  key={`m-${m.id}`}
+                  type="button"
+                  className="notif-overdue-row"
+                  onClick={() => go(m.tab || 'faturas')}
+                >
+                  <span className="notif-overdue-kind">🔔 {t('notifications.invoiceKind')}</span>
+                  <span className="notif-overdue-label">{t('notifications.mismatchBody', { from: m.start || '—', to: m.end || '—', amount: fmtYen(m.delta) })}</span>
+                  <span className="notif-overdue-amount">{fmtYen(m.invoice)}</span>
+                </button>
+              ))}
+            </div>
+          )}
           {overdueCount > 0 && (
             <div className="notif-overdue-block">
               <div className="notif-overdue-title">{t('notifications.overdueAlert')}</div>
@@ -312,7 +346,7 @@ export function NotificationBell({
             </div>
           )}
 
-          {list.length === 0 && overdueCount === 0 ? (
+          {list.length === 0 && overdueCount === 0 && mismatches.length === 0 ? (
             <div className="notif-empty">{t('notifications.none')}</div>
           ) : list.map(n => {
             const tipo = TIPO_ICON[n.tipo] || { icon: '🔔', color: 'var(--text2)', bg: 'var(--bg3)' }

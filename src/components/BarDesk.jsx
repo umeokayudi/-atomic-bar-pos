@@ -305,12 +305,16 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
       {ask && <BarOwnerAi bar={bar} hq={hq} />}
 
       {hq?.jbm?.billCheck?.status === 'off' && (
-        <button type="button" className="desk-alert is-bad" onClick={() => onTab?.('faturas')}>
+        <button type="button" className="desk-alert is-bad desk-alert-bell" onClick={() => onTab?.('faturas')}>
+          <span className="desk-bell" aria-hidden>🔔</span>
           <span>
-            <strong>{t('portal.bill.title')}</strong>
-            <em>{t('portal.bill.off', { amount: money(Math.abs(hq.jbm.billCheck.delta || 0)) })}</em>
+            <strong>{t('notifications.mismatchTitle')}</strong>
+            <em>{t('notifications.mismatchBody', {
+              from: hq.jbm.billCheck.start || '—',
+              to: hq.jbm.billCheck.end || '—',
+              amount: money(Math.abs(hq.jbm.billCheck.delta || 0)),
+            })}</em>
           </span>
-          <b>{money(hq.jbm.billCheck.invoice ?? hq.jbm.billCheck.notes)}</b>
         </button>
       )}
 

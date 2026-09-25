@@ -14,7 +14,7 @@ function kindColor(kind, dir, amount) {
 }
 
 export default function DashboardCalendar({ events = [], onNav, month, onMonthChange, onPay, title, sub }) {
-  const { t } = useI18n()
+  const { t, monthLabel } = useI18n()
   const [filter, setFilter] = useState('all')
   const [openDay, setOpenDay] = useState(null)
 
@@ -83,12 +83,7 @@ export default function DashboardCalendar({ events = [], onNav, month, onMonthCh
       headerRight={(
         <div className="dash-cal-nav">
           <button type="button" className="dash-cal-nav-btn" onClick={() => shift(-1)} aria-label="Previous month">←</button>
-          <input
-            type="month"
-            className="dash-cal-month-input"
-            value={monthStr}
-            onChange={e => goMonth(e.target.value)}
-          />
+          <strong className="dash-cal-month-label">{monthLabel(monthStr)}</strong>
           <button type="button" className="dash-cal-nav-btn" onClick={() => shift(1)} aria-label="Next month">→</button>
         </div>
       )}

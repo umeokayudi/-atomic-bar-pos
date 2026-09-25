@@ -3733,6 +3733,7 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
   cursor: pointer;
   font-size: 14px;
 }
+.dash-cal-month-label { min-width: 88px; text-align: center; font-size: 14px; }
 .dash-cal-month-input {
   min-width: 150px;
   border: 1px solid var(--border);
@@ -4226,6 +4227,34 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
 .timecard-shifts { width: 100%; border-collapse: collapse; font-size: 12px; }
 .timecard-shifts th, .timecard-shifts td { text-align: left; padding: 6px 4px; border-top: 1px solid var(--border); }
 @media (max-width: 800px) { .timecard-stats { grid-template-columns: 1fr 1fr; } }
+.range-cal-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  margin: 0 0 16px;
+}
+.range-cal-nav, .dash-cal-nav { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.range-cal-nav button, .dash-cal-nav-btn {
+  width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border);
+  background: #fff; cursor: pointer; font-weight: 800;
+}
+.range-cal-nav strong, .dash-cal-month-label { min-width: 96px; text-align: center; font-size: 14px; }
+.range-cal-head, .range-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.range-cal-head span { text-align: center; font-size: 10px; font-weight: 800; color: var(--text3); padding: 6px 0; }
+.range-cal-day {
+  min-height: 36px; border: none; border-radius: 10px; background: transparent;
+  cursor: pointer; font-weight: 700; color: var(--text);
+}
+.range-cal-day.is-in { background: rgba(193, 156, 86, 0.22); }
+.range-cal-day.is-edge { background: var(--navy); color: #fff; }
+.range-cal-day.is-today { box-shadow: inset 0 0 0 1px var(--navy); }
+.range-cal-range { margin: 8px 0 0; font-size: 12px; color: var(--text2); text-align: center; }
+.desk-alert-bell { align-items: flex-start; }
+.desk-bell {
+  width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center;
+  background: #ff3b30; font-size: 18px; flex-shrink: 0;
+}
 .desk-alert.is-bad {
   background: #fff1f0; border-color: #ff3b30; color: #c0392b;
 }

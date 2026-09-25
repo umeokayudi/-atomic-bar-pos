@@ -25,6 +25,7 @@ import {
 import BarDesk from './BarDesk'
 import AutoReorder from './AutoReorder'
 import BillMatch from './BillMatch'
+import RangeCalendar from './RangeCalendar'
 import AutoClose from './AutoClose'
 const ClientAnalyticsTab = lazy(() => import('./ClientAnalyticsTab'))
 const PortalRecibosTab = lazy(() => import('./PortalRecibosTab'))
@@ -45,7 +46,7 @@ import { isTillKiosk, isClockKiosk, loginDoorFromHash, setDoorHash, doorAllowsRo
 import UiPrefsPanel from './UiPrefsPanel'
 import { useI18n } from '../lib/i18n'
 import { tokyoMonthKey } from '../lib/tokyo'
-import { buildBarCalendarEvents, dateInRange, invoiceInRange, monthBounds, shiftMonth } from '../lib/barCalendar'
+import { buildBarCalendarEvents, dateInRange, invoiceInRange } from '../lib/barCalendar'
 import { birthdayThisMonth, decorateSpaces } from '../lib/barCrm'
 import BarCostsTab, { CostBooksHero, loadCostBooks, BarCommandActions } from './BarCostsTab'
 import BarOpsGlance from './BarOpsGlance'
@@ -667,17 +668,6 @@ function DeliveriesTab({ bar }) {
     setLoading(false)
   }
 
-  const thisMonth = tokyoMonthKey()
-  const prevMonth = shiftMonth(thisMonth, -1)
-  const activeMonth = dateFrom && dateTo && dateFrom.slice(0, 7) === dateTo.slice(0, 7) && dateFrom.endsWith('-01') ? dateFrom.slice(0, 7) : ''
-
-  function applyMonth(monthKey) {
-    if (!monthKey) { setDateFrom(''); setDateTo(''); return }
-    const b = monthBounds(monthKey)
-    setDateFrom(b.from)
-    setDateTo(b.to)
-  }
-
   const filtered = vendas.filter(v => {
     const d = v.data || v.data_venda || ''
     if (dateFrom && d < dateFrom) return false
@@ -698,14 +688,7 @@ function DeliveriesTab({ bar }) {
     <div className="fade-in">
       <SectionTitle sub={t('portal.deliveries.subtitle')}>{t('portal.deliveries.title')}</SectionTitle>
 
-      <div className="date-filter">
-        <button type="button" className={`date-filter-chip${!dateFrom && !dateTo ? ' is-on' : ''}`} onClick={() => applyMonth('')}>{t('portal.home.rangeAll')}</button>
-        <button type="button" className={`date-filter-chip${activeMonth === thisMonth ? ' is-on' : ''}`} onClick={() => applyMonth(thisMonth)}>{t('portal.home.rangeMonth')}</button>
-        <button type="button" className={`date-filter-chip${activeMonth === prevMonth ? ' is-on' : ''}`} onClick={() => applyMonth(prevMonth)}>{t('portal.home.rangePrev')}</button>
-        <input type="month" value={activeMonth} onChange={e => applyMonth(e.target.value)} aria-label={t('common.month')} />
-        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} aria-label={t('common.from')} />
-        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} aria-label={t('common.to')} />
-      </div>
+      <RangeCalendar from={dateFrom} to={dateTo} onChange={(a, b) => { setDateFrom(a); setDateTo(b) }} />
 
       <input
         type="text"
@@ -1836,35 +1819,7 @@ function FaturasTab({ bar }) {
   return (
     <div className="fade-in portal-page" style={{ maxWidth:860 }}>
       <SectionTitle sub={t('portal.invoices.subtitle')}>{t('portal.invoices.title')}</SectionTitle>
-      <div className="date-filter">
-        {[
-          ['all', t('portal.home.rangeAll')],
-          ['month', t('portal.home.rangeMonth')],
-          ['prev', t('portal.home.rangePrev')],
-          ['90', t('portal.home.range90')],
-        ].map(([id, label]) => (
-          <button key={id} type="button" className="date-filter-chip" onClick={() => {
-            const now = tokyoMonthKey()
-            if (id === 'all') { setDateFrom(''); setDateTo(''); return }
-            if (id === 'month') { const b = monthBounds(now); setDateFrom(b.from); setDateTo(b.to); return }
-            if (id === 'prev') { const b = monthBounds(shiftMonth(now, -1)); setDateFrom(b.from); setDateTo(b.to); return }
-            const end = new Date()
-            const start = new Date(); start.setDate(start.getDate() - 90)
-            setDateFrom(start.toISOString().slice(0, 10))
-            setDateTo(end.toISOString().slice(0, 10))
-          }}>{label}</button>
-        ))}
-        <input type="month" value={activeMonth} onChange={e => {
-          const b = monthBounds(e.target.value)
-          setDateFrom(b.from)
-          setDateTo(b.to)
-        }} aria-label={t('common.month')} />
-        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} aria-label={t('common.from')} />
-        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} aria-label={t('common.to')} />
-        {(dateFrom || dateTo) && (
-          <button type="button" className="date-filter-chip" onClick={() => { setDateFrom(''); setDateTo('') }}>{t('portal.invoices.clear')}</button>
-        )}
-      </div>
+      <RangeCalendar from={dateFrom} to={dateTo} onChange={(a, b) => { setDateFrom(a); setDateTo(b) }} />
       <BillMatch orders={ordersInRange} notes={notesInRange} invoices={filtered} monthKey={activeMonth} variant="slip" />
       <div className="ar-war">
         <div className="ar-war-head">

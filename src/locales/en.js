@@ -1808,6 +1808,8 @@ export default {
     markRead: 'Mark read',
     overdueAlert: '⚠️ Overdue due dates',
     invoiceKind: 'Invoice',
+    mismatchTitle: 'Invoice does not match',
+    mismatchBody: '{from} to {to}. Orders and the invoice differ by {amount}.',
     purchaseKind: 'Purchase',
     expiredOn: 'expired {date}',
     badgeCount: '{count} notifications',
