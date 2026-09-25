@@ -188,20 +188,25 @@ export function applyQuery(allRows, spec, catalogs = {}) {
   return { data: rows, error: null }
 }
 
+const memAt = new Map()
+const TABLE_TTL_MS = 20_000
+
 async function loadTable(admin, table) {
   const mem = memTables.get(table)
+  const at = memAt.get(table) || 0
+  if (mem && Date.now() - at < TABLE_TTL_MS) return mem
   try {
     const { data, error } = await admin.storage.from(LIVE_BUCKET).download(pathFor(table))
     if (error || !data) return mem || []
     const text = await data.text()
     const parsed = JSON.parse(text)
     const file = Array.isArray(parsed) ? parsed : (parsed.rows || [])
-    if (mem?.length) {
-      const byId = new Map(file.map(r => [r.id, r]))
-      for (const r of mem) byId.set(r.id, r)
-      return [...byId.values()]
-    }
-    return file
+    const rows = mem?.length
+      ? [...new Map([...file.map(r => [r.id, r]), ...mem.map(r => [r.id, r])]).values()]
+      : file
+    memTables.set(table, rows)
+    memAt.set(table, Date.now())
+    return rows
   } catch {
     return mem || []
   }
@@ -209,6 +214,7 @@ async function loadTable(admin, table) {
 
 async function saveTable(admin, table, rows) {
   memTables.set(table, rows)
+  memAt.set(table, Date.now())
   const body = Buffer.from(JSON.stringify({ rows, updated_at: new Date().toISOString() }))
   try {
     const { error } = await admin.storage.from(LIVE_BUCKET).upload(pathFor(table), body, {

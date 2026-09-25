@@ -1474,18 +1474,17 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
 
   async function init() {
     setLoading(true)
-    const schema = await checkPosSchema(supabase)
-    setReady(schema.ready)
-
     const nightKey = tokyoNightKey()
-    const [dR, sR, cR, vR, pR, aR] = await Promise.all([
+    const [schema, dR, sR, cR, vR, pR, aR] = await Promise.all([
+      checkPosSchema(supabase),
       supabase.from('drink_menu').select('*').eq('bar_id', bar.id).order('nome'),
       supabase.from('bar_pricing').select('*, produtos(nome,categoria,preco_venda)').eq('bar_id', bar.id),
-      schema.ready ? supabase.from('discount_codes').select('*').eq('bar_id', bar.id).eq('ativo', true) : { data: [] },
-      schema.ready ? supabase.from('vip_members').select('*').eq('bar_id', bar.id).eq('ativo', true) : { data: [] },
-      schema.ready ? supabase.from('pos_vendas').select('total,criado_em,data,metodo_pagamento,drink_back_agent_id').eq('bar_id', bar.id).gte('data', nightKey).order('criado_em') : { data: [] },
-      schema.ready ? supabase.from('drink_back_agents').select('*').eq('bar_id', bar.id).eq('ativo', true) : { data: [] },
+      supabase.from('discount_codes').select('*').eq('bar_id', bar.id).eq('ativo', true),
+      supabase.from('vip_members').select('*').eq('bar_id', bar.id).eq('ativo', true),
+      supabase.from('pos_vendas').select('total,criado_em,data,metodo_pagamento,drink_back_agent_id').eq('bar_id', bar.id).gte('data', nightKey).order('criado_em'),
+      supabase.from('drink_back_agents').select('*').eq('bar_id', bar.id).eq('ativo', true),
     ])
+    setReady(schema.ready)
     setDrinks(dR.data || [])
     setShots(sR.data || [])
     setDiscountCodes(cR.data || [])

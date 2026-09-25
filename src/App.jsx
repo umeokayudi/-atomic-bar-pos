@@ -12,32 +12,34 @@ class ErrorBoundary extends Component {
 import { LogoSidebar } from './components/Logo'
 import { MobileTopBar, ShellOverlay, WorkspaceChrome, useMobileMenuLock } from './components/MobileShell'
 import { useNotifications, NotificationBell, useOverdueAlerts } from './components/Notifications'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { AuthProvider, useAuth, LoginPage } from './components/Auth'
 import { supabase } from './lib/supabase'
-import ComprasTab   from './components/Compras'
-import VendasTab    from './components/Vendas'
-import RelatorioTab from './components/Relatorio'
-import RyoshushoTab from './components/Ryoshusho'
-import SeikyushoTab from './components/Seikyusho'
-import PortalCliente from './components/PortalCliente'
 import { isBarRole } from './lib/access'
-import { ProductsTab, BarsTab, UsuariosTab } from './components/Configs'
-import Fornecedores from './components/Fornecedores'
-import Faturas from './components/Faturas'
-import Cashflow from './components/Cashflow'
-import ReportsBilling from './components/ReportsBilling'
-import { PedidosAdminTab } from './components/Configs'
 import { fmtYen, fmtDate, roleLabel } from './components/utils'
 import { I18nProvider, useI18n } from './lib/i18n'
 import UiPrefsPanel from './components/UiPrefsPanel'
 import { UiPrefsProvider, useUiPrefs, LAYOUTS } from './lib/uiPrefs'
 import { loadDashboard, invalidateDashboard } from './lib/loadDashboard'
 import { PageHeader, PortalHero, PortalKpi, PortalSurface, PortalAlert } from './components/ui/PageLayout'
-import DashboardMetricModal from './components/DashboardMetricModal'
-import DashboardCalendar from './components/DashboardCalendar'
-import DashboardAi from './components/DashboardAi'
-import MarkPaidPopup from './components/MarkPaidPopup'
+const PortalCliente = lazy(() => import('./components/PortalCliente'))
+const ComprasTab = lazy(() => import('./components/Compras'))
+const VendasTab = lazy(() => import('./components/Vendas'))
+const RelatorioTab = lazy(() => import('./components/Relatorio'))
+const RyoshushoTab = lazy(() => import('./components/Ryoshusho'))
+const SeikyushoTab = lazy(() => import('./components/Seikyusho'))
+const Fornecedores = lazy(() => import('./components/Fornecedores'))
+const Faturas = lazy(() => import('./components/Faturas'))
+const Cashflow = lazy(() => import('./components/Cashflow'))
+const ReportsBilling = lazy(() => import('./components/ReportsBilling'))
+const ProductsTab = lazy(() => import('./components/Configs').then(m => ({ default: m.ProductsTab })))
+const BarsTab = lazy(() => import('./components/Configs').then(m => ({ default: m.BarsTab })))
+const UsuariosTab = lazy(() => import('./components/Configs').then(m => ({ default: m.UsuariosTab })))
+const PedidosAdminTab = lazy(() => import('./components/Configs').then(m => ({ default: m.PedidosAdminTab })))
+const DashboardMetricModal = lazy(() => import('./components/DashboardMetricModal'))
+const DashboardCalendar = lazy(() => import('./components/DashboardCalendar'))
+const DashboardAi = lazy(() => import('./components/DashboardAi'))
+const MarkPaidPopup = lazy(() => import('./components/MarkPaidPopup'))
 
 // ── TABS por role ─────────────────────────────────────────────────────────────
 const ADMIN_TABS = [
@@ -194,6 +196,7 @@ function Dashboard({ onNav }) {
   }
 
   return (
+    <Suspense fallback={null}>
     <div className="fade-in" style={{ maxWidth: 1000 }}>
       <PageHeader
         title={t('dashboard.title')}
@@ -376,6 +379,7 @@ function Dashboard({ onNav }) {
         />
       )}
     </div>
+    </Suspense>
   )
 }
 
@@ -451,7 +455,11 @@ function Shell() {
       )
     }
     if (!bar) return <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--navy)',color:'white',flexDirection:'column',gap:16}}><LogoSidebar /><div style={{color:'rgba(255,255,255,0.5)',fontSize:13}}>{t('auth.loadingPortal')}</div></div>
-    return <PortalCliente bar={bar} signOut={signOut} notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll}/>
+    return (
+      <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--navy)', color: 'white' }}>{t('auth.loadingPortal')}</div>}>
+        <PortalCliente bar={bar} signOut={signOut} notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} />
+      </Suspense>
+    )
   }
 
   // ADMIN / FUNCIONÁRIO
@@ -521,6 +529,7 @@ function Shell() {
           <UiPrefsPanel compact />
           <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
         </WorkspaceChrome>
+        <Suspense fallback={null}>
         <div className="fade-in" key={tab}>
           {tab==='dashboard' && <Dashboard onNav={selectTab}/>}
           {tab==='billingHub' && <ReportsBilling onNav={selectTab}/>}
@@ -537,6 +546,7 @@ function Shell() {
           {tab==='cashflow'   && <Cashflow />}
           {tab==='suppliers' && <Fornecedores />}
         </div>
+        </Suspense>
       </main>
     </div>
   )

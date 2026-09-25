@@ -27,20 +27,33 @@ export const LIVE_TABLES = new Set([
   'bar_registry',
 ])
 
-let sourcePromise = null
+const selectCache = new Map()
+const selectInflight = new Map()
+const SELECT_TTL_MS = 15_000
 
-async function detectSource() {
-  if (sourcePromise) return sourcePromise
-  sourcePromise = (async () => {
-    try {
-      const r = await fetch('/api/pos-status')
-      const j = await r.json()
-      return j.source === 'postgres' ? 'postgres' : 'live'
-    } catch {
-      return 'live'
-    }
-  })()
-  return sourcePromise
+function selectKey(spec) {
+  return JSON.stringify({
+    table: spec.table,
+    columns: spec.columns,
+    filters: spec.filters,
+    orderBy: spec.orderBy,
+    limitN: spec.limitN,
+    wantSingle: spec.wantSingle,
+  })
+}
+
+function rememberSelect(spec, result) {
+  if (result?.error) return
+  selectCache.set(selectKey(spec), { at: Date.now(), result })
+}
+
+function dropSelects(table) {
+  for (const key of selectCache.keys()) {
+    if (key.includes(`"table":"${table}"`)) selectCache.delete(key)
+  }
+  for (const key of selectInflight.keys()) {
+    if (key.includes(`"table":"${table}"`)) selectInflight.delete(key)
+  }
 }
 
 class LiveQuery {
@@ -112,6 +125,24 @@ class LiveQuery {
   }
 
   async execute() {
+    const selecting = !this.spec.mode || this.spec.mode === 'select'
+    if (!selecting) dropSelects(this.table)
+    if (selecting) {
+      const key = selectKey(this.spec)
+      const hit = selectCache.get(key)
+      if (hit && Date.now() - hit.at < SELECT_TTL_MS) return hit.result
+      if (selectInflight.has(key)) return selectInflight.get(key)
+      const job = this.executeLive().then(result => {
+        rememberSelect(this.spec, result)
+        return result
+      }).finally(() => selectInflight.delete(key))
+      selectInflight.set(key, job)
+      return job
+    }
+    return this.executeLive()
+  }
+
+  async executeLive() {
     const token = await this.getToken()
     try {
       const r = await fetch('/api/bar/live-db', {

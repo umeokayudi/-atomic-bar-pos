@@ -6,7 +6,7 @@ import { errText } from './errText'
 
 export { localHoursPay }
 
-const HQ_TTL_MS = 20_000
+const HQ_TTL_MS = 45_000
 const hqCache = new Map()
 const hqInflight = new Map()
 
@@ -19,7 +19,8 @@ function readStoredHq(key) {
     const raw = sessionStorage.getItem(`hq-snap:${key}`)
     if (!raw) return null
     const parsed = JSON.parse(raw)
-    if (parsed?.books) return parsed
+    if (parsed?.data?.books) return parsed
+    if (parsed?.books) return { at: 0, data: parsed }
   } catch { /* private mode or old payload */ }
   return null
 }
@@ -29,9 +30,9 @@ export function peekHqSnapshot(month, { full } = {}) {
   const hit = hqCache.get(key)
   if (hit?.data) return hit.data
   const stored = readStoredHq(key)
-  if (stored) {
-    hqCache.set(key, { at: 0, data: stored })
-    return stored
+  if (stored?.data) {
+    hqCache.set(key, stored)
+    return stored.data
   }
   return null
 }
@@ -60,8 +61,13 @@ export async function fetchHqSnapshot(month, { fresh, full } = {}) {
   const job = staffFetch(`/api/bar/hq-sync${q}`)
     .then(r => r.json().catch(() => ({ error: r.statusText })).then(j => {
       if (!r.ok || j.error || !j.books) throw new Error(errText(j.error || j, 'HQ sync failed'))
-      hqCache.set(key, { at: Date.now(), data: j })
-      try { sessionStorage.setItem(`hq-snap:${key}`, JSON.stringify(j)) } catch { /* quota */ }
+      const stamped = { at: Date.now(), data: j }
+      hqCache.set(key, stamped)
+      const write = () => {
+        try { sessionStorage.setItem(`hq-snap:${key}`, JSON.stringify(stamped)) } catch { /* quota */ }
+      }
+      if (typeof requestIdleCallback === 'function') requestIdleCallback(write)
+      else setTimeout(write, 0)
       return j
     }))
     .finally(() => hqInflight.delete(key))

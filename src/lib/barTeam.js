@@ -1,6 +1,6 @@
 import { staffFetch } from './apiAuth'
 
-const TTL_MS = 20_000
+const TTL_MS = 45_000
 const KEY = 'bar-team'
 let mem = null
 let at = 0

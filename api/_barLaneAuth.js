@@ -56,11 +56,20 @@ async function resolveLaneSession(token, admin) {
   }
 }
 
+const actorCache = new Map()
+const ACTOR_TTL_MS = 60_000
+
 export async function resolveBarActor(req, admin) {
   const token = bearerToken(req)
   if (!token) return { error: 'Não autenticado', status: 401 }
+  const cached = actorCache.get(token)
+  if (cached && Date.now() - cached.at < ACTOR_TTL_MS) return cached.actor
+
   const lane = await resolveLaneSession(token, admin)
-  if (lane) return lane
+  if (lane) {
+    rememberActor(token, lane)
+    return lane
+  }
 
   const authClient = drinksAuthClient()
   const { data: { user }, error } = await authClient.auth.getUser(token)
@@ -68,7 +77,16 @@ export async function resolveBarActor(req, admin) {
   const userDb = createStaffUserClient(token)
   const { data: perfil } = await userDb.from('perfis').select('*').eq('id', user.id).single()
   if (!perfil) return { error: 'Sem perfil', status: 403 }
-  return { user, perfil, token, lane: false }
+  const actor = { user, perfil, token, lane: false }
+  rememberActor(token, actor)
+  return actor
+}
+
+function rememberActor(token, actor) {
+  actorCache.set(token, { at: Date.now(), actor })
+  if (actorCache.size <= 40) return
+  const oldest = [...actorCache.entries()].sort((a, b) => a[1].at - b[1].at)[0]
+  if (oldest) actorCache.delete(oldest[0])
 }
 
 export async function loginLane(email, password) {

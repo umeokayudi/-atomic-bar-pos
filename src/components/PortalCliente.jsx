@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import { callGeminiChat, imageDataUrlToParts, parseJsonFromAI } from '../lib/ai'
@@ -22,22 +22,22 @@ import {
   monthlySpendSeries,
   projectItemRevenue,
 } from '../lib/clientAnalytics'
-import ClientAnalyticsTab from './ClientAnalyticsTab'
-import PortalRecibosTab from './PortalRecibosTab'
-import PortalClienteAI from './PortalClienteAI'
 import BarDesk from './BarDesk'
 import AutoReorder from './AutoReorder'
 import BillMatch from './BillMatch'
 import AutoClose from './AutoClose'
-import AtomicPosPanel from './AtomicPos'
-import TimeClockPanel from './TimeClock'
-import BarTeamTab from './BarTeamTab'
-import BarHouseTab from './BarHouse'
-import BarGoalsTab from './BarGoals'
-import BarEventsTab from './BarEvents'
-import BarFinance from './BarFinance'
-import BarGuestsTab from './BarGuestsTab'
-import BarSpacesTab from './BarSpacesTab'
+const ClientAnalyticsTab = lazy(() => import('./ClientAnalyticsTab'))
+const PortalRecibosTab = lazy(() => import('./PortalRecibosTab'))
+const PortalClienteAI = lazy(() => import('./PortalClienteAI'))
+const AtomicPosPanel = lazy(() => import('./AtomicPos'))
+const TimeClockPanel = lazy(() => import('./TimeClock'))
+const BarTeamTab = lazy(() => import('./BarTeamTab'))
+const BarHouseTab = lazy(() => import('./BarHouse'))
+const BarGoalsTab = lazy(() => import('./BarGoals'))
+const BarEventsTab = lazy(() => import('./BarEvents'))
+const BarFinance = lazy(() => import('./BarFinance'))
+const BarGuestsTab = lazy(() => import('./BarGuestsTab'))
+const BarSpacesTab = lazy(() => import('./BarSpacesTab'))
 import { fetchAllStockMovements } from '../lib/posSupply'
 import { coalesceStockMoves, decorateStockList, deliveryNoteMoves, posPourMoves, stockFlow, stockGlance } from '../lib/barStock'
 import { groupedNavForRole, primaryDockForRole, defaultBarTab, posAccessForRole, canManageBarTeam, isGerente, costAccessForRole, canPlaceDrinkOrders } from '../lib/access'
@@ -53,7 +53,11 @@ import { fetchHqSnapshot, peekHqSnapshot } from '../lib/hqSnapshot'
 import { booksAreSeparate } from '../lib/costBooks'
 import { asReactText } from '../lib/errText'
 import { NotificationBell, useBarOverdueAlerts } from './Notifications'
-import BarOrdersTab from './BarOrdersTab'
+const BarOrdersTab = lazy(() => import('./BarOrdersTab'))
+
+function TabHold({ children }) {
+  return <Suspense fallback={<div style={{ padding: 28, color: 'var(--text2)' }}>…</div>}>{children}</Suspense>
+}
 import {
   buildPaymentRyoshushoHtml,
   buildRyoshushoNumero,
@@ -133,15 +137,6 @@ function HomeTab({ bar, onTab }) {
         setCostBooks(null)
       }
     })
-    const listsP = Promise.all([
-      supabase.from('vendas').select('id,bar_id,data,total,obs').eq('bar_id', bar.id).gte('data', since).order('data', { ascending: false }).limit(400),
-      supabase.from('pedidos').select('id,status,total_estimado,criado_em').eq('bar_id', bar.id).order('criado_em', { ascending: false }).limit(80),
-      supabase.from('faturas').select('*').eq('bar_id', bar.id).order('data_vencimento', { ascending: false }).limit(24),
-    ]).then(([vR, pR, fR]) => {
-      setVendas(filterSupplierVendas(vR.data || []))
-      setPedidos(pR.data || [])
-      setFaturas(filterJbmDrinksFaturas(fR.data || []))
-    }).catch(() => {})
     const floorP = Promise.all([
       supabase.from('bar_spaces').select('id,ativo,ordem,tipo,zona').eq('bar_id', bar.id).eq('ativo', true),
       supabase.from('bar_visits').select('id,space_id,status,guest_id').eq('bar_id', bar.id).in('status', ['seated', 'reserved']),
@@ -156,7 +151,16 @@ function HomeTab({ bar, onTab }) {
         birthdays: birthdayThisMonth(guR.data || []).length,
       })
     }).catch(() => {})
-    await Promise.all([snapP, listsP, floorP])
+    await Promise.all([snapP, floorP])
+    Promise.all([
+      supabase.from('vendas').select('id,bar_id,data,total,obs').eq('bar_id', bar.id).gte('data', since).order('data', { ascending: false }).limit(240),
+      supabase.from('pedidos').select('id,status,total_estimado,criado_em').eq('bar_id', bar.id).order('criado_em', { ascending: false }).limit(40),
+      supabase.from('faturas').select('id,status,valor,total,pago,data_vencimento,periodo_fim,periodo_inicio,obs,notes,descricao,client_name,tipo').eq('bar_id', bar.id).order('data_vencimento', { ascending: false }).limit(24),
+    ]).then(([vR, pR, fR]) => {
+      setVendas(filterSupplierVendas(vR.data || []))
+      setPedidos(pR.data || [])
+      setFaturas(filterJbmDrinksFaturas(fR.data || []))
+    }).catch(() => {})
   }
 
   useEffect(() => {
@@ -625,7 +629,7 @@ function HomeTab({ bar, onTab }) {
               </div>
             ))}
           </div>
-          <ClientAnalyticsTab bar={bar} onTab={onTab} />
+          <Suspense fallback={null}><ClientAnalyticsTab bar={bar} onTab={onTab} /></Suspense>
         </div>
       )}
     </div>
@@ -2188,9 +2192,9 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         <main className="app-main app-main-wide till-kiosk-main">
           <AutoClose bar={bar} />
           {tillKiosk && posAccess !== 'none' && (
-            <AtomicPosPanel bar={bar} access={kioskAccess} />
+            <TabHold><AtomicPosPanel bar={bar} access={kioskAccess} /></TabHold>
           )}
-          {clockKiosk && <TimeClockPanel bar={bar} />}
+          {clockKiosk && <TabHold><TimeClockPanel bar={bar} /></TabHold>}
         </main>
       </div>
     )
@@ -2245,11 +2249,11 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
           <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
         </WorkspaceChrome>
         {tab==='custos'    && isGerente(perfil?.role) && <BarCostsTab bar={bar} onTab={selectTab} />}
-        {tab==='metas' && canManageBarTeam(perfil?.role) && <BarGoalsTab bar={bar} />}
-        {tab==='eventos' && canManageBarTeam(perfil?.role) && <BarEventsTab bar={bar} />}
+        {tab==='metas' && canManageBarTeam(perfil?.role) && <TabHold><BarGoalsTab bar={bar} /></TabHold>}
+        {tab==='eventos' && canManageBarTeam(perfil?.role) && <TabHold><BarEventsTab bar={bar} /></TabHold>}
         {['fechamento', 'pagamentos', 'salarios'].some(id => opened.has(id)) && canManageBarTeam(perfil?.role) && (
           <div hidden={!['fechamento', 'pagamentos', 'salarios'].includes(tab)}>
-            <BarFinance bar={bar} section={['fechamento', 'pagamentos', 'salarios'].includes(tab) ? tab : 'fechamento'} onTab={selectTab} />
+            <TabHold><BarFinance bar={bar} section={['fechamento', 'pagamentos', 'salarios'].includes(tab) ? tab : 'fechamento'} onTab={selectTab} /></TabHold>
           </div>
         )}
         {opened.has('inicio') && posAccess !== 'cashier' && (
@@ -2257,23 +2261,23 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
             <HomeTab bar={bar} onTab={selectTab} />
           </div>
         )}
-        {tab==='pos'       && posAccess !== 'none' && <AtomicPosPanel bar={bar} onOrder={posAccess === 'owner' ? () => selectTab('pedidos') : undefined} access={posAccess} />}
-        {tab==='ponto'     && <TimeClockPanel bar={bar} onOpenStaff={() => selectTab('staff')} />}
+        {tab==='pos'       && posAccess !== 'none' && <TabHold><AtomicPosPanel bar={bar} onOrder={posAccess === 'owner' ? () => selectTab('pedidos') : undefined} access={posAccess} /></TabHold>}
+        {tab==='ponto'     && <TabHold><TimeClockPanel bar={bar} onOpenStaff={() => selectTab('staff')} /></TabHold>}
         {['staff', 'fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'].some(id => opened.has(id)) && canManageBarTeam(perfil?.role) && (
           <div hidden={!['staff', 'fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'].includes(tab)}>
-            <BarHouseTab bar={bar} section={['staff', 'fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'].includes(tab) ? tab : 'staff'} onTab={selectTab} />
+            <TabHold><BarHouseTab bar={bar} section={['staff', 'fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'].includes(tab) ? tab : 'staff'} onTab={selectTab} /></TabHold>
           </div>
         )}
-        {tab==='equipe'    && canManageBarTeam(perfil?.role) && <BarTeamTab bar={bar} />}
-        {tab==='clientes'  && canManageBarTeam(perfil?.role) && <BarGuestsTab bar={bar} />}
-        {tab==='espacos'   && canManageBarTeam(perfil?.role) && <BarSpacesTab bar={bar} />}
-        {tab==='pedidos'   && canPlaceDrinkOrders(perfil?.role) && <BarOrdersTab bar={bar} />}
+        {tab==='equipe'    && canManageBarTeam(perfil?.role) && <TabHold><BarTeamTab bar={bar} /></TabHold>}
+        {tab==='clientes'  && canManageBarTeam(perfil?.role) && <TabHold><BarGuestsTab bar={bar} /></TabHold>}
+        {tab==='espacos'   && canManageBarTeam(perfil?.role) && <TabHold><BarSpacesTab bar={bar} /></TabHold>}
+        {tab==='pedidos'   && canPlaceDrinkOrders(perfil?.role) && <TabHold><BarOrdersTab bar={bar} /></TabHold>}
         {tab==='entregas'  && canManageBarTeam(perfil?.role) && <DeliveriesTab bar={bar} />}
         {tab==='estoque'   && canManageBarTeam(perfil?.role) && <InventoryTab bar={bar} onOrder={()=>selectTab('pedidos')} />}
         {tab==='precos'    && canManageBarTeam(perfil?.role) && <PrecosCardapioTab bar={bar} />}
         {tab==='faturas'   && canManageBarTeam(perfil?.role) && <FaturasTab bar={bar} />}
-        {tab==='recibos'  && canManageBarTeam(perfil?.role) && <PortalRecibosTab bar={bar} />}
-        {tab==='ia'       && canManageBarTeam(perfil?.role) && <PortalClienteAI bar={bar} />}
+        {tab==='recibos'  && canManageBarTeam(perfil?.role) && <TabHold><PortalRecibosTab bar={bar} /></TabHold>}
+        {tab==='ia'       && canManageBarTeam(perfil?.role) && <TabHold><PortalClienteAI bar={bar} /></TabHold>}
       </main>
       {DOCK.length > 0 && (
         <nav className="easy-dock" aria-label={t('nav.portalHome')}>

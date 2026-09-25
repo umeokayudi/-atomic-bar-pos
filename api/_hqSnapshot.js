@@ -90,7 +90,7 @@ function monthBill(vendas, faturas, mes) {
 
 const snapCache = new Map()
 const snapInflight = new Map()
-const SNAP_TTL_MS = 30_000
+const SNAP_TTL_MS = 45_000
 
 function prevMonthKey(mes) {
   const [y, m] = String(mes).split('-').map(Number)
@@ -135,7 +135,7 @@ async function computeHqSnapshot(admin, barId, barNome = '', mes, { lite = false
   })()
   const emptyPg = Promise.resolve({ data: [], error: null })
 
-  const [vendasR, pedR, fatR, posR, clockR, rentR, staff, regrasR, movR, prodR, itemR, posItemR, priceR] = await Promise.all([
+  const [vendasR, pedR, fatR, posR, clockR, rentR, staff, regrasR, movR, prodR, itemR, posItemR, priceR, goalsLive] = await Promise.all([
     admin.from('vendas').select('id,data,data_venda,total,obs,bar_id,cast_id,criado_em').eq('bar_id', barId).order('data', { ascending: false }).limit(400),
     admin.from('pedidos').select('id,status,total_estimado,data_pedido,criado_em,obs').eq('bar_id', barId).order('criado_em', { ascending: false }).limit(200),
     admin.from('faturas').select('*').eq('bar_id', barId).order('data_vencimento', { ascending: false }).limit(24),
@@ -156,6 +156,13 @@ async function computeHqSnapshot(admin, barId, barNome = '', mes, { lite = false
     lite ? emptyPg : admin.from('vendas_itens').select('produto_id,qtd,venda_id').limit(5000),
     lite ? Promise.resolve({ rows: [] }) : pgOrLive(admin, 'pos_vendas_itens', [], 'produto_id,nome,qtd,pos_venda_id'),
     lite ? emptyPg : admin.from('bar_pricing').select('produto_id,drinks_por_garrafa').eq('bar_id', barId).limit(400),
+    runLiveOp(admin, {
+      table: 'bar_goals',
+      mode: 'select',
+      columns: '*',
+      filters: [{ op: 'eq', k: 'bar_id', v: barId }],
+      wantSingle: 'maybe',
+    }).catch(() => ({ data: null })),
   ])
 
   const jbmOk = !vendasR.error && !fatR.error
@@ -177,13 +184,6 @@ async function computeHqSnapshot(admin, barId, barNome = '', mes, { lite = false
   })
   const posMonthTotal = posMonthRows.reduce((a, s) => a + (+s.total || 0), 0)
 
-  const goalsLive = await runLiveOp(admin, {
-    table: 'bar_goals',
-    mode: 'select',
-    columns: '*',
-    filters: [{ op: 'eq', k: 'bar_id', v: barId }],
-    wantSingle: 'maybe',
-  }).catch(() => null)
   const nightPremium = goalsLive?.data?.adicional_noturno !== false
   const payroll = payrollFromPunches(clockR.rows || [], staff || [], range, { nightPremium })
   const prevPayroll = payrollFromPunches(clockR.rows || [], staff || [], prevRange, { nightPremium })
