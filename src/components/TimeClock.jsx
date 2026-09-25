@@ -27,6 +27,7 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
   const { t } = useI18n()
   const [punches, setPunches] = useState([])
   const [staff, setStaff] = useState([])
+  const [nightPremium, setNightPremium] = useState(true)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -42,6 +43,9 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
       ])
       setPunches(j.punches || [])
       setStaff(team?.staff || [])
+      const fromTeam = team?.goals?.adicional_noturno
+      const flag = fromTeam == null ? j.adicional_noturno : fromTeam
+      setNightPremium(flag !== false)
     } catch {
       setPunches([])
     } finally {
@@ -52,7 +56,7 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
   useEffect(() => { load() }, [bar.id])
 
   const meId = perfil?.id
-  const rows = payrollFromPunches(punches, [{ id: meId, nome: perfil?.nome, salario_hora: perfil?.salario_hora || 0 }], range)
+  const rows = payrollFromPunches(punches, [{ id: meId, nome: perfil?.nome, salario_hora: perfil?.salario_hora || 0 }], range, { nightPremium })
   const meRow = rows.find(r => r.staff_id === meId) || { hours: 0, pay: 0, open: false }
   const last = [...punches].filter(p => p.staff_id === meId)[0]
   const liveHours = last?.tipo === 'in' ? hoursBetween(last.punched_at, new Date().toISOString()) : 0
@@ -98,7 +102,7 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
       {manager && (
         <div style={{ marginTop: 16 }}>
           <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 8 }}>{t('clock.teamTitle')}</div>
-          <StaffPayCards rows={payrollFromPunches(punches, staff, range)} />
+          <StaffPayCards rows={payrollFromPunches(punches, staff, range, { nightPremium })} nightPremium={nightPremium} />
         </div>
       )}
       {manager && onOpenStaff && (

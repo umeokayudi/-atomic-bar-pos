@@ -77,6 +77,14 @@ function CloseHours({ goals, busy, onSave }) {
         <button type="button" className={cfg.autoDia ? 'is-on' : ''} disabled={busy} onClick={() => onSave({ auto_dia: !cfg.autoDia })}>
           {t('portal.close.autoDay')} · {cfg.autoDia ? t('portal.close.autoOn') : t('portal.close.autoOff')}
         </button>
+        <button
+          type="button"
+          className={goals?.adicional_noturno !== false ? 'is-on' : ''}
+          disabled={busy}
+          onClick={() => onSave({ adicional_noturno: goals?.adicional_noturno === false })}
+        >
+          {t('portal.close.nightPremium')} · {goals?.adicional_noturno !== false ? t('portal.close.nightPremiumOn') : t('portal.close.nightPremiumOff')}
+        </button>
       </div>
       <p className="desk-note">
         {t('portal.close.autoHint', {
@@ -152,6 +160,9 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
       tickets: hq?.pos?.history?.length ? hq.pos.history : (hq?.pos?.tickets || []),
       invoices: hq?.jbm?.openInvoices || [],
       prevHq: prev ? { books: prev.books, payroll: prev.payroll, rent: prev.rent, pos: prev.pos } : null,
+      clockReady: !!teamRes.clockReady,
+      punches: teamRes.punches || [],
+      staff: teamRes.staff || [],
       punched: teamRes.punched || [],
     }
   }
@@ -167,7 +178,10 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
       staffFetch(`/api/time-clock?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`).then(r => r.json()).catch(() => ({ punches: [] })),
     ])
     if (teamRes.error) throw new Error(errText(teamRes.error))
-    teamRes.punched = payrollFromPunches(clockRes.punches || [], teamRes.staff || [], range)
+    const nightPremium = teamRes.goals?.adicional_noturno !== false
+    teamRes.clockReady = true
+    teamRes.punches = clockRes.punches || []
+    teamRes.punched = payrollFromPunches(teamRes.punches, teamRes.staff || [], range, { nightPremium })
     setPack(packFrom(teamRes, hq || cachedHq))
   }
 
@@ -214,6 +228,10 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
 
   const night = tokyoNightKey()
   const goals = pack.goals || {}
+  const nightPremium = goals.adicional_noturno !== false
+  const punched = pack.clockReady
+    ? payrollFromPunches(pack.punches || [], pack.staff || [], monthRange(), { nightPremium })
+    : (pack.punched || [])
   const closeDay = goals.fecha_semana == null ? 0 : +goals.fecha_semana
   const week = lastClosedWeek(night, closeDay)
   const openEnd = night < week.openEnd ? night : week.openEnd
@@ -243,7 +261,7 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
     today: night,
   })
   const board = salaryBoard({
-    payroll: pack.punched?.length ? pack.punched : (pack.hq?.payroll || []),
+    payroll: punched.length ? punched : (pack.hq?.payroll || []),
     tickets: pack.tickets,
     monthKey: night.slice(0, 7),
   })
@@ -391,8 +409,18 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
               </div>
             </div>
           </div>
+          <div className="goal-modes">
+            <button
+              type="button"
+              className={nightPremium ? 'is-on' : ''}
+              disabled={busy}
+              onClick={() => saveSettings({ adicional_noturno: !nightPremium })}
+            >
+              {t('portal.close.nightPremium')} · {nightPremium ? t('portal.close.nightPremiumOn') : t('portal.close.nightPremiumOff')}
+            </button>
+          </div>
           <section className="desk-card">
-            <StaffPayCards rows={board.rows} showPay />
+            <StaffPayCards rows={board.rows} showPay nightPremium={nightPremium} />
             <div className="desk-more" style={{ marginTop: 12 }}>
               <button type="button" onClick={() => onTab?.('staff')}>{t('portal.salary.openStaff')}</button>
               <button type="button" onClick={() => onTab?.('ponto')}>{t('nav.portalClock')}</button>

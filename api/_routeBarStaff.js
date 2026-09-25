@@ -328,6 +328,7 @@ export default async function handler(req, res) {
       if (body.auto_dia != null) row.auto_dia = body.auto_dia !== false && body.auto_dia !== 'false'
       if (body.fechou_noite != null) row.fechou_noite = String(body.fechou_noite || '').slice(0, 10)
       if (body.fechou_dia != null) row.fechou_dia = String(body.fechou_dia || '').slice(0, 10)
+      if (body.adicional_noturno != null) row.adicional_noturno = body.adicional_noturno !== false && body.adicional_noturno !== 'false'
       const saved = await runLiveOp(db, {
         table: 'bar_goals',
         mode: existing.data ? 'update' : 'insert',

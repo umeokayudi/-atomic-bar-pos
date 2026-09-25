@@ -12,7 +12,7 @@ import { payrollFromPunches, monthRange, localHoursPay } from '../lib/timeClock'
 import { splitCostBooks } from '../lib/costBooks'
 import { asReactText, errText } from '../lib/errText'
 import { costAccessForRole } from '../lib/access'
-import { fetchHqSnapshot, saveHqRent } from '../lib/hqSnapshot'
+import { fetchHqSnapshot } from '../lib/hqSnapshot'
 import { useI18n } from '../lib/i18n'
 import HqAiDock from './HqAiDock'
 import BarOpsGlance from './BarOpsGlance'
@@ -25,10 +25,10 @@ const ACTIONS = [
   { id: 'espacos', icon: '🪑', labelKey: 'portal.home.goFloor', hintKey: 'portal.home.goFloorHint' },
   { id: 'clientes', icon: '🥂', labelKey: 'portal.home.goGuests', hintKey: 'portal.home.goGuestsHint' },
   { id: 'ponto', icon: '🕒', labelKey: 'portal.home.goClock', hintKey: 'portal.home.goClockHint' },
+  { id: 'fechamento', icon: '📒', labelKey: 'portal.home.goClose', hintKey: 'portal.home.goCloseHint' },
   { id: 'staff', icon: '👤', labelKey: 'nav.portalTeam', hintKey: 'portal.home.goStaffHint' },
-  { id: 'custos', icon: '🏛️', labelKey: 'portal.home.goHq', hintKey: 'portal.home.goHqHint' },
-  { id: 'estoque', icon: '📊', labelKey: 'nav.portalInventory' },
-  { id: 'faturas', icon: '💳', labelKey: 'nav.portalInvoices' },
+  { id: 'estoque', icon: '🍾', labelKey: 'nav.portalInventory' },
+  { id: 'faturas', icon: '📄', labelKey: 'nav.portalInvoices' },
 ]
 
 function BookCard({ kicker, value, hint, tone = 'navy', active, onClick }) {
@@ -117,7 +117,9 @@ export async function loadCostBooks(barId, monthKey) {
   const posMonthTotal = (posR.data || [])
     .filter(s => String(s.data || '').startsWith(mes))
     .reduce((a, s) => a + (+s.total || 0), 0)
-  const payroll = payrollFromPunches(clockR.punches || [], teamR.staff || [], range)
+  const payroll = payrollFromPunches(clockR.punches || [], teamR.staff || [], range, {
+    nightPremium: teamR.goals?.adicional_noturno !== false,
+  })
   const staffMonthPay = payroll.reduce((a, r) => a + (+r.pay || 0), 0)
   const rentMonth = (rentR.data || []).reduce((a, r) => a + (+r.amount || 0), 0)
   return splitCostBooks({ posMonthTotal, jbmMonthBill: account.contaMes, staffMonthPay, rentMonth })
@@ -128,7 +130,8 @@ function HoursCalculator() {
   const [hours, setHours] = useState('8')
   const [lateHours, setLateHours] = useState('2')
   const [rate, setRate] = useState('1500')
-  const result = localHoursPay({ hours, lateHours, rate })
+  const [nightPremium, setNightPremium] = useState(true)
+  const result = localHoursPay({ hours, lateHours, rate, nightPremium })
   return (
     <div className="hq-panel">
       <div className="hq-panel-title">{t('portal.hq.calcTitle')}</div>
@@ -138,6 +141,9 @@ function HoursCalculator() {
         <label>{t('portal.hq.calcLate')}<input type="number" min="0" step="0.25" value={lateHours} onChange={e => setLateHours(e.target.value)} /></label>
         <label>{t('portal.hq.calcRate')}<input type="number" min="0" step="50" value={rate} onChange={e => setRate(e.target.value)} /></label>
       </div>
+      <button type="button" className={`hq-chip${nightPremium ? ' is-on' : ''}`} onClick={() => setNightPremium(v => !v)}>
+        {t('portal.close.nightPremium')} · {nightPremium ? t('portal.close.nightPremiumOn') : t('portal.close.nightPremiumOff')}
+      </button>
       <div className="hq-calc-pay">{t('portal.hq.calcPay')}: {fmtYen(result.pay)}</div>
     </div>
   )
@@ -157,9 +163,6 @@ export default function BarCostsTab({ bar, onTab }) {
   const [books, setBooks] = useState(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
-  const [rentAmount, setRentAmount] = useState('')
-  const [rentNote, setRentNote] = useState('')
-  const [rentMsg, setRentMsg] = useState('')
   const [floorGlance, setFloorGlance] = useState(null)
   const [localOps, setLocalOps] = useState({ invoices: [], openOrders: 0 })
 
@@ -179,8 +182,6 @@ export default function BarCostsTab({ bar, onTab }) {
         : await fetchHqSnapshot(mes, { full: true, fresh: true })
       setHq(snap)
       setBooks(snap.books)
-      setRentAmount(String(snap.rent?.amount ?? ''))
-      setRentNote(snap.rent?.note || '')
     } catch (e) {
       try {
         const fallback = await loadCostBooks(bar.id, mes)
@@ -228,38 +229,6 @@ export default function BarCostsTab({ bar, onTab }) {
   async function syncNow() {
     setBusy(true)
     await load(true, month)
-    setBusy(false)
-  }
-
-  async function copyLastRent() {
-    const last = hq?.rent?.last
-    if (!last) return
-    setRentAmount(String(last.amount))
-    setRentNote(last.note || '')
-    setRentMsg('')
-    setBusy(true)
-    try {
-      const snap = await saveHqRent({ amount: last.amount, note: last.note, month_key: month })
-      setHq(snap)
-      setBooks(snap.books)
-      setRentMsg(t('common.success'))
-    } catch (e) {
-      setRentMsg(errText(e))
-    }
-    setBusy(false)
-  }
-
-  async function saveRent() {
-    setRentMsg('')
-    setBusy(true)
-    try {
-      const snap = await saveHqRent({ amount: rentAmount, note: rentNote, month_key: month })
-      setHq(snap)
-      setBooks(snap.books)
-      setRentMsg(t('common.success'))
-    } catch (e) {
-      setRentMsg(errText(e))
-    }
     setBusy(false)
   }
 
@@ -431,22 +400,25 @@ export default function BarCostsTab({ bar, onTab }) {
           {show('staff') && <HoursCalculator />}
           {show('rent') && access.rent && (
             <div className="hq-panel">
-              <div className="hq-panel-title">{t('portal.hq.rentTitle')}</div>
-              <div className="hq-panel-hint">{t('portal.costs.rentHint')}</div>
-              {!hq?.rent?.amount && hq?.rent?.last && (
-                <div className="hq-empty">
-                  {t('portal.hq.rentMissing', { month: monthLabel(month) })} {t('portal.hq.rentLast', { month: monthLabel(hq.rent.last.month_key), amount: fmtYen(hq.rent.last.amount) })}
-                </div>
-              )}
-              <div className="hq-rent-row">
-                <label>{t('portal.hq.rentAmount')}<input type="number" min="0" step="1000" value={rentAmount} onChange={e => setRentAmount(e.target.value)} /></label>
-                <label>{t('common.notes')}<input value={rentNote} onChange={e => setRentNote(e.target.value)} /></label>
-                <button type="button" className="btn-primary" disabled={busy} onClick={saveRent}>{t('portal.hq.rentSave')}</button>
+              <div className="hq-panel-title">{t('portal.costs.rent')}</div>
+              <div className="hq-panel-hint">{t('portal.costs.booksLead')}</div>
+              <div className="hq-kpis">
+                <div><b>{fmtYen(hq?.rent?.amount || books?.rent?.amount || 0)}</b><span>{t('portal.costs.rent')}</span></div>
               </div>
-              {hq?.rent?.last && !hq?.rent?.amount && (
-                <button type="button" className="hq-chip" style={{ marginTop: 10 }} disabled={busy} onClick={copyLastRent}>{t('portal.hq.rentCopy')}</button>
-              )}
-              {rentMsg && <div style={{ marginTop: 10, fontSize: 12, color: rentMsg === t('common.success') ? 'var(--green)' : 'var(--red)' }}>{asReactText(rentMsg)}</div>}
+              <div className="goal-modes">
+                {[
+                  ['aluguel', 'house.rent'],
+                  ['energia', 'house.power'],
+                  ['fixo', 'house.fixedCosts'],
+                  ['variavel', 'house.variableCosts'],
+                  ['contador', 'house.accountant'],
+                  ['imposto', 'house.tax'],
+                  ['salarios', 'nav.portalSalary'],
+                  ['staff', 'house.staffTitle'],
+                ].map(([id, key]) => (
+                  <button key={id} type="button" className="hq-chip" onClick={() => onTab?.(id)}>{t(key)}</button>
+                ))}
+              </div>
             </div>
           )}
           {show('jbm') && hq?.jbm && (

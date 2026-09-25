@@ -269,7 +269,7 @@ function HomeTab({ bar, onTab }) {
 
       <section className="home-band">
         <div className="hq-actions-label">{t('portal.home.doTonight')}</div>
-        <BarCommandActions onTab={onTab} ids={['pos', 'pedidos', 'espacos', 'clientes', 'ponto', 'custos']} />
+        <BarCommandActions onTab={onTab} ids={['pos', 'pedidos', 'espacos', 'clientes', 'ponto', 'fechamento']} />
       </section>
 
       <BarDesk

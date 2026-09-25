@@ -13,12 +13,13 @@ function when(iso) {
   return `${pad(p.month)}/${pad(p.day)} ${pad(p.hour)}:${pad(p.minute)}`
 }
 
-export default function StaffPayCards({ rows = [], showPay = false }) {
+export default function StaffPayCards({ rows = [], showPay = false, nightPremium = true }) {
   const { t } = useI18n()
   const ordered = [...rows].sort((a, b) => (b.open - a.open) || (b.pay - a.pay) || (b.hours - a.hours))
   if (!ordered.length) return <div className="desk-empty">{t('clock.noHours')}</div>
   return (
     <div className="timecards">
+      <p className="desk-note">{t(nightPremium ? 'clock.nightPremiumOn' : 'clock.nightPremiumOff')}</p>
       {ordered.map(row => {
         const shifts = [...(row.shifts || [])].sort((a, b) => String(b.clockIn?.punched_at || '').localeCompare(String(a.clockIn?.punched_at || '')))
         return (

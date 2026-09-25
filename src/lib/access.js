@@ -37,16 +37,17 @@ export function defaultBarTab(role) {
 
 const GERENTE_NAV = [
   { id: 'inicio', labelKey: 'nav.portalHome', icon: '🏠' },
-  { id: 'metas', labelKey: 'nav.portalGoals', icon: '🎯' },
-  { id: 'fechamento', labelKey: 'nav.portalClose', icon: '📒' },
-  { id: 'pagamentos', labelKey: 'nav.portalPay', icon: '📅' },
-  { id: 'salarios', labelKey: 'nav.portalSalary', icon: '💴' },
-  { id: 'eventos', labelKey: 'nav.portalEvents', icon: '🎂' },
   { id: 'pos', labelKey: 'nav.portalPos', icon: '🧾' },
   { id: 'pedidos', labelKey: 'nav.portalOrders', icon: '🛒' },
   { id: 'espacos', labelKey: 'nav.portalSpaces', icon: '🪑' },
   { id: 'clientes', labelKey: 'nav.portalGuests', icon: '🥂' },
   { id: 'ponto', labelKey: 'nav.portalClock', icon: '🕒' },
+  { id: 'fechamento', labelKey: 'nav.portalClose', icon: '📒' },
+  { id: 'metas', labelKey: 'nav.portalGoals', icon: '🎯' },
+  { id: 'pagamentos', labelKey: 'nav.portalPay', icon: '📅' },
+  { id: 'salarios', labelKey: 'nav.portalSalary', icon: '💴' },
+  { id: 'eventos', labelKey: 'nav.portalEvents', icon: '🎂' },
+  { id: 'ia', labelKey: 'nav.portalAi', icon: '✨' },
   { id: 'staff', labelKey: 'house.staffTitle', icon: '👤' },
   { id: 'fornecedor', labelKey: 'house.suppliers', icon: '🚚' },
   { id: 'parceiro', labelKey: 'house.partners', icon: '🤝' },
@@ -57,17 +58,17 @@ const GERENTE_NAV = [
   { id: 'variavel', labelKey: 'house.variableCosts', icon: '📈' },
   { id: 'contador', labelKey: 'house.accountant', icon: '🧮' },
   { id: 'imposto', labelKey: 'house.tax', icon: '🏛' },
-  { id: 'estoque', labelKey: 'nav.portalInventory', icon: '📊' },
+  { id: 'estoque', labelKey: 'nav.portalInventory', icon: '🍾' },
   { id: 'entregas', labelKey: 'nav.portalDeliveries', icon: '📦' },
-  { id: 'faturas', labelKey: 'nav.portalInvoices', icon: '💳' },
-  { id: 'custos', labelKey: 'nav.portalCosts', icon: '🏛️' },
-  { id: 'precos', labelKey: 'nav.portalPrices', icon: '💰' },
-  { id: 'recibos', labelKey: 'nav.portalReceipts', icon: '🧾' },
-  { id: 'ia', labelKey: 'nav.portalAi', icon: '🤖' },
+  { id: 'faturas', labelKey: 'nav.portalInvoices', icon: '📄' },
+  { id: 'custos', labelKey: 'nav.portalCosts', icon: '📚' },
+  { id: 'precos', labelKey: 'nav.portalPrices', icon: '🏷' },
+  { id: 'recibos', labelKey: 'nav.portalReceipts', icon: '🖨' },
 ]
 
 const NAV_GROUPS = [
-  { id: 'tonight', labelKey: 'nav.groupTonight', ids: ['inicio', 'metas', 'fechamento', 'pagamentos', 'salarios', 'eventos', 'ia', 'pos', 'pedidos', 'espacos', 'clientes', 'ponto'] },
+  { id: 'tonight', labelKey: 'nav.groupTonight', ids: ['inicio', 'pos', 'pedidos', 'espacos', 'clientes', 'ponto', 'fechamento'] },
+  { id: 'numbers', labelKey: 'nav.groupNumbers', ids: ['metas', 'pagamentos', 'salarios', 'eventos', 'ia'] },
   { id: 'house', labelKey: 'nav.groupHouse', ids: ['staff', 'fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'] },
   { id: 'supply', labelKey: 'nav.groupSupply', ids: ['estoque', 'entregas', 'faturas'] },
   { id: 'office', labelKey: 'nav.groupOffice', ids: ['custos', 'precos', 'recibos'] },
@@ -112,9 +113,9 @@ export function primaryDockForRole(role) {
   }
   return [
     { id: 'inicio', icon: '🏠', labelKey: 'nav.portalHome' },
-    { id: 'ia', icon: '🤖', labelKey: 'nav.portalAi' },
     { id: 'pos', icon: '🧾', labelKey: 'nav.portalPos' },
     { id: 'pedidos', icon: '🛒', labelKey: 'nav.portalOrders' },
+    { id: 'espacos', icon: '🪑', labelKey: 'nav.portalSpaces' },
     { id: 'ponto', icon: '🕒', labelKey: 'nav.portalClock' },
   ]
 }

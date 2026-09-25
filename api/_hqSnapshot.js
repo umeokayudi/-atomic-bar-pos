@@ -177,8 +177,16 @@ async function computeHqSnapshot(admin, barId, barNome = '', mes, { lite = false
   })
   const posMonthTotal = posMonthRows.reduce((a, s) => a + (+s.total || 0), 0)
 
-  const payroll = payrollFromPunches(clockR.rows || [], staff || [], range)
-  const prevPayroll = payrollFromPunches(clockR.rows || [], staff || [], prevRange)
+  const goalsLive = await runLiveOp(admin, {
+    table: 'bar_goals',
+    mode: 'select',
+    columns: '*',
+    filters: [{ op: 'eq', k: 'bar_id', v: barId }],
+    wantSingle: 'maybe',
+  }).catch(() => null)
+  const nightPremium = goalsLive?.data?.adicional_noturno !== false
+  const payroll = payrollFromPunches(clockR.rows || [], staff || [], range, { nightPremium })
+  const prevPayroll = payrollFromPunches(clockR.rows || [], staff || [], prevRange, { nightPremium })
   const staffMonthPay = payroll.reduce((a, r) => a + (+r.pay || 0), 0)
   const hoursTotal = payroll.reduce((a, r) => a + (+r.hours || 0), 0)
 

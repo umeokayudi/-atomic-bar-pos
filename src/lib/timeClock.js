@@ -62,7 +62,8 @@ export function lateNightHoursBetween(startIso, endIso) {
   return Math.round((lateMs / 3600000) * 100) / 100
 }
 
-export function calcPayWithLateNight(hours, lateNightHours, salarioHora) {
+export function calcPayWithLateNight(hours, lateNightHours, salarioHora, nightPremium = true) {
+  if (!nightPremium) return calcPay(hours, salarioHora)
   const total = Math.max(0, +hours || 0)
   const late = Math.min(total, Math.max(0, +lateNightHours || 0))
   const regular = Math.max(0, Math.round((total - late) * 100) / 100)
@@ -71,7 +72,7 @@ export function calcPayWithLateNight(hours, lateNightHours, salarioHora) {
 }
 
 /** Desk calculator for HQ. Always wages — never mixed into POS or JBM. */
-export function localHoursPay({ hours = 0, lateHours = 0, rate = 0 } = {}) {
+export function localHoursPay({ hours = 0, lateHours = 0, rate = 0, nightPremium = true } = {}) {
   const h = Math.max(0, +hours || 0)
   const late = Math.min(h, Math.max(0, +lateHours || 0))
   const salario = Math.max(0, +rate || 0)
@@ -79,7 +80,7 @@ export function localHoursPay({ hours = 0, lateHours = 0, rate = 0 } = {}) {
     hours: h,
     lateHours: late,
     rate: salario,
-    pay: calcPayWithLateNight(h, late, salario),
+    pay: calcPayWithLateNight(h, late, salario, nightPremium),
     book: 'wages',
   }
 }
@@ -122,7 +123,7 @@ export function pairPunches(punches = []) {
   return shifts
 }
 
-export function payrollFromPunches(punches, staffList = [], { from, to } = {}) {
+export function payrollFromPunches(punches, staffList = [], { from, to } = {}, { nightPremium = true } = {}) {
   const filtered = (punches || []).filter(p => {
     const t = p.punched_at
     if (from && t < from) return false
@@ -149,7 +150,7 @@ export function payrollFromPunches(punches, staffList = [], { from, to } = {}) {
     const row = byStaff[sh.staff_id] || (byStaff[sh.staff_id] = {
       staff_id: sh.staff_id, nome: '—', cargo: '', salario_hora: 0, hours: 0, lateHours: 0, pay: 0, open: false, shifts: [],
     })
-    const pay = calcPayWithLateNight(sh.hours, sh.lateHours || 0, row.salario_hora)
+    const pay = calcPayWithLateNight(sh.hours, sh.lateHours || 0, row.salario_hora, nightPremium)
     sh.pay = pay
     row.hours = Math.round((row.hours + sh.hours) * 100) / 100
     row.lateHours = Math.round(((row.lateHours || 0) + (sh.lateHours || 0)) * 100) / 100
