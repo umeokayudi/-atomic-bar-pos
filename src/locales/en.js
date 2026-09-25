@@ -2019,6 +2019,18 @@ export default {
     zoneCounter: 'カウンター Counter',
     zoneTable: 'テーブル Tables',
     zoneVip: '個室 VIP rooms',
+    vip: {
+      title: 'VIP rooms',
+      lead: 'Rentals while the bar is open ({hours}). Money here is the POS till inside the room, not the JBM bill.',
+      empty: 'No VIP room yet. Add a space and set the type to VIP room.',
+      allRooms: 'All VIP rooms',
+      times: 'Times rented',
+      hours: 'Hours rented',
+      capacity: 'Capacity used while open',
+      capacityLine: '{pct}% of {seats} seats',
+      capacitySub: 'On those rentals, about {party} of {seats} seats were filled.',
+      revenue: 'Revenue in the room',
+    },
     types: {
       counter: 'Counter',
       table: 'Table',

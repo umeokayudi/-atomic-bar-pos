@@ -2019,6 +2019,18 @@ export default {
     zoneCounter: 'カウンター',
     zoneTable: 'テーブル',
     zoneVip: '個室 VIP',
+    vip: {
+      title: '個室',
+      lead: '営業時間中の貸切（{hours}）。金額は個室内のレジで、JBM請求ではありません。',
+      empty: '個室がまだありません。席を追加し、種類を個室にしてください。',
+      allRooms: '個室合計',
+      times: '貸切回数',
+      hours: '貸切時間',
+      capacity: '営業中に使った定員',
+      capacityLine: '定員 {seats} の {pct}%',
+      capacitySub: '貸切中はおよそ {party} / {seats} 名。',
+      revenue: '個室内の売上',
+    },
     types: {
       counter: 'カウンター',
       table: 'テーブル',

@@ -3561,6 +3561,17 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
 .ar-aging-cell.is-hot { background: rgba(255,59,48,0.28); }
 .ar-overdue-list { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
 .ar-overdue-row { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; background: rgba(255,255,255,0.08); border-radius: 10px; padding: 8px 10px; }
+.vip-rooms { margin: 8px 0 18px; }
+.vip-rooms h2 { margin: 0 0 4px; font-size: 18px; }
+.vip-rooms > p { margin: 0 0 10px; color: var(--text2); font-size: 13px; }
+.vip-room-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.vip-room-card { background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 14px; }
+.vip-room-card.is-total { border-color: var(--navy); }
+.vip-room-card h3 { margin: 0 0 8px; font-size: 15px; }
+.vip-room-card div { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 6px 0; border-top: 1px solid var(--border); font-size: 13px; }
+.vip-room-card span { color: var(--text2); }
+.vip-room-card b { font-weight: 800; }
+.vip-room-card em { flex-basis: 100%; font-style: normal; color: var(--text3); font-size: 12px; }
 .floor-kpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

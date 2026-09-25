@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
-import { Spinner, SectionTitle } from './utils'
+import { Spinner, SectionTitle, fmtYen } from './utils'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 import {
@@ -17,6 +17,11 @@ import {
   crmTableMissing,
   withTimeout,
 } from '../lib/barCrm'
+import { summarizeVipRooms } from '../lib/vipRooms'
+import { peekBarTeam } from '../lib/barTeam'
+import { tokyoMonthKey } from '../lib/tokyo'
+import { monthBounds } from '../lib/barCalendar'
+import RangeCalendar from './RangeCalendar'
 
 function typeLabel(t, tipo) {
   const row = SPACE_TYPES.find(x => x.id === tipo)
@@ -34,6 +39,10 @@ export default function BarSpacesTab({ bar }) {
   const [ready, setReady] = useState(null)
   const [spaces, setSpaces] = useState([])
   const [visits, setVisits] = useState([])
+  const [roomSales, setRoomSales] = useState([])
+  const month = monthBounds(tokyoMonthKey())
+  const [vipFrom, setVipFrom] = useState(month.from)
+  const [vipTo, setVipTo] = useState(month.to)
   const [guests, setGuests] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
@@ -50,10 +59,11 @@ export default function BarSpacesTab({ bar }) {
     setLoading(true)
     setLoadErr('')
     try {
-      const [sR, vR, gR] = await withTimeout(Promise.all([
+      const [sR, vR, gR, salesR] = await withTimeout(Promise.all([
         supabase.from('bar_spaces').select('*').eq('bar_id', bar.id).order('ordem'),
-        supabase.from('bar_visits').select('*, bar_guests(nome)').eq('bar_id', bar.id).in('status', ['reserved', 'seated']).order('inicio', { ascending: false }),
+        supabase.from('bar_visits').select('id,space_id,status,party_size,inicio,fim,guest_id,pos_venda_id,host_nome,bar_guests(nome)').eq('bar_id', bar.id).order('inicio', { ascending: false }).limit(400),
         supabase.from('bar_guests').select('id,nome,telefone,line_id,preferred_host').eq('bar_id', bar.id).eq('ativo', true).order('nome'),
+        supabase.from('pos_vendas').select('id,total,space_id,visit_id,criado_em,data').eq('bar_id', bar.id).order('criado_em', { ascending: false }).limit(400),
       ]))
       const err = sR.error || vR.error || gR.error
       if (err && crmTableMissing(err)) {
@@ -61,11 +71,13 @@ export default function BarSpacesTab({ bar }) {
         setSpaces([])
         setVisits([])
         setGuests([])
+        setRoomSales([])
       } else {
         setReady({ ready: true })
         setSpaces(sR.data || [])
         setVisits(vR.data || [])
         setGuests(gR.data || [])
+        setRoomSales(salesR.error ? [] : (salesR.data || []))
         if (err) setLoadErr(errText(err))
       }
     } catch (e) {
@@ -88,6 +100,17 @@ export default function BarSpacesTab({ bar }) {
   const reserved = floor.filter(s => s.reserved).length
   const free = floor.filter(s => !s.occupied && !s.reserved).length
   const staleVisits = staleOpenVisits(visits)
+  const goals = peekBarTeam()?.goals || {}
+  const vipRooms = spaces.filter(s => s.ativo !== false && (s.tipo === 'vip_room' || s.zona === 'vip'))
+  const vip = summarizeVipRooms({
+    rooms: vipRooms,
+    visits,
+    sales: roomSales,
+    from: vipFrom,
+    to: vipTo,
+    abre: goals.abre ?? 20,
+    fecha: goals.fecha ?? 5,
+  })
 
   async function addSpace() {
     if (!form.nome.trim()) return
@@ -209,6 +232,37 @@ export default function BarSpacesTab({ bar }) {
           </div>
         ))}
       </div>
+
+      <section className="vip-rooms">
+        <h2>{t('spaces.vip.title')}</h2>
+        <p>{t('spaces.vip.lead', { hours: vip.totals.openLabel })}</p>
+        <RangeCalendar from={vipFrom} to={vipTo} onChange={(a, b) => { setVipFrom(a); setVipTo(b) }} />
+        {!vipRooms.length && <div className="house-empty">{t('spaces.vip.empty')}</div>}
+        {!!vipRooms.length && (
+          <div className="vip-room-grid">
+            <article className="vip-room-card is-total">
+              <h3>{t('spaces.vip.allRooms')}</h3>
+              <div><span>{t('spaces.vip.times')}</span><b>{vip.totals.times}</b></div>
+              <div><span>{t('spaces.vip.hours')}</span><b>{formatVisitDuration(vip.totals.minutes)}</b></div>
+              <div><span>{t('spaces.vip.capacity')}</span><b>{t('spaces.vip.capacityLine', { pct: vip.totals.capacityPct, seats: vip.totals.seats })}</b></div>
+              <div><span>{t('spaces.vip.revenue')}</span><b>{fmtYen(vip.totals.revenue)}</b></div>
+            </article>
+            {vip.rows.map(row => (
+              <article key={row.id} className="vip-room-card">
+                <h3>{row.nome}</h3>
+                <div><span>{t('spaces.vip.times')}</span><b>{row.times}</b></div>
+                <div><span>{t('spaces.vip.hours')}</span><b>{formatVisitDuration(row.minutes)}</b></div>
+                <div>
+                  <span>{t('spaces.vip.capacity')}</span>
+                  <b>{t('spaces.vip.capacityLine', { pct: row.capacityPct, seats: row.seats })}</b>
+                  <em>{t('spaces.vip.capacitySub', { party: row.partyAvg, seats: row.seats })}</em>
+                </div>
+                <div><span>{t('spaces.vip.revenue')}</span><b>{fmtYen(row.revenue)}</b></div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       {!spaces.length && (
         <div className="card floor-seed" style={{ marginBottom: 16, padding: 16 }}>
