@@ -3,7 +3,7 @@
 import { filterSupplierVendas } from './_supplierVenda.js'
 import { filterJbmDrinksFaturas, faturaRemaining, faturaValor, faturaPago } from '../src/lib/barPortal.js'
 import { payrollFromPunches } from '../src/lib/timeClock.js'
-import { tokyoMonthKey, monthRange, recentMonthKeys } from '../src/lib/tokyo.js'
+import { tokyoMonthKey, tokyoNightKey, monthRange, recentMonthKeys } from '../src/lib/tokyo.js'
 import { splitCostBooks, rentForMonth, lastKnownRent, splitOverhead } from '../src/lib/costBooks.js'
 import { monthKeyOf, explainJbmGap, buildMonthSeries, invoiceOverlapsMonth, lowStockFromLedger } from '../src/lib/hqFilters.js'
 import { coalesceStockMoves, deliveryNoteMoves, posPourMoves } from '../src/lib/barStock.js'
@@ -120,6 +120,20 @@ export async function buildHqSnapshot(admin, barId, barNome = '', monthKey) {
   const pedMes = pedidos.filter(p => monthKeyOf(p.criado_em) === mes)
   const posRows = [...(posR.rows || [])].sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')))
   const posMonthRows = posRows.filter(s => monthKeyOf(s.data) === mes)
+  const historyCut = (() => {
+    const [y, m, d] = tokyoNightKey().split('-').map(Number)
+    const dt = new Date(Date.UTC(y, m - 1, d - 75))
+    return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`
+  })()
+  const mapPosTicket = s => ({
+    id: s.id,
+    data: s.data,
+    criado_em: s.criado_em || null,
+    total: +s.total || 0,
+    obs: String(s.obs || '').slice(0, 400),
+    metodo_pagamento: s.metodo_pagamento || null,
+    drink_back_agent_id: s.drink_back_agent_id || null,
+  })
   const posMonthTotal = posMonthRows.reduce((a, s) => a + (+s.total || 0), 0)
 
   const payroll = payrollFromPunches(clockR.rows || [], staff || [], range)
@@ -265,15 +279,8 @@ export async function buildHqSnapshot(admin, barId, barNome = '', monthKey) {
     pos: {
       salesCount: posMonthRows.length,
       till: books.pos.amount,
-      tickets: posMonthRows.map(s => ({
-        id: s.id,
-        data: s.data,
-        criado_em: s.criado_em || null,
-        total: +s.total || 0,
-        obs: String(s.obs || '').slice(0, 80),
-        metodo_pagamento: s.metodo_pagamento || null,
-        drink_back_agent_id: s.drink_back_agent_id || null,
-      })),
+      tickets: posMonthRows.map(mapPosTicket),
+      history: posRows.filter(s => String(s.data || s.criado_em || '') >= historyCut).slice(0, 800).map(mapPosTicket),
     },
     jbm: {
       comprasMes: jbm.contaMes,
@@ -282,6 +289,14 @@ export async function buildHqSnapshot(admin, barId, barNome = '', monthKey) {
       faturasAtraso: jbm.faturasAtraso,
       totalPendente: jbm.totalPendente,
       faturaPagaMes: jbm.faturaPagaMes,
+      openInvoices: drinksFaturas.filter(f => f.status !== 'pago').map(f => ({
+        id: f.id,
+        status: f.status,
+        valor: faturaValor(f),
+        pago: faturaPago(f),
+        data_vencimento: String(f.data_vencimento || f.periodo_fim || '').slice(0, 10),
+        numero: f.numero || 'JBM',
+      })),
       faturasResumo: drinksFaturas.slice(0, 8).map(f => ({
         status: f.status,
         total: faturaValor(f),

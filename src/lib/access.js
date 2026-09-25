@@ -38,6 +38,9 @@ export function defaultBarTab(role) {
 const GERENTE_NAV = [
   { id: 'inicio', labelKey: 'nav.portalHome', icon: '🏠' },
   { id: 'metas', labelKey: 'nav.portalGoals', icon: '🎯' },
+  { id: 'fechamento', labelKey: 'nav.portalClose', icon: '📒' },
+  { id: 'pagamentos', labelKey: 'nav.portalPay', icon: '📅' },
+  { id: 'salarios', labelKey: 'nav.portalSalary', icon: '💴' },
   { id: 'eventos', labelKey: 'nav.portalEvents', icon: '🎂' },
   { id: 'pos', labelKey: 'nav.portalPos', icon: '🧾' },
   { id: 'pedidos', labelKey: 'nav.portalOrders', icon: '🛒' },
@@ -62,7 +65,7 @@ const GERENTE_NAV = [
 ]
 
 const NAV_GROUPS = [
-  { id: 'tonight', labelKey: 'nav.groupTonight', ids: ['inicio', 'metas', 'eventos', 'ia', 'pos', 'pedidos', 'espacos', 'clientes', 'ponto'] },
+  { id: 'tonight', labelKey: 'nav.groupTonight', ids: ['inicio', 'metas', 'fechamento', 'pagamentos', 'salarios', 'eventos', 'ia', 'pos', 'pedidos', 'espacos', 'clientes', 'ponto'] },
   { id: 'house', labelKey: 'nav.groupHouse', ids: ['staff', 'fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel'] },
   { id: 'supply', labelKey: 'nav.groupSupply', ids: ['estoque', 'entregas', 'faturas'] },
   { id: 'office', labelKey: 'nav.groupOffice', ids: ['custos', 'precos', 'recibos'] },

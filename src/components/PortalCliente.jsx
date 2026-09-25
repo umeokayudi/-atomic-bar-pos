@@ -32,6 +32,7 @@ import BarTeamTab from './BarTeamTab'
 import BarHouseTab from './BarHouse'
 import BarGoalsTab from './BarGoals'
 import BarEventsTab from './BarEvents'
+import BarFinance from './BarFinance'
 import BarGuestsTab from './BarGuestsTab'
 import BarSpacesTab from './BarSpacesTab'
 import { fetchAllStockMovements } from '../lib/posSupply'
@@ -2230,6 +2231,9 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         {tab==='custos'    && isGerente(perfil?.role) && <BarCostsTab bar={bar} onTab={selectTab} />}
         {tab==='metas' && canManageBarTeam(perfil?.role) && <BarGoalsTab bar={bar} />}
         {tab==='eventos' && canManageBarTeam(perfil?.role) && <BarEventsTab bar={bar} />}
+        {['fechamento', 'pagamentos', 'salarios'].includes(tab) && canManageBarTeam(perfil?.role) && (
+          <BarFinance key={tab} bar={bar} section={tab} onTab={selectTab} />
+        )}
         {tab==='inicio' && posAccess !== 'cashier' && (
           <HomeTab bar={bar} onTab={selectTab} />
         )}

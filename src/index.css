@@ -3990,6 +3990,10 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
 .desk { display: flex; flex-direction: column; gap: 12px; margin: 8px 0 16px; }
 .desk-head h2 { margin: 0; font-size: 22px; }
 .desk-head p { margin: 4px 0 0; color: var(--text2); font-size: 14px; }
+.desk-headline { font-size: 20px; font-weight: 800; color: var(--navy); margin-top: 8px; }
+.salary-hint.is-pays { color: var(--green); }
+.salary-hint.is-tight { color: #9a7430; }
+.salary-hint.is-costly, .salary-hint.is-floor { color: var(--red); }
 .desk-card {
   background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px;
 }

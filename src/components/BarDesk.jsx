@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { fmtYen } from './utils'
 import { staffFetch } from '../lib/apiAuth'
 import { buildBarDesk } from '../lib/barDesk'
+import { paymentAgenda, sameWeekdaySales, stillToSell, weekdayOf } from '../lib/barClose'
+import { tokyoNightKey } from '../lib/tokyo'
 import { useI18n } from '../lib/i18n'
 import BarOwnerAi from './BarOwnerAi'
 
@@ -12,17 +14,30 @@ function money(n) {
 export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, floor, onTab }) {
   const { t } = useI18n()
   const [registry, setRegistry] = useState([])
+  const [goals, setGoals] = useState({})
 
   useEffect(() => {
     let cancelled = false
     staffFetch('/api/bar-staff')
       .then(r => r.json())
-      .then(j => { if (!cancelled) setRegistry(j.registry || []) })
-      .catch(() => { if (!cancelled) setRegistry([]) })
+      .then(j => {
+        if (cancelled) return
+        setRegistry(j.registry || [])
+        setGoals(j.goals || {})
+      })
+      .catch(() => {
+        if (cancelled) return
+        setRegistry([])
+        setGoals({})
+      })
     return () => { cancelled = true }
   }, [bar?.id])
 
   const desk = buildBarDesk({ tickets, hq, invoices, registry })
+  const night = tokyoNightKey()
+  const cmp = sameWeekdaySales(tickets, night)
+  const gap = stillToSell(cmp.now, goals.noite)
+  const agenda = paymentAgenda({ registry, hq, invoices, tickets, goals, today: night }).slice(0, 8)
   const maxDay = Math.max(...desk.days.map(d => d.total), 1)
   const maxHour = Math.max(...desk.hourly.map(h => h.total), 1)
 
@@ -31,12 +46,32 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
       <div className="desk-head">
         <h2>{t('portal.desk.title')}</h2>
         <p>{t('portal.desk.lead')}</p>
+        {gap != null && (
+          <p className="desk-headline">
+            {gap === 0 ? t('portal.desk.goalHit') : t('portal.desk.still', { amount: money(gap) })}
+          </p>
+        )}
+        <p className="desk-note">
+          {t('portal.desk.vsWeek', {
+            day: t(`portal.close.days.${weekdayOf(night)}`),
+            now: money(cmp.now),
+            before: money(cmp.before),
+            delta: `${cmp.delta >= 0 ? '+' : '−'}${money(Math.abs(cmp.delta))}`,
+          })}
+        </p>
       </div>
 
       <section className="desk-card">
         <h3>{t('portal.desk.alerts')}</h3>
-        {!desk.alerts.length && <div className="desk-empty">{t('portal.desk.noAlerts')}</div>}
-        {desk.alerts.map(a => (
+        {!agenda.length && !desk.alerts.length && <div className="desk-empty">{t('portal.desk.noAlerts')}</div>}
+        {(agenda.length ? agenda.map(a => ({
+          id: a.id,
+          tone: a.days < 0 ? 'bad' : a.days <= 7 ? 'soon' : 'month',
+          title: a.title || t(`portal.pay.kind.${a.kind}`),
+          amount: a.amount,
+          days: a.days,
+          tab: a.tab,
+        })) : desk.alerts).map(a => (
           <button key={a.id} type="button" className={`desk-alert is-${a.tone}`} onClick={() => onTab?.(a.tab)}>
             <span>
               <strong>{a.title || t(`portal.desk.${a.titleKey}`)}</strong>
@@ -136,6 +171,9 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
           <button type="button" onClick={() => onTab?.('custos')}>{t('portal.desk.books')}</button>
           <button type="button" onClick={() => onTab?.('pos')}>{t('portal.desk.till')}</button>
           <button type="button" onClick={() => onTab?.('metas')}>{t('nav.portalGoals')}</button>
+          <button type="button" onClick={() => onTab?.('fechamento')}>{t('nav.portalClose')}</button>
+          <button type="button" onClick={() => onTab?.('pagamentos')}>{t('nav.portalPay')}</button>
+          <button type="button" onClick={() => onTab?.('salarios')}>{t('nav.portalSalary')}</button>
         </div>
       </section>
 

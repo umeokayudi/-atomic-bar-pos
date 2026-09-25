@@ -18,10 +18,10 @@ const EMPTY_PERSON = {
 const REGISTERS = [
   { kind: 'fornecedor', title: 'suppliers', body: 'suppliersBody', fields: ['nome', 'detalhe', 'contato', 'email', 'notas'], detalheLabel: 'supplies', profile: ['cargo', 'dias', 'idiomas'], cargoLabel: 'category', daysLabel: 'deliveryDays' },
   { kind: 'parceiro', title: 'partners', body: 'partnersBody', fields: ['nome', 'contato', 'email', 'aniversario', 'notas'], profile: ['cargo', 'dias', 'idiomas', 'estilo'], daysLabel: 'workDays' },
-  { kind: 'cartao', title: 'card', body: 'cardBody', fields: ['nome', 'cargo', 'contato', 'email', 'pct', 'notas'], nomeLabel: 'company', cargoLabel: 'contactPerson', profile: [] },
-  { kind: 'energia', title: 'power', body: 'powerBody', fields: ['nome', 'cargo', 'contato', 'email', 'amount', 'notas'], nomeLabel: 'company', cargoLabel: 'contactPerson', profile: [] },
-  { kind: 'aluguel', title: 'rent', body: 'rentBody', fields: ['nome', 'cargo', 'contato', 'email', 'endereco', 'amount', 'notas'], nomeLabel: 'agency', cargoLabel: 'contactPerson', profile: [] },
-  { kind: 'fixo', title: 'fixedCosts', body: 'fixedBody', fields: ['nome', 'amount', 'contato', 'notas'], profile: [] },
+  { kind: 'cartao', title: 'card', body: 'cardBody', fields: ['nome', 'cargo', 'contato', 'email', 'pct', 'vence_dia', 'notas'], nomeLabel: 'company', cargoLabel: 'contactPerson', profile: [] },
+  { kind: 'energia', title: 'power', body: 'powerBody', fields: ['nome', 'cargo', 'contato', 'email', 'amount', 'vence_dia', 'notas'], nomeLabel: 'company', cargoLabel: 'contactPerson', profile: [] },
+  { kind: 'aluguel', title: 'rent', body: 'rentBody', fields: ['nome', 'cargo', 'contato', 'email', 'endereco', 'amount', 'vence_dia', 'notas'], nomeLabel: 'agency', cargoLabel: 'contactPerson', profile: [] },
+  { kind: 'fixo', title: 'fixedCosts', body: 'fixedBody', fields: ['nome', 'amount', 'contato', 'vence_dia', 'notas'], profile: [] },
   { kind: 'variavel', title: 'variableCosts', body: 'variableBody', fields: ['nome', 'amount', 'contato', 'notas'], profile: [], month: true },
 ]
 
@@ -59,7 +59,7 @@ function personFrom(row, source) {
 
 function blankRegistry(kind) {
   return {
-    id: '', kind, nome: '', contato: '', email: '', endereco: '', detalhe: '', amount: '', pct: '',
+    id: '', kind, nome: '', contato: '', email: '', endereco: '', detalhe: '', amount: '', pct: '', vence_dia: '',
     recorrente: kind !== 'variavel', month_key: tokyoMonthKey(),
     cargo: '', dias: [], idiomas: [], estilo: '', notas: '',
   }
@@ -229,6 +229,7 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
     if (field === 'notas') return t('house.notes')
     if (field === 'pct') return t('house.fee')
     if (field === 'amount') return t('house.monthlyAmount')
+    if (field === 'vence_dia') return t('house.dueDay')
     if (field === 'recorrente') return t('house.repeats')
     return field
   }
@@ -265,6 +266,7 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
               detalhe: row.detalhe || '',
               amount: row.amount ? String(row.amount) : '',
               pct: row.pct ? String(row.pct) : '',
+              vence_dia: row.vence_dia ? String(row.vence_dia) : '',
               recorrente: row.recorrente !== false,
               month_key: row.month_key || tokyoMonthKey(),
               cargo: row.cargo || '',
@@ -424,6 +426,7 @@ export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
       estilo: source.estilo || '',
       contato: source.contato || '',
       aniversario: String(source.aniversario || '').slice(0, 10),
+      vence_dia: Math.max(0, Math.min(31, Math.round(+source.vence_dia || 0))),
       email: source.email || '',
       endereco: source.endereco || '',
       notas: source.notas || '',

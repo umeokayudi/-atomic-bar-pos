@@ -26,6 +26,7 @@ function profileExtras(body) {
   if (body.endereco != null) extra.endereco = String(body.endereco || '').trim()
   if (body.notas != null) extra.notas = String(body.notas || '').trim()
   if (body.aniversario != null) extra.aniversario = String(body.aniversario || '').slice(0, 10)
+  if (body.vence_dia != null) extra.vence_dia = Math.max(0, Math.min(31, Math.round(+body.vence_dia || 0)))
   return extra
 }
 
@@ -253,6 +254,10 @@ export default async function handler(req, res) {
         corta: hour('corta', 0),
         pessoas,
       }
+      if (body.fecha_semana != null) row.fecha_semana = ((Math.round(+body.fecha_semana) % 7) + 7) % 7
+      if (body.dia_salario != null) row.dia_salario = Math.max(1, Math.min(28, Math.round(+body.dia_salario || 25)))
+      if (body.dia_drink != null) row.dia_drink = Math.max(1, Math.min(28, Math.round(+body.dia_drink || 10)))
+      if (body.dia_mes != null) row.dia_mes = Math.max(1, Math.min(28, Math.round(+body.dia_mes || 1)))
       const existing = await runLiveOp(db, {
         table: 'bar_goals',
         mode: 'select',
@@ -260,6 +265,44 @@ export default async function handler(req, res) {
         filters: [{ op: 'eq', k: 'id', v: barId }],
         wantSingle: 'maybe',
       })
+      const saved = await runLiveOp(db, {
+        table: 'bar_goals',
+        mode: existing.data ? 'update' : 'insert',
+        filters: [{ op: 'eq', k: 'id', v: barId }],
+        insertRows: [row],
+        updatePatch: row,
+        wantSingle: true,
+      })
+      if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not save' })
+      return res.status(200).json({ ok: true, goals: row })
+    }
+
+    if (req.method === 'POST' && body.action === 'saveCloseSettings') {
+      const existing = await runLiveOp(db, {
+        table: 'bar_goals',
+        mode: 'select',
+        columns: '*',
+        filters: [{ op: 'eq', k: 'id', v: barId }],
+        wantSingle: 'maybe',
+      })
+      const base = existing.data || {
+        id: barId,
+        bar_id: barId,
+        noite: 0,
+        hora: 0,
+        semana: 0,
+        turno: 0,
+        lucro: 0,
+        abre: 20,
+        fecha: 5,
+        corta: 0,
+        pessoas: [],
+      }
+      const row = { ...base, id: barId, bar_id: barId }
+      if (body.fecha_semana != null) row.fecha_semana = ((Math.round(+body.fecha_semana) % 7) + 7) % 7
+      if (body.dia_salario != null) row.dia_salario = Math.max(1, Math.min(28, Math.round(+body.dia_salario || 25)))
+      if (body.dia_drink != null) row.dia_drink = Math.max(1, Math.min(28, Math.round(+body.dia_drink || 10)))
+      if (body.dia_mes != null) row.dia_mes = Math.max(1, Math.min(28, Math.round(+body.dia_mes || 1)))
       const saved = await runLiveOp(db, {
         table: 'bar_goals',
         mode: existing.data ? 'update' : 'insert',
