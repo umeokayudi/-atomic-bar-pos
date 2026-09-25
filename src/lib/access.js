@@ -39,6 +39,8 @@ const GERENTE_NAV = [
   { id: 'inicio', labelKey: 'nav.portalHome', icon: '🏠' },
   { id: 'pos', labelKey: 'nav.portalPos', icon: '🧾' },
   { id: 'pedidos', labelKey: 'nav.portalOrders', icon: '🛒' },
+  { id: 'entregas', labelKey: 'nav.portalDeliveries', icon: '📦' },
+  { id: 'faturas', labelKey: 'nav.portalInvoices', icon: '📄' },
   { id: 'espacos', labelKey: 'nav.portalSpaces', icon: '🪑' },
   { id: 'clientes', labelKey: 'nav.portalGuests', icon: '🥂' },
   { id: 'ponto', labelKey: 'nav.portalClock', icon: '🕒' },
@@ -59,18 +61,16 @@ const GERENTE_NAV = [
   { id: 'contador', labelKey: 'house.accountant', icon: '🧮' },
   { id: 'imposto', labelKey: 'house.tax', icon: '🏛' },
   { id: 'estoque', labelKey: 'nav.portalInventory', icon: '🍾' },
-  { id: 'entregas', labelKey: 'nav.portalDeliveries', icon: '📦' },
-  { id: 'faturas', labelKey: 'nav.portalInvoices', icon: '📄' },
   { id: 'custos', labelKey: 'nav.portalCosts', icon: '📚' },
   { id: 'precos', labelKey: 'nav.portalPrices', icon: '🏷' },
   { id: 'recibos', labelKey: 'nav.portalReceipts', icon: '🖨' },
 ]
 
 const NAV_GROUPS = [
-  { id: 'tonight', labelKey: 'nav.groupTonight', ids: ['inicio', 'pos', 'pedidos', 'espacos', 'clientes', 'ponto', 'fechamento'] },
+  { id: 'tonight', labelKey: 'nav.groupTonight', ids: ['inicio', 'pos', 'pedidos', 'entregas', 'faturas', 'espacos', 'clientes', 'ponto', 'fechamento'] },
   { id: 'numbers', labelKey: 'nav.groupNumbers', ids: ['metas', 'pagamentos', 'salarios', 'eventos', 'ia'] },
   { id: 'house', labelKey: 'nav.groupHouse', ids: ['staff', 'fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'] },
-  { id: 'supply', labelKey: 'nav.groupSupply', ids: ['estoque', 'entregas', 'faturas'] },
+  { id: 'supply', labelKey: 'nav.groupSupply', ids: ['estoque'] },
   { id: 'office', labelKey: 'nav.groupOffice', ids: ['custos', 'precos', 'recibos'] },
 ]
 

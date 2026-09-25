@@ -1368,6 +1368,9 @@ export default {
       matchPending: 'Orders and amounts match. The invoice has not arrived yet.',
       waiting: 'One side is still missing before it can be checked against the invoice.',
       off: 'Does not match. Difference {amount}.',
+      slipTitle: 'Invoice',
+      slipOpen: 'Still open {open}.',
+      slipPaidFull: 'Paid in full.',
     },
     salary: {
       title: 'Payroll',
@@ -1620,6 +1623,7 @@ export default {
     },
     orders: {
       title: 'My orders',
+      onlyHint: 'This page is the order only. Check what arrived under Deliveries, and the bill under Invoices.',
       loading: 'Loading...',
       monthlySummary: '📊 Monthly summary',
       orderList: '📋 Order list',
@@ -1663,6 +1667,16 @@ export default {
       saveItemsError: 'Error saving items: {message}',
       newOrderFrom: 'New order from {bar}',
       productsCount: '{count} product(s) - {amount}',
+    },
+    deliveries: {
+      title: 'Deliveries',
+      subtitle: 'What JBM delivered. This is not the order and not the invoice.',
+      loading: 'Loading deliveries...',
+      search: 'Search product',
+      checkTitle: 'Delivery check',
+      count: '{count} deliveries',
+      arrived: 'Arrived',
+      empty: 'No deliveries in this range',
     },
     inventory: {
       loading: 'Loading...',

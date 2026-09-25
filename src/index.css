@@ -4181,6 +4181,11 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
   font-weight: 800;
   cursor: pointer;
 }
+.date-filter-chip.is-on {
+  background: var(--navy);
+  color: #fff;
+  border-color: var(--navy);
+}
 .bill-match-row.is-paid b { color: var(--green); }
 .bill-match-row.is-open b { color: var(--red); }
 .bill-match-verdict { margin: 8px 0 0; font-weight: 800; font-size: 14px; }

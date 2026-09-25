@@ -1368,6 +1368,9 @@ export default {
       matchPending: '発注と届いた金額は一致。請求はまだです。',
       waiting: '照合するには、もう一方の金額が必要です。',
       off: '一致しません。差額 {amount}。',
+      slipTitle: '請求書',
+      slipOpen: '未払 {open}。',
+      slipPaidFull: '全額支払済。',
     },
     salary: {
       title: '給与',
@@ -1620,6 +1623,7 @@ export default {
     },
     orders: {
       title: '注文',
+      onlyHint: 'ここは注文だけです。届いた分は納品、請求は請求書で確認します。',
       loading: '読込中...',
       monthlySummary: '📊 月次まとめ',
       orderList: '📋 注文一覧',
@@ -1663,6 +1667,16 @@ export default {
       saveItemsError: '品目の保存エラー: {message}',
       newOrderFrom: '{bar} からの新規注文',
       productsCount: '{count}品 - {amount}',
+    },
+    deliveries: {
+      title: '納品',
+      subtitle: 'JBMが届けた分です。注文でも請求でもありません。',
+      loading: '納品を読み込み中...',
+      search: '商品を検索',
+      checkTitle: '納品の確認',
+      count: '納品 {count} 件',
+      arrived: '着荷',
+      empty: 'この期間の納品はありません',
     },
     inventory: {
       loading: '読込中...',

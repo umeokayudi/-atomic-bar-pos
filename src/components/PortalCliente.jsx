@@ -652,102 +652,87 @@ function HomeTab({ bar, onTab }) {
 
 // ── DELIVERIES ────────────────────────────────────────────────────────────────
 function DeliveriesTab({ bar }) {
-  const [vendas,    setVendas]    = useState([])
-  const [loading,   setLoading]   = useState(true)
-  const [search,    setSearch]    = useState('')
-  const [dateFrom,  setDateFrom]  = useState('')
-  const [dateTo,    setDateTo]    = useState('')
-  const [filterMes, setFilterMes] = useState('')
+  const { t } = useI18n()
+  const [vendas, setVendas] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   useEffect(() => { load() }, [bar])
 
   async function load() {
-    const { data } = await supabase.from('vendas').select('*, vendas_itens(*, produtos(*))').eq('bar_id', bar.id).order('data', { ascending:false })
+    const { data } = await supabase.from('vendas').select('*, vendas_itens(*, produtos(*))').eq('bar_id', bar.id).order('data', { ascending: false })
     setVendas(filterSupplierVendas(data || []))
     setLoading(false)
   }
 
-  const meses = [...new Set(vendas.map(v => v.data?.slice(0,7)).filter(Boolean))].sort().reverse()
+  const thisMonth = tokyoMonthKey()
+  const prevMonth = shiftMonth(thisMonth, -1)
+  const activeMonth = dateFrom && dateTo && dateFrom.slice(0, 7) === dateTo.slice(0, 7) && dateFrom.endsWith('-01') ? dateFrom.slice(0, 7) : ''
+
+  function applyMonth(monthKey) {
+    if (!monthKey) { setDateFrom(''); setDateTo(''); return }
+    const b = monthBounds(monthKey)
+    setDateFrom(b.from)
+    setDateTo(b.to)
+  }
 
   const filtered = vendas.filter(v => {
-    if (filterMes && !v.data?.startsWith(filterMes)) return false
-    if (dateFrom && v.data < dateFrom) return false
-    if (dateTo && v.data > dateTo) return false
+    const d = v.data || v.data_venda || ''
+    if (dateFrom && d < dateFrom) return false
+    if (dateTo && d > dateTo) return false
     if (search) {
       const s = search.toLowerCase()
-      const hasItem = (v.vendas_itens||[]).some(it => it.produtos?.nome?.toLowerCase().includes(s))
-      if (!hasItem && !v.data?.includes(s)) return false
+      const hasItem = (v.vendas_itens || []).some(it => it.produtos?.nome?.toLowerCase().includes(s))
+      if (!hasItem && !d.includes(s)) return false
     }
     return true
   })
 
-  const total = filtered.reduce((a,v) => a+(+v.total||0), 0)
+  const total = filtered.reduce((a, v) => a + (+v.total || 0), 0)
 
-  if (loading) return <Spinner text="Loading..." />
+  if (loading) return <Spinner text={t('portal.deliveries.loading')} />
 
   return (
     <div className="fade-in">
-      <SectionTitle>Delivery history</SectionTitle>
+      <SectionTitle sub={t('portal.deliveries.subtitle')}>{t('portal.deliveries.title')}</SectionTitle>
 
-      {/* Filters */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:14 }}>
-        <div style={{ position:'relative' }}>
-          <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:'var(--text3)', fontSize:14 }}>🔍</span>
-          <input type="text" placeholder="Search product..." value={search}
-            onChange={e=>setSearch(e.target.value)}
-            style={{ paddingLeft:36, width:'100%', borderRadius:10, padding:'9px 12px 9px 36px', fontSize:13 }}
-          />
-        </div>
-        <div>
-          <input type="date" value={dateFrom} onChange={e=>{setDateFrom(e.target.value);setFilterMes('')}}
-            style={{ width:'100%', borderRadius:10, padding:'9px 12px', fontSize:13 }}
-            placeholder="From"
-          />
-        </div>
-        <div>
-          <input type="date" value={dateTo} onChange={e=>{setDateTo(e.target.value);setFilterMes('')}}
-            style={{ width:'100%', borderRadius:10, padding:'9px 12px', fontSize:13 }}
-            placeholder="To"
-          />
-        </div>
+      <div className="date-filter">
+        <button type="button" className={`date-filter-chip${!dateFrom && !dateTo ? ' is-on' : ''}`} onClick={() => applyMonth('')}>{t('portal.home.rangeAll')}</button>
+        <button type="button" className={`date-filter-chip${activeMonth === thisMonth ? ' is-on' : ''}`} onClick={() => applyMonth(thisMonth)}>{t('portal.home.rangeMonth')}</button>
+        <button type="button" className={`date-filter-chip${activeMonth === prevMonth ? ' is-on' : ''}`} onClick={() => applyMonth(prevMonth)}>{t('portal.home.rangePrev')}</button>
+        <input type="month" value={activeMonth} onChange={e => applyMonth(e.target.value)} aria-label={t('common.month')} />
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} aria-label={t('common.from')} />
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} aria-label={t('common.to')} />
       </div>
 
-      {/* Month pills */}
-      <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:16 }}>
-        <button onClick={()=>{setFilterMes('');setDateFrom('');setDateTo('')}} style={{
-          padding:'5px 14px', borderRadius:20, fontSize:12, fontWeight:600, cursor:'pointer',
-          background:!filterMes&&!dateFrom?'var(--navy)':'var(--bg3)',
-          color:!filterMes&&!dateFrom?'white':'var(--text2)', border:'none'
-        }}>All</button>
-        {meses.map(m => (
-          <button key={m} onClick={()=>{setFilterMes(m);setDateFrom('');setDateTo('')}} style={{
-            padding:'5px 14px', borderRadius:20, fontSize:12, fontWeight:600, cursor:'pointer',
-            background:filterMes===m?'var(--navy)':'var(--bg3)',
-            color:filterMes===m?'white':'var(--text2)', border:'none'
-          }}>{m}</button>
-        ))}
-      </div>
+      <input
+        type="text"
+        placeholder={t('portal.deliveries.search')}
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        style={{ width: '100%', borderRadius: 10, padding: '9px 12px', fontSize: 13, marginBottom: 14 }}
+      />
 
-      {/* Total */}
-      {filtered.length > 0 && (
-        <div style={{ marginBottom:14, padding:'12px 16px', background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, fontSize:13, display:'flex', justifyContent:'space-between' }}>
-          <span style={{ color:'var(--text2)' }}>{filtered.length} deliveries</span>
-          <strong>Total: {fmtYen(total)}</strong>
-        </div>
-      )}
+      <section className="bill-match is-match" style={{ marginBottom: 14 }}>
+        <h3>{t('portal.deliveries.checkTitle')}</h3>
+        <div className="bill-match-row"><span>{t('portal.deliveries.count', { count: filtered.length })}</span><b>{t('portal.deliveries.arrived')}</b></div>
+        <div className="bill-match-row"><span>{t('common.total')}</span><b>{fmtYen(total)}</b></div>
+      </section>
 
       {filtered.length === 0
-        ? <Empty text="No deliveries found" />
+        ? <Empty text={t('portal.deliveries.empty')} />
         : filtered.map(v => (
-          <div key={v.id} style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:14, padding:'16px', marginBottom:10 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:10 }}>
-              <span style={{ fontWeight:700, fontSize:14 }}>{fmtDate(v.data)}</span>
-              <span style={{ fontWeight:800, color:'var(--navy)', fontSize:15 }}>{fmtYen(v.total)}</span>
+          <div key={v.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px', marginBottom: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+              <span style={{ fontWeight: 700, fontSize: 14 }}>{fmtDate(v.data || v.data_venda)}</span>
+              <span style={{ fontWeight: 800, color: 'var(--navy)', fontSize: 15 }}>{fmtYen(v.total)}</span>
             </div>
-            {(v.vendas_itens||[]).map(it => (
-              <div key={it.id} style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:'var(--text2)', marginBottom:4 }}>
+            {(v.vendas_itens || []).map(it => (
+              <div key={it.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text2)', marginBottom: 4 }}>
                 <span>{it.produtos?.nome} × {it.qtd}</span>
-                <span>{fmtYen((it.preco_unitario||0)*it.qtd)}</span>
+                <span>{fmtYen((it.preco_unitario || 0) * it.qtd)}</span>
               </div>
             ))}
           </div>
@@ -1880,7 +1865,7 @@ function FaturasTab({ bar }) {
           <button type="button" className="date-filter-chip" onClick={() => { setDateFrom(''); setDateTo('') }}>{t('portal.invoices.clear')}</button>
         )}
       </div>
-      <BillMatch orders={ordersInRange} notes={notesInRange} invoices={filtered} monthKey={activeMonth} />
+      <BillMatch orders={ordersInRange} notes={notesInRange} invoices={filtered} monthKey={activeMonth} variant="slip" />
       <div className="ar-war">
         <div className="ar-war-head">
           <div>

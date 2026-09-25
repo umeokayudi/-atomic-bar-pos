@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
-import { fmtYen, fmtDate, Spinner, Empty, SectionTitle, isSupplierProduct, PedidoItemChip, filterSupplierVendas } from './utils'
+import { fmtYen, fmtDate, Spinner, Empty, SectionTitle, isSupplierProduct, PedidoItemChip } from './utils'
 import { isRestockPedido } from '../lib/posSupply'
 import { useI18n } from '../lib/i18n'
 import { orderDetailsFromObs } from '../lib/orderMeta'
-import { filterJbmDrinksFaturas } from '../lib/barPortal'
 import { tokyoMonthKey } from '../lib/tokyo'
-import { dateInRange, invoiceInRange, monthBounds } from '../lib/barCalendar'
-import BillMatch from './BillMatch'
+import { shiftMonth } from '../lib/barCalendar'
 
 const STATUS_PEDIDO = {
   pendente:   { labelKey: 'orderStatus.pendente',   color: '#8A5A00', bg: '#FDF3E0' },
@@ -42,28 +40,27 @@ export default function BarOrdersTab({ bar }) {
   const [statusFilter, setStatusFilter] = useState('open')
   const [viewMode, setViewMode] = useState('list')
   const [summaryMes, setSummaryMes] = useState('')
-  const [faturas, setFaturas] = useState([])
-  const [notes, setNotes] = useState([])
 
   useEffect(() => { load() }, [bar])
 
   async function load() {
-    const [pR, pedR, fatR, noteR] = await Promise.all([
+    const [pR, pedR] = await Promise.all([
       supabase.from('produtos_public').select('*').eq('ativo', true).order('categoria').order('nome'),
       supabase.from('pedidos').select('*, pedidos_itens(*, produtos(nome,preco_venda,categoria,volume_ml))').eq('bar_id', bar.id).order('criado_em', { ascending: false }).limit(80),
-      supabase.from('faturas').select('*').eq('bar_id', bar.id).order('data_vencimento', { ascending: false }).limit(24),
-      supabase.from('vendas').select('total,data,data_venda,obs').eq('bar_id', bar.id).order('data', { ascending: false }).limit(200),
     ])
     setProdutos((pR.data || []).filter(isSupplierProduct))
     setPedidos(pedR.data || [])
-    setFaturas(filterJbmDrinksFaturas(fatR.data || []))
-    setNotes(filterSupplierVendas(noteR.data || []))
     setLoading(false)
   }
 
-  const allMeses = [...new Set(pedidos.map(p => p.criado_em?.slice(0, 7)).filter(Boolean))].sort().reverse()
+  const thisMonth = tokyoMonthKey()
+  const prevMonth = shiftMonth(thisMonth, -1)
+  const allMeses = [...new Set(pedidos.map(p => (p.data_pedido || p.criado_em || '').slice(0, 7)).filter(Boolean))].sort().reverse()
   const mesFiltro = summaryMes || (allMeses[0] || '')
-  const pedidosMes = pedidos.filter(p => p.criado_em?.startsWith(mesFiltro))
+  const ranged = summaryMes
+    ? pedidos.filter(p => (p.data_pedido || p.criado_em || '').startsWith(summaryMes))
+    : pedidos
+  const pedidosMes = ranged.filter(p => (p.data_pedido || p.criado_em || '').startsWith(mesFiltro))
   const prodMap = {}
   pedidosMes.forEach(p => (p.pedidos_itens || []).forEach(it => {
     const pid = it.produto_id
@@ -89,7 +86,7 @@ export default function BarOrdersTab({ bar }) {
     return String(p.nome || '').toLowerCase().includes(q) || String(p.categoria || '').toLowerCase().includes(q)
   })
 
-  const listed = pedidos.filter(p => {
+  const listed = ranged.filter(p => {
     if (statusFilter === 'open') return p.status === 'pendente' || p.status === 'confirmado'
     if (statusFilter === 'all') return true
     return p.status === statusFilter
@@ -161,7 +158,7 @@ export default function BarOrdersTab({ bar }) {
   return (
     <div className="fade-in ord-page">
       <div className="ord-head">
-        <SectionTitle>{t('portal.orders.title')}</SectionTitle>
+        <SectionTitle sub={t('portal.orders.onlyHint')}>{t('portal.orders.title')}</SectionTitle>
         <div className="ord-head-actions">
           <button type="button" className="ord-ghost" onClick={() => setViewMode(v => v === 'list' ? 'summary' : 'list')}>
             {viewMode === 'list' ? t('portal.orders.monthlySummary') : t('portal.orders.orderList')}
@@ -170,23 +167,16 @@ export default function BarOrdersTab({ bar }) {
       </div>
 
       <div className="date-filter">
+        <button type="button" className={`date-filter-chip${!summaryMes ? ' is-on' : ''}`} onClick={() => setSummaryMes('')}>{t('portal.home.rangeAll')}</button>
+        <button type="button" className={`date-filter-chip${summaryMes === thisMonth ? ' is-on' : ''}`} onClick={() => setSummaryMes(thisMonth)}>{t('portal.home.rangeMonth')}</button>
+        <button type="button" className={`date-filter-chip${summaryMes === prevMonth ? ' is-on' : ''}`} onClick={() => setSummaryMes(prevMonth)}>{t('portal.home.rangePrev')}</button>
         <input
           type="month"
           value={summaryMes}
           onChange={e => setSummaryMes(e.target.value)}
           aria-label={t('common.month')}
         />
-        <button type="button" className="date-filter-chip" onClick={() => setSummaryMes(tokyoMonthKey())}>{t('portal.home.rangeMonth')}</button>
-        {summaryMes && (
-          <button type="button" className="date-filter-chip" onClick={() => setSummaryMes('')}>{t('portal.home.rangeAll')}</button>
-        )}
       </div>
-      <BillMatch
-        orders={summaryMes ? pedidos.filter(p => dateInRange(p.data_pedido || p.criado_em, monthBounds(summaryMes).from, monthBounds(summaryMes).to)) : pedidos}
-        notes={summaryMes ? notes.filter(n => dateInRange(n.data || n.data_venda, monthBounds(summaryMes).from, monthBounds(summaryMes).to)) : notes}
-        invoices={summaryMes ? faturas.filter(f => invoiceInRange(f, monthBounds(summaryMes).from, monthBounds(summaryMes).to)) : faturas}
-        monthKey={summaryMes || tokyoMonthKey()}
-      />
 
       {viewMode === 'summary' && (
         <div className="card" style={{ marginBottom: 16 }}>
