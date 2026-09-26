@@ -21,6 +21,8 @@ export default function POS() {
   const [cast, setCast] = useState([])
   const [selectedCast, setSelectedCast] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [loadErr, setLoadErr] = useState(null)
+  const [castErr, setCastErr] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [modal, setModal] = useState(false)
   const [toast, setToast] = useState(null)
@@ -35,16 +37,19 @@ export default function POS() {
     let cancelled = false
     async function load() {
       setLoading(true)
-      const [{ data: prods }, { data: castData }] = await Promise.all([
+      const [prodR, castR] = await Promise.all([
         supabase.from('produtos').select('id,nome,categoria,preco_venda,estoque_atual').eq('bar_id', barId).order('categoria').order('nome'),
         supabase.from('cast_members').select('id,nome,tipo,ativo').eq('bar_id', barId).eq('ativo', true).order('nome')
       ])
       if (cancelled) return
-      setProdutos(prods || [])
-      setCast(castData || [])
+      setLoadErr(prodR.error ? (prodR.error.message || 'Erro ao carregar produtos') : null)
+      setCastErr(castR.error ? (castR.error.message || 'Erro ao carregar cast') : null)
+      const prods = prodR.error ? [] : (prodR.data || [])
+      setProdutos(prods)
+      setCast(castR.error ? [] : (castR.data || []))
       setOrder([])
       setSelectedCast(null)
-      if (prods?.length) setCat(prods[0].categoria)
+      if (prods.length) setCat(prods[0].categoria)
       setLoading(false)
     }
     load()
@@ -93,13 +98,14 @@ export default function POS() {
       if (error) throw error
 
       const confirmed = Math.round(Number(data?.total || grandTotal))
-      const { data: prods } = await supabase
+      const { data: prods, error: prodErr } = await supabase
         .from('produtos')
         .select('id,nome,categoria,preco_venda,estoque_atual')
         .eq('bar_id', barId)
         .order('categoria')
         .order('nome')
-      if (prods) setProdutos(prods)
+      if (prodErr) showToast('Erro ao carregar produtos', 'error')
+      else if (prods) setProdutos(prods)
       setOrder([])
       setModal(false)
       showToast(`Pedido confirmado: ${fmt(confirmed)}`)
@@ -156,7 +162,18 @@ export default function POS() {
                 )}
               </div>
             ))}
-            {filtered.length === 0 && (
+            {loadErr && (
+              <div style={{ gridColumn: '1/-1', textAlign: 'center', color: 'var(--danger)', padding: 32, fontSize: 13 }}>
+                Erro ao carregar produtos
+                <div style={{ marginTop: 6, color: 'var(--white60)', fontSize: 12 }}>{loadErr}</div>
+              </div>
+            )}
+            {castErr && (
+              <div style={{ gridColumn: '1/-1', color: 'var(--danger)', fontSize: 12, marginBottom: 8 }}>
+                Erro ao carregar cast. {castErr}
+              </div>
+            )}
+            {!loadErr && filtered.length === 0 && (
               <div style={{ gridColumn: '1/-1', textAlign: 'center', color: 'var(--white30)', padding: 32, fontSize: 13 }}>
                 Nenhum produto nesta categoria
               </div>

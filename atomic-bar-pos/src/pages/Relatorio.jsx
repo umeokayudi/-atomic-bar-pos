@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useBar } from '../lib/useBar'
+import { tokyoDateKey, tokyoDayWindow, tokyoMonthWindow, tokyoMonthStart, tokyoNextDate, tokyoNextMonthStart } from '../lib/tokyoDay'
 
 const fmt = n => '¥' + Math.round(n).toLocaleString('ja-JP')
 const fmtDate = d => new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
@@ -11,24 +12,33 @@ export default function Relatorio() {
   const [caixa, setCaixa] = useState([])
   const [compras, setCompras] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadErr, setLoadErr] = useState(null)
   const [period, setPeriod] = useState('hoje')
-
-  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
-  const monthStart = today.slice(0, 7) + '-01'
-
-  const dateFilter = period === 'hoje' ? today : monthStart
 
   useEffect(() => {
     if (!barId) return
     async function load() {
-      const [{ data: vData }, { data: cxData }, { data: compData }] = await Promise.all([
-        supabase.from('vendas').select('id,total,forma_pagamento,data_venda,mesa,comissao_total').eq('bar_id', barId).gte('data_venda', dateFilter).order('data_venda', { ascending: false }).limit(80),
-        supabase.from('caixa_movimentos').select('id,tipo,valor,descricao,data,referencia_tipo').eq('bar_id', barId).gte('data', dateFilter).order('data', { ascending: false }).limit(80),
-        supabase.from('compras').select('id,total,data_emissao').eq('bar_id', barId).gte('data_emissao', dateFilter).limit(80)
+      const today = tokyoDateKey()
+      const bounds = period === 'hoje' ? tokyoDayWindow(today) : tokyoMonthWindow(today)
+      const compraFrom = period === 'hoje' ? today : tokyoMonthStart(today)
+      const compraTo = period === 'hoje' ? tokyoNextDate(today) : tokyoNextMonthStart(today)
+      const [vRes, cxRes, compRes] = await Promise.all([
+        supabase.from('vendas').select('id,total,forma_pagamento,data_venda,mesa,comissao_total').eq('bar_id', barId).gte('data_venda', bounds.start).lt('data_venda', bounds.end).order('data_venda', { ascending: false }).limit(80),
+        supabase.from('caixa_movimentos').select('id,tipo,valor,descricao,data,referencia_tipo').eq('bar_id', barId).gte('data', bounds.start).lt('data', bounds.end).order('data', { ascending: false }).limit(80),
+        supabase.from('compras').select('id,total,data_emissao').eq('bar_id', barId).gte('data_emissao', compraFrom).lt('data_emissao', compraTo).limit(80)
       ])
-      setVendas(vData || [])
-      setCaixa(cxData || [])
-      setCompras(compData || [])
+      const failed = vRes.error || cxRes.error || compRes.error
+      if (failed) {
+        setLoadErr(failed.message || 'Erro ao carregar o relatório')
+        setVendas([])
+        setCaixa([])
+        setCompras([])
+      } else {
+        setLoadErr(null)
+        setVendas(vRes.data || [])
+        setCaixa(cxRes.data || [])
+        setCompras(compRes.data || [])
+      }
       setLoading(false)
     }
     load()
@@ -72,8 +82,13 @@ export default function Relatorio() {
         <div>
           <h2 style={{ fontSize: 18, fontWeight: 500, marginBottom: 4 }}>Relatório</h2>
           <div style={{ fontSize: 12, color: 'var(--white60)' }}>
-            <span style={{ color: 'var(--gold)' }}>●</span> Atualização em tempo real
+            <span style={{ color: 'var(--gold)' }}>●</span> Atualização em tempo real · horário de Tóquio
           </div>
+          {loadErr && (
+            <div style={{ marginTop: 8, fontSize: 13, color: 'var(--danger)' }}>
+              Erro ao carregar o relatório. {loadErr}
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           {['hoje', 'mes'].map(p => (
