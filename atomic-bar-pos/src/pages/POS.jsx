@@ -83,94 +83,32 @@ export default function POS() {
     if (!order.length) return
     setSubmitting(true)
     try {
-      // 1. Insert venda
-      const { data: venda, error: vendaErr } = await supabase
-        .from('vendas')
-        .insert({
-          bar_id: barId,
-          data_venda: new Date().toISOString(),
-          total: grandTotal,
-          forma_pagamento: payment,
-          mesa,
-          cast_id: selectedCast?.id || null,
-          comissao_total: totalCommission,
-          status: 'confirmada'
-        })
-        .select()
-        .single()
-      if (vendaErr) throw vendaErr
-
-      // 2. Insert vendas_itens
-      const itens = order.map(o => ({
-        venda_id: venda.id,
-        produto_id: o.produto_id,
-        quantidade: o.qty,
-        preco_unitario: o.price,
-        subtotal: o.price * o.qty,
-        comissao: selectedCast ? calcCommission(selectedCast, o) * o.qty : 0
-      }))
-      const { error: itensErr } = await supabase.from('vendas_itens').insert(itens)
-      if (itensErr) throw itensErr
-
-      // 3. Debit stock for each item
-      for (const item of order) {
-        await supabase.rpc('deduct_stock', {
-          p_produto_id: item.produto_id,
-          p_qty: item.qty
-        })
-      }
-
-      // 4. Insert caixa_movimentos
-      const { error: cxErr } = await supabase.from('caixa_movimentos').insert({
-        bar_id: barId,
-        tipo: 'entrada',
-        valor: barRevenue,
-        descricao: `Venda ${mesa} - ${payment}`,
-        referencia_id: venda.id,
-        referencia_tipo: 'venda',
-        data: new Date().toISOString()
+      const { data, error } = await supabase.rpc('create_order', {
+        p_bar_id: barId,
+        p_mesa: mesa,
+        p_payment: payment,
+        p_cast_id: selectedCast?.id || null,
+        p_items: order.map(o => ({ produto_id: o.produto_id, qty: o.qty })),
       })
-      if (cxErr) throw cxErr
+      if (error) throw error
 
-      // 5. If card, insert fee as saida
-      if (payment === 'cartao' && processorFee > 0) {
-        await supabase.from('caixa_movimentos').insert({
-          bar_id: barId,
-          tipo: 'saida',
-          valor: processorFee,
-          descricao: `Taxa cartão (3.78%) - ${mesa}`,
-          referencia_id: venda.id,
-          referencia_tipo: 'taxa_cartao',
-          data: new Date().toISOString()
-        })
-      }
-
-      // 6. If cast commission, insert saida
-      if (totalCommission > 0) {
-        await supabase.from('caixa_movimentos').insert({
-          bar_id: barId,
-          tipo: 'saida',
-          valor: totalCommission,
-          descricao: `Comissão ${selectedCast.nome} - ${mesa}`,
-          referencia_id: venda.id,
-          referencia_tipo: 'comissao',
-          data: new Date().toISOString()
-        })
-        // Also log to cast_comissoes
-        await supabase.from('cast_comissoes').insert({
-          cast_id: selectedCast.id,
-          venda_id: venda.id,
-          valor: totalCommission,
-          data: new Date().toISOString()
-        })
-      }
-
+      const confirmed = Math.round(Number(data?.total || grandTotal))
+      const { data: prods } = await supabase
+        .from('produtos')
+        .select('id,nome,categoria,preco_venda,estoque_atual')
+        .eq('bar_id', barId)
+        .order('categoria')
+        .order('nome')
+      if (prods) setProdutos(prods)
       setOrder([])
       setModal(false)
-      showToast(`Pedido confirmado: ${fmt(grandTotal)}`)
+      showToast(`Pedido confirmado: ${fmt(confirmed)}`)
     } catch (err) {
       console.error(err)
-      showToast('Erro ao confirmar pedido', 'error')
+      const msg = String(err?.message || '')
+      if (/insufficient stock/i.test(msg)) showToast('Estoque insuficiente', 'error')
+      else if (/not authenticated|bar not allowed/i.test(msg)) showToast('Sem permissão para este bar', 'error')
+      else showToast('Erro ao confirmar pedido', 'error')
     } finally {
       setSubmitting(false)
     }
