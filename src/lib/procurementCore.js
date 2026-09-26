@@ -361,6 +361,49 @@ export function isProcurementHq(role) {
   return role === 'admin' || role === 'jbm'
 }
 
+/** Supplier portal status must not invent a physical receipt. */
+export function physicalStatusAfterSupplier(action, task = {}) {
+  const status = task.status || 'assigned'
+  if (!['in_transit', 'delivered', 'partial'].includes(action)) return status
+  const purchased = +task.quantityPurchased || 0
+  if (purchased > 0 && ['purchasing', 'purchased', 'waiting_purchase', 'assigned', 'exception'].includes(status)) {
+    return 'in_transit'
+  }
+  return status
+}
+
+export function assertQtyChain(task) {
+  const requested = +task.quantityRequested || 0
+  const allocated = +task.quantityAllocated || 0
+  const purchased = +task.quantityPurchased || 0
+  const received = +task.quantityReceived || 0
+  const atBar = +task.quantityAtBar || 0
+  if (allocated > requested || purchased > allocated || received > purchased || atBar > received || purchased < 0) {
+    throw new Error('quantity chain broken')
+  }
+  if (task.status === 'in_transit' && purchased <= 0) throw new Error('in transit without purchase')
+  if (task.status === 'partially_received' && !(received > 0 && received < allocated)) {
+    throw new Error('partial receipt without quantity')
+  }
+}
+
+export function applyLockedPurchase(task, incoming) {
+  const purchased = +task.quantityPurchased || 0
+  const allocated = +task.quantityAllocated || 0
+  if (+incoming <= 0) throw new Error('quantity required')
+  if (purchased + +incoming > allocated) throw new Error('quantity exceeds the task')
+  const next = purchased + +incoming
+  return { ...task, quantityPurchased: next, status: next >= allocated ? 'purchased' : 'purchasing' }
+}
+
+export function assertLegacyBarConfirm(hasOpenTasks) {
+  if (hasOpenTasks) throw new Error('confirm the shipment')
+}
+
+export function assertFirstConfirm(confirmedAt) {
+  if (confirmedAt) throw new Error('delivery already confirmed')
+}
+
 export function canCallMyTasks(role) {
   return role === 'admin' || role === 'jbm' || role === 'funcionario'
 }

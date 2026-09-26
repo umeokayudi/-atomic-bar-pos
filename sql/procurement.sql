@@ -26,6 +26,25 @@ $$;
 REVOKE ALL ON FUNCTION public.is_procurement_hq() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.is_procurement_hq() TO authenticated;
 
+-- Same gate as HQ. Employee (funcionario) is not JBM: they use their own tasks.
+-- Re-declared here so a later run of this file wins over supplier_fulfillment.sql.
+CREATE OR REPLACE FUNCTION public.is_jbm()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.perfis p
+    WHERE p.id = auth.uid()
+      AND p.role IN ('admin', 'jbm')
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.is_jbm() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_jbm() TO authenticated;
+
 -- ── human codes. UUID stays the primary key. ──────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.ops_counters (
@@ -286,6 +305,7 @@ CREATE INDEX IF NOT EXISTS procurement_tasks_source_idx ON public.procurement_ta
 
 DO $$
 BEGIN
+  ALTER TABLE public.procurement_tasks DROP CONSTRAINT IF EXISTS procurement_tasks_qty_chk;
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'procurement_tasks_qty_chk'
   ) THEN
@@ -294,9 +314,15 @@ BEGIN
         quantity_purchased >= 0
         AND quantity_received >= 0
         AND quantity_at_bar >= 0
+        AND quantity_allocated <= quantity_requested
         AND quantity_purchased <= quantity_allocated
         AND quantity_received <= quantity_purchased
         AND quantity_at_bar <= quantity_received
+        AND (status <> 'purchased' OR quantity_purchased >= quantity_allocated)
+        AND (status <> 'in_transit' OR quantity_purchased > 0)
+        AND (status <> 'received' OR quantity_received > 0)
+        AND (status <> 'partially_received' OR (quantity_received > 0 AND quantity_received < quantity_allocated))
+        AND (status <> 'completed' OR quantity_at_bar >= quantity_allocated)
       );
   END IF;
 END $$;
@@ -741,9 +767,9 @@ BEGIN
         WHEN 'accepted' THEN 'waiting_purchase'
         WHEN 'purchasing' THEN 'purchasing'
         WHEN 'purchased' THEN 'purchasing'
-        WHEN 'in_transit' THEN 'in_transit'
-        WHEN 'delivered' THEN 'in_transit'
-        WHEN 'partial' THEN 'partially_received'
+        WHEN 'in_transit' THEN 'purchasing'
+        WHEN 'delivered' THEN 'purchasing'
+        WHEN 'partial' THEN 'purchasing'
         WHEN 'issue' THEN 'exception'
         ELSE 'assigned'
       END
@@ -1674,6 +1700,12 @@ BEGIN
        JOIN public.shipments s ON s.id = si.shipment_id
        WHERE si.procurement_task_id = task.id
          AND s.status <> 'cancelled'
+     )
+     OR EXISTS (
+       SELECT 1 FROM public.purchase_lines l WHERE l.procurement_task_id = task.id
+     )
+     OR EXISTS (
+       SELECT 1 FROM public.procurement_stock_moves m WHERE m.procurement_task_id = task.id
      ) THEN
     RAISE EXCEPTION 'cannot fallback a task after purchase or shipment';
   END IF;
@@ -2264,6 +2296,13 @@ BEGIN
           OR t.quantity_received > 0
           OR t.quantity_at_bar > 0
           OR t.status NOT IN ('draft', 'planned', 'assigned', 'waiting_purchase', 'purchasing', 'exception')
+          OR EXISTS (SELECT 1 FROM public.purchase_lines l WHERE l.procurement_task_id = t.id)
+          OR EXISTS (SELECT 1 FROM public.procurement_stock_moves m WHERE m.procurement_task_id = t.id)
+          OR EXISTS (
+            SELECT 1 FROM public.shipment_items si
+            JOIN public.shipments s ON s.id = si.shipment_id
+            WHERE si.procurement_task_id = t.id AND s.status <> 'cancelled'
+          )
         )
     ) THEN
       RAISE EXCEPTION 'cannot fallback a task after purchase or shipment';
@@ -2284,10 +2323,13 @@ BEGIN
     SET status = 'purchasing', updated_at = now()
     WHERE assignment_id = asg.id AND status IN ('assigned', 'waiting_purchase');
   ELSIF linked AND p_action IN ('in_transit', 'delivered', 'partial') THEN
+    -- Supplier status stays on the assignment. The task moves to in_transit
+    -- only after a real purchase, and never pretends the goods were received.
     UPDATE public.procurement_tasks
-    SET status = CASE WHEN p_action = 'partial' THEN 'partially_received' ELSE 'in_transit' END,
-        updated_at = now()
-    WHERE assignment_id = asg.id AND status NOT IN ('completed', 'cancelled');
+    SET status = 'in_transit', updated_at = now()
+    WHERE assignment_id = asg.id
+      AND quantity_purchased > 0
+      AND status IN ('purchasing', 'purchased', 'waiting_purchase', 'assigned', 'exception');
   END IF;
 
   IF linked AND p_action = 'accept' THEN
@@ -2339,6 +2381,103 @@ BEGIN
   RETURN jsonb_build_object('assignment_id', asg.id, 'status', nxt);
 END;
 $$;
+
+-- Legacy bar confirmation. Procurement tasks use confirm_bar_shipment instead,
+-- so this path cannot stock the bar twice or mark the order delivered early.
+CREATE OR REPLACE FUNCTION public.bar_confirm_delivery(
+  p_order_id uuid,
+  p_status text,
+  p_received integer DEFAULT NULL,
+  p_note text DEFAULT NULL
+) RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  ped public.pedidos%ROWTYPE;
+  expected integer;
+  got integer;
+  obs text;
+  ff text;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'not authenticated';
+  END IF;
+  IF p_status NOT IN ('received_all','partial','not_received') THEN
+    RAISE EXCEPTION 'invalid confirmation';
+  END IF;
+
+  SELECT * INTO ped FROM public.pedidos WHERE id = p_order_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'order not found';
+  END IF;
+  IF NOT (public.user_can_access_bar(ped.bar_id) OR public.is_procurement_hq()) THEN
+    RAISE EXCEPTION 'bar not allowed';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM public.procurement_tasks t
+    WHERE t.order_id = p_order_id AND t.status <> 'cancelled'
+  ) THEN
+    RAISE EXCEPTION 'confirm the shipment';
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.delivery_confirmations d WHERE d.order_id = p_order_id) THEN
+    RAISE EXCEPTION 'delivery already confirmed';
+  END IF;
+
+  SELECT COALESCE(SUM(i.qtd), 0) INTO expected
+  FROM public.pedidos_itens i WHERE i.pedido_id = p_order_id;
+
+  got := CASE p_status
+    WHEN 'received_all' THEN expected
+    WHEN 'not_received' THEN 0
+    ELSE COALESCE(p_received, 0)
+  END;
+
+  INSERT INTO public.delivery_confirmations (
+    order_id, confirmed_by, status, quantity_expected, quantity_received, note
+  ) VALUES (p_order_id, auth.uid(), p_status, expected, got, p_note);
+
+  obs := 'JBM delivery ' || left(p_order_id::text, 8);
+  IF p_status = 'received_all' AND NOT EXISTS (
+    SELECT 1 FROM public.estoque_movimentos m
+    WHERE m.bar_id = ped.bar_id AND m.obs = obs
+  ) THEN
+    INSERT INTO public.estoque_movimentos (produto_id, bar_id, tipo, qtd, criado_por, obs)
+    SELECT i.produto_id, ped.bar_id, 'entrada', i.qtd, auth.uid(), obs
+    FROM public.pedidos_itens i
+    WHERE i.pedido_id = p_order_id AND i.produto_id IS NOT NULL AND i.qtd > 0;
+  END IF;
+
+  IF p_status = 'received_all' THEN
+    ff := 'completed';
+    UPDATE public.pedidos SET status = 'entregue' WHERE id = p_order_id;
+  ELSIF p_status = 'partial' THEN
+    ff := 'partially_delivered';
+    PERFORM public._fulfillment_alert(p_order_id, NULL, 'jbm', NULL, ped.bar_id,
+      'order_exception', 'Partial receipt', COALESCE(p_note, 'The bar received less than ordered.'));
+  ELSE
+    ff := 'exception';
+    PERFORM public._fulfillment_alert(p_order_id, NULL, 'jbm', NULL, ped.bar_id,
+      'order_exception', 'Not received', COALESCE(p_note, 'The bar did not receive the order.'));
+  END IF;
+
+  PERFORM public._touch_fulfillment(p_order_id, ff);
+  INSERT INTO public.fulfillment_events (order_id, event_type, actor_user_id, actor_type, note, metadata)
+  VALUES (p_order_id, 'bar_confirmed', auth.uid(), 'bar', p_note,
+    jsonb_build_object('status', p_status, 'expected', expected, 'received', got));
+
+  PERFORM public._fulfillment_alert(p_order_id, NULL, 'jbm', NULL, ped.bar_id,
+    'bar_delivery_confirmed', 'Bar confirmed', p_status);
+  PERFORM public._fulfillment_audit('bar_confirm_delivery', 'pedidos', p_order_id,
+    jsonb_build_object('status', p_status, 'expected', expected, 'received', got));
+
+  RETURN jsonb_build_object('order_id', p_order_id, 'status', ff, 'received', got, 'expected', expected);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.bar_confirm_delivery(uuid, text, integer, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.bar_confirm_delivery(uuid, text, integer, text) TO authenticated;
 
 -- ── RLS ────────────────────────────────────────────────────────────────────
 

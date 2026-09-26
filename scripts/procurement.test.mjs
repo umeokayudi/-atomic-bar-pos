@@ -8,7 +8,8 @@ import {
   canCallMyTasks, canReadTasksDirect, orderStatusAfterPlan, assertSalePrice,
   assertFallback, assertSameOrder, assertShipmentDestination, assertShipQuantity,
   assertOrderQty, assertReceive, assertBarArrival, assertFallbackTask, assertEmployeeCost,
-  assertNotBarToBar, releaseOpen, visibleOrderLine,
+  assertNotBarToBar, releaseOpen, visibleOrderLine, physicalStatusAfterSupplier,
+  assertQtyChain, applyLockedPurchase, assertLegacyBarConfirm, assertFirstConfirm,
 } from '../src/lib/procurementCore.js'
 import { tokyoWallToUtcMs } from '../src/lib/tokyo.js'
 
@@ -392,6 +393,13 @@ test('sql keeps isolation and does not invent a second catalog', () => {
   assert.match(sql, /procurement_tasks_qty_chk/)
   assert.match(sql, /procurement_stock_moves/)
   assert.match(sql, /release_open_quantity/)
+  assert.match(sql, /quantity_allocated <= quantity_requested/)
+  assert.match(sql, /confirm the shipment/)
+  assert.match(sql, /status <> 'partially_received' OR \(quantity_received > 0/)
+  const jbmFn = sql.slice(sql.indexOf('FUNCTION public.is_jbm()'), sql.indexOf('REVOKE ALL ON FUNCTION public.is_jbm()'))
+  assert.match(jbmFn, /'admin', 'jbm'/)
+  assert.equal(/funcionario/.test(jbmFn), false)
+  assert.equal(/WHEN p_action = 'partial' THEN 'partially_received'/.test(sql), false)
   assert.match(sql, /_audit_bar_price/)
   assert.match(sql, /user_can_access_bar\(p_bar_id\)/)
   assert.match(sql, /user_can_access_bar\(dest\.bar_id\)/)
@@ -454,6 +462,36 @@ test('invalid quantity, a cost override, and fallback after a partial purchase',
   assert.equal(assertEmployeeCost({ expected: 4000, offered: 4000 }), 4000)
   assert.throws(() => assertFallbackTask({ status: 'purchasing', quantityPurchased: 4 }), /cannot fallback/)
   assert.doesNotThrow(() => assertFallbackTask({ status: 'purchasing', quantityPurchased: 0 }))
+})
+
+test('funcionario is not fulfillment HQ and a supplier action cannot invent a receipt', () => {
+  assert.equal(isProcurementHq('funcionario'), false)
+  assert.equal(isProcurementHq('fornecedor'), false)
+  const buying = { status: 'purchasing', quantityPurchased: 0, quantityReceived: 0 }
+  assert.equal(physicalStatusAfterSupplier('partial', buying), 'purchasing')
+  assert.equal(physicalStatusAfterSupplier('in_transit', buying), 'purchasing')
+  assert.equal(physicalStatusAfterSupplier('delivered', { status: 'purchased', quantityPurchased: 4 }), 'in_transit')
+  assert.notEqual(physicalStatusAfterSupplier('partial', { status: 'purchased', quantityPurchased: 4 }), 'partially_received')
+  assert.throws(() => assertQtyChain({
+    quantityRequested: 10, quantityAllocated: 10, quantityPurchased: 0, quantityReceived: 0, status: 'partially_received',
+  }), /partial receipt/)
+  assert.throws(() => assertQtyChain({
+    quantityRequested: 10, quantityAllocated: 12, quantityPurchased: 0, quantityReceived: 0,
+  }), /quantity chain/)
+  assert.doesNotThrow(() => assertQtyChain({
+    quantityRequested: 10, quantityAllocated: 6, quantityPurchased: 4, quantityReceived: 2, quantityAtBar: 2, status: 'partially_received',
+  }))
+})
+
+test('a second purchase, a second confirmation and the legacy stock path stop', () => {
+  const first = applyLockedPurchase({ quantityAllocated: 10, quantityPurchased: 0 }, 6)
+  assert.equal(first.quantityPurchased, 6)
+  assert.equal(first.status, 'purchasing')
+  assert.throws(() => applyLockedPurchase(first, 6), /exceeds the task/)
+  assert.throws(() => assertLegacyBarConfirm(true), /confirm the shipment/)
+  assert.doesNotThrow(() => assertLegacyBarConfirm(false))
+  assert.throws(() => assertFirstConfirm('2026-10-02T09:00:00.000Z'), /already confirmed/)
+  assert.doesNotThrow(() => assertFirstConfirm(null))
 })
 
 test('the order stays open until every line is at the bar', () => {

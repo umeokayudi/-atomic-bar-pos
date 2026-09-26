@@ -69,7 +69,13 @@ Pedido com quantidade ainda sem origem permanece `pendente`. Preço ausente ou z
 
 Não há `USING (true)`.
 
-Auditoria do PR #38: as funções `SECURITY DEFINER` checam `auth.uid` e `is_jbm` / `user_can_access_bar` / `my_supplier_ids` antes de escrever. Helpers internos não têm `GRANT` para `authenticated`. `is_jbm()` ainda trata `funcionario` como JBM no fulfillment antigo. O procurement novo não usa isso: funcionário não é HQ.
+`is_jbm()` é `admin` ou `jbm`. Funcionário não entra. O portal do fornecedor e o bar do próprio usuário continuam. `route_pedido`, `supplier_advance` e `get_order_tracking` usam essa função para o lado HQ. O funcionário compra pela tarefa atribuída, com o custo já combinado.
+
+O status do fornecedor (`in_transit`, `partial`, `delivered` no assignment) não aumenta `quantity_received` e não marca a tarefa como `partially_received`. A tarefa só vai a `in_transit` depois de uma compra real. Recebimento continua em `receive_procurement` ou na confirmação do bar.
+
+`bar_confirm_delivery` permanece para pedido sem tarefa de procurement. Se já existe tarefa, a função recusa e o estoque só entra por `confirm_bar_shipment`. Isso evita estoque duplicado e impede marcar `entregue` com uma linha ainda aberta.
+
+Auditoria do PR #38: as funções `SECURITY DEFINER` checam `auth.uid` e o papel antes de escrever. Helpers internos não têm `GRANT` para `authenticated`. `replenishment_rules` não é lida por nenhuma função deste fluxo.
 
 Este ambiente não tem chave do Supabase, então as RPC não foram chamadas contra outro bar. A negativa está no `RAISE EXCEPTION 'not allowed'` de cada função. As regras de divisão, prazo, preço e isolamento estão em `src/lib/procurementCore.js` e `npm run test:procurement`.
 
