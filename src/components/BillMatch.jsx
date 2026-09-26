@@ -37,6 +37,8 @@ export default function BillMatch({ orders = [], notes = [], invoices = [], mont
               {!slip && row.status === 'match' && row.invoice != null && row.paid > 0 && row.open > 0 && t('portal.bill.partPaid', { paid: money(row.paid), open: money(row.open) })}
               {!slip && row.status === 'match' && row.invoice != null && !(row.paid > 0 && row.open > 0) && t('portal.bill.match')}
               {!slip && row.status === 'waiting' && t('portal.bill.waiting')}
+              {!slip && row.status === 'paid-gap' && t('portal.bill.gapPaid', { amount: money(row.gapPaid), invoice: money(row.invoice) })}
+              {slip && row.status === 'paid-gap' && t('portal.bill.gapPaid', { amount: money(row.gapPaid), invoice: money(row.invoice) })}
               {!slip && row.status === 'off' && t('portal.bill.off', { amount: money(Math.abs(row.delta)) })}
               {!slip && row.status === 'off' && row.paid > 0 && ` ${t('portal.bill.paidLine', { paid: money(row.paid), open: money(row.open) })}`}
             </p>

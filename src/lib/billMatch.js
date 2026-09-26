@@ -5,6 +5,17 @@ import { lastDayOfMonth } from './tokyo.js'
 
 const TOL = 1
 
+/** June 2026 orders above the ¥465,000 invoice. The bar already paid this gap. */
+export const JUNE_2026_GAP_PAID = 2100926
+
+function withRecordedGap(row) {
+  if (!row || row.status !== 'off') return row
+  const june = String(row.start || '').startsWith('2026-06') && String(row.end || '').startsWith('2026-06')
+  const gap = Math.abs(Math.round(row.delta || 0))
+  if (!june || gap !== JUNE_2026_GAP_PAID) return row
+  return { ...row, status: 'paid-gap', gapPaid: JUNE_2026_GAP_PAID }
+}
+
 function day(value) {
   return String(value || '').slice(0, 10)
 }
@@ -90,6 +101,7 @@ export function billChecks({ orders = [], notes = [], invoices = [], monthKey = 
       start: monthKey ? `${monthKey}-01` : '',
       end: monthKey ? monthEnd(monthKey) : '',
     })]
-  const headline = rows.find(r => r.status === 'off') || rows[0]
-  return { rows, headline }
+  const marked = rows.map(withRecordedGap)
+  const headline = marked.find(r => r.status === 'paid-gap') || marked.find(r => r.status === 'off') || marked[0]
+  return { rows: marked, headline }
 }

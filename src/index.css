@@ -4350,6 +4350,21 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
 .range-cal-day.is-edge { background: var(--navy); color: #fff; }
 .range-cal-day.is-today { box-shadow: inset 0 0 0 1px var(--navy); }
 .range-cal-range { margin: 8px 0 0; font-size: 12px; color: var(--text2); text-align: center; }
+.desk-alarm {
+  width: 100%;
+  display: block;
+  text-align: left;
+  background: #fff5f5;
+  border: 1px solid #e7b2b2;
+  border-left: 4px solid #9b2c2c;
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin-top: 12px;
+  cursor: pointer;
+  color: var(--text);
+}
+.desk-alarm strong { display: block; font-size: 15px; font-weight: 800; color: #9b2c2c; }
+.desk-alarm em { display: block; font-style: normal; color: var(--text); font-size: 13px; line-height: 1.45; margin-top: 4px; }
 .desk-note-card {
   width: 100%;
   display: block;

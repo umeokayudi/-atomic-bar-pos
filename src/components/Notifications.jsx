@@ -140,13 +140,15 @@ export function useBarOverdueAlerts(barId) {
       orders: pR.data || [],
       notes: filterSupplierVendas(vR.data || []),
       invoices: drinks,
-    }).rows.filter(r => r.status === 'off').map(r => ({
+    }).rows.filter(r => r.status === 'off' || r.status === 'paid-gap').map(r => ({
       id: r.invoiceId || `${r.start}-${r.end}`,
       start: r.start,
       end: r.end,
       delta: Math.abs(r.delta || 0),
       orders: r.orders,
       invoice: r.invoice,
+      gapPaid: r.gapPaid || 0,
+      paidGap: r.status === 'paid-gap',
       tab: 'faturas',
     }))
     setAlerts({
@@ -300,7 +302,7 @@ export function NotificationBell({
         <div className="notif-panel-body">
           {mismatches.length > 0 && (
             <div className="notif-overdue-block">
-              <div className="notif-overdue-title">{t('notifications.mismatchTitle')}</div>
+              <div className="notif-overdue-title">{mismatches.every(m => m.paidGap) ? t('notifications.paidGapTitle') : t('notifications.mismatchTitle')}</div>
               {mismatches.map(m => (
                 <button
                   key={`m-${m.id}`}
@@ -309,12 +311,12 @@ export function NotificationBell({
                   onClick={() => go(m.tab || 'faturas')}
                 >
                   <span className="notif-overdue-kind">{t('notifications.invoiceKind')}</span>
-                  <span className="notif-overdue-label">{t('notifications.mismatchBody', {
+                  <span className="notif-overdue-label">{t(m.paidGap ? 'notifications.paidGapBody' : 'notifications.mismatchBody', {
                     from: m.start || '—',
                     to: m.end || '—',
                     orders: fmtYen(m.orders || 0),
                     invoice: fmtYen(m.invoice || 0),
-                    amount: fmtYen(m.delta),
+                    amount: fmtYen(m.gapPaid || m.delta),
                   })}</span>
                   <span className="notif-overdue-amount">{fmtYen(m.invoice)}</span>
                 </button>

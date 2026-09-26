@@ -14,7 +14,7 @@ export const ATOMIC_FATURAS = [
     data_vencimento: '2026-07-31',
     periodo_inicio: '2026-06-01',
     periodo_fim: '2026-06-30',
-    obs: 'Junho/2026 — bebidas Atomic (cobrança única ¥465.000)',
+    obs: 'Junho/2026 — fatura ¥465.000. Diferença dos pedidos ¥2.100.926 já paga.',
   },
   {
     valor: 1757044,

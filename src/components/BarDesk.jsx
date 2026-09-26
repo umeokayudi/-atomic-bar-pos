@@ -304,15 +304,15 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
 
       {ask && <BarOwnerAi bar={bar} hq={hq} />}
 
-      {hq?.jbm?.billCheck?.status === 'off' && (
-        <button type="button" className="desk-note-card" onClick={() => onTab?.('faturas')}>
-          <strong>{t('notifications.mismatchTitle')}</strong>
-          <em>{t('notifications.mismatchBody', {
+      {(hq?.jbm?.billCheck?.status === 'off' || hq?.jbm?.billCheck?.status === 'paid-gap') && (
+        <button type="button" className="desk-alarm" onClick={() => onTab?.('faturas')}>
+          <strong>{t(hq.jbm.billCheck.status === 'paid-gap' ? 'notifications.paidGapTitle' : 'notifications.mismatchTitle')}</strong>
+          <em>{t(hq.jbm.billCheck.status === 'paid-gap' ? 'notifications.paidGapBody' : 'notifications.mismatchBody', {
             from: hq.jbm.billCheck.start || '—',
             to: hq.jbm.billCheck.end || '—',
             orders: money(hq.jbm.billCheck.orders || 0),
             invoice: money(hq.jbm.billCheck.invoice || 0),
-            amount: money(Math.abs(hq.jbm.billCheck.delta || 0)),
+            amount: money(hq.jbm.billCheck.gapPaid || Math.abs(hq.jbm.billCheck.delta || 0)),
           })}</em>
         </button>
       )}
