@@ -37,7 +37,7 @@ function MyTasks() {
   const [err, setErr] = useState('')
   const [missing, setMissing] = useState(false)
   const [open, setOpen] = useState(null)
-  const [form, setForm] = useState({ quantity: '', unit_cost: '', external_reference: '', receipt_note: '', freight: '', fees: '' })
+  const [form, setForm] = useState({ quantity: '', external_reference: '', receipt_note: '' })
   const [locationId, setLocationId] = useState('')
   const [receiveQty, setReceiveQty] = useState('')
 
@@ -62,11 +62,8 @@ function MyTasks() {
       p_task_id: task.id,
       p_payload: {
         quantity: +form.quantity || undefined,
-        unit_cost: form.unit_cost === '' ? undefined : +form.unit_cost,
         external_reference: form.external_reference,
         receipt_note: form.receipt_note,
-        freight: form.freight === '' ? undefined : +form.freight,
-        fees: form.fees === '' ? undefined : +form.fees,
         purchased_at: new Date().toISOString(),
       },
     })
@@ -101,16 +98,14 @@ function MyTasks() {
           <strong>{task.task_number}</strong>
           <span>{task.source_name} · {task.method}</span>
           <span>{task.quantity_purchased}/{task.quantity_allocated} · {task.status}</span>
+          <span>{t('procurement.expectedCost')} {task.expected_unit_cost ?? '—'}</span>
           {task.purchase_url && <a href={task.purchase_url} target="_blank" rel="noreferrer">{t('procurement.openLink')}</a>}
           <button type="button" onClick={() => setOpen(task)}>{t('procurement.recordPurchase')}</button>
           {open?.id === task.id && (
             <div className="proc-form">
               <input placeholder={t('procurement.qty')} value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} />
-              <input placeholder={t('procurement.unitCost')} value={form.unit_cost} onChange={e => setForm({ ...form, unit_cost: e.target.value })} />
               <input placeholder={t('procurement.reference')} value={form.external_reference} onChange={e => setForm({ ...form, external_reference: e.target.value })} />
               <input placeholder={t('procurement.receipt')} value={form.receipt_note} onChange={e => setForm({ ...form, receipt_note: e.target.value })} />
-              <input placeholder={t('procurement.freight')} value={form.freight} onChange={e => setForm({ ...form, freight: e.target.value })} />
-              <input placeholder={t('procurement.fees')} value={form.fees} onChange={e => setForm({ ...form, fees: e.target.value })} />
               <button type="button" onClick={() => buy(task)}>{t('procurement.savePurchase')}</button>
             </div>
           )}
@@ -280,6 +275,13 @@ function HqBoard() {
       <p>{t('procurement.subtitle')}</p>
       {missing && <p className="ff-miss">{t('procurement.schemaMissing')}</p>}
       {err && <p className="ff-miss">{err}</p>}
+      {board?.economics && (
+        <p>
+          {t('procurement.revenue')} {board.economics.revenue}
+          {' · '}{t('procurement.realCost')} {(+board.economics.purchase_cost || 0) + (+board.economics.freight || 0) + (+board.economics.fees || 0) + (+board.economics.logistics_cost || 0)}
+          {' · '}{t('procurement.margin')} {board.economics.margin}
+        </p>
+      )}
       {board && (
         <div className="proc-lanes">
           {LANES.map(([key, label]) => (
@@ -332,6 +334,9 @@ function HqBoard() {
               </span>
             )}
             <button type="button" onClick={() => act('fallback_task', { p_task_id: task.id })}>{t('procurement.fallback')}</button>
+            {(task.quantity_allocated - task.quantity_purchased) > 0 && (
+              <button type="button" onClick={() => act('release_open_quantity', { p_task_id: task.id, p_qty: task.quantity_allocated - task.quantity_purchased })}>{t('procurement.releaseOpen')}</button>
+            )}
             <button type="button" onClick={() => act('flag_deadline_exception', { p_task_id: task.id, p_note: null })}>{t('procurement.flagLate')}</button>
           </article>
         ))}

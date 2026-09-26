@@ -414,6 +414,80 @@ export function assertShipQuantity(input) {
   return available
 }
 
+export function assertOrderQty(qty) {
+  const n = +qty
+  if (qty == null || !Number.isInteger(n) || n <= 0) throw new Error('invalid order line')
+  return n
+}
+
+export function assertReceive({ purchased = 0, received = 0, incoming = 0 } = {}) {
+  if (+incoming <= 0) throw new Error('quantity required')
+  if (+purchased <= 0) throw new Error('purchase record required before receipt')
+  if (+received + +incoming > +purchased) throw new Error('received exceeds purchased')
+  return +received + +incoming
+}
+
+export function assertBarArrival({ fromType, purchased = 0, received = 0, atBar = 0, incoming = 0 } = {}) {
+  if (+incoming < 0) throw new Error('confirmed quantity is outside the shipment')
+  if (fromType === 'WAREHOUSE') {
+    if (+atBar + +incoming > +received) throw new Error('at bar exceeds received')
+    return { received: +received, atBar: +atBar + +incoming }
+  }
+  if (+received + +incoming > +purchased) throw new Error('received exceeds purchased')
+  return { received: +received + +incoming, atBar: +atBar + +incoming }
+}
+
+export function assertFallbackTask(task) {
+  const status = typeof task === 'string' ? task : task?.status
+  assertFallback(status)
+  if (task && typeof task === 'object') {
+    if (+task.quantityPurchased > 0 || +task.quantityReceived > 0 || +task.quantityAtBar > 0 || task.shipped) {
+      throw new Error('cannot fallback a task after purchase or shipment')
+    }
+  }
+}
+
+export function assertEmployeeCost({ expected, offered } = {}) {
+  if (expected == null || +expected <= 0) throw new Error('unit cost is fixed for this task')
+  if (offered != null && +offered !== +expected) throw new Error('unit cost is fixed for this task')
+  return +expected
+}
+
+export function assertNotBarToBar({ fromType, destType } = {}) {
+  if (fromType === 'BAR' && destType === 'BAR') throw new Error('shipment between bars is not allowed')
+}
+
+export function releaseOpen({ allocated = 0, purchased = 0, received = 0, release = 0 } = {}) {
+  if (+release <= 0) throw new Error('quantity required')
+  if (+received > 0) throw new Error('cannot fallback a task after purchase or shipment')
+  const open = +allocated - +purchased
+  if (+release > open) throw new Error('quantity exceeds the task')
+  return { allocated: +allocated - +release, purchased: +purchased }
+}
+
+export function visibleOrderLine(line, { audience, supplierId, userId } = {}) {
+  const live = (line?.tasks || []).filter(task => task.status !== 'cancelled')
+  if (audience === 'supplier') {
+    const mine = live.filter(task => task.fornecedorId === supplierId)
+    if (!mine.length) return null
+    return {
+      product: line.product,
+      quantity: mine.reduce((sum, task) => sum + (+task.quantityAllocated || 0), 0),
+      tasks: mine.map(task => supplierTaskView(task)),
+    }
+  }
+  if (audience === 'employee') {
+    const mine = live.filter(task => task.assignedTo === userId)
+    if (!mine.length) return null
+    return {
+      product: line.product,
+      quantity: mine.reduce((sum, task) => sum + (+task.quantityAllocated || 0), 0),
+      atBar: mine.reduce((sum, task) => sum + (+task.quantityAtBar || 0), 0),
+    }
+  }
+  return line
+}
+
 export function forEmployee(tasks = [], userId) {
   return tasks.filter(task => task.assignedTo === userId && task.status !== 'cancelled')
 }

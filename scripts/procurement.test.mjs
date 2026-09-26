@@ -7,6 +7,8 @@ import {
   assertTransition, supplierTaskView, supplierViewLeaksCost, isProcurementHq,
   canCallMyTasks, canReadTasksDirect, orderStatusAfterPlan, assertSalePrice,
   assertFallback, assertSameOrder, assertShipmentDestination, assertShipQuantity,
+  assertOrderQty, assertReceive, assertBarArrival, assertFallbackTask, assertEmployeeCost,
+  assertNotBarToBar, releaseOpen, visibleOrderLine,
 } from '../src/lib/procurementCore.js'
 import { tokyoWallToUtcMs } from '../src/lib/tokyo.js'
 
@@ -383,6 +385,86 @@ test('sql keeps isolation and does not invent a second catalog', () => {
   assert.match(orders, /procurement\.notConfigured/)
   assert.equal(supplier.includes("from('procurement_tasks')"), false)
   assert.match(supplier, /get_procurement_tracking/)
+  assert.match(sql, /received exceeds purchased/)
+  assert.match(sql, /at bar exceeds received/)
+  assert.match(sql, /shipment between bars is not allowed/)
+  assert.match(sql, /unit cost is fixed for this task/)
+  assert.match(sql, /procurement_tasks_qty_chk/)
+  assert.match(sql, /procurement_stock_moves/)
+  assert.match(sql, /release_open_quantity/)
+  assert.match(sql, /_audit_bar_price/)
+  assert.match(sql, /user_can_access_bar\(p_bar_id\)/)
+  assert.match(sql, /user_can_access_bar\(dest\.bar_id\)/)
+  assert.equal(/GRANT INSERT ON public\.procurement_stock_moves/i.test(sql), false)
+  assert.equal(/GRANT INSERT, UPDATE, DELETE ON public\.procurement_tasks/i.test(sql), false)
+  const myTasks = board.slice(board.indexOf('function MyTasks'), board.indexOf('function HqBoard'))
+  assert.equal(/freight|fees|unit_cost:/.test(myTasks), false)
+})
+
+test('cross-bar shipment and a foreign bar order are rejected', () => {
+  assert.throws(() => assertNotBarToBar({ fromType: 'BAR', destType: 'BAR' }), /between bars/)
+  assert.throws(() => assertShipmentDestination({ destType: 'BAR', destBarId: 'bar-b', orderBarId: 'bar-a' }), /does not match/)
+  assert.doesNotThrow(() => assertNotBarToBar({ fromType: 'WAREHOUSE', destType: 'BAR' }))
+})
+
+test('supplier and employee each see only their own slice', () => {
+  const line = {
+    product: 'drink',
+    quantity: 10,
+    atBar: 6,
+    salePrice: 5000,
+    tasks: [
+      { fornecedorId: 'sup-a', assignedTo: 'joao', taskNumber: 'BUY-A', quantityAllocated: 6, quantityAtBar: 6, status: 'completed', expectedUnitCost: 100, salePrice: 5000 },
+      { fornecedorId: 'sup-b', assignedTo: 'ana', taskNumber: 'BUY-B', quantityAllocated: 4, quantityAtBar: 0, status: 'assigned', expectedUnitCost: 90, salePrice: 5000 },
+    ],
+  }
+  const supplier = visibleOrderLine(line, { audience: 'supplier', supplierId: 'sup-a' })
+  assert.equal(supplier.quantity, 6)
+  assert.equal(supplier.atBar, undefined)
+  assert.equal(supplier.salePrice, undefined)
+  assert.equal(supplierViewLeaksCost(supplier), false)
+  assert.equal(visibleOrderLine(line, { audience: 'supplier', supplierId: 'sup-b' }).quantity, 4)
+  const employee = visibleOrderLine(line, { audience: 'employee', userId: 'joao' })
+  assert.equal(employee.quantity, 6)
+  assert.equal(visibleOrderLine(line, { audience: 'employee', userId: 'nobody' }), null)
+})
+
+test('partial purchase, receipt, warehouse ship and direct ship keep the caps', () => {
+  assert.equal(assertReceive({ purchased: 10, received: 4, incoming: 2 }), 6)
+  assert.throws(() => assertReceive({ purchased: 10, received: 4, incoming: 7 }), /received exceeds purchased/)
+  assert.throws(() => assertReceive({ purchased: 0, received: 0, incoming: 1 }), /purchase record required/)
+  const warehouse = assertBarArrival({ fromType: 'WAREHOUSE', purchased: 10, received: 6, atBar: 0, incoming: 6 })
+  assert.deepEqual(warehouse, { received: 6, atBar: 6 })
+  assert.throws(() => assertBarArrival({ fromType: 'WAREHOUSE', purchased: 10, received: 6, atBar: 0, incoming: 7 }), /at bar exceeds received/)
+  const direct = assertBarArrival({ fromType: 'SUPPLIER', purchased: 4, received: 0, atBar: 0, incoming: 4 })
+  assert.deepEqual(direct, { received: 4, atBar: 4 })
+  assert.throws(() => assertBarArrival({ fromType: 'DIRECT', purchased: 4, received: 0, atBar: 0, incoming: 5 }), /received exceeds purchased/)
+  assert.throws(() => assertShipQuantity({ fromType: 'WAREHOUSE', quantityPurchased: 10, quantityReceived: 6, already: 4, quantity: 3 }))
+  assert.equal(releaseOpen({ allocated: 10, purchased: 6, release: 4 }).allocated, 6)
+  assert.throws(() => releaseOpen({ allocated: 10, purchased: 6, release: 5 }), /exceeds the task/)
+})
+
+test('invalid quantity, a cost override, and fallback after a partial purchase', () => {
+  assert.throws(() => assertOrderQty(0), /invalid order line/)
+  assert.throws(() => assertOrderQty(-2), /invalid order line/)
+  assert.throws(() => assertOrderQty(1.5), /invalid order line/)
+  assert.equal(assertOrderQty(3), 3)
+  assert.throws(() => assertEmployeeCost({ expected: 4000, offered: 1000 }), /unit cost is fixed/)
+  assert.throws(() => assertEmployeeCost({ expected: null, offered: 1000 }), /unit cost is fixed/)
+  assert.equal(assertEmployeeCost({ expected: 4000, offered: 4000 }), 4000)
+  assert.throws(() => assertFallbackTask({ status: 'purchasing', quantityPurchased: 4 }), /cannot fallback/)
+  assert.doesNotThrow(() => assertFallbackTask({ status: 'purchasing', quantityPurchased: 0 }))
+})
+
+test('the order stays open until every line is at the bar', () => {
+  const lines = [
+    { quantity: 10, tasks: [{ status: 'completed', quantityAllocated: 6, quantityAtBar: 6 }, { status: 'purchased', quantityAllocated: 4, quantityAtBar: 4 }] },
+    { quantity: 2, tasks: [{ status: 'in_transit', quantityAllocated: 2, quantityAtBar: 0 }] },
+  ]
+  assert.equal(orderCovered(lines), false)
+  lines[1].tasks[0].quantityAtBar = 2
+  lines[1].tasks[0].status = 'completed'
+  assert.equal(orderCovered(lines), true)
 })
 
 console.log(`\n${passed} procurement tests passed`)

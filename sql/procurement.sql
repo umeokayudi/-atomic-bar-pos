@@ -284,6 +284,23 @@ CREATE INDEX IF NOT EXISTS procurement_tasks_order_idx ON public.procurement_tas
 CREATE INDEX IF NOT EXISTS procurement_tasks_assignee_idx ON public.procurement_tasks (assigned_to, status);
 CREATE INDEX IF NOT EXISTS procurement_tasks_source_idx ON public.procurement_tasks (source_id, status);
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'procurement_tasks_qty_chk'
+  ) THEN
+    ALTER TABLE public.procurement_tasks
+      ADD CONSTRAINT procurement_tasks_qty_chk CHECK (
+        quantity_purchased >= 0
+        AND quantity_received >= 0
+        AND quantity_at_bar >= 0
+        AND quantity_purchased <= quantity_allocated
+        AND quantity_received <= quantity_purchased
+        AND quantity_at_bar <= quantity_received
+      );
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS public.purchase_transactions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   public_code text NOT NULL UNIQUE,
@@ -341,6 +358,25 @@ CREATE TABLE IF NOT EXISTS public.shipment_items (
   UNIQUE (shipment_id, procurement_task_id)
 );
 
+-- Warehouse balance is the sum of these rows. Bar stock stays in estoque_movimentos.
+CREATE TABLE IF NOT EXISTS public.procurement_stock_moves (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  location_id uuid NOT NULL REFERENCES public.locations(id),
+  procurement_task_id uuid NOT NULL REFERENCES public.procurement_tasks(id),
+  product_id uuid REFERENCES public.produtos(id),
+  shipment_id uuid REFERENCES public.shipments(id),
+  direction text NOT NULL CHECK (direction IN ('in', 'out')),
+  quantity integer NOT NULL CHECK (quantity > 0),
+  reason text NOT NULL,
+  created_by uuid,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS procurement_stock_moves_loc_idx
+  ON public.procurement_stock_moves (location_id, created_at);
+CREATE INDEX IF NOT EXISTS procurement_stock_moves_task_idx
+  ON public.procurement_stock_moves (procurement_task_id);
+
 CREATE TABLE IF NOT EXISTS public.bar_product_prices (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   bar_id uuid NOT NULL,
@@ -355,6 +391,16 @@ CREATE TABLE IF NOT EXISTS public.bar_product_prices (
 
 CREATE UNIQUE INDEX IF NOT EXISTS bar_product_prices_uidx
   ON public.bar_product_prices (bar_id, product_id, minimum_quantity, COALESCE(valid_from, 'epoch'::timestamptz));
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'bar_product_prices_positive'
+  ) THEN
+    ALTER TABLE public.bar_product_prices
+      ADD CONSTRAINT bar_product_prices_positive CHECK (sale_price > 0);
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS public.replenishment_rules (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1101,17 +1147,32 @@ BEGIN
 
   qty := COALESCE(NULLIF(p_payload->>'quantity', '')::integer, task.quantity_allocated - task.quantity_purchased);
   unit_cost := NULLIF(p_payload->>'unit_cost', '')::numeric;
-  IF unit_cost IS NULL THEN
-    unit_cost := task.expected_unit_cost;
-  END IF;
   buyer := COALESCE(NULLIF(p_payload->>'buyer_user_id', '')::uuid, auth.uid());
   bought := COALESCE(NULLIF(p_payload->>'purchased_at', '')::timestamptz, now());
   freight := COALESCE(NULLIF(p_payload->>'freight', '')::numeric, 0);
   fees := COALESCE(NULLIF(p_payload->>'fees', '')::numeric, 0);
+  IF NOT public.is_procurement_hq() THEN
+    IF COALESCE(NULLIF(p_payload->>'freight', '')::numeric, 0) <> 0
+       OR COALESCE(NULLIF(p_payload->>'fees', '')::numeric, 0) <> 0 THEN
+      RAISE EXCEPTION 'not allowed';
+    END IF;
+    freight := 0;
+    fees := 0;
+    buyer := auth.uid();
+    IF task.expected_unit_cost IS NULL OR task.expected_unit_cost <= 0 THEN
+      RAISE EXCEPTION 'unit cost is fixed for this task';
+    END IF;
+    IF unit_cost IS NOT NULL AND unit_cost IS DISTINCT FROM task.expected_unit_cost THEN
+      RAISE EXCEPTION 'unit cost is fixed for this task';
+    END IF;
+    unit_cost := task.expected_unit_cost;
+  ELSIF unit_cost IS NULL THEN
+    unit_cost := task.expected_unit_cost;
+  END IF;
   IF qty IS NULL OR qty <= 0 OR unit_cost IS NULL OR unit_cost <= 0 OR buyer IS NULL OR bought IS NULL OR task.source_id IS NULL THEN
     RAISE EXCEPTION 'purchase needs buyer, time, source, quantity and unit cost';
   END IF;
-  IF NOT public.is_procurement_hq() AND buyer <> auth.uid() AND task.assigned_to IS DISTINCT FROM auth.uid() THEN
+  IF NOT public.is_procurement_hq() AND buyer <> auth.uid() THEN
     RAISE EXCEPTION 'not allowed';
   END IF;
   IF task.quantity_purchased + qty > task.quantity_allocated THEN
@@ -1163,6 +1224,27 @@ $$;
 REVOKE ALL ON FUNCTION public.record_purchase(uuid, jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.record_purchase(uuid, jsonb) TO authenticated;
 
+CREATE OR REPLACE FUNCTION public._stock_move(
+  p_location uuid, p_task uuid, p_product uuid, p_direction text, p_qty integer, p_reason text, p_shipment uuid
+) RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF p_qty IS NULL OR p_qty <= 0 OR p_location IS NULL THEN
+    RETURN;
+  END IF;
+  INSERT INTO public.procurement_stock_moves (
+    location_id, procurement_task_id, product_id, shipment_id, direction, quantity, reason, created_by
+  ) VALUES (
+    p_location, p_task, p_product, p_shipment, p_direction, p_qty, p_reason, auth.uid()
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public._stock_move(uuid, uuid, uuid, text, integer, text, uuid) FROM PUBLIC;
+
 CREATE OR REPLACE FUNCTION public.receive_procurement(
   p_task_id uuid, p_location_id uuid, p_qty integer, p_note text DEFAULT NULL
 ) RETURNS jsonb
@@ -1198,13 +1280,17 @@ BEGIN
   IF task.quantity_purchased <= 0 THEN
     RAISE EXCEPTION 'purchase record required before receipt';
   END IF;
-  next_qty := LEAST(task.quantity_allocated, task.quantity_received + p_qty);
+  IF task.quantity_received + p_qty > task.quantity_purchased THEN
+    RAISE EXCEPTION 'received exceeds purchased';
+  END IF;
+  next_qty := task.quantity_received + p_qty;
   UPDATE public.procurement_tasks
   SET quantity_received = next_qty,
       status = CASE WHEN next_qty >= quantity_allocated THEN 'received' ELSE 'partially_received' END,
       notes = COALESCE(p_note, notes),
       updated_at = now()
   WHERE id = task.id;
+  PERFORM public._stock_move(loc.id, task.id, task.product_id, 'in', p_qty, 'receive', NULL);
   PERFORM public._fulfillment_audit('receive_procurement', 'procurement_tasks', task.id,
     jsonb_build_object('location_id', p_location_id, 'quantity', p_qty));
   RETURN jsonb_build_object('task_id', task.id, 'quantity_received', next_qty, 'at_bar', task.quantity_at_bar);
@@ -1256,6 +1342,9 @@ BEGIN
   SELECT * INTO dest FROM public.locations WHERE id = to_id AND active;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'location is not active';
+  END IF;
+  IF origin.type = 'BAR' AND dest.type = 'BAR' THEN
+    RAISE EXCEPTION 'shipment between bars is not allowed';
   END IF;
 
   FOR line IN SELECT * FROM jsonb_array_elements(p_payload->'items')
@@ -1334,6 +1423,7 @@ AS $$
 DECLARE
   ship public.shipments%ROWTYPE;
   dest public.locations%ROWTYPE;
+  origin public.locations%ROWTYPE;
   item record;
   next_qty integer;
 BEGIN
@@ -1348,6 +1438,7 @@ BEGIN
     RAISE EXCEPTION 'shipment not found';
   END IF;
   SELECT * INTO dest FROM public.locations WHERE id = ship.to_location_id;
+  SELECT * INTO origin FROM public.locations WHERE id = ship.from_location_id;
 
   IF p_action = 'depart' THEN
     IF ship.status <> 'planned' THEN
@@ -1358,6 +1449,16 @@ BEGIN
     SET status = 'in_transit', updated_at = now()
     WHERE t.id IN (SELECT procurement_task_id FROM public.shipment_items WHERE shipment_id = ship.id)
       AND t.status IN ('purchased', 'received', 'partially_received');
+    IF origin.type = 'WAREHOUSE' THEN
+      FOR item IN
+        SELECT si.quantity, si.procurement_task_id, t.product_id
+        FROM public.shipment_items si
+        JOIN public.procurement_tasks t ON t.id = si.procurement_task_id
+        WHERE si.shipment_id = ship.id
+      LOOP
+        PERFORM public._stock_move(origin.id, item.procurement_task_id, item.product_id, 'out', item.quantity, 'depart', ship.id);
+      END LOOP;
+    END IF;
   ELSIF p_action = 'deliver' THEN
     IF ship.status <> 'in_transit' THEN
       RAISE EXCEPTION 'invalid transition';
@@ -1365,19 +1466,28 @@ BEGIN
     UPDATE public.shipments SET status = 'delivered', delivered_at = now(), updated_at = now() WHERE id = ship.id;
     IF dest.type IS DISTINCT FROM 'BAR' THEN
       FOR item IN
-        SELECT si.quantity, si.procurement_task_id
+        SELECT si.quantity, si.procurement_task_id, t.product_id, t.quantity_purchased, t.quantity_received, t.quantity_allocated
         FROM public.shipment_items si
+        JOIN public.procurement_tasks t ON t.id = si.procurement_task_id
         WHERE si.shipment_id = ship.id
+        FOR UPDATE OF t
       LOOP
-        UPDATE public.procurement_tasks t
-        SET quantity_received = LEAST(t.quantity_allocated, t.quantity_received + item.quantity),
+        IF item.quantity_purchased <= 0 THEN
+          RAISE EXCEPTION 'purchase record required before receipt';
+        END IF;
+        IF item.quantity_received + item.quantity > item.quantity_purchased THEN
+          RAISE EXCEPTION 'received exceeds purchased';
+        END IF;
+        next_qty := item.quantity_received + item.quantity;
+        UPDATE public.procurement_tasks
+        SET quantity_received = next_qty,
             status = CASE
-              WHEN LEAST(t.quantity_allocated, t.quantity_received + item.quantity) >= t.quantity_allocated THEN 'received'
+              WHEN next_qty >= quantity_allocated THEN 'received'
               ELSE 'partially_received'
             END,
             updated_at = now()
-        WHERE t.id = item.procurement_task_id
-        RETURNING quantity_received INTO next_qty;
+        WHERE id = item.procurement_task_id;
+        PERFORM public._stock_move(dest.id, item.procurement_task_id, item.product_id, 'in', item.quantity, 'deliver', ship.id);
       END LOOP;
     ELSIF dest.bar_id IS NOT NULL THEN
       PERFORM public._fulfillment_alert(
@@ -1390,6 +1500,16 @@ BEGIN
   ELSIF p_action = 'cancel' THEN
     IF ship.status = 'delivered' THEN
       RAISE EXCEPTION 'invalid transition';
+    END IF;
+    IF ship.status = 'in_transit' AND origin.type = 'WAREHOUSE' THEN
+      FOR item IN
+        SELECT si.quantity, si.procurement_task_id, t.product_id
+        FROM public.shipment_items si
+        JOIN public.procurement_tasks t ON t.id = si.procurement_task_id
+        WHERE si.shipment_id = ship.id
+      LOOP
+        PERFORM public._stock_move(origin.id, item.procurement_task_id, item.product_id, 'in', item.quantity, 'cancel', ship.id);
+      END LOOP;
     END IF;
     UPDATE public.shipments SET status = 'cancelled', updated_at = now() WHERE id = ship.id;
   ELSE
@@ -1414,7 +1534,9 @@ AS $$
 DECLARE
   ship public.shipments%ROWTYPE;
   dest public.locations%ROWTYPE;
+  origin public.locations%ROWTYPE;
   item record;
+  task public.procurement_tasks%ROWTYPE;
   got integer;
   obs text;
   ped uuid;
@@ -1436,8 +1558,12 @@ BEGIN
     RAISE EXCEPTION 'shipment is not delivered';
   END IF;
   SELECT * INTO dest FROM public.locations WHERE id = ship.to_location_id;
+  SELECT * INTO origin FROM public.locations WHERE id = ship.from_location_id;
   IF dest.type IS DISTINCT FROM 'BAR' OR dest.bar_id IS NULL THEN
     RAISE EXCEPTION 'this shipment is not for a bar';
+  END IF;
+  IF origin.type = 'BAR' THEN
+    RAISE EXCEPTION 'shipment between bars is not allowed';
   END IF;
   IF NOT (public.user_can_access_bar(dest.bar_id) OR public.is_procurement_hq()) THEN
     RAISE EXCEPTION 'not allowed';
@@ -1463,13 +1589,27 @@ BEGIN
     IF got < 0 OR got > item.quantity THEN
       RAISE EXCEPTION 'confirmed quantity is outside the shipment';
     END IF;
+    SELECT * INTO task FROM public.procurement_tasks WHERE id = item.procurement_task_id FOR UPDATE;
+    IF origin.type = 'WAREHOUSE' THEN
+      IF task.quantity_at_bar + got > task.quantity_received THEN
+        RAISE EXCEPTION 'at bar exceeds received';
+      END IF;
+      UPDATE public.procurement_tasks
+      SET quantity_at_bar = quantity_at_bar + got, updated_at = now()
+      WHERE id = task.id;
+    ELSE
+      IF task.quantity_received + got > task.quantity_purchased THEN
+        RAISE EXCEPTION 'received exceeds purchased';
+      END IF;
+      UPDATE public.procurement_tasks
+      SET quantity_received = quantity_received + got,
+          quantity_at_bar = quantity_at_bar + got,
+          updated_at = now()
+      WHERE id = task.id;
+    END IF;
     UPDATE public.shipment_items
     SET quantity_confirmed = got
     WHERE shipment_id = ship.id AND procurement_task_id = item.procurement_task_id;
-    UPDATE public.procurement_tasks
-    SET quantity_at_bar = LEAST(quantity_allocated, quantity_at_bar + got),
-        updated_at = now()
-    WHERE id = item.procurement_task_id;
     ped := item.order_id;
     IF got > 0 AND item.product_id IS NOT NULL AND NOT EXISTS (
       SELECT 1 FROM public.estoque_movimentos m
@@ -1524,12 +1664,24 @@ BEGIN
   IF NOT (public.is_procurement_hq() OR task.assigned_to = auth.uid()) THEN
     RAISE EXCEPTION 'not allowed';
   END IF;
-  IF task.status NOT IN ('draft', 'planned', 'assigned', 'waiting_purchase', 'purchasing', 'exception') THEN
+  IF task.status NOT IN ('draft', 'planned', 'assigned', 'waiting_purchase', 'purchasing', 'exception')
+     OR task.quantity_purchased > 0
+     OR task.quantity_received > 0
+     OR task.quantity_at_bar > 0
+     OR EXISTS (
+       SELECT 1
+       FROM public.shipment_items si
+       JOIN public.shipments s ON s.id = si.shipment_id
+       WHERE si.procurement_task_id = task.id
+         AND s.status <> 'cancelled'
+     ) THEN
     RAISE EXCEPTION 'cannot fallback a task after purchase or shipment';
   END IF;
   UPDATE public.procurement_tasks
   SET status = 'cancelled', updated_at = now()
   WHERE id = task.id;
+  PERFORM public._fulfillment_audit('fallback_task', 'procurement_tasks', task.id,
+    jsonb_build_object('status', 'cancelled'));
   IF task.assignment_id IS NOT NULL THEN
     UPDATE public.order_supplier_assignments
     SET status = 'cancelled', updated_at = now()
@@ -1585,12 +1737,68 @@ BEGIN
   PERFORM public._touch_fulfillment(task.order_id, 'exception');
   PERFORM public._fulfillment_alert(task.order_id, task.assignment_id, 'jbm', NULL, ped_bar,
     'order_exception', 'Deadline missed', COALESCE(p_note, 'The source cannot meet the requested time.'));
+  PERFORM public._fulfillment_audit('flag_deadline_exception', 'procurement_tasks', task.id,
+    jsonb_build_object('note', p_note));
   RETURN jsonb_build_object('task_id', task.id, 'status', 'exception');
 END;
 $$;
 
 REVOKE ALL ON FUNCTION public.flag_deadline_exception(uuid, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.flag_deadline_exception(uuid, text) TO authenticated;
+
+-- Release only the units that were never purchased. Purchase rows stay.
+CREATE OR REPLACE FUNCTION public.release_open_quantity(p_task_id uuid, p_qty integer)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  task public.procurement_tasks%ROWTYPE;
+  new_alloc integer;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'not authenticated';
+  END IF;
+  IF p_qty IS NULL OR p_qty <= 0 THEN
+    RAISE EXCEPTION 'quantity required';
+  END IF;
+  SELECT * INTO task FROM public.procurement_tasks WHERE id = p_task_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'task not found';
+  END IF;
+  IF NOT (public.is_procurement_hq() OR task.assigned_to = auth.uid()) THEN
+    RAISE EXCEPTION 'not allowed';
+  END IF;
+  IF task.quantity_purchased > 0 AND p_qty > task.quantity_allocated - task.quantity_purchased THEN
+    RAISE EXCEPTION 'quantity exceeds the task';
+  END IF;
+  IF task.status IN ('completed', 'cancelled', 'in_transit', 'received')
+     OR task.quantity_received > 0
+     OR task.quantity_at_bar > 0 THEN
+    RAISE EXCEPTION 'cannot fallback a task after purchase or shipment';
+  END IF;
+  IF p_qty > task.quantity_allocated - task.quantity_purchased THEN
+    RAISE EXCEPTION 'quantity exceeds the task';
+  END IF;
+  IF p_qty = task.quantity_allocated AND task.quantity_purchased = 0 THEN
+    RETURN public.fallback_task(p_task_id);
+  END IF;
+  new_alloc := task.quantity_allocated - p_qty;
+  UPDATE public.procurement_tasks
+  SET quantity_allocated = new_alloc,
+      quantity_requested = new_alloc,
+      status = CASE WHEN task.quantity_purchased >= new_alloc THEN 'purchased' ELSE status END,
+      updated_at = now()
+  WHERE id = task.id;
+  PERFORM public._fulfillment_audit('release_open_quantity', 'procurement_tasks', task.id,
+    jsonb_build_object('released', p_qty, 'allocated', new_alloc));
+  RETURN public.plan_procurement(task.order_id, NULL);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.release_open_quantity(uuid, integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.release_open_quantity(uuid, integer) TO authenticated;
 
 -- ── reads ──────────────────────────────────────────────────────────────────
 
@@ -1642,11 +1850,38 @@ BEGIN
       SELECT jsonb_agg(jsonb_build_object(
         'order_item_id', i.id,
         'product', pr.nome,
-        'quantity', i.qtd,
-        'at_bar', COALESCE((
-          SELECT SUM(t.quantity_at_bar) FROM public.procurement_tasks t
-          WHERE t.order_item_id = i.id AND t.status <> 'cancelled'
-        ), 0),
+        'quantity', CASE
+          WHEN audience = 'supplier' THEN COALESCE((
+            SELECT SUM(t.quantity_allocated)
+            FROM public.procurement_tasks t
+            JOIN public.procurement_sources s ON s.id = t.source_id
+            WHERE t.order_item_id = i.id
+              AND t.status <> 'cancelled'
+              AND s.fornecedor_id IN (SELECT public.my_supplier_ids())
+          ), 0)
+          WHEN audience = 'employee' THEN COALESCE((
+            SELECT SUM(t.quantity_allocated)
+            FROM public.procurement_tasks t
+            WHERE t.order_item_id = i.id
+              AND t.status <> 'cancelled'
+              AND t.assigned_to = auth.uid()
+          ), 0)
+          ELSE i.qtd
+        END,
+        'at_bar', CASE
+          WHEN audience = 'supplier' THEN NULL
+          WHEN audience = 'employee' THEN COALESCE((
+            SELECT SUM(t.quantity_at_bar)
+            FROM public.procurement_tasks t
+            WHERE t.order_item_id = i.id
+              AND t.status <> 'cancelled'
+              AND t.assigned_to = auth.uid()
+          ), 0)
+          ELSE COALESCE((
+            SELECT SUM(t.quantity_at_bar) FROM public.procurement_tasks t
+            WHERE t.order_item_id = i.id AND t.status <> 'cancelled'
+          ), 0)
+        END,
         'sale_price', CASE
           WHEN audience IN ('jbm', 'bar') THEN public.resolve_bar_price(ped.bar_id, i.produto_id, now(), i.qtd)
           ELSE NULL
@@ -1684,6 +1919,30 @@ BEGIN
       FROM public.pedidos_itens i
       LEFT JOIN public.produtos pr ON pr.id = i.produto_id
       WHERE i.pedido_id = ped.id
+        AND (
+          audience IN ('jbm', 'bar')
+          OR (
+            audience = 'supplier'
+            AND EXISTS (
+              SELECT 1
+              FROM public.procurement_tasks t
+              JOIN public.procurement_sources s ON s.id = t.source_id
+              WHERE t.order_item_id = i.id
+                AND t.status <> 'cancelled'
+                AND s.fornecedor_id IN (SELECT public.my_supplier_ids())
+            )
+          )
+          OR (
+            audience = 'employee'
+            AND EXISTS (
+              SELECT 1
+              FROM public.procurement_tasks t
+              WHERE t.order_item_id = i.id
+                AND t.status <> 'cancelled'
+                AND t.assigned_to = auth.uid()
+            )
+          )
+        )
     ), '[]'::jsonb),
     'shipments', COALESCE((
       SELECT jsonb_agg(jsonb_build_object(
@@ -1747,7 +2006,44 @@ BEGIN
     'awaiting_receipt', COALESCE((SELECT jsonb_agg(t.id) FROM public.procurement_tasks t WHERE t.status IN ('purchased','in_transit','partially_received')), '[]'::jsonb),
     'problem', COALESCE((SELECT jsonb_agg(t.id) FROM public.procurement_tasks t WHERE t.status = 'exception' OR t.late), '[]'::jsonb),
     'delivery_today', COALESCE((SELECT jsonb_agg(s.id) FROM public.shipments s WHERE s.status NOT IN ('cancelled','delivered') AND timezone('Asia/Tokyo', s.expected_at)::date = today), '[]'::jsonb),
-    'incomplete', COALESCE((SELECT jsonb_agg(t.id) FROM public.procurement_tasks t WHERE t.status NOT IN ('completed','cancelled') AND t.quantity_at_bar < t.quantity_allocated), '[]'::jsonb)
+    'incomplete', COALESCE((SELECT jsonb_agg(t.id) FROM public.procurement_tasks t WHERE t.status NOT IN ('completed','cancelled') AND t.quantity_at_bar < t.quantity_allocated), '[]'::jsonb),
+    'economics', (
+      SELECT jsonb_build_object(
+        'revenue', COALESCE(SUM(COALESCE(public.resolve_bar_price(p.bar_id, t.product_id, COALESCE(t.requested_delivery_at, now()), t.quantity_allocated), 0) * t.quantity_allocated), 0),
+        'purchase_cost', COALESCE(SUM(costs.purchase), 0),
+        'freight', COALESCE(SUM(costs.freight), 0),
+        'fees', COALESCE(SUM(costs.fees), 0),
+        'logistics_cost', COALESCE(SUM(costs.logistics), 0),
+        'margin', COALESCE(SUM(
+          COALESCE(public.resolve_bar_price(p.bar_id, t.product_id, COALESCE(t.requested_delivery_at, now()), t.quantity_allocated), 0) * t.quantity_allocated
+          - COALESCE(costs.purchase, 0) - COALESCE(costs.freight, 0) - COALESCE(costs.fees, 0) - COALESCE(costs.logistics, 0)
+        ), 0)
+      )
+      FROM public.procurement_tasks t
+      JOIN public.pedidos p ON p.id = t.order_id
+      LEFT JOIN LATERAL (
+        SELECT
+          (SELECT COALESCE(SUM(l.quantity * l.unit_cost), 0) FROM public.purchase_lines l WHERE l.procurement_task_id = t.id) AS purchase,
+          (SELECT COALESCE(SUM(pt.freight), 0)
+            FROM public.purchase_transactions pt
+            JOIN public.purchase_lines l ON l.purchase_id = pt.id
+            WHERE l.procurement_task_id = t.id) AS freight,
+          (SELECT COALESCE(SUM(pt.fees), 0)
+            FROM public.purchase_transactions pt
+            JOIN public.purchase_lines l ON l.purchase_id = pt.id
+            WHERE l.procurement_task_id = t.id) AS fees,
+          (SELECT COALESCE(SUM(
+              s.logistics_cost * si.quantity / NULLIF((
+                SELECT SUM(all_items.quantity) FROM public.shipment_items all_items WHERE all_items.shipment_id = s.id
+              ), 0)
+            ), 0)
+            FROM public.shipment_items si
+            JOIN public.shipments s ON s.id = si.shipment_id
+            WHERE si.procurement_task_id = t.id
+              AND s.status <> 'cancelled') AS logistics
+      ) costs ON true
+      WHERE t.status <> 'cancelled'
+    )
   );
 END;
 $$;
@@ -1959,6 +2255,19 @@ BEGIN
       ));
     END LOOP;
   ELSIF linked AND p_action = 'reject' THEN
+    IF EXISTS (
+      SELECT 1 FROM public.procurement_tasks t
+      WHERE t.assignment_id = asg.id
+        AND t.status <> 'cancelled'
+        AND (
+          t.quantity_purchased > 0
+          OR t.quantity_received > 0
+          OR t.quantity_at_bar > 0
+          OR t.status NOT IN ('draft', 'planned', 'assigned', 'waiting_purchase', 'purchasing', 'exception')
+        )
+    ) THEN
+      RAISE EXCEPTION 'cannot fallback a task after purchase or shipment';
+    END IF;
     UPDATE public.procurement_tasks
     SET status = 'cancelled', updated_at = now()
     WHERE assignment_id = asg.id AND status NOT IN ('completed', 'cancelled');
@@ -2047,6 +2356,36 @@ ALTER TABLE public.replenishment_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.procurement_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ops_closures ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ops_counters ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.procurement_stock_moves ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public._audit_bar_price()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  PERFORM public._fulfillment_audit(
+    lower(TG_OP),
+    'bar_product_prices',
+    COALESCE(NEW.id, OLD.id),
+    jsonb_build_object(
+      'bar_id', COALESCE(NEW.bar_id, OLD.bar_id),
+      'product_id', COALESCE(NEW.product_id, OLD.product_id),
+      'sale_price', CASE WHEN TG_OP = 'DELETE' THEN OLD.sale_price ELSE NEW.sale_price END,
+      'previous_sale_price', CASE WHEN TG_OP = 'UPDATE' THEN OLD.sale_price ELSE NULL END
+    )
+  );
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public._audit_bar_price() FROM PUBLIC;
+
+DROP TRIGGER IF EXISTS bar_product_prices_audit ON public.bar_product_prices;
+CREATE TRIGGER bar_product_prices_audit
+  AFTER INSERT OR UPDATE OR DELETE ON public.bar_product_prices
+  FOR EACH ROW EXECUTE FUNCTION public._audit_bar_price();
 
 DROP POLICY IF EXISTS procurement_sources_hq ON public.procurement_sources;
 CREATE POLICY procurement_sources_hq ON public.procurement_sources
@@ -2164,6 +2503,11 @@ CREATE POLICY counters_none ON public.ops_counters
   FOR SELECT TO authenticated
   USING (public.is_procurement_hq());
 
+DROP POLICY IF EXISTS stock_moves_hq ON public.procurement_stock_moves;
+CREATE POLICY stock_moves_hq ON public.procurement_stock_moves
+  FOR SELECT TO authenticated
+  USING (public.is_procurement_hq());
+
 DROP POLICY IF EXISTS alerts_read ON public.fulfillment_alerts;
 CREATE POLICY alerts_read ON public.fulfillment_alerts
   FOR SELECT TO authenticated
@@ -2204,3 +2548,4 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.replenishment_rules TO authentica
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.procurement_settings TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.ops_closures TO authenticated;
 GRANT SELECT ON public.ops_counters TO authenticated;
+GRANT SELECT ON public.procurement_stock_moves TO authenticated;

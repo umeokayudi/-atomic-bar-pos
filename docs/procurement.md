@@ -45,15 +45,27 @@ Códigos humanos (`BAR-2026-00001`, `BUY-`, `PUR-`, `DEL-`, `SUP-`) ficam ao lad
 `procurement_tasks` só tem SELECT direto para `is_procurement_hq()` (`admin` ou `jbm`). Fornecedor e funcionário não leem a tabela. Eles usam RPC.
 
 - Bar: `submit_bar_order` e `get_procurement_tracking`, com o próprio preço, status, embarque e quantidade recebida. Sem custo, frete, taxa, logística, margem ou nome da origem.
-- JBM: `get_procurement_tasks_hq` para a lista. Custo e margem só em `task_economics`. Alertas de audiência `jbm` também exigem `is_procurement_hq()`, não o `is_jbm()` antigo.
+- JBM: `get_procurement_tasks_hq` para a lista. Custo e margem em `task_economics` e no campo `economics` de `get_procurement_board`. Alertas de audiência `jbm` também exigem `is_procurement_hq()`, não o `is_jbm()` antigo.
 - Fornecedor: `get_procurement_tracking` só das tarefas da origem dele. Sem `expected_unit_cost`, custo real, frete, taxa, logística, margem ou preço de venda.
 - Funcionário: `get_my_procurement_tasks` recusa role `fornecedor` e devolve só `assigned_to = auth.uid()`.
 
-## Embarque pelo depósito
+## Quantidade
 
-Compra registrada, recebimento no depósito (`quantity_received`), embarque de saída limitado a essa quantidade, confirmação do bar, entrada em `estoque_movimentos`. Saída direta (fornecedor, loja ou funcionário até o bar) usa a quantidade comprada ainda não embarcada. Um embarque não mistura pedidos e não pode ir para outro bar.
+O banco recusa a linha se `purchased > allocated`, `received > purchased` ou `at_bar > received` (`procurement_tasks_qty_chk`). Recebimento não copia a quantidade comprada. `receive_procurement` e a entrega num depósito somam só o que chegou e gravam `procurement_stock_moves`. A saída do depósito grava `out` na partida. Cancelar um embarque que já saiu devolve o saldo com um `in`, sem apagar o movimento anterior.
 
-Fallback só antes da compra: `draft`, `planned`, `assigned`, `waiting_purchase`, `purchasing`, `exception`. Pedido com quantidade ainda sem origem permanece `pendente`. Preço ausente ou zero cancela a transação inteira.
+Saída direta até o bar usa a quantidade comprada ainda não embarcada. A confirmação do bar é o recebimento dessa mercadoria: sobe `quantity_received` e `quantity_at_bar` juntos, e só então entra em `estoque_movimentos`. Pelo depósito, a confirmação só sobe `quantity_at_bar`, e nunca acima do que já foi recebido.
+
+Um embarque não mistura pedidos, não sai de um bar para outro bar, e o destino `BAR` tem de ser o bar do pedido.
+
+## Compra, custo e cancelamento
+
+`record_purchase` continua obrigatório para marcar `purchased`. Funcionário e fornecedor não informam outro custo: usam `expected_unit_cost`. Frete e taxa só a HQ grava. `task_economics` e o bloco `economics` de `get_procurement_board` ficam só para HQ.
+
+`fallback_task` recusa tarefa com compra, recebimento, quantidade no bar ou embarque ativo, mesmo que o status ainda seja `purchasing`. `release_open_quantity` solta só o que ainda não foi comprado e replaneja. As linhas de `purchase_lines` permanecem.
+
+Fornecedor, no tracking, vê a quantidade da própria tarefa. Não vê o restante da linha, o estoque do bar, o preço de venda nem o embarque. Funcionário vê só a tarefa em que `assigned_to` é o próprio usuário.
+
+Pedido com quantidade ainda sem origem permanece `pendente`. Preço ausente ou zero cancela a transação inteira. O pedido só vai a `entregue` quando cada linha tem `quantity_at_bar` cobrindo a quantidade pedida.
 
 Não há `USING (true)`.
 
@@ -64,7 +76,7 @@ Este ambiente não tem chave do Supabase, então as RPC não foram chamadas cont
 ## Como aplicar
 
 1. No SQL editor do projeto drinks, se ainda não rodou: `sql/pos_sale_security.sql` e `sql/supplier_fulfillment.sql`.
-2. Rodar o arquivo inteiro `sql/procurement.sql`.
+2. Rodar o arquivo inteiro `sql/procurement.sql`. Se uma versão anterior deste arquivo já foi aplicada, rode de novo: as policies são recriadas e as constraints novas só entram se ainda não existirem. Uma constraint falha se já houver linha com quantidade impossível.
 3. Não rodar de novo por cima de um `supplier_fulfillment.sql` antigo sem repetir `procurement.sql`, porque o fulfillment recria a policy de alertas.
 4. Recarregar o site com Ctrl+Shift+R ou Cmd+Shift+R.
 
