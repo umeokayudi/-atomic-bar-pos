@@ -146,6 +146,7 @@ function HqBoard() {
   const [placeForm, setPlaceForm] = useState({ name: '', type: 'WAREHOUSE' })
   const [settings, setSettings] = useState({ safety_buffer_hours: '0', default_transport_hours: '0', default_warehouse_hours: '0', default_prep_hours: '0' })
   const [ship, setShip] = useState({ from_location_id: '', to_location_id: '', task_id: '', quantity: '', carrier: '' })
+  const [econ, setEcon] = useState(null)
 
   async function load() {
     const boardRes = await supabase.rpc('get_procurement_board')
@@ -320,6 +321,16 @@ function HqBoard() {
             <strong>{task.task_number}</strong>
             <span>{task.source_company || task.procurement_method} · {task.status}{task.late ? ' · late' : ''}</span>
             <span>{task.quantity_purchased}/{task.quantity_allocated} · {t('procurement.atBar')} {task.quantity_at_bar}</span>
+            <button type="button" onClick={async () => {
+              const { data, error } = await supabase.rpc('task_economics', { p_task_id: task.id })
+              if (error) setErr(error.message)
+              else setEcon(data)
+            }}>{t('procurement.margin')}</button>
+            {econ?.task_id === task.id && (
+              <span>
+                {t('procurement.realCost')} {econ.real_cost} · {t('procurement.margin')} {econ.margin}
+              </span>
+            )}
             <button type="button" onClick={() => act('fallback_task', { p_task_id: task.id })}>{t('procurement.fallback')}</button>
             <button type="button" onClick={() => act('flag_deadline_exception', { p_task_id: task.id, p_note: null })}>{t('procurement.flagLate')}</button>
           </article>

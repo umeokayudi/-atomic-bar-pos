@@ -968,6 +968,8 @@ export default {
     tasks: 'Tasks',
     atBar: 'At bar',
     fallback: 'Release and replan',
+    margin: 'Margin',
+    realCost: 'Real cost',
     flagLate: 'Mark deadline missed',
     addSource: 'Buy source',
     name: 'Name',

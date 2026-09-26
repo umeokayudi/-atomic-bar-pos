@@ -968,6 +968,8 @@ export default {
     tasks: 'タスク',
     atBar: 'バー着',
     fallback: '外して再計画',
+    margin: '粗利',
+    realCost: '実コスト',
     flagLate: '期限切れにする',
     addSource: '購入元',
     name: '名前',

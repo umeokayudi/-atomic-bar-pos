@@ -919,6 +919,139 @@ $$;
 REVOKE ALL ON FUNCTION public.plan_procurement(uuid, timestamptz) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.plan_procurement(uuid, timestamptz) TO authenticated;
 
+-- One transaction: bar order, line prices, procurement tasks and deadlines.
+CREATE OR REPLACE FUNCTION public.submit_bar_order(
+  p_bar_id uuid,
+  p_need timestamptz,
+  p_obs text,
+  p_items jsonb
+) RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  line jsonb;
+  pid uuid;
+  qty integer;
+  price numeric;
+  order_id uuid;
+  total numeric := 0;
+  need_day date;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'not authenticated';
+  END IF;
+  IF NOT (public.is_procurement_hq() OR public.user_can_access_bar(p_bar_id)) THEN
+    RAISE EXCEPTION 'not allowed';
+  END IF;
+  IF p_items IS NULL OR jsonb_typeof(p_items) <> 'array' OR jsonb_array_length(p_items) = 0 THEN
+    RAISE EXCEPTION 'order needs items';
+  END IF;
+
+  need_day := CASE
+    WHEN p_need IS NULL THEN NULL
+    ELSE (p_need AT TIME ZONE 'Asia/Tokyo')::date
+  END;
+
+  INSERT INTO public.pedidos (
+    bar_id, criado_por, status, data_pedido, data_entrega_prevista, obs, total_estimado, entrega_desejada
+  ) VALUES (
+    p_bar_id, auth.uid(), 'pendente',
+    (timezone('Asia/Tokyo', now()))::date,
+    need_day,
+    NULLIF(btrim(COALESCE(p_obs, '')), ''),
+    0,
+    p_need
+  ) RETURNING id INTO order_id;
+
+  FOR line IN SELECT * FROM jsonb_array_elements(p_items)
+  LOOP
+    pid := NULLIF(line->>'produto_id', '')::uuid;
+    qty := NULLIF(line->>'qtd', '')::integer;
+    IF pid IS NULL OR qty IS NULL OR qty <= 0 THEN
+      RAISE EXCEPTION 'invalid order line';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.produtos pr WHERE pr.id = pid) THEN
+      RAISE EXCEPTION 'product not found';
+    END IF;
+    price := COALESCE(public.resolve_bar_price(p_bar_id, pid, COALESCE(p_need, now()), qty), 0);
+    INSERT INTO public.pedidos_itens (pedido_id, produto_id, qtd, preco_unitario)
+    VALUES (order_id, pid, qty, price);
+    total := total + price * qty;
+  END LOOP;
+
+  UPDATE public.pedidos SET total_estimado = total WHERE id = order_id;
+  RETURN public.plan_procurement(order_id, p_need) || jsonb_build_object('total', total);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.submit_bar_order(uuid, timestamptz, text, jsonb) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.submit_bar_order(uuid, timestamptz, text, jsonb) TO authenticated;
+
+-- JBM only. Purchase + freight + fees + logistics share, against the bar sale price.
+CREATE OR REPLACE FUNCTION public.task_economics(p_task_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  task public.procurement_tasks%ROWTYPE;
+  ped_bar uuid;
+  purchase numeric := 0;
+  freight numeric := 0;
+  fees numeric := 0;
+  logistics numeric := 0;
+  sale numeric;
+  qty integer;
+BEGIN
+  IF NOT public.is_procurement_hq() THEN
+    RAISE EXCEPTION 'not allowed';
+  END IF;
+  SELECT * INTO task FROM public.procurement_tasks WHERE id = p_task_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'task not found';
+  END IF;
+  SELECT bar_id INTO ped_bar FROM public.pedidos WHERE id = task.order_id;
+  SELECT COALESCE(SUM(l.quantity * l.unit_cost), 0) INTO purchase
+  FROM public.purchase_lines l WHERE l.procurement_task_id = task.id;
+  SELECT COALESCE(SUM(p.freight), 0), COALESCE(SUM(p.fees), 0)
+    INTO freight, fees
+  FROM public.purchase_transactions p
+  JOIN public.purchase_lines l ON l.purchase_id = p.id
+  WHERE l.procurement_task_id = task.id;
+  SELECT COALESCE(SUM(
+    s.logistics_cost * si.quantity / NULLIF((
+      SELECT SUM(all_items.quantity) FROM public.shipment_items all_items WHERE all_items.shipment_id = s.id
+    ), 0)
+  ), 0) INTO logistics
+  FROM public.shipment_items si
+  JOIN public.shipments s ON s.id = si.shipment_id
+  WHERE si.procurement_task_id = task.id
+    AND s.status <> 'cancelled';
+  qty := task.quantity_allocated;
+  sale := public.resolve_bar_price(ped_bar, task.product_id, COALESCE(task.requested_delivery_at, now()), qty);
+  RETURN jsonb_build_object(
+    'task_id', task.id,
+    'task_number', task.task_number,
+    'quantity', qty,
+    'purchase_cost', purchase,
+    'freight', freight,
+    'fees', fees,
+    'logistics_cost', logistics,
+    'real_cost', purchase + freight + fees + logistics,
+    'sale_price', sale,
+    'revenue', COALESCE(sale, 0) * qty,
+    'margin', COALESCE(sale, 0) * qty - (purchase + freight + fees + logistics)
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.task_economics(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.task_economics(uuid) TO authenticated;
+
 -- ── purchase record. Status purchased requires this row. ───────────────────
 
 CREATE OR REPLACE FUNCTION public.record_purchase(p_task_id uuid, p_payload jsonb)

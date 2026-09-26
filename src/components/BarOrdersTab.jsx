@@ -125,40 +125,45 @@ export default function BarOrdersTab({ bar }) {
     }
     setSaving(true)
     setOrderErr('')
-    const { data: pedido, error } = await supabase.from('pedidos').insert({
-      bar_id: bar.id, criado_por: user?.id,
-      status: 'pendente',
-      data_pedido: new Date().toISOString().slice(0, 10),
-      data_entrega_prevista: entrega || null,
-      obs: obs.trim() || null, total_estimado: totalOrder,
-    }).select().single()
-
-    if (error) { setOrderErr(t('portal.orders.saveError', { message: error.message })); setSaving(false); return }
-    if (!pedido) { setOrderErr(t('portal.orders.saveOrderError')); setSaving(false); return }
-
-    const { error: itemsError } = await supabase.from('pedidos_itens').insert(
-      items.map(it => {
-        const p = produtos.find(x => x.id === it.produto_id)
-        return { pedido_id: pedido.id, produto_id: it.produto_id, qtd: it.qtd, preco_unitario: salePriceOf(p, it.qtd) }
-      })
-    )
-    if (itemsError) setOrderErr(t('portal.orders.saveItemsError', { message: itemsError.message }))
-    else {
-      let need = null
-      if (entrega) {
-        const [y, m, d] = entrega.split('-').map(Number)
-        const [hh, mm] = (entregaHora || '18:00').split(':').map(Number)
-        need = new Date(tokyoWallToUtcMs(y, m, d, hh || 18, mm || 0)).toISOString()
-      }
-      const planned = await supabase.rpc('plan_procurement', { p_order_id: pedido.id, p_need: need })
-      if (planned.error && schemaMissing(planned.error)) {
+    let need = null
+    if (entrega) {
+      const [y, m, d] = entrega.split('-').map(Number)
+      const [hh, mm] = (entregaHora || '18:00').split(':').map(Number)
+      need = new Date(tokyoWallToUtcMs(y, m, d, hh || 18, mm || 0)).toISOString()
+    }
+    const submitted = await supabase.rpc('submit_bar_order', {
+      p_bar_id: bar.id,
+      p_need: need,
+      p_obs: obs.trim() || null,
+      p_items: items.map(it => ({ produto_id: it.produto_id, qtd: it.qtd })),
+    })
+    if (submitted.error && schemaMissing(submitted.error)) {
+      const { data: pedido, error } = await supabase.from('pedidos').insert({
+        bar_id: bar.id, criado_por: user?.id,
+        status: 'pendente',
+        data_pedido: new Date().toISOString().slice(0, 10),
+        data_entrega_prevista: entrega || null,
+        obs: obs.trim() || null, total_estimado: totalOrder,
+      }).select().single()
+      if (error) { setOrderErr(t('portal.orders.saveError', { message: error.message })); setSaving(false); return }
+      if (!pedido) { setOrderErr(t('portal.orders.saveOrderError')); setSaving(false); return }
+      const { error: itemsError } = await supabase.from('pedidos_itens').insert(
+        items.map(it => {
+          const p = produtos.find(x => x.id === it.produto_id)
+          return { pedido_id: pedido.id, produto_id: it.produto_id, qtd: it.qtd, preco_unitario: salePriceOf(p, it.qtd) }
+        })
+      )
+      if (itemsError) setOrderErr(t('portal.orders.saveItemsError', { message: itemsError.message }))
+      else {
         const routed = await supabase.rpc('route_pedido', { p_order_id: pedido.id })
         if (routed.error && !schemaMissing(routed.error)) {
           setOrderErr(t('fulfillment.loadError', { message: routed.error.message }))
         }
-      } else if (planned.error) {
-        setOrderErr(t('fulfillment.loadError', { message: planned.error.message }))
       }
+    } else if (submitted.error) {
+      setOrderErr(t('fulfillment.loadError', { message: submitted.error.message }))
+      setSaving(false)
+      return
     }
 
     const { data: admins } = await supabase.from('perfis').select('id').eq('role', 'admin')

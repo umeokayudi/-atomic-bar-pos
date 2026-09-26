@@ -1,5 +1,7 @@
 # Procurement em cima do PR #38
 
+`submit_bar_order` grava o pedido, os itens com o preço daquele bar e o plano na mesma transação. Se a função ainda não existe no banco, a tela volta ao insert antigo e ao `route_pedido`.
+
 O pedido do bar continua em `pedidos` / `pedidos_itens`. O produto continua em `produtos`. O bar continua em `bars`. O fornecedor continua em `fornecedores`. O portal do fornecedor continua em `order_supplier_assignments`. Esta camada diz **como** a Umeoka abastece esse pedido.
 
 ```
