@@ -956,6 +956,8 @@ export default {
     openLink: '購入リンクを開く',
     recordPurchase: '仕入を記録',
     expectedCost: '合意した単価',
+    receivedQty: '受入済',
+    supplierMarkedNotStock: '仕入先が届けたと記録しました。在庫の受入ではありません。',
     releaseOpen: '未購入分を外す',
     revenue: '売上',
     savePurchase: '仕入を保存',

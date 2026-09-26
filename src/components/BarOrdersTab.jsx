@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmtYen, fmtDate, Spinner, Empty, SectionTitle, isSupplierProduct, PedidoItemChip } from './utils'
 import { isRestockPedido } from '../lib/posSupply'
@@ -116,6 +116,8 @@ export default function BarOrdersTab({ bar }) {
     return p.status === statusFilter
   })
 
+  const idempotencyKey = useRef('')
+
   async function enviarOrder() {
     if (items.length === 0) {
       setOrderErr(t('portal.orders.addOneItem'))
@@ -129,11 +131,13 @@ export default function BarOrdersTab({ bar }) {
       const [hh, mm] = (entregaHora || '18:00').split(':').map(Number)
       need = new Date(tokyoWallToUtcMs(y, m, d, hh || 18, mm || 0)).toISOString()
     }
+    if (!idempotencyKey.current) idempotencyKey.current = crypto.randomUUID()
     const submitted = await supabase.rpc('submit_bar_order', {
       p_bar_id: bar.id,
       p_need: need,
       p_obs: obs.trim() || null,
       p_items: items.map(it => ({ produto_id: it.produto_id, qtd: it.qtd })),
+      p_idempotency_key: idempotencyKey.current,
     })
     if (submitted.error) {
       setOrderErr(schemaMissing(submitted.error) ? t('procurement.notConfigured') : submitted.error.message)
@@ -153,6 +157,7 @@ export default function BarOrdersTab({ bar }) {
     }
 
     setSaving(false)
+    idempotencyKey.current = ''
     setItems([]); setObs(''); setEntrega('')
     load()
   }
@@ -412,6 +417,9 @@ export default function BarOrdersTab({ bar }) {
             <p className="ff-note">{t('fulfillment.hideSupplier')}</p>
             {trackErr && <p className="ff-miss">{trackErr}</p>}
             {track?.public_code && <div className="ord-card-sub">{track.public_code}</div>}
+            {Array.isArray(track?.lines) && track.lines.some(line => (line.tasks || []).some(task => task.supplier_marked_delivered && !task.stock_received)) && (
+              <p className="ff-note">{t('procurement.supplierMarkedNotStock')}</p>
+            )}
             {Array.isArray(track?.lines) && track.lines.map(line => (
               <div key={line.order_item_id} className="ord-line">
                 <div className="ord-tile-name">{line.product}</div>

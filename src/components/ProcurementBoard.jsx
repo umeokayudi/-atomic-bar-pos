@@ -322,7 +322,10 @@ function HqBoard() {
           <article key={task.id} className="ff-card">
             <strong>{task.task_number}</strong>
             <span>{task.source_company || task.procurement_method} · {task.status}{task.late ? ' · late' : ''}</span>
-            <span>{task.quantity_purchased}/{task.quantity_allocated} · {t('procurement.atBar')} {task.quantity_at_bar}</span>
+            <span>{task.quantity_purchased}/{task.quantity_allocated} · {t('procurement.atBar')} {task.quantity_at_bar} · {t('procurement.receivedQty')} {task.quantity_received}</span>
+            {['delivered', 'in_transit', 'partial'].includes(task.supplier_assignment_status) && task.quantity_received === 0 && (
+              <span>{t('procurement.supplierMarkedNotStock')}</span>
+            )}
             <button type="button" onClick={async () => {
               const { data, error } = await supabase.rpc('task_economics', { p_task_id: task.id })
               if (error) setErr(error.message)

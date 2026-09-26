@@ -10,7 +10,9 @@ import {
   assertOrderQty, assertReceive, assertBarArrival, assertFallbackTask, assertEmployeeCost,
   assertNotBarToBar, releaseOpen, visibleOrderLine, physicalStatusAfterSupplier,
   assertQtyChain, applyLockedPurchase, assertLegacyBarConfirm, assertFirstConfirm,
+  applySupplierAdvance, rememberOrder, employeeTaskPayload, payloadHasFinance,
 } from '../src/lib/procurementCore.js'
+import { isJbmRole, costAccessForRole } from '../src/lib/access.js'
 import { tokyoWallToUtcMs } from '../src/lib/tokyo.js'
 
 const settings = {
@@ -400,6 +402,17 @@ test('sql keeps isolation and does not invent a second catalog', () => {
   assert.match(jbmFn, /'admin', 'jbm'/)
   assert.equal(/funcionario/.test(jbmFn), false)
   assert.equal(/WHEN p_action = 'partial' THEN 'partially_received'/.test(sql), false)
+  assert.match(sql, /order_idempotency_keys/)
+  assert.match(sql, /UNIQUE \(bar_id, user_id, idempotency_key\)/)
+  assert.match(sql, /p_idempotency_key/)
+  const advance = sql.slice(sql.indexOf('FUNCTION public.supplier_advance'), sql.indexOf('Legacy bar confirmation'))
+  assert.equal(/SET status = 'in_transit'/.test(advance), false)
+  assert.equal(/quantity_received\s*=/.test(advance), false)
+  assert.equal(/INSERT INTO public\.estoque_movimentos/.test(advance), false)
+  assert.equal(/SET status = 'entregue'/.test(advance), false)
+  const mineRpc = sql.slice(sql.indexOf('FUNCTION public.get_my_procurement_tasks'), sql.indexOf('REVOKE ALL ON FUNCTION public.get_my_procurement_tasks'))
+  assert.equal(/margin|freight|logistics|actual_total|sale_price/.test(mineRpc), false)
+  assert.match(mineRpc, /assigned_to = auth\.uid\(\)/)
   assert.match(sql, /_audit_bar_price/)
   assert.match(sql, /user_can_access_bar\(p_bar_id\)/)
   assert.match(sql, /user_can_access_bar\(dest\.bar_id\)/)
@@ -470,8 +483,7 @@ test('funcionario is not fulfillment HQ and a supplier action cannot invent a re
   const buying = { status: 'purchasing', quantityPurchased: 0, quantityReceived: 0 }
   assert.equal(physicalStatusAfterSupplier('partial', buying), 'purchasing')
   assert.equal(physicalStatusAfterSupplier('in_transit', buying), 'purchasing')
-  assert.equal(physicalStatusAfterSupplier('delivered', { status: 'purchased', quantityPurchased: 4 }), 'in_transit')
-  assert.notEqual(physicalStatusAfterSupplier('partial', { status: 'purchased', quantityPurchased: 4 }), 'partially_received')
+  assert.equal(physicalStatusAfterSupplier('delivered', { status: 'purchased', quantityPurchased: 4 }), 'purchased')
   assert.throws(() => assertQtyChain({
     quantityRequested: 10, quantityAllocated: 10, quantityPurchased: 0, quantityReceived: 0, status: 'partially_received',
   }), /partial receipt/)
@@ -492,6 +504,62 @@ test('a second purchase, a second confirmation and the legacy stock path stop', 
   assert.doesNotThrow(() => assertLegacyBarConfirm(false))
   assert.throws(() => assertFirstConfirm('2026-10-02T09:00:00.000Z'), /already confirmed/)
   assert.doesNotThrow(() => assertFirstConfirm(null))
+})
+
+test('supplier delivered does not receive stock or close the order', () => {
+  const before = {
+    assignmentStatus: 'purchased',
+    taskStatus: 'purchased',
+    quantityReceived: 0,
+    quantityAtBar: 0,
+    stockMoves: 0,
+    orderStatus: 'confirmado',
+  }
+  const after = applySupplierAdvance('delivered', before)
+  assert.equal(after.assignmentStatus, 'delivered')
+  assert.equal(after.quantityReceived, 0)
+  assert.equal(after.quantityAtBar, 0)
+  assert.equal(after.stockMoves, 0)
+  assert.equal(after.orderStatus, 'confirmado')
+  assert.equal(after.taskStatus, 'purchased')
+  const moving = applySupplierAdvance('in_transit', before)
+  assert.equal(moving.quantityReceived, 0)
+  assert.equal(moving.orderStatus, 'confirmado')
+})
+
+test('the same idempotency key is one order and two keys are two orders', () => {
+  const store = { rows: [] }
+  const first = rememberOrder(store, { barId: 'bar-a', userId: 'u1', key: 'click-1' })
+  const again = rememberOrder(store, { barId: 'bar-a', userId: 'u1', key: 'click-1' })
+  const other = rememberOrder(store, { barId: 'bar-a', userId: 'u1', key: 'click-2' })
+  assert.equal(first.created, true)
+  assert.equal(again.created, false)
+  assert.equal(again.orderId, first.orderId)
+  assert.equal(other.created, true)
+  assert.notEqual(other.orderId, first.orderId)
+  assert.equal(store.rows.length, 2)
+})
+
+test('funcionario does not receive margin or the JBM cost books', () => {
+  assert.equal(isJbmRole('funcionario'), false)
+  assert.equal(isJbmRole('admin'), true)
+  assert.equal(isJbmRole('jbm'), true)
+  const books = costAccessForRole('funcionario')
+  assert.equal(books.jbmBill, false)
+  assert.equal(books.drinkCost, false)
+  const view = employeeTaskPayload({
+    id: 't1', task_number: 'BUY-1', quantity_allocated: 4, quantity_purchased: 0,
+    status: 'assigned', expected_unit_cost: 4000, purchase_url: 'https://example.test',
+    margin: 1200, freight: 300, logistics_cost: 80, actual_total_cost: 9000, sale_price: 5000,
+  })
+  assert.equal(payloadHasFinance(view), false)
+  assert.equal(view.expectedUnitCost, 4000)
+  assert.equal(canCallMyTasks('funcionario'), true)
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8')
+  const employee = app.slice(app.indexOf('const EMPLOYEE_TABS'), app.indexOf('const STAFF_TABS'))
+  assert.match(employee, /procurement/)
+  assert.equal(employee.includes("id:'purchases'") || employee.includes("id: 'purchases'"), false)
+  assert.equal(employee.includes('relatorio'), false)
 })
 
 test('the order stays open until every line is at the bar', () => {

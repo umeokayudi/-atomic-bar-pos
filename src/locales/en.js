@@ -956,6 +956,8 @@ export default {
     openLink: 'Open purchase link',
     recordPurchase: 'Record purchase',
     expectedCost: 'Agreed unit cost',
+    receivedQty: 'Received',
+    supplierMarkedNotStock: 'The supplier marked this as delivered. That is not stock received.',
     releaseOpen: 'Release what is not bought',
     revenue: 'Revenue',
     savePurchase: 'Save purchase',

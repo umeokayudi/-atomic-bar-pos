@@ -9,12 +9,12 @@ export const ROLES = {
   bar_staff: 'bar_staff',
 }
 
-export const JBM_ROLES = [ROLES.admin, ROLES.funcionario]
+export const JBM_ROLES = [ROLES.admin, 'jbm']
 export const BAR_ROLES = [ROLES.cliente, ROLES.gerente, ROLES.caixa, ROLES.bar_staff]
 export const BAR_ROLES_NEED_BAR = BAR_ROLES
 
 export function isJbmRole(role) {
-  return JBM_ROLES.includes(role) || role === 'staff'
+  return role === ROLES.admin || role === 'jbm'
 }
 
 export function isSupplierRole(role) {

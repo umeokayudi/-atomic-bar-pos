@@ -110,6 +110,9 @@ export default function SupplierPortal({ onSignOut }) {
       {open && track && (
         <section className="ff-detail">
           <StatusBadge status={mine?.status || open.status} />
+          {['delivered', 'in_transit', 'partial'].includes(mine?.status || open.status) && (
+            <p className="ff-note">{t('procurement.supplierMarkedNotStock')}</p>
+          )}
           <OrderTimeline events={track.events} audience="supplier" />
           <ul>{(mine?.items || []).map(it => (
             <li key={it.order_item_id}>{it.product} · {it.quantity_requested}{it.quantity_confirmed != null ? ` → ${it.quantity_confirmed}` : ''}</li>

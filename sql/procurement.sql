@@ -445,6 +445,16 @@ CREATE TABLE IF NOT EXISTS public.replenishment_rules (
 
 ALTER TABLE public.pedidos ADD COLUMN IF NOT EXISTS public_code text;
 ALTER TABLE public.pedidos ADD COLUMN IF NOT EXISTS entrega_desejada timestamptz;
+
+CREATE TABLE IF NOT EXISTS public.order_idempotency_keys (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  bar_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  idempotency_key text NOT NULL,
+  order_id uuid NOT NULL REFERENCES public.pedidos(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (bar_id, user_id, idempotency_key)
+);
 CREATE UNIQUE INDEX IF NOT EXISTS pedidos_public_code_uidx
   ON public.pedidos (public_code) WHERE public_code IS NOT NULL;
 
@@ -993,11 +1003,14 @@ REVOKE ALL ON FUNCTION public.plan_procurement(uuid, timestamptz) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.plan_procurement(uuid, timestamptz) TO authenticated;
 
 -- One transaction: bar order, line prices, procurement tasks and deadlines.
+DROP FUNCTION IF EXISTS public.submit_bar_order(uuid, timestamptz, text, jsonb);
+
 CREATE OR REPLACE FUNCTION public.submit_bar_order(
   p_bar_id uuid,
   p_need timestamptz,
   p_obs text,
-  p_items jsonb
+  p_items jsonb,
+  p_idempotency_key text DEFAULT NULL
 ) RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -1011,12 +1024,33 @@ DECLARE
   order_id uuid;
   total numeric := 0;
   need_day date;
+  idem text;
+  existing uuid;
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'not authenticated';
   END IF;
   IF NOT (public.is_procurement_hq() OR public.user_can_access_bar(p_bar_id)) THEN
     RAISE EXCEPTION 'not allowed';
+  END IF;
+  idem := NULLIF(btrim(COALESCE(p_idempotency_key, '')), '');
+  IF idem IS NOT NULL AND char_length(idem) > 128 THEN
+    RAISE EXCEPTION 'invalid idempotency key';
+  END IF;
+  IF idem IS NOT NULL THEN
+    SELECT k.order_id INTO existing
+    FROM public.order_idempotency_keys k
+    WHERE k.bar_id = p_bar_id
+      AND k.user_id = auth.uid()
+      AND k.idempotency_key = idem;
+    IF existing IS NOT NULL THEN
+      RETURN jsonb_build_object(
+        'order_id', existing,
+        'public_code', (SELECT p.public_code FROM public.pedidos p WHERE p.id = existing),
+        'replayed', true,
+        'total', (SELECT p.total_estimado FROM public.pedidos p WHERE p.id = existing)
+      );
+    END IF;
   END IF;
   IF p_items IS NULL OR jsonb_typeof(p_items) <> 'array' OR jsonb_array_length(p_items) = 0 THEN
     RAISE EXCEPTION 'order needs items';
@@ -1058,12 +1092,16 @@ BEGIN
   END LOOP;
 
   UPDATE public.pedidos SET total_estimado = total WHERE id = order_id;
-  RETURN public.plan_procurement(order_id, p_need) || jsonb_build_object('total', total);
+  IF idem IS NOT NULL THEN
+    INSERT INTO public.order_idempotency_keys (bar_id, user_id, idempotency_key, order_id)
+    VALUES (p_bar_id, auth.uid(), idem, order_id);
+  END IF;
+  RETURN public.plan_procurement(order_id, p_need) || jsonb_build_object('total', total, 'replayed', false);
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.submit_bar_order(uuid, timestamptz, text, jsonb) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.submit_bar_order(uuid, timestamptz, text, jsonb) TO authenticated;
+REVOKE ALL ON FUNCTION public.submit_bar_order(uuid, timestamptz, text, jsonb, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.submit_bar_order(uuid, timestamptz, text, jsonb, text) TO authenticated;
 
 -- JBM only. Purchase + freight + fees + logistics share, against the bar sale price.
 CREATE OR REPLACE FUNCTION public.task_economics(p_task_id uuid)
@@ -1934,7 +1972,18 @@ BEGIN
               WHEN audience = 'employee' AND t.assigned_to = auth.uid() THEN t.expected_unit_cost
               ELSE NULL
             END,
-            'actual_total_cost', CASE WHEN audience = 'jbm' THEN t.actual_total_cost ELSE NULL END
+            'actual_total_cost', CASE WHEN audience = 'jbm' THEN t.actual_total_cost ELSE NULL END,
+            'supplier_assignment_status', CASE
+              WHEN audience IN ('jbm', 'supplier') THEN (
+                SELECT a.status FROM public.order_supplier_assignments a WHERE a.id = t.assignment_id
+              )
+              ELSE NULL
+            END,
+            'supplier_marked_delivered', COALESCE((
+              SELECT a.status IN ('delivered', 'in_transit', 'partial')
+              FROM public.order_supplier_assignments a WHERE a.id = t.assignment_id
+            ), false),
+            'stock_received', t.quantity_received > 0
           ) ORDER BY t.task_number)
           FROM public.procurement_tasks t
           LEFT JOIN public.procurement_sources s ON s.id = t.source_id
@@ -2107,9 +2156,11 @@ BEGIN
       'procurement_method', t.procurement_method,
       'source_company', t.source_company,
       'late', t.late,
-      'buy_by_at', t.buy_by_at
+      'buy_by_at', t.buy_by_at,
+      'supplier_assignment_status', a.status
     ) ORDER BY t.created_at DESC)
     FROM public.procurement_tasks t
+    LEFT JOIN public.order_supplier_assignments a ON a.id = t.assignment_id
   ), '[]'::jsonb);
 END;
 $$;
@@ -2322,15 +2373,9 @@ BEGIN
     UPDATE public.procurement_tasks
     SET status = 'purchasing', updated_at = now()
     WHERE assignment_id = asg.id AND status IN ('assigned', 'waiting_purchase');
-  ELSIF linked AND p_action IN ('in_transit', 'delivered', 'partial') THEN
-    -- Supplier status stays on the assignment. The task moves to in_transit
-    -- only after a real purchase, and never pretends the goods were received.
-    UPDATE public.procurement_tasks
-    SET status = 'in_transit', updated_at = now()
-    WHERE assignment_id = asg.id
-      AND quantity_purchased > 0
-      AND status IN ('purchasing', 'purchased', 'waiting_purchase', 'assigned', 'exception');
   END IF;
+  -- in_transit, delivered, partial and received change only the assignment.
+  -- They do not change quantity_received, stock, estoque_movimentos or pedidos.status.
 
   IF linked AND p_action = 'accept' THEN
     PERFORM public.flag_deadline_exception(t.id, 'Accepted after the requested delivery')
@@ -2496,6 +2541,7 @@ ALTER TABLE public.procurement_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ops_closures ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ops_counters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.procurement_stock_moves ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.order_idempotency_keys ENABLE ROW LEVEL SECURITY;
 
 CREATE OR REPLACE FUNCTION public._audit_bar_price()
 RETURNS trigger
@@ -2647,6 +2693,11 @@ CREATE POLICY stock_moves_hq ON public.procurement_stock_moves
   FOR SELECT TO authenticated
   USING (public.is_procurement_hq());
 
+DROP POLICY IF EXISTS idem_owner ON public.order_idempotency_keys;
+CREATE POLICY idem_owner ON public.order_idempotency_keys
+  FOR SELECT TO authenticated
+  USING (user_id = auth.uid() OR public.is_procurement_hq());
+
 DROP POLICY IF EXISTS alerts_read ON public.fulfillment_alerts;
 CREATE POLICY alerts_read ON public.fulfillment_alerts
   FOR SELECT TO authenticated
@@ -2688,3 +2739,4 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.procurement_settings TO authentic
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.ops_closures TO authenticated;
 GRANT SELECT ON public.ops_counters TO authenticated;
 GRANT SELECT ON public.procurement_stock_moves TO authenticated;
+GRANT SELECT ON public.order_idempotency_keys TO authenticated;

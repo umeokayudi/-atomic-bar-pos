@@ -64,6 +64,10 @@ const ADMIN_TABS = [
   { id:'cashflow',   labelKey:'nav.cashflow', icon:'💸' },
 ]
 
+const EMPLOYEE_TABS = [
+  { id:'procurement', labelKey:'nav.procurement', icon:'📦' },
+]
+
 const STAFF_TABS = [
   { id:'purchases', labelKey:'nav.purchases', icon:'🛒' },
   { id:'sales',    labelKey:'nav.sales', icon:'💴' },
@@ -479,9 +483,10 @@ function Shell() {
   const tabs = perfil?.role==='admin'
     ? ADMIN_TABS
     : perfil?.role==='funcionario'
-      ? [...STAFF_TABS, { id:'procurement', labelKey:'nav.procurement', icon:'📦' }]
+      ? EMPLOYEE_TABS
       : STAFF_TABS
-  if (tab==='dashboard' && perfil?.role!=='admin') setTab('purchases')
+  if (tab==='dashboard' && perfil?.role==='funcionario') setTab('procurement')
+  else if (tab==='dashboard' && perfil?.role!=='admin') setTab('purchases')
 
   return (
     <div className="app-shell">

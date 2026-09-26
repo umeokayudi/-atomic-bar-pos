@@ -71,7 +71,9 @@ Não há `USING (true)`.
 
 `is_jbm()` é `admin` ou `jbm`. Funcionário não entra. O portal do fornecedor e o bar do próprio usuário continuam. `route_pedido`, `supplier_advance` e `get_order_tracking` usam essa função para o lado HQ. O funcionário compra pela tarefa atribuída, com o custo já combinado.
 
-O status do fornecedor (`in_transit`, `partial`, `delivered` no assignment) não aumenta `quantity_received` e não marca a tarefa como `partially_received`. A tarefa só vai a `in_transit` depois de uma compra real. Recebimento continua em `receive_procurement` ou na confirmação do bar.
+O status do fornecedor (`in_transit`, `partial`, `delivered` no assignment) não altera a tarefa, `quantity_received`, o estoque nem `pedidos.status`. A tela mostra que essa marca não é recebimento. Recebimento continua em `receive_procurement`, no embarque ou em `confirm_bar_shipment`.
+
+`submit_bar_order` aceita `p_idempotency_key`. A mesma chave, o mesmo usuário e o mesmo bar devolvem o pedido já gravado. A chave só é inserida depois do pedido, na mesma transação. Se a transação falha, a chave não fica presa. Pedidos antigos sem chave continuam válidos.
 
 `bar_confirm_delivery` permanece para pedido sem tarefa de procurement. Se já existe tarefa, a função recusa e o estoque só entra por `confirm_bar_shipment`. Isso evita estoque duplicado e impede marcar `entregue` com uma linha ainda aberta.
 

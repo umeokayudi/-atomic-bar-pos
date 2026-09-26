@@ -363,13 +363,57 @@ export function isProcurementHq(role) {
 
 /** Supplier portal status must not invent a physical receipt. */
 export function physicalStatusAfterSupplier(action, task = {}) {
-  const status = task.status || 'assigned'
-  if (!['in_transit', 'delivered', 'partial'].includes(action)) return status
-  const purchased = +task.quantityPurchased || 0
-  if (purchased > 0 && ['purchasing', 'purchased', 'waiting_purchase', 'assigned', 'exception'].includes(status)) {
-    return 'in_transit'
+  return task.status || 'assigned'
+}
+
+const SUPPLIER_STATUS_ONLY = new Set(['in_transit', 'delivered', 'partial', 'received'])
+
+export function applySupplierAdvance(action, state) {
+  const next = {
+    assignmentStatus: SUPPLIER_STATUS_ONLY.has(action) ? action : state.assignmentStatus,
+    taskStatus: state.taskStatus,
+    quantityReceived: state.quantityReceived || 0,
+    quantityAtBar: state.quantityAtBar || 0,
+    stockMoves: state.stockMoves || 0,
+    orderStatus: state.orderStatus,
   }
-  return status
+  if (action === 'delivered' || action === 'in_transit' || action === 'partial' || action === 'received') {
+    return next
+  }
+  return { ...state, ...next, assignmentStatus: state.assignmentStatus }
+}
+
+export function rememberOrder(store, { barId, userId, key }) {
+  const rows = store.rows
+  if (key) {
+    const found = rows.find(row => row.barId === barId && row.userId === userId && row.key === key)
+    if (found) return { created: false, orderId: found.orderId }
+  }
+  const orderId = `order-${rows.length + 1}`
+  if (key) rows.push({ barId, userId, key, orderId })
+  else rows.push({ barId, userId, key: null, orderId })
+  return { created: true, orderId }
+}
+
+const FINANCE_KEYS = [
+  'margin', 'freight', 'fees', 'logistics', 'logistics_cost', 'logisticsCost',
+  'actual_total_cost', 'actualTotalCost', 'real_cost', 'realCost', 'sale_price', 'salePrice',
+]
+
+export function employeeTaskPayload(task) {
+  return {
+    id: task.id,
+    taskNumber: task.taskNumber || task.task_number,
+    quantityAllocated: task.quantityAllocated ?? task.quantity_allocated,
+    quantityPurchased: task.quantityPurchased ?? task.quantity_purchased,
+    status: task.status,
+    expectedUnitCost: task.expectedUnitCost ?? task.expected_unit_cost ?? null,
+    purchaseUrl: task.purchaseUrl || task.purchase_url || null,
+  }
+}
+
+export function payloadHasFinance(payload) {
+  return Object.keys(flattenKeys(payload)).some(key => FINANCE_KEYS.includes(key))
 }
 
 export function assertQtyChain(task) {
