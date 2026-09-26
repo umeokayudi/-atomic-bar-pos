@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { useAuth } from './Auth'
 import { fmtYen, fmtDate, Spinner, Empty, SectionTitle, isSupplierProduct, PedidoItemChip } from './utils'
 import { isRestockPedido } from '../lib/posSupply'
 import { useI18n } from '../lib/i18n'
 import { orderDetailsFromObs } from '../lib/orderMeta'
-import { tokyoMonthKey } from '../lib/tokyo'
+import { tokyoMonthKey, tokyoWallToUtcMs } from '../lib/tokyo'
+import { resolveSalePrice } from '../lib/procurementCore'
 import { schemaMissing } from '../lib/fulfillment'
 import { DeliveryConfirmation, OrderTimeline } from './fulfillment/FulfillmentWidgets'
 import { shiftMonth } from '../lib/barCalendar'
@@ -25,7 +25,6 @@ function Badge({ status }) {
 
 export default function BarOrdersTab({ bar }) {
   const { t } = useI18n()
-  const { user } = useAuth()
   const [produtos, setProdutos] = useState([])
   const [pedidos, setPedidos] = useState([])
   const [loading, setLoading] = useState(true)
@@ -40,6 +39,8 @@ export default function BarOrdersTab({ bar }) {
   const [items, setItems] = useState([])
   const [obs, setObs] = useState('')
   const [entrega, setEntrega] = useState('')
+  const [entregaHora, setEntregaHora] = useState('18:00')
+  const [barPrices, setBarPrices] = useState([])
   const [search, setSearch] = useState('')
   const [cat, setCat] = useState('all')
   const [statusFilter, setStatusFilter] = useState('open')
@@ -49,12 +50,14 @@ export default function BarOrdersTab({ bar }) {
   useEffect(() => { load() }, [bar])
 
   async function load() {
-    const [pR, pedR] = await Promise.all([
+    const [pR, pedR, priceR] = await Promise.all([
       supabase.from('produtos_public').select('*').eq('ativo', true).order('categoria').order('nome'),
       supabase.from('pedidos').select('*, pedidos_itens(*, produtos(nome,preco_venda,categoria,volume_ml))').eq('bar_id', bar.id).order('criado_em', { ascending: false }).limit(80),
+      supabase.from('bar_product_prices').select('product_id,sale_price,minimum_quantity,valid_from,valid_until,active').eq('bar_id', bar.id).eq('active', true),
     ])
     setProdutos((pR.data || []).filter(isSupplierProduct))
     setPedidos(pedR.data || [])
+    if (!priceR.error) setBarPrices(priceR.data || [])
     setLoading(false)
   }
 
@@ -77,9 +80,25 @@ export default function BarOrdersTab({ bar }) {
   const summaryList = Object.values(prodMap).sort((a, b) => b.total - a.total)
   const summaryTotal = summaryList.reduce((a, p) => a + p.total, 0)
 
+  function salePriceOf(product, qty) {
+    if (!product) return 0
+    const price = resolveSalePrice({
+      prices: barPrices.filter(row => row.product_id === product.id).map(row => ({
+        salePrice: +row.sale_price,
+        minimumQuantity: row.minimum_quantity,
+        validFrom: row.valid_from,
+        validUntil: row.valid_until,
+        active: row.active,
+      })),
+      catalogPrice: product.preco_venda,
+      qty,
+    })
+    return price || 0
+  }
+
   const totalOrder = items.reduce((a, it) => {
     const p = produtos.find(x => x.id === it.produto_id)
-    return a + (p ? p.preco_venda * it.qtd : 0)
+    return a + salePriceOf(p, it.qtd) * it.qtd
   }, 0)
   const bottleCount = items.reduce((a, it) => a + it.qtd, 0)
 
@@ -104,29 +123,22 @@ export default function BarOrdersTab({ bar }) {
     }
     setSaving(true)
     setOrderErr('')
-    const { data: pedido, error } = await supabase.from('pedidos').insert({
-      bar_id: bar.id, criado_por: user?.id,
-      status: 'pendente',
-      data_pedido: new Date().toISOString().slice(0, 10),
-      data_entrega_prevista: entrega || null,
-      obs: obs.trim() || null, total_estimado: totalOrder,
-    }).select().single()
-
-    if (error) { setOrderErr(t('portal.orders.saveError', { message: error.message })); setSaving(false); return }
-    if (!pedido) { setOrderErr(t('portal.orders.saveOrderError')); setSaving(false); return }
-
-    const { error: itemsError } = await supabase.from('pedidos_itens').insert(
-      items.map(it => {
-        const p = produtos.find(x => x.id === it.produto_id)
-        return { pedido_id: pedido.id, produto_id: it.produto_id, qtd: it.qtd, preco_unitario: p?.preco_venda || 0 }
-      })
-    )
-    if (itemsError) setOrderErr(t('portal.orders.saveItemsError', { message: itemsError.message }))
-    else {
-      const routed = await supabase.rpc('route_pedido', { p_order_id: pedido.id })
-      if (routed.error && !schemaMissing(routed.error)) {
-        setOrderErr(t('fulfillment.loadError', { message: routed.error.message }))
-      }
+    let need = null
+    if (entrega) {
+      const [y, m, d] = entrega.split('-').map(Number)
+      const [hh, mm] = (entregaHora || '18:00').split(':').map(Number)
+      need = new Date(tokyoWallToUtcMs(y, m, d, hh || 18, mm || 0)).toISOString()
+    }
+    const submitted = await supabase.rpc('submit_bar_order', {
+      p_bar_id: bar.id,
+      p_need: need,
+      p_obs: obs.trim() || null,
+      p_items: items.map(it => ({ produto_id: it.produto_id, qtd: it.qtd })),
+    })
+    if (submitted.error) {
+      setOrderErr(schemaMissing(submitted.error) ? t('procurement.notConfigured') : submitted.error.message)
+      setSaving(false)
+      return
     }
 
     const { data: admins } = await supabase.from('perfis').select('id').eq('role', 'admin')
@@ -271,6 +283,7 @@ export default function BarOrdersTab({ bar }) {
           <div className="ord-meta-grid">
             <label>{t('portal.orders.deliveryDate')}
               <input type="date" value={entrega} onChange={e => setEntrega(e.target.value)} />
+              <input type="time" value={entregaHora} onChange={e => setEntregaHora(e.target.value)} />
             </label>
           </div>
           <label className="ord-details-label">{t('portal.orders.details')}
@@ -347,9 +360,12 @@ export default function BarOrdersTab({ bar }) {
                   setOrderPreview(p)
                   setTrack(null)
                   setTrackErr('')
-                  const { data, error } = await supabase.rpc('get_order_tracking', { p_order_id: p.id })
-                  if (error) setTrackErr(schemaMissing(error) ? t('fulfillment.schemaMissing') : error.message)
-                  else setTrack(data)
+                  let res = await supabase.rpc('get_procurement_tracking', { p_order_id: p.id })
+                  if (res.error && schemaMissing(res.error)) {
+                    res = await supabase.rpc('get_order_tracking', { p_order_id: p.id })
+                  }
+                  if (res.error) setTrackErr(schemaMissing(res.error) ? t('fulfillment.schemaMissing') : res.error.message)
+                  else setTrack(res.data)
                 }}>{t('fulfillment.track')}</button>
                 {p.status === 'pendente' && (
                   <button type="button" className="ord-ghost danger" onClick={async () => {
@@ -395,8 +411,34 @@ export default function BarOrdersTab({ bar }) {
             </div>
             <p className="ff-note">{t('fulfillment.hideSupplier')}</p>
             {trackErr && <p className="ff-miss">{trackErr}</p>}
-            {track && <OrderTimeline events={track.events} audience="bar" />}
-            {track && track.status !== 'completed' && track.status !== 'cancelled' && (
+            {track?.public_code && <div className="ord-card-sub">{track.public_code}</div>}
+            {Array.isArray(track?.lines) && track.lines.map(line => (
+              <div key={line.order_item_id} className="ord-line">
+                <div className="ord-tile-name">{line.product}</div>
+                <span className="ord-card-sub">{line.at_bar}/{line.quantity}</span>
+              </div>
+            ))}
+            {Array.isArray(track?.shipments) && track.shipments.map(s => (
+              <div key={s.id} className="ord-line">
+                <span>{s.code} · {s.status}</span>
+                {s.status === 'delivered' && (
+                  <button type="button" className="ord-ghost" onClick={async () => {
+                    setConfirmBusy(true)
+                    const { error } = await supabase.rpc('confirm_bar_shipment', {
+                      p_shipment_id: s.id,
+                      p_status: 'received',
+                      p_lines: [],
+                      p_note: null,
+                    })
+                    setConfirmBusy(false)
+                    if (error) setTrackErr(error.message)
+                    else { setOrderPreview(null); load() }
+                  }}>{t('fulfillment.confirmReceipt')}</button>
+                )}
+              </div>
+            ))}
+            {track?.events && <OrderTimeline events={track.events} audience="bar" />}
+            {track && !(track.shipments || []).length && track.status !== 'completed' && track.status !== 'cancelled' && (
               <DeliveryConfirmation
                 expected={(orderPreview.pedidos_itens || []).reduce((a, it) => a + (+it.qtd || 0), 0)}
                 busy={confirmBusy}

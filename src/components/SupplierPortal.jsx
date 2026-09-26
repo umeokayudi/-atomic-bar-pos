@@ -17,6 +17,7 @@ export default function SupplierPortal({ onSignOut }) {
   const [track, setTrack] = useState(null)
   const [busy, setBusy] = useState(false)
   const [issue, setIssue] = useState(false)
+  const [taskCodes, setTaskCodes] = useState({})
 
   async function load() {
     setErr('')
@@ -43,6 +44,18 @@ export default function SupplierPortal({ onSignOut }) {
     if (aR.error) setErr(aR.error.message)
     setRows(aR.data || [])
     setAlerts(nR.data || [])
+    const orderIds = [...new Set((aR.data || []).map(row => row.order_id))]
+    const map = {}
+    await Promise.all(orderIds.map(async orderId => {
+      const track = await supabase.rpc('get_procurement_tracking', { p_order_id: orderId })
+      if (track.error) return
+      for (const line of track.data?.lines || []) {
+        for (const task of line.tasks || []) {
+          if (task.assignment_id) map[task.assignment_id] = task.task_number
+        }
+      }
+    }))
+    setTaskCodes(map)
   }
 
   useEffect(() => { if (user?.id) load() }, [user?.id])
@@ -88,7 +101,7 @@ export default function SupplierPortal({ onSignOut }) {
       <div className="ff-list">
         {rows.length === 0 && linked && !missing ? <p>{t('fulfillment.supplierEmpty')}</p> : rows.map(r => (
           <button key={r.id} type="button" className="ff-card" onClick={() => openRow(r)}>
-            <strong>#{String(r.order_id).slice(0, 8)}</strong>
+            <strong>{taskCodes[r.id] || `#${String(r.order_id).slice(0, 8)}`}</strong>
             <StatusBadge status={r.status} />
             <em>{r.expected_delivery_at ? new Date(r.expected_delivery_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) : ''}</em>
           </button>
