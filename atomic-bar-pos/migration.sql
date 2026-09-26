@@ -133,7 +133,6 @@ DECLARE
   processor_fee numeric := 0;
   grand_total numeric := 0;
   total_commission numeric := 0;
-  bar_revenue numeric := 0;
   venda_id uuid;
   payment text;
 BEGIN
@@ -195,7 +194,6 @@ BEGIN
     processor_fee := round(subtotal * 0.0378);
   END IF;
   grand_total := subtotal + surcharge;
-  bar_revenue := grand_total - processor_fee;
 
   INSERT INTO public.vendas (
     bar_id, data_venda, total, forma_pagamento, mesa, cast_id, comissao_total, status
@@ -237,7 +235,7 @@ BEGIN
   INSERT INTO public.caixa_movimentos (
     bar_id, tipo, valor, descricao, referencia_id, referencia_tipo, data
   ) VALUES (
-    p_bar_id, 'entrada', bar_revenue,
+    p_bar_id, 'entrada', grand_total,
     'Venda ' || COALESCE(p_mesa, '') || ' - ' || payment,
     venda_id, 'venda', now()
   );
