@@ -6,6 +6,8 @@ import { isRestockPedido } from '../lib/posSupply'
 import { useI18n } from '../lib/i18n'
 import { orderDetailsFromObs } from '../lib/orderMeta'
 import { tokyoMonthKey } from '../lib/tokyo'
+import { schemaMissing } from '../lib/fulfillment'
+import { DeliveryConfirmation, OrderTimeline } from './fulfillment/FulfillmentWidgets'
 import { shiftMonth } from '../lib/barCalendar'
 
 const STATUS_PEDIDO = {
@@ -31,6 +33,9 @@ export default function BarOrdersTab({ bar }) {
   const [orderErr, setOrderErr] = useState('')
   const [qtyPopup, setQtyPopup] = useState(null)
   const [orderPreview, setOrderPreview] = useState(null)
+  const [track, setTrack] = useState(null)
+  const [trackErr, setTrackErr] = useState('')
+  const [confirmBusy, setConfirmBusy] = useState(false)
   const [qtyInput, setQtyInput] = useState('')
   const [items, setItems] = useState([])
   const [obs, setObs] = useState('')
@@ -117,6 +122,12 @@ export default function BarOrdersTab({ bar }) {
       })
     )
     if (itemsError) setOrderErr(t('portal.orders.saveItemsError', { message: itemsError.message }))
+    else {
+      const routed = await supabase.rpc('route_pedido', { p_order_id: pedido.id })
+      if (routed.error && !schemaMissing(routed.error)) {
+        setOrderErr(t('fulfillment.loadError', { message: routed.error.message }))
+      }
+    }
 
     const { data: admins } = await supabase.from('perfis').select('id').eq('role', 'admin')
     if (admins && admins.length > 0) {
@@ -332,7 +343,14 @@ export default function BarOrdersTab({ bar }) {
                 ))}
               </div>
               <div className="ord-card-actions">
-                <button type="button" className="ord-ghost" onClick={() => setOrderPreview(p)}>{t('portal.orders.viewDetails')}</button>
+                <button type="button" className="ord-ghost" onClick={async () => {
+                  setOrderPreview(p)
+                  setTrack(null)
+                  setTrackErr('')
+                  const { data, error } = await supabase.rpc('get_order_tracking', { p_order_id: p.id })
+                  if (error) setTrackErr(schemaMissing(error) ? t('fulfillment.schemaMissing') : error.message)
+                  else setTrack(data)
+                }}>{t('fulfillment.track')}</button>
                 {p.status === 'pendente' && (
                   <button type="button" className="ord-ghost danger" onClick={async () => {
                     if (!confirm(t('portal.orders.cancelConfirm'))) return
@@ -375,6 +393,31 @@ export default function BarOrdersTab({ bar }) {
               <span>{t('common.total')}</span>
               <span>{fmtYen(orderPreview.total_estimado || 0)}</span>
             </div>
+            <p className="ff-note">{t('fulfillment.hideSupplier')}</p>
+            {trackErr && <p className="ff-miss">{trackErr}</p>}
+            {track && <OrderTimeline events={track.events} audience="bar" />}
+            {track && track.status !== 'completed' && track.status !== 'cancelled' && (
+              <DeliveryConfirmation
+                expected={(orderPreview.pedidos_itens || []).reduce((a, it) => a + (+it.qtd || 0), 0)}
+                busy={confirmBusy}
+                error={trackErr}
+                onConfirm={async ({ status, received, note }) => {
+                  setConfirmBusy(true)
+                  const { error } = await supabase.rpc('bar_confirm_delivery', {
+                    p_order_id: orderPreview.id,
+                    p_status: status,
+                    p_received: received,
+                    p_note: note || null,
+                  })
+                  setConfirmBusy(false)
+                  if (error) setTrackErr(error.message)
+                  else {
+                    setOrderPreview(null)
+                    load()
+                  }
+                }}
+              />
+            )}
             <button type="button" className="ord-ghost" style={{ width: '100%' }} onClick={() => setOrderPreview(null)}>{t('common.close')}</button>
           </div>
         </div>

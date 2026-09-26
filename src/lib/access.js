@@ -17,6 +17,10 @@ export function isJbmRole(role) {
   return JBM_ROLES.includes(role) || role === 'staff'
 }
 
+export function isSupplierRole(role) {
+  return role === 'fornecedor'
+}
+
 export function isGerente(role) {
   return role === ROLES.cliente || role === ROLES.gerente
 }

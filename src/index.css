@@ -4496,4 +4496,40 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
   .house-card { flex-direction: column; }
 }
 
+.ff-kpis, .ff-list, .ff-form { display: grid; gap: 10px; }
+.ff-kpis { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin: 12px 0; }
+.ff-list { grid-template-columns: 1fr; }
+.ff-card, .ff-assign, .ff-alert, .ff-confirm, .ff-preview {
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.ff-card { display: flex; justify-content: space-between; gap: 8px; align-items: center; cursor: pointer; }
+.ff-badge { font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 999px; background: #f4efe4; color: #6b5420; }
+.ff-badge.ff-exception, .ff-badge.ff-issue { background: #fde8e8; color: #9b2c2c; }
+.ff-badge.ff-in_transit, .ff-badge.ff-delivered, .ff-badge.ff-completed { background: #e7f6ee; color: #17663a; }
+.ff-timeline { list-style: none; display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.ff-step { display: flex; gap: 8px; color: var(--text3); font-size: 13px; }
+.ff-step.is-done { color: var(--text); }
+.ff-step.is-now { color: #9b2c2c; font-weight: 800; }
+.ff-step em { display: block; font-style: normal; font-size: 11px; color: var(--text3); }
+.ff-progress { height: 6px; background: #efe8d8; border-radius: 99px; overflow: hidden; margin: 8px 0; }
+.ff-progress i { display: block; height: 100%; background: #c19c56; }
+.ff-actions, .ff-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.ff-form { grid-template-columns: 1fr; }
+.ff-form input, .ff-form select, .ff-confirm input, .ff-confirm textarea, .ff-confirm select { width: 100%; margin-top: 4px; }
+.ff-miss { color: #9b2c2c; font-size: 13px; margin: 8px 0; }
+.ff-note { font-size: 12px; color: var(--text2); margin: 8px 0; }
+.ff-portal { min-height: 100vh; background: var(--bg); padding: 16px; }
+.ff-portal-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.ff-radio { display: flex; gap: 8px; align-items: center; margin: 6px 0; font-size: 14px; }
+@media (min-width: 800px) {
+  .ff-list { grid-template-columns: 1fr 1fr; }
+  .ff-form { grid-template-columns: 1fr 1fr auto auto; align-items: center; }
+}
+
 

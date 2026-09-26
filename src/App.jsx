@@ -15,7 +15,7 @@ import { useNotifications, NotificationBell, useOverdueAlerts } from './componen
 import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { AuthProvider, useAuth, LoginPage } from './components/Auth'
 import { supabase } from './lib/supabase'
-import { isBarRole } from './lib/access'
+import { isBarRole, isSupplierRole } from './lib/access'
 import { fmtYen, fmtDate, roleLabel } from './components/utils'
 import { I18nProvider, useI18n } from './lib/i18n'
 import UiPrefsPanel from './components/UiPrefsPanel'
@@ -36,6 +36,8 @@ const ProductsTab = lazy(() => import('./components/Configs').then(m => ({ defau
 const BarsTab = lazy(() => import('./components/Configs').then(m => ({ default: m.BarsTab })))
 const UsuariosTab = lazy(() => import('./components/Configs').then(m => ({ default: m.UsuariosTab })))
 const PedidosAdminTab = lazy(() => import('./components/Configs').then(m => ({ default: m.PedidosAdminTab })))
+const FulfillmentHq = lazy(() => import('./components/FulfillmentHq'))
+const SupplierPortal = lazy(() => import('./components/SupplierPortal'))
 const DashboardMetricModal = lazy(() => import('./components/DashboardMetricModal'))
 const DashboardCalendar = lazy(() => import('./components/DashboardCalendar'))
 const DashboardAi = lazy(() => import('./components/DashboardAi'))
@@ -48,6 +50,7 @@ const ADMIN_TABS = [
   { id:'purchases', labelKey:'nav.purchases', icon:'🛒' },
   { id:'sales',    labelKey:'nav.sales', icon:'💴' },
   { id:'pedidos',   labelKey:'nav.orders', icon:'📋' },
+  { id:'fulfillment', labelKey:'nav.fulfillment', icon:'🚚' },
   { id:'relatorio', labelKey:'nav.report', icon:'📈' },
   { id:'ryoshusho', labelKey:'nav.ryoshusho', icon:'🧾' },
   { id:'seikyusho', labelKey:'nav.seikyusho', icon:'📄' },
@@ -462,6 +465,14 @@ function Shell() {
     )
   }
 
+  if (isSupplierRole(perfil?.role)) {
+    return (
+      <Suspense fallback={null}>
+        <SupplierPortal onSignOut={signOut} />
+      </Suspense>
+    )
+  }
+
   // ADMIN / FUNCIONÁRIO
   const tabs = perfil?.role==='admin' ? ADMIN_TABS : STAFF_TABS
   if (tab==='dashboard' && perfil?.role!=='admin') setTab('purchases')
@@ -536,6 +547,7 @@ function Shell() {
           {tab==='purchases'   && <ComprasTab/>}
           {tab==='sales'    && <VendasTab/>}
           {tab==='pedidos'   && <PedidosAdminTab/>}
+          {tab==='fulfillment' && <FulfillmentHq/>}
           {tab==='relatorio' && <RelatorioTab/>}
           {tab==='ryoshusho' && <RyoshushoTab/>}
           {tab==='seikyusho' && <SeikyushoTab/>}

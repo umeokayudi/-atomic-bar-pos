@@ -49,6 +49,7 @@ export function loginDoorFromHash(hash = typeof location !== 'undefined' ? locat
 export function hashForRole(role) {
   if (role === 'caixa') return '#/pos'
   if (role === 'bar_staff') return '#/clock'
+  if (role === 'fornecedor') return '#/supplier'
   if (role === 'admin' || role === 'staff' || role === 'funcionario') return '#/jbm'
   if (role === 'cliente' || role === 'gerente') return '#/hq'
   return '#/'
