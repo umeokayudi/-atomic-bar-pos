@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500">
+  <defs>
+    <style>
+      .gold { fill: #c19c56; }
+      .white { fill: #ffffff; }
+    </style>
+  </defs>
+  <!-- Frame dourado -->
+  <rect x="24" y="24" width="452" height="452" rx="10"
+    fill="none" stroke="#c19c56" stroke-width="10"/>
+  <polygon class="gold" points="390,24 476,24 476,110 390,24"/>
+  <!-- JBM -->
+  <text x="250" y="310" font-family="Georgia, 'Times New Roman', serif"
+    font-size="230" font-weight="700" text-anchor="middle"
+    class="white" letter-spacing="-10">JBM</text>
+  <!-- linha -->
+  <line x1="100" y1="345" x2="400" y2="345" stroke="#c19c56" stroke-width="1.5" opacity="0.6"/>
+  <!-- DRINKS -->
+  <text x="250" y="410" font-family="Georgia, serif" font-size="58"
+    text-anchor="middle" class="gold" letter-spacing="22">DRINKS</text>
+</svg>

@@ -3,13 +3,6 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/useAuth'
 import { ROLE_HOME, canOpenPath, roleFromUser } from '../lib/roles'
 
-const AREAS = [
-  { icon: '🧾', label: 'POS / Caixa' },
-  { icon: '📦', label: 'Estoque' },
-  { icon: '👥', label: 'Cast' },
-  { icon: '📊', label: 'Relatório' },
-]
-
 function authErrorMessage(error) {
   const msg = (error?.message || '').toLowerCase()
   if (msg.includes('invalid login') || msg.includes('invalid credentials')) {
@@ -103,18 +96,10 @@ export default function Login() {
           borderRadius: 14,
           padding: 28,
         }}>
-          <h1 style={{ fontSize: 18, fontWeight: 500, marginBottom: 6 }}>Entrar no sistema</h1>
-          <p style={{ fontSize: 13, color: 'var(--white60)', marginBottom: 18 }}>
-            POS do bar. Cada local entra com a conta dele. JBM Supply é outro site.
+          <h1 style={{ fontSize: 18, fontWeight: 500, marginBottom: 6 }}>Entrar</h1>
+          <p style={{ fontSize: 13, color: 'var(--white60)', marginBottom: 22, lineHeight: 1.55 }}>
+            Um login só. Depois o sistema abre caixa, estoque, cast ou relatório conforme a conta.
           </p>
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}>
-            {AREAS.map(area => (
-              <span key={area.label} className="tag tag-gold">
-                {area.icon} {area.label}
-              </span>
-            ))}
-          </div>
 
           <label style={{ display: 'block', marginBottom: 14 }}>
             <div style={{ fontSize: 11, color: 'var(--white60)', marginBottom: 6 }}>E-mail</div>
@@ -187,7 +172,7 @@ export default function Login() {
           </button>
 
           <p style={{ fontSize: 12, color: 'var(--white30)', marginTop: 16, lineHeight: 1.5 }}>
-            Cada bar tem conta e dados separados. Fornecimento JBM: bebidas-control.vercel.app
+            Não escolhe POS / gerente / staff / JBM nesta tela. A conta decide para onde vai.
           </p>
         </form>
       </div>
