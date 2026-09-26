@@ -37,6 +37,7 @@ const BarsTab = lazy(() => import('./components/Configs').then(m => ({ default: 
 const UsuariosTab = lazy(() => import('./components/Configs').then(m => ({ default: m.UsuariosTab })))
 const PedidosAdminTab = lazy(() => import('./components/Configs').then(m => ({ default: m.PedidosAdminTab })))
 const FulfillmentHq = lazy(() => import('./components/FulfillmentHq'))
+const ProcurementBoard = lazy(() => import('./components/ProcurementBoard'))
 const SupplierPortal = lazy(() => import('./components/SupplierPortal'))
 const DashboardMetricModal = lazy(() => import('./components/DashboardMetricModal'))
 const DashboardCalendar = lazy(() => import('./components/DashboardCalendar'))
@@ -51,6 +52,7 @@ const ADMIN_TABS = [
   { id:'sales',    labelKey:'nav.sales', icon:'💴' },
   { id:'pedidos',   labelKey:'nav.orders', icon:'📋' },
   { id:'fulfillment', labelKey:'nav.fulfillment', icon:'🚚' },
+  { id:'procurement', labelKey:'nav.procurement', icon:'📦' },
   { id:'relatorio', labelKey:'nav.report', icon:'📈' },
   { id:'ryoshusho', labelKey:'nav.ryoshusho', icon:'🧾' },
   { id:'seikyusho', labelKey:'nav.seikyusho', icon:'📄' },
@@ -474,7 +476,11 @@ function Shell() {
   }
 
   // ADMIN / FUNCIONÁRIO
-  const tabs = perfil?.role==='admin' ? ADMIN_TABS : STAFF_TABS
+  const tabs = perfil?.role==='admin'
+    ? ADMIN_TABS
+    : perfil?.role==='funcionario'
+      ? [...STAFF_TABS, { id:'procurement', labelKey:'nav.procurement', icon:'📦' }]
+      : STAFF_TABS
   if (tab==='dashboard' && perfil?.role!=='admin') setTab('purchases')
 
   return (
@@ -548,6 +554,7 @@ function Shell() {
           {tab==='sales'    && <VendasTab/>}
           {tab==='pedidos'   && <PedidosAdminTab/>}
           {tab==='fulfillment' && <FulfillmentHq/>}
+          {tab==='procurement' && <ProcurementBoard/>}
           {tab==='relatorio' && <RelatorioTab/>}
           {tab==='ryoshusho' && <RyoshushoTab/>}
           {tab==='seikyusho' && <SeikyushoTab/>}
