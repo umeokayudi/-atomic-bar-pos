@@ -1459,6 +1459,7 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
   const [drinkBackAgents, setDrinkBackAgents] = useState([])
   const [todaySales, setTodaySales] = useState({ count: 0, total: 0 })
   const [salesList, setSalesList] = useState([])
+  const [posErr, setPosErr] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { init() }, [bar])
@@ -1466,13 +1467,14 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
   async function init() {
     setLoading(true)
     const nightKey = tokyoNightKey()
+    const from = prevTokyoDateKey(nightKey)
     const [schema, dR, sR, cR, vR, pR, aR] = await Promise.all([
       checkPosSchema(supabase),
       supabase.from('drink_menu').select('*').eq('bar_id', bar.id).order('nome'),
       supabase.from('bar_pricing').select('*, produtos(nome,categoria,preco_venda)').eq('bar_id', bar.id),
       supabase.from('discount_codes').select('*').eq('bar_id', bar.id).eq('ativo', true),
       supabase.from('vip_members').select('*').eq('bar_id', bar.id).eq('ativo', true),
-      supabase.from('pos_vendas').select('total,criado_em,data,metodo_pagamento,drink_back_agent_id').eq('bar_id', bar.id).gte('data', nightKey).order('criado_em'),
+      supabase.from('pos_vendas').select('total,criado_em,data,metodo_pagamento,obs,drink_back_agent_id').eq('bar_id', bar.id).gte('data', from).order('criado_em'),
       supabase.from('drink_back_agents').select('*').eq('bar_id', bar.id).eq('ativo', true),
     ])
     setReady(schema.ready)
@@ -1481,9 +1483,16 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
     setDiscountCodes(cR.data || [])
     setVipMembers(vR.data || [])
     setDrinkBackAgents(aR.data || [])
-    const night = summarizeNight(pR.data || [], nightKey)
-    setSalesList((pR.data || []).filter(s => saleOnNight(s, nightKey)))
-    setTodaySales({ count: night.ticketCount, total: night.drinksTotal })
+    if (pR.error) {
+      setPosErr(pR.error.message || t('atomicPos.tillLoadError'))
+      setSalesList([])
+      setTodaySales({ count: 0, total: 0 })
+    } else {
+      setPosErr('')
+      const night = summarizeNight(pR.data || [], nightKey)
+      setSalesList((pR.data || []).filter(s => saleOnNight(s, nightKey)))
+      setTodaySales({ count: night.ticketCount, total: night.drinksTotal })
+    }
     setLoading(false)
   }
 
@@ -1505,7 +1514,7 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
         <div className="pos-head-today">
           <div className="pos-head-label">{t('atomicPos.tillTonight')}</div>
           <div className="pos-head-total">{fmtYen(todaySales.total)}</div>
-          <div className="pos-head-count">{t('atomicPos.salesCount', { count: todaySales.count })}</div>
+          <div className="pos-head-count">{posErr ? t('atomicPos.tillLoadError') : t('atomicPos.salesCount', { count: todaySales.count })}</div>
         </div>
       </div>
 

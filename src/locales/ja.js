@@ -463,6 +463,7 @@ export default {
     subtitle: 'レジ、VIP、価格、割引コード',
     today: '本日',
     tillTonight: '今夜のレジ',
+    tillLoadError: 'レジを読み込めませんでした。売上が読み込まれるまで¥0です。',
     tillTitle: 'レジ',
     tillSubtitle: 'ドリンクをタップしてチャージ。お客様売上のみ。',
     stepDrinks: '1 · ドリンク',

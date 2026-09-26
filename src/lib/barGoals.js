@@ -1,6 +1,6 @@
 /** Goal pace for the bar: night, hour, week, shift, profit, and drink-back cast. */
 
-import { nightKeyOfSale } from './nightClose.js'
+import { hourOfSale, nightKeyOfSale } from './nightClose.js'
 import { readTicketMeta } from './nightTicket.js'
 import { orderCastFromObs, orderCastIdFromObs } from './orderMeta.js'
 import { lastDayOfMonth, tokyoHour, tokyoNightKey } from './tokyo.js'
@@ -65,11 +65,7 @@ function nightOf(sale) {
 }
 
 function hourOf(sale) {
-  const ts = sale?.criado_em || sale?.created_at
-  if (!ts) return null
-  const d = new Date(ts)
-  if (Number.isNaN(d.getTime())) return null
-  return tokyoHour(d)
+  return hourOfSale(sale)
 }
 
 function sumSales(rows) {
@@ -113,7 +109,7 @@ export function buildGoalProgress({
   const fecha = g.fecha == null ? 5 : g.fecha
   const corta = g.corta == null ? 0 : g.corta
   const monthKey = String(nightKey).slice(0, 7)
-  const monthTickets = (tickets || []).filter(s => nightOf(s).startsWith(monthKey) || String(s.data || '').startsWith(monthKey))
+  const monthTickets = (tickets || []).filter(s => nightOf(s).startsWith(monthKey))
   const tonight = monthTickets.filter(s => nightOf(s) === nightKey)
   const weekKeys = weekNightKeys(nightKey)
   const weekRows = monthTickets.filter(s => weekKeys.includes(nightOf(s)))
@@ -128,12 +124,15 @@ export function buildGoalProgress({
   }))
   const turnos = [1, 2].map(id => ({
     id,
-    sales: sumSales(tonight.filter(s => shiftOf(hourOf(s), abre, corta) === id)),
+    sales: sumSales(tonight.filter(s => hourOf(s) != null && shiftOf(hourOf(s), abre, corta) === id)),
     goal: +g.turno || 0,
-    pct: goalPct(sumSales(tonight.filter(s => shiftOf(hourOf(s), abre, corta) === id)), g.turno),
+    pct: goalPct(sumSales(tonight.filter(s => hourOf(s) != null && shiftOf(hourOf(s), abre, corta) === id)), g.turno),
   }))
   function bandOf(id) {
-    const rows = tonight.filter(s => shiftBand(hourOf(s), abre, fecha) === id)
+    const rows = tonight.filter(s => {
+      const h = hourOf(s)
+      return h != null && shiftBand(h, abre, fecha) === id
+    })
     const byHour = new Map()
     for (const s of rows) {
       const h = hourOf(s)

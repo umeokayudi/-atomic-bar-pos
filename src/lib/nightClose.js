@@ -1,6 +1,6 @@
 /** 締め — one night of POS till. Never writes JBM vendas/faturas. */
 
-import { tokyoDateKey, tokyoNightKey, tokyoWallToUtcMs } from './tokyo.js'
+import { tokyoDateKey, tokyoHour, tokyoNightKey, tokyoWallToUtcMs } from './tokyo.js'
 
 export { tokyoNightKey }
 
@@ -31,6 +31,20 @@ export function paySplitFromObs(obs) {
   }
 }
 
+/** Seeded sample ticket. Not guest money. */
+export function isDemoTill(sale) {
+  return /^Demo POS\b/i.test(String(sale?.obs || '').trim())
+}
+
+/** Real sale instant. A date-only string is not an hour. */
+export function saleStamp(sale) {
+  const ts = sale?.criado_em || sale?.created_at
+  if (!ts || /^\d{4}-\d{2}-\d{2}$/.test(String(ts).trim())) return null
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return null
+  return d
+}
+
 /** Inclusive ISO bounds: 06:00 JST on nightKey → 05:59:59.999 next calendar day. */
 export function nightWindow(nightKey) {
   const [y, m, d] = String(nightKey || tokyoNightKey()).slice(0, 10).split('-').map(Number)
@@ -41,13 +55,20 @@ export function nightWindow(nightKey) {
   return { from, to, nightKey: `${y}-${pad2(m)}-${pad2(d)}`, nextKey }
 }
 
+/** Nightlife day of the sale, from the Tokyo hour it was rung. 05:00 belongs to the night that started the day before. */
 export function nightKeyOfSale(sale) {
-  const ts = sale?.criado_em || sale?.created_at
-  if (ts) {
-    const d = new Date(ts)
-    if (!Number.isNaN(d.getTime())) return tokyoNightKey(d)
-  }
+  if (!sale || isDemoTill(sale)) return ''
+  const stamp = saleStamp(sale)
+  if (stamp) return tokyoNightKey(stamp)
   return String(sale?.data || '').slice(0, 10)
+}
+
+/** Tokyo hour 0–23 of the sale. Null when the ticket has no clock time. */
+export function hourOfSale(sale) {
+  if (!sale || isDemoTill(sale)) return null
+  const stamp = saleStamp(sale)
+  if (!stamp) return null
+  return tokyoHour(stamp)
 }
 
 /** Most recent nightlife day before tonight that still has till tickets. */
@@ -63,14 +84,8 @@ export function lastBusyNight(sales = [], nightKey = tokyoNightKey()) {
 }
 
 export function saleOnNight(sale, nightKey) {
-  const win = nightWindow(nightKey)
-  const ts = sale?.criado_em || sale?.created_at
-  if (ts) {
-    const iso = new Date(ts).toISOString()
-    return iso >= win.from && iso <= win.to
-  }
-  const day = String(sale?.data || '').slice(0, 10)
-  return day === win.nightKey || day === win.nextKey
+  const key = nightKeyOfSale(sale)
+  return !!key && key === nightKey
 }
 
 export function summarizeNight(sales = [], nightKey = tokyoNightKey()) {

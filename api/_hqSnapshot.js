@@ -3,6 +3,7 @@
 import { filterSupplierVendas } from './_supplierVenda.js'
 import { filterJbmDrinksFaturas, faturaRemaining, faturaValor, faturaPago } from '../src/lib/barPortal.js'
 import { payrollFromPunches } from '../src/lib/timeClock.js'
+import { isDemoTill, nightKeyOfSale } from '../src/lib/nightClose.js'
 import { tokyoMonthKey, tokyoNightKey, monthRange, recentMonthKeys } from '../src/lib/tokyo.js'
 import { splitCostBooks, rentForMonth, lastKnownRent, splitOverhead } from '../src/lib/costBooks.js'
 import { monthKeyOf, explainJbmGap, buildMonthSeries, invoiceOverlapsMonth, lowStockFromLedger } from '../src/lib/hqFilters.js'
@@ -170,9 +171,11 @@ async function computeHqSnapshot(admin, barId, barNome = '', mes, { lite = false
   const jbm = monthBill(vendasR.data || [], fatR.data || [], mes)
   const pedidos = pedR.data || []
   const pedMes = pedidos.filter(p => monthKeyOf(p.criado_em) === mes)
-  const posRows = [...(posR.rows || [])].sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')))
-  const posMonthRows = posRows.filter(s => monthKeyOf(s.data) === mes)
-  const posPrevRows = posRows.filter(s => monthKeyOf(s.data) === prevMes)
+  const posRows = [...(posR.rows || [])]
+    .filter(s => !isDemoTill(s))
+    .sort((a, b) => String(b.criado_em || b.data || '').localeCompare(String(a.criado_em || a.data || '')))
+  const posMonthRows = posRows.filter(s => nightKeyOfSale(s).startsWith(mes))
+  const posPrevRows = posRows.filter(s => nightKeyOfSale(s).startsWith(prevMes))
   const mapPosTicket = s => ({
     id: s.id,
     data: s.data,

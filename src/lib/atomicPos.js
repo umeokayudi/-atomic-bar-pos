@@ -1,6 +1,7 @@
 /** Helpers do POS Atomic — preços, descontos, códigos, dashboard e estoque */
 
-import { tokyoDateKey, tokyoHour, tokyoNightKey } from './tokyo.js'
+import { hourOfSale } from './nightClose.js'
+import { tokyoDateKey, tokyoNightKey } from './tokyo.js'
 
 export function generateDiscountCode(prefix = 'ATOMIC') {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -126,9 +127,8 @@ export function aggregateHourlySales(sales = []) {
     total: 0,
   }))
   for (const s of sales) {
-    const ts = s.criado_em || s.data
-    if (!ts) continue
-    const h = tokyoHour(ts)
+    const h = hourOfSale(s)
+    if (h == null) continue
     hours[h].count += 1
     hours[h].total += +s.total || 0
   }

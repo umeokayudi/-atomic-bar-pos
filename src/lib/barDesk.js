@@ -32,7 +32,7 @@ export function buildBarDesk({
   nightKey = tokyoNightKey(),
 } = {}) {
   const monthKey = String(today).slice(0, 7)
-  const monthTickets = (tickets || []).filter(s => nightKeyOfSale(s).startsWith(monthKey) || String(s.data || '').startsWith(monthKey))
+  const monthTickets = (tickets || []).filter(s => nightKeyOfSale(s).startsWith(monthKey))
   const posIn = Math.round(+hq?.books?.pos?.amount || monthTickets.reduce((a, s) => a + (+s.total || 0), 0))
   const wages = Math.round(+hq?.books?.staff?.amount || (hq?.payroll || []).reduce((a, r) => a + (+r.pay || 0), 0))
   const rentRegistry = sumKind(registry, 'aluguel', monthKey)

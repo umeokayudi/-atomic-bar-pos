@@ -463,6 +463,7 @@ export default {
     subtitle: 'Counter, VIP, prices and discount codes',
     today: 'Today',
     tillTonight: 'Till tonight',
+    tillLoadError: 'Could not load the till. Sold stays at ¥0 until the sales load.',
     tillTitle: 'Till',
     tillSubtitle: 'Tap drinks, then Charge. Guest money only.',
     stepDrinks: '1 · Drinks',

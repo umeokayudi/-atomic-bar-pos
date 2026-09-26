@@ -392,7 +392,6 @@ async function seedAtomic(admin) {
   const guestMika = newId()
   const space1 = newId()
   const visitId = newId()
-  const saleId = newId()
   const agentId = newId()
   const codeId = newId()
   const floor = tokyoFloorPreset().map((s, i) => ({
@@ -434,15 +433,8 @@ async function seedAtomic(admin) {
     id: codeId, bar_id: barId, codigo: 'WELCOME-10', tipo: 'percent', valor: 10, ativo: true,
     usos_atual: 0, criado_em: new Date().toISOString(),
   }])
-  await saveTable(admin, 'pos_vendas', [{
-    id: saleId, bar_id: barId, data: '2026-09-18', subtotal: 2400, desconto_total: 0, total: 2400,
-    metodo_pagamento: 'Cash', tipo: 'balcao', guest_id: guestKenji, space_id: space1, visit_id: visitId,
-    obs: 'Demo POS (not JBM)', criado_em: new Date().toISOString(),
-  }])
-  await saveTable(admin, 'pos_vendas_itens', [{
-    id: newId(), pos_venda_id: saleId, nome: 'Gin Highball', qtd: 2, preco_unitario: 1200,
-    preco_lista: 1200, tipo_preco: 'regular', desconto_valor: 0,
-  }])
+  await saveTable(admin, 'pos_vendas', [])
+  await saveTable(admin, 'pos_vendas_itens', [])
   await saveTable(admin, 'vip_usages', [])
   await saveTable(admin, 'discount_usages', [])
   await saveTable(admin, 'time_clock', [])
@@ -494,6 +486,27 @@ export async function seedLaneLogins(admin) {
   return { seeded: true }
 }
 
+const DEMO_TILL_OBS = 'Demo POS (not JBM)'
+
+async function dropDemoTill(admin) {
+  try {
+    const pg = await admin.from('pos_vendas').select('id').eq('obs', DEMO_TILL_OBS)
+    if (!pg.error && pg.data?.length) {
+      const ids = pg.data.map(r => r.id)
+      await admin.from('pos_vendas_itens').delete().in('pos_venda_id', ids)
+      await admin.from('pos_vendas').delete().eq('obs', DEMO_TILL_OBS)
+    }
+  } catch {
+    /* postgres miss: the JSON copy below still drops it */
+  }
+  const rows = await loadTable(admin, 'pos_vendas')
+  const demoIds = new Set(rows.filter(r => String(r.obs || '') === DEMO_TILL_OBS).map(r => r.id))
+  if (!demoIds.size) return
+  await saveTable(admin, 'pos_vendas', rows.filter(r => !demoIds.has(r.id)))
+  const items = await loadTable(admin, 'pos_vendas_itens')
+  await saveTable(admin, 'pos_vendas_itens', items.filter(r => !demoIds.has(r.pos_venda_id)))
+}
+
 let liveReadyMemo = false
 
 export async function ensureBarLiveReady(admin) {
@@ -501,6 +514,7 @@ export async function ensureBarLiveReady(admin) {
   const result = await withLock('_meta', async () => {
     const spaces = await loadTable(admin, 'bar_spaces')
     if (!spaces.length) await seedAtomic(admin)
+    await dropDemoTill(admin)
     const existing = await loadTable(admin, 'bar_logins')
     const hasLanes = existing.some(r => r.id === POS_LOGIN_ID) && existing.some(r => r.id === STAFF_LOGIN_ID)
     const lanes = hasLanes ? { seeded: false } : await seedLaneLogins(admin)
