@@ -877,17 +877,18 @@ BEGIN
     END IF;
   END LOOP;
 
-  IF unmet > 0 AND made = 0 THEN
+  IF unmet > 0 THEN
     PERFORM public._touch_fulfillment(p_order_id, 'exception');
     PERFORM public._fulfillment_alert(
       p_order_id, NULL, 'jbm', NULL, ped.bar_id,
-      'order_exception', 'No source', 'No procurement source can cover this order.'
+      'order_exception', 'Quantity still open',
+      'Part of the order has no source. The order stays pending.'
     );
   ELSE
     PERFORM public._rollup_order_status(p_order_id);
   END IF;
 
-  IF made > 0 AND ped.status = 'pendente' THEN
+  IF made > 0 AND unmet = 0 AND ped.status = 'pendente' THEN
     UPDATE public.pedidos SET status = 'confirmado' WHERE id = ped.id;
   END IF;
 
@@ -975,7 +976,10 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM public.produtos pr WHERE pr.id = pid) THEN
       RAISE EXCEPTION 'product not found';
     END IF;
-    price := COALESCE(public.resolve_bar_price(p_bar_id, pid, COALESCE(p_need, now()), qty), 0);
+    price := public.resolve_bar_price(p_bar_id, pid, COALESCE(p_need, now()), qty);
+    IF price IS NULL OR price <= 0 THEN
+      RAISE EXCEPTION 'sale price not configured for product % and bar %', pid, p_bar_id;
+    END IF;
     INSERT INTO public.pedidos_itens (pedido_id, produto_id, qtd, preco_unitario)
     VALUES (order_id, pid, qty, price);
     total := total + price * qty;
@@ -1223,9 +1227,13 @@ DECLARE
   task public.procurement_tasks%ROWTYPE;
   qty integer;
   already integer;
+  available integer;
   from_id uuid;
   to_id uuid;
   order_id uuid;
+  origin public.locations%ROWTYPE;
+  dest public.locations%ROWTYPE;
+  ped_bar uuid;
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'not authenticated';
@@ -1241,10 +1249,49 @@ BEGIN
   IF p_payload->'items' IS NULL OR jsonb_array_length(p_payload->'items') = 0 THEN
     RAISE EXCEPTION 'shipment needs items';
   END IF;
+  SELECT * INTO origin FROM public.locations WHERE id = from_id AND active;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'location is not active';
+  END IF;
+  SELECT * INTO dest FROM public.locations WHERE id = to_id AND active;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'location is not active';
+  END IF;
 
-  SELECT t.order_id INTO order_id
-  FROM public.procurement_tasks t
-  WHERE t.id = NULLIF(p_payload->'items'->0->>'task_id', '')::uuid;
+  FOR line IN SELECT * FROM jsonb_array_elements(p_payload->'items')
+  LOOP
+    SELECT * INTO task FROM public.procurement_tasks WHERE id = NULLIF(line->>'task_id', '')::uuid FOR UPDATE;
+    IF NOT FOUND OR task.status = 'cancelled' THEN
+      RAISE EXCEPTION 'task not found';
+    END IF;
+    IF order_id IS NULL THEN
+      order_id := task.order_id;
+    ELSIF task.order_id IS DISTINCT FROM order_id THEN
+      RAISE EXCEPTION 'shipment tasks must belong to the same order';
+    END IF;
+    qty := NULLIF(line->>'quantity', '')::integer;
+    IF qty IS NULL OR qty <= 0 THEN
+      RAISE EXCEPTION 'quantity required';
+    END IF;
+    SELECT COALESCE(SUM(si.quantity), 0) INTO already
+    FROM public.shipment_items si
+    JOIN public.shipments s ON s.id = si.shipment_id
+    WHERE si.procurement_task_id = task.id
+      AND s.status <> 'cancelled';
+    IF origin.type = 'WAREHOUSE' THEN
+      available := task.quantity_received - already;
+    ELSE
+      available := task.quantity_purchased - already;
+    END IF;
+    IF qty > available THEN
+      RAISE EXCEPTION 'shipment quantity exceeds what was purchased';
+    END IF;
+  END LOOP;
+
+  SELECT bar_id INTO ped_bar FROM public.pedidos WHERE id = order_id;
+  IF dest.type = 'BAR' AND dest.bar_id IS DISTINCT FROM ped_bar THEN
+    RAISE EXCEPTION 'shipment destination bar does not match order bar';
+  END IF;
 
   code := public.next_ops_code('DEL');
   INSERT INTO public.shipments (
@@ -1262,27 +1309,12 @@ BEGIN
 
   FOR line IN SELECT * FROM jsonb_array_elements(p_payload->'items')
   LOOP
-    SELECT * INTO task FROM public.procurement_tasks WHERE id = NULLIF(line->>'task_id', '')::uuid FOR UPDATE;
-    IF NOT FOUND THEN
-      RAISE EXCEPTION 'task not found';
-    END IF;
-    IF task.status NOT IN ('purchased', 'received', 'partially_received', 'in_transit') THEN
-      RAISE EXCEPTION 'task has no purchased goods to ship';
-    END IF;
-    qty := NULLIF(line->>'quantity', '')::integer;
-    IF qty IS NULL OR qty <= 0 THEN
-      RAISE EXCEPTION 'quantity required';
-    END IF;
-    SELECT COALESCE(SUM(si.quantity), 0) INTO already
-    FROM public.shipment_items si
-    JOIN public.shipments s ON s.id = si.shipment_id
-    WHERE si.procurement_task_id = task.id
-      AND s.status <> 'cancelled';
-    IF qty > task.quantity_purchased - already THEN
-      RAISE EXCEPTION 'shipment quantity exceeds what was purchased';
-    END IF;
     INSERT INTO public.shipment_items (shipment_id, procurement_task_id, quantity)
-    VALUES (ship, task.id, qty);
+    VALUES (
+      ship,
+      NULLIF(line->>'task_id', '')::uuid,
+      NULLIF(line->>'quantity', '')::integer
+    );
   END LOOP;
 
   PERFORM public._fulfillment_audit('create_shipment', 'shipments', ship, jsonb_build_object('code', code));
@@ -1492,8 +1524,8 @@ BEGIN
   IF NOT (public.is_procurement_hq() OR task.assigned_to = auth.uid()) THEN
     RAISE EXCEPTION 'not allowed';
   END IF;
-  IF task.status = 'completed' THEN
-    RAISE EXCEPTION 'invalid transition';
+  IF task.status NOT IN ('draft', 'planned', 'assigned', 'waiting_purchase', 'purchasing', 'exception') THEN
+    RAISE EXCEPTION 'cannot fallback a task after purchase or shipment';
   END IF;
   UPDATE public.procurement_tasks
   SET status = 'cancelled', updated_at = now()
@@ -1622,16 +1654,16 @@ BEGIN
         'tasks', COALESCE((
           SELECT jsonb_agg(jsonb_build_object(
             'id', t.id,
+            'assignment_id', t.assignment_id,
             'task_number', t.task_number,
             'quantity', t.quantity_allocated,
             'status', t.status,
             'late', t.late,
             'buy_by_at', CASE WHEN audience = 'bar' THEN NULL ELSE t.buy_by_at END,
-            'method', CASE WHEN audience = 'bar' THEN NULL ELSE t.procurement_method END,
-            'source_name', CASE WHEN audience IN ('jbm', 'employee') THEN t.source_company ELSE NULL END,
+            'method', CASE WHEN audience IN ('bar', 'supplier') THEN NULL ELSE t.procurement_method END,
+            'source_name', CASE WHEN audience = 'jbm' THEN t.source_company ELSE NULL END,
             'expected_unit_cost', CASE
               WHEN audience = 'jbm' THEN t.expected_unit_cost
-              WHEN audience = 'supplier' AND s.fornecedor_id IN (SELECT public.my_supplier_ids()) THEN t.expected_unit_cost
               WHEN audience = 'employee' AND t.assigned_to = auth.uid() THEN t.expected_unit_cost
               ELSE NULL
             END,
@@ -1723,6 +1755,40 @@ $$;
 REVOKE ALL ON FUNCTION public.get_procurement_board() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_procurement_board() TO authenticated;
 
+CREATE OR REPLACE FUNCTION public.get_procurement_tasks_hq()
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF auth.uid() IS NULL OR NOT public.is_procurement_hq() THEN
+    RAISE EXCEPTION 'not allowed';
+  END IF;
+  RETURN COALESCE((
+    SELECT jsonb_agg(jsonb_build_object(
+      'id', t.id,
+      'task_number', t.task_number,
+      'order_id', t.order_id,
+      'status', t.status,
+      'quantity_allocated', t.quantity_allocated,
+      'quantity_purchased', t.quantity_purchased,
+      'quantity_received', t.quantity_received,
+      'quantity_at_bar', t.quantity_at_bar,
+      'procurement_method', t.procurement_method,
+      'source_company', t.source_company,
+      'late', t.late,
+      'buy_by_at', t.buy_by_at
+    ) ORDER BY t.created_at DESC)
+    FROM public.procurement_tasks t
+  ), '[]'::jsonb);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_procurement_tasks_hq() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_procurement_tasks_hq() TO authenticated;
+
 CREATE OR REPLACE FUNCTION public.get_my_procurement_tasks()
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -1733,6 +1799,13 @@ AS $$
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'not authenticated';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.perfis p
+    WHERE p.id = auth.uid()
+      AND p.role IN ('admin', 'jbm', 'funcionario')
+  ) THEN
+    RAISE EXCEPTION 'not allowed';
   END IF;
   RETURN jsonb_build_object(
     'tasks', COALESCE((
@@ -2004,16 +2077,10 @@ CREATE POLICY prr_hq ON public.procurement_routing_rules
   USING (public.is_procurement_hq()) WITH CHECK (public.is_procurement_hq());
 
 DROP POLICY IF EXISTS ptask_read ON public.procurement_tasks;
-CREATE POLICY ptask_read ON public.procurement_tasks
+DROP POLICY IF EXISTS ptask_read_hq ON public.procurement_tasks;
+CREATE POLICY ptask_read_hq ON public.procurement_tasks
   FOR SELECT TO authenticated
-  USING (
-    public.is_procurement_hq()
-    OR assigned_to = auth.uid()
-    OR source_id IN (
-      SELECT s.id FROM public.procurement_sources s
-      WHERE s.fornecedor_id IN (SELECT public.my_supplier_ids())
-    )
-  );
+  USING ((SELECT public.is_procurement_hq()));
 
 DROP POLICY IF EXISTS purchases_read ON public.purchase_transactions;
 CREATE POLICY purchases_read ON public.purchase_transactions
@@ -2101,7 +2168,7 @@ DROP POLICY IF EXISTS alerts_read ON public.fulfillment_alerts;
 CREATE POLICY alerts_read ON public.fulfillment_alerts
   FOR SELECT TO authenticated
   USING (
-    (audience = 'jbm' AND public.is_jbm())
+    (audience = 'jbm' AND public.is_procurement_hq())
     OR (audience = 'supplier' AND supplier_id IN (SELECT public.my_supplier_ids()))
     OR (audience = 'bar' AND bar_id IS NOT NULL AND public.user_can_access_bar(bar_id))
     OR (audience = 'employee' AND assignee_user_id = auth.uid())
@@ -2111,13 +2178,13 @@ DROP POLICY IF EXISTS alerts_read_update ON public.fulfillment_alerts;
 CREATE POLICY alerts_read_update ON public.fulfillment_alerts
   FOR UPDATE TO authenticated
   USING (
-    (audience = 'jbm' AND public.is_jbm())
+    (audience = 'jbm' AND public.is_procurement_hq())
     OR (audience = 'supplier' AND supplier_id IN (SELECT public.my_supplier_ids()))
     OR (audience = 'bar' AND bar_id IS NOT NULL AND public.user_can_access_bar(bar_id))
     OR (audience = 'employee' AND assignee_user_id = auth.uid())
   )
   WITH CHECK (
-    (audience = 'jbm' AND public.is_jbm())
+    (audience = 'jbm' AND public.is_procurement_hq())
     OR (audience = 'supplier' AND supplier_id IN (SELECT public.my_supplier_ids()))
     OR (audience = 'bar' AND bar_id IS NOT NULL AND public.user_can_access_bar(bar_id))
     OR (audience = 'employee' AND assignee_user_id = auth.uid())

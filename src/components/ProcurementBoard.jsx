@@ -156,8 +156,10 @@ function HqBoard() {
     }
     if (boardRes.error) setErr(boardRes.error.message)
     else setBoard(boardRes.data)
-    const [taskRes, orderRes, productRes, barRes, sourceRes, locRes, setRes, shipRes] = await Promise.all([
-      supabase.from('procurement_tasks').select('id,task_number,order_id,status,quantity_allocated,quantity_purchased,quantity_received,quantity_at_bar,procurement_method,source_company,late,buy_by_at').order('created_at', { ascending: false }).limit(40),
+    const taskRes = await supabase.rpc('get_procurement_tasks_hq')
+    if (taskRes.error && !schemaMissing(taskRes.error)) setErr(taskRes.error.message)
+    setTasks(Array.isArray(taskRes.data) ? taskRes.data : [])
+    const [orderRes, productRes, barRes, sourceRes, locRes, setRes, shipRes] = await Promise.all([
       supabase.from('pedidos').select('id,public_code,status,bar_id').order('criado_em', { ascending: false }).limit(20),
       supabase.from('produtos').select('id,nome').eq('ativo', true).order('nome').limit(200),
       supabase.from('bars').select('id,nome').order('nome'),
@@ -166,8 +168,6 @@ function HqBoard() {
       supabase.from('procurement_settings').select('*').eq('id', 1).maybeSingle(),
       supabase.from('shipments').select('id,public_code,status,order_id').order('created_at', { ascending: false }).limit(20),
     ])
-    if (taskRes.error && !schemaMissing(taskRes.error)) setErr(taskRes.error.message)
-    setTasks(taskRes.data || [])
     setOrders(orderRes.data || [])
     setProducts(productRes.data || [])
     setBars(barRes.data || [])

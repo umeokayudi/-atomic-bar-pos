@@ -1,6 +1,6 @@
 # Procurement em cima do PR #38
 
-`submit_bar_order` grava o pedido, os itens com o preço daquele bar e o plano na mesma transação. Se a função ainda não existe no banco, a tela volta ao insert antigo e ao `route_pedido`.
+`submit_bar_order` é o único caminho para o bar enviar um pedido. A função grava o pedido, os itens com o preço daquele bar e o plano na mesma transação. Se `sql/procurement.sql` ainda não foi aplicado, a tela mostra o erro e não cria pedido.
 
 O pedido do bar continua em `pedidos` / `pedidos_itens`. O produto continua em `produtos`. O bar continua em `bars`. O fornecedor continua em `fornecedores`. O portal do fornecedor continua em `order_supplier_assignments`. Esta camada diz **como** a Umeoka abastece esse pedido.
 
@@ -42,10 +42,18 @@ Códigos humanos (`BAR-2026-00001`, `BUY-`, `PUR-`, `DEL-`, `SUP-`) ficam ao lad
 
 ## Quem vê o quê
 
-- Bar: RPC `get_procurement_tracking` sem custo, frete, origem ou margem. Lê o próprio `bar_product_prices`.
-- JBM (`admin` ou `jbm`): `is_procurement_hq()`, custos e margem calculável (custo real = compra + frete + taxas; margem = preço do bar − custo real). Não entra no caixa, na fatura, no salário nem no aluguel.
-- Fornecedor: só tarefas cuja origem aponta para o `fornecedor_id` dele.
-- Funcionário: `get_my_procurement_tasks`, só `assigned_to = auth.uid()`.
+`procurement_tasks` só tem SELECT direto para `is_procurement_hq()` (`admin` ou `jbm`). Fornecedor e funcionário não leem a tabela. Eles usam RPC.
+
+- Bar: `submit_bar_order` e `get_procurement_tracking`, com o próprio preço, status, embarque e quantidade recebida. Sem custo, frete, taxa, logística, margem ou nome da origem.
+- JBM: `get_procurement_tasks_hq` para a lista. Custo e margem só em `task_economics`. Alertas de audiência `jbm` também exigem `is_procurement_hq()`, não o `is_jbm()` antigo.
+- Fornecedor: `get_procurement_tracking` só das tarefas da origem dele. Sem `expected_unit_cost`, custo real, frete, taxa, logística, margem ou preço de venda.
+- Funcionário: `get_my_procurement_tasks` recusa role `fornecedor` e devolve só `assigned_to = auth.uid()`.
+
+## Embarque pelo depósito
+
+Compra registrada, recebimento no depósito (`quantity_received`), embarque de saída limitado a essa quantidade, confirmação do bar, entrada em `estoque_movimentos`. Saída direta (fornecedor, loja ou funcionário até o bar) usa a quantidade comprada ainda não embarcada. Um embarque não mistura pedidos e não pode ir para outro bar.
+
+Fallback só antes da compra: `draft`, `planned`, `assigned`, `waiting_purchase`, `purchasing`, `exception`. Pedido com quantidade ainda sem origem permanece `pendente`. Preço ausente ou zero cancela a transação inteira.
 
 Não há `USING (true)`.
 

@@ -4,7 +4,9 @@ import {
   allocateLine, planDeadlines, deadlineMissed, purchaseIsComplete, canMarkPurchased,
   lineProgress, orderCovered, shipmentQty, resolveSalePrice, economics, forBar,
   barPayloadLeaksCost, forSupplier, forEmployee, attentionBuckets, applyReceive,
-  assertTransition,
+  assertTransition, supplierTaskView, supplierViewLeaksCost, isProcurementHq,
+  canCallMyTasks, canReadTasksDirect, orderStatusAfterPlan, assertSalePrice,
+  assertFallback, assertSameOrder, assertShipmentDestination, assertShipQuantity,
 } from '../src/lib/procurementCore.js'
 import { tokyoWallToUtcMs } from '../src/lib/tokyo.js'
 
@@ -279,6 +281,65 @@ test('primary that misses the deadline loses to a backup that meets it', () => {
   assert.equal(slices[0].late, false)
 })
 
+test('supplier tracking hides purchase cost, freight and margin', () => {
+  const view = supplierTaskView({
+    task_number: 'BUY-1', quantity: 20, status: 'assigned', buy_by_at: '2026-10-01T00:00:00.000Z',
+    expected_unit_cost: 4000, actual_total_cost: 86000, margin: 1200, freight: 300, sale_price: 59400,
+  })
+  assert.equal(supplierViewLeaksCost(view), false)
+  assert.equal(view.taskNumber, 'BUY-1')
+  const mine = forSupplier([
+    { id: '1', fornecedorId: 'sup-a', taskNumber: 'BUY-1', quantityAllocated: 20, status: 'assigned', expectedUnitCost: 4000, salePrice: 59400 },
+  ], 'sup-a')
+  assert.equal(supplierViewLeaksCost(mine), false)
+})
+
+test('funcionario is not procurement HQ and a supplier cannot open my tasks', () => {
+  assert.equal(isProcurementHq('funcionario'), false)
+  assert.equal(isProcurementHq('fornecedor'), false)
+  assert.equal(isProcurementHq('admin'), true)
+  assert.equal(isProcurementHq('jbm'), true)
+  assert.equal(canCallMyTasks('fornecedor'), false)
+  assert.equal(canCallMyTasks('funcionario'), true)
+  assert.equal(canReadTasksDirect('admin'), true)
+  assert.equal(canReadTasksDirect('fornecedor'), false)
+  assert.equal(canReadTasksDirect('funcionario'), false)
+})
+
+test('a partial allocation leaves the order pending', () => {
+  assert.equal(orderStatusAfterPlan({ made: 1, unmet: 10 }), 'pendente')
+  assert.equal(orderStatusAfterPlan({ made: 1, unmet: 0 }), 'confirmado')
+})
+
+test('a missing sale price rejects the order', () => {
+  assert.throws(() => assertSalePrice(null, 'hennessy', 'bar-a'), /sale price not configured/)
+  assert.throws(() => assertSalePrice(0, 'hennessy', 'bar-a'), /sale price not configured/)
+  assert.equal(assertSalePrice(59400, 'hennessy', 'bar-a'), 59400)
+})
+
+test('fallback stops after the goods are purchased or moving', () => {
+  assert.throws(() => assertFallback('purchased'), /cannot fallback/)
+  assert.throws(() => assertFallback('received'), /cannot fallback/)
+  assert.throws(() => assertFallback('in_transit'), /cannot fallback/)
+  assert.doesNotThrow(() => assertFallback('exception'))
+  assert.doesNotThrow(() => assertFallback('purchasing'))
+})
+
+test('a shipment stays inside one order and the destination bar', () => {
+  assert.throws(() => assertSameOrder([{ orderId: 'o1' }, { orderId: 'o2' }]), /same order/)
+  assert.doesNotThrow(() => assertSameOrder([{ orderId: 'o1' }, { orderId: 'o1' }]))
+  assert.throws(() => assertShipmentDestination({ destType: 'BAR', destBarId: 'bar-b', orderBarId: 'bar-a' }), /does not match/)
+  assert.doesNotThrow(() => assertShipmentDestination({ destType: 'WAREHOUSE', destBarId: null, orderBarId: 'bar-a' }))
+  assert.doesNotThrow(() => assertShipmentDestination({ destType: 'BAR', destBarId: 'bar-a', orderBarId: 'bar-a' }))
+})
+
+test('warehouse outbound uses quantity received, not quantity purchased', () => {
+  assert.throws(() => assertShipQuantity({ fromType: 'WAREHOUSE', quantityPurchased: 20, quantityReceived: 0, quantity: 10 }))
+  assert.throws(() => assertShipQuantity({ fromType: 'WAREHOUSE', quantityPurchased: 20, quantityReceived: 8, quantity: 10 }))
+  assert.equal(assertShipQuantity({ fromType: 'WAREHOUSE', quantityPurchased: 20, quantityReceived: 20, quantity: 10 }), 20)
+  assert.equal(assertShipQuantity({ fromType: 'SUPPLIER', quantityPurchased: 20, quantityReceived: 0, quantity: 20 }), 20)
+})
+
 test('sql keeps isolation and does not invent a second catalog', () => {
   const sql = readFileSync(new URL('../sql/procurement.sql', import.meta.url), 'utf8')
   assert.equal(/USING\s*\(\s*true\s*\)/i.test(sql), false)
@@ -294,6 +355,34 @@ test('sql keeps isolation and does not invent a second catalog', () => {
   assert.match(sql, /shipments/)
   assert.match(sql, /bar_product_prices/)
   assert.match(sql, /order_supplier_assignments/)
+  assert.match(sql, /CREATE POLICY ptask_read_hq/)
+  assert.match(sql, /USING \(\(SELECT public\.is_procurement_hq\(\)\)\)/)
+  assert.equal(/CREATE POLICY ptask_read ON/i.test(sql), false)
+  assert.match(sql, /cannot fallback a task after purchase or shipment/)
+  assert.match(sql, /shipment tasks must belong to the same order/)
+  assert.match(sql, /shipment destination bar does not match order bar/)
+  assert.match(sql, /quantity_received - already/)
+  assert.match(sql, /sale price not configured for product/)
+  assert.match(sql, /made > 0 AND unmet = 0/)
+  assert.match(sql, /get_procurement_tasks_hq/)
+  assert.match(sql, /p\.role IN \('admin', 'jbm', 'funcionario'\)/)
+  assert.match(sql, /audience = 'jbm' AND public\.is_procurement_hq\(\)/)
+  assert.equal(/audience = 'jbm' AND public\.is_jbm\(\)/.test(sql), false)
+  assert.equal(/WITH CHECK\s*\(\s*true\s*\)/i.test(sql), false)
+  const policy = sql.slice(sql.indexOf('CREATE POLICY ptask_read_hq'), sql.indexOf('DROP POLICY IF EXISTS purchases_read'))
+  assert.equal(/assigned_to|my_supplier_ids|fornecedor/.test(policy), false)
+
+  const board = readFileSync(new URL('../src/components/ProcurementBoard.jsx', import.meta.url), 'utf8')
+  const orders = readFileSync(new URL('../src/components/BarOrdersTab.jsx', import.meta.url), 'utf8')
+  const supplier = readFileSync(new URL('../src/components/SupplierPortal.jsx', import.meta.url), 'utf8')
+  assert.equal(board.includes("from('procurement_tasks')"), false)
+  assert.match(board, /get_procurement_tasks_hq/)
+  assert.equal(orders.includes('route_pedido'), false)
+  assert.equal(orders.includes(".from('pedidos').insert"), false)
+  assert.equal(orders.includes(".from('pedidos_itens').insert"), false)
+  assert.match(orders, /procurement\.notConfigured/)
+  assert.equal(supplier.includes("from('procurement_tasks')"), false)
+  assert.match(supplier, /get_procurement_tracking/)
 })
 
 console.log(`\n${passed} procurement tests passed`)

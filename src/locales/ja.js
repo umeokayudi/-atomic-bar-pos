@@ -950,6 +950,7 @@ export default {
     title: '調達',
     subtitle: 'バーの注文を、どこで買い、受けて、届けるか。売価はバー。仕入原価はJBM。',
     schemaMissing: '調達はまだデータベースにありません。sql/supplier_fulfillment.sql の後に sql/procurement.sql を実行して、再読み込みしてください。',
+    notConfigured: 'Procurement ainda não está configurado no banco. Execute sql/procurement.sql no Supabase.',
     myTasks: '自分の仕入タスク',
     noTasks: 'このログインにタスクはありません。',
     openLink: '購入リンクを開く',

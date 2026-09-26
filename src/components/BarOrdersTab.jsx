@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { useAuth } from './Auth'
 import { fmtYen, fmtDate, Spinner, Empty, SectionTitle, isSupplierProduct, PedidoItemChip } from './utils'
 import { isRestockPedido } from '../lib/posSupply'
 import { useI18n } from '../lib/i18n'
@@ -26,7 +25,6 @@ function Badge({ status }) {
 
 export default function BarOrdersTab({ bar }) {
   const { t } = useI18n()
-  const { user } = useAuth()
   const [produtos, setProdutos] = useState([])
   const [pedidos, setPedidos] = useState([])
   const [loading, setLoading] = useState(true)
@@ -137,31 +135,8 @@ export default function BarOrdersTab({ bar }) {
       p_obs: obs.trim() || null,
       p_items: items.map(it => ({ produto_id: it.produto_id, qtd: it.qtd })),
     })
-    if (submitted.error && schemaMissing(submitted.error)) {
-      const { data: pedido, error } = await supabase.from('pedidos').insert({
-        bar_id: bar.id, criado_por: user?.id,
-        status: 'pendente',
-        data_pedido: new Date().toISOString().slice(0, 10),
-        data_entrega_prevista: entrega || null,
-        obs: obs.trim() || null, total_estimado: totalOrder,
-      }).select().single()
-      if (error) { setOrderErr(t('portal.orders.saveError', { message: error.message })); setSaving(false); return }
-      if (!pedido) { setOrderErr(t('portal.orders.saveOrderError')); setSaving(false); return }
-      const { error: itemsError } = await supabase.from('pedidos_itens').insert(
-        items.map(it => {
-          const p = produtos.find(x => x.id === it.produto_id)
-          return { pedido_id: pedido.id, produto_id: it.produto_id, qtd: it.qtd, preco_unitario: salePriceOf(p, it.qtd) }
-        })
-      )
-      if (itemsError) setOrderErr(t('portal.orders.saveItemsError', { message: itemsError.message }))
-      else {
-        const routed = await supabase.rpc('route_pedido', { p_order_id: pedido.id })
-        if (routed.error && !schemaMissing(routed.error)) {
-          setOrderErr(t('fulfillment.loadError', { message: routed.error.message }))
-        }
-      }
-    } else if (submitted.error) {
-      setOrderErr(t('fulfillment.loadError', { message: submitted.error.message }))
+    if (submitted.error) {
+      setOrderErr(schemaMissing(submitted.error) ? t('procurement.notConfigured') : submitted.error.message)
       setSaving(false)
       return
     }

@@ -44,17 +44,18 @@ export default function SupplierPortal({ onSignOut }) {
     if (aR.error) setErr(aR.error.message)
     setRows(aR.data || [])
     setAlerts(nR.data || [])
-    const idsOnPage = (aR.data || []).map(row => row.id)
-    if (idsOnPage.length) {
-      const codes = await supabase.from('procurement_tasks').select('assignment_id,task_number').in('assignment_id', idsOnPage)
-      if (!codes.error) {
-        const map = {}
-        for (const row of codes.data || []) map[row.assignment_id] = row.task_number
-        setTaskCodes(map)
+    const orderIds = [...new Set((aR.data || []).map(row => row.order_id))]
+    const map = {}
+    await Promise.all(orderIds.map(async orderId => {
+      const track = await supabase.rpc('get_procurement_tracking', { p_order_id: orderId })
+      if (track.error) return
+      for (const line of track.data?.lines || []) {
+        for (const task of line.tasks || []) {
+          if (task.assignment_id) map[task.assignment_id] = task.task_number
+        }
       }
-    } else {
-      setTaskCodes({})
-    }
+    }))
+    setTaskCodes(map)
   }
 
   useEffect(() => { if (user?.id) load() }, [user?.id])

@@ -950,6 +950,7 @@ export default {
     title: 'Procurement',
     subtitle: 'How a bar order is sourced, bought, received and delivered. Sale price stays on the bar. Purchase cost stays with JBM.',
     schemaMissing: 'Procurement is not in the database yet. Run sql/procurement.sql in the Supabase SQL editor after sql/supplier_fulfillment.sql, then reload.',
+    notConfigured: 'Procurement ainda não está configurado no banco. Execute sql/procurement.sql no Supabase.',
     myTasks: 'My purchase tasks',
     noTasks: 'No task is assigned to this login.',
     openLink: 'Open purchase link',

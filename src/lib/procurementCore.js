@@ -335,14 +335,83 @@ function flattenKeys(value, acc = {}) {
 export function forSupplier(tasks = [], supplierId) {
   return tasks
     .filter(task => task.fornecedorId === supplierId && task.status !== 'cancelled')
-    .map(task => ({
-      id: task.id,
-      taskNumber: task.taskNumber,
-      productId: task.productId,
-      quantity: task.quantityAllocated,
-      status: task.status,
-      ownPurchasePrice: task.expectedUnitCost ?? null,
-    }))
+    .map(task => supplierTaskView(task))
+}
+
+const SUPPLIER_HIDDEN = [
+  'expectedUnitCost', 'expected_unit_cost', 'actualUnitCost', 'actual_unit_cost',
+  'actualTotalCost', 'actual_total_cost', 'margin', 'freight', 'fees',
+  'logisticsCost', 'logistics_cost', 'salePrice', 'sale_price', 'realCost', 'real_cost',
+]
+
+export function supplierTaskView(task) {
+  return {
+    taskNumber: task.taskNumber || task.task_number,
+    quantity: task.quantityAllocated ?? task.quantity,
+    status: task.status,
+    buyByAt: task.buyByAt || task.buy_by_at || null,
+  }
+}
+
+export function supplierViewLeaksCost(payload) {
+  return Object.keys(flattenKeys(payload)).some(key => SUPPLIER_HIDDEN.includes(key))
+}
+
+export function isProcurementHq(role) {
+  return role === 'admin' || role === 'jbm'
+}
+
+export function canCallMyTasks(role) {
+  return role === 'admin' || role === 'jbm' || role === 'funcionario'
+}
+
+export function canReadTasksDirect(role) {
+  return isProcurementHq(role)
+}
+
+export function orderStatusAfterPlan({ made = 0, unmet = 0, current = 'pendente' } = {}) {
+  if (current !== 'pendente') return current
+  if (made > 0 && unmet === 0) return 'confirmado'
+  return 'pendente'
+}
+
+export function assertSalePrice(price, productId, barId) {
+  if (price == null || +price <= 0) {
+    throw new Error(`sale price not configured for product ${productId} and bar ${barId}`)
+  }
+  return +price
+}
+
+const FALLBACK_OK = new Set(['draft', 'planned', 'assigned', 'waiting_purchase', 'purchasing', 'exception'])
+
+export function assertFallback(status) {
+  if (!FALLBACK_OK.has(status)) {
+    throw new Error('cannot fallback a task after purchase or shipment')
+  }
+}
+
+export function assertSameOrder(tasks = []) {
+  const ids = new Set(tasks.map(task => task.orderId))
+  if (ids.size > 1) throw new Error('shipment tasks must belong to the same order')
+}
+
+export function assertShipmentDestination({ destType, destBarId, orderBarId }) {
+  if (destType === 'BAR' && destBarId !== orderBarId) {
+    throw new Error('shipment destination bar does not match order bar')
+  }
+}
+
+export function availableToShip({ fromType, quantityPurchased = 0, quantityReceived = 0, already = 0 } = {}) {
+  const base = fromType === 'WAREHOUSE' ? +quantityReceived || 0 : +quantityPurchased || 0
+  return base - (+already || 0)
+}
+
+export function assertShipQuantity(input) {
+  const quantity = +input.quantity || 0
+  if (quantity <= 0) throw new Error('quantity required')
+  const available = availableToShip(input)
+  if (quantity > available) throw new Error('shipment quantity exceeds what was purchased')
+  return available
 }
 
 export function forEmployee(tasks = [], userId) {
