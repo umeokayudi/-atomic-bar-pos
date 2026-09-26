@@ -145,6 +145,7 @@ export function useBarOverdueAlerts(barId) {
       start: r.start,
       end: r.end,
       delta: Math.abs(r.delta || 0),
+      orders: r.orders,
       invoice: r.invoice,
       tab: 'faturas',
     }))
@@ -299,7 +300,7 @@ export function NotificationBell({
         <div className="notif-panel-body">
           {mismatches.length > 0 && (
             <div className="notif-overdue-block">
-              <div className="notif-overdue-title">🔔 {t('notifications.mismatchTitle')}</div>
+              <div className="notif-overdue-title">{t('notifications.mismatchTitle')}</div>
               {mismatches.map(m => (
                 <button
                   key={`m-${m.id}`}
@@ -307,8 +308,14 @@ export function NotificationBell({
                   className="notif-overdue-row"
                   onClick={() => go(m.tab || 'faturas')}
                 >
-                  <span className="notif-overdue-kind">🔔 {t('notifications.invoiceKind')}</span>
-                  <span className="notif-overdue-label">{t('notifications.mismatchBody', { from: m.start || '—', to: m.end || '—', amount: fmtYen(m.delta) })}</span>
+                  <span className="notif-overdue-kind">{t('notifications.invoiceKind')}</span>
+                  <span className="notif-overdue-label">{t('notifications.mismatchBody', {
+                    from: m.start || '—',
+                    to: m.end || '—',
+                    orders: fmtYen(m.orders || 0),
+                    invoice: fmtYen(m.invoice || 0),
+                    amount: fmtYen(m.delta),
+                  })}</span>
                   <span className="notif-overdue-amount">{fmtYen(m.invoice)}</span>
                 </button>
               ))}
