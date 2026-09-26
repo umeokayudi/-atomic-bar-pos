@@ -182,10 +182,8 @@ BEGIN
     END IF;
 
     line_commission := 0;
-    IF cast_tipo = 'freelancer' THEN
-      line_commission := round(price * 0.5 * qty);
-    ELSIF cast_tipo IS NOT NULL AND price > 2000 THEN
-      line_commission := round(price * 0.3 * qty);
+    IF cast_tipo IS NOT NULL AND price > 2000 THEN
+      line_commission := round(2000 * (CASE WHEN cast_tipo = 'freelancer' THEN 0.5 ELSE 0.3 END)) * qty;
     END IF;
 
     subtotal := subtotal + (price * qty);
@@ -216,10 +214,8 @@ BEGIN
     WHERE p.id = produto_id AND p.bar_id = p_bar_id;
 
     line_commission := 0;
-    IF cast_tipo = 'freelancer' THEN
-      line_commission := round(price * 0.5 * qty);
-    ELSIF cast_tipo IS NOT NULL AND price > 2000 THEN
-      line_commission := round(price * 0.3 * qty);
+    IF cast_tipo IS NOT NULL AND price > 2000 THEN
+      line_commission := round(2000 * (CASE WHEN cast_tipo = 'freelancer' THEN 0.5 ELSE 0.3 END)) * qty;
     END IF;
 
     INSERT INTO public.vendas_itens (

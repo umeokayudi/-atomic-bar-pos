@@ -27,6 +27,7 @@ import { packTicketObs, ticketChargeLines, settingsFromRow, DEFAULT_POS_SETTINGS
 import { summarizeNight, closeVariance, saleOnNight, prevTokyoDateKey, lastBusyNight } from '../lib/nightClose'
 import { CASH_CHIPS, cashSettle, isCashMethod, payRecordNote } from '../lib/posPay'
 import { printGuestReceipt } from '../lib/guestReceipt'
+import { drinkBackCommission } from '../lib/drinkBackPay'
 
 const SUB_TAB_IDS = [
   { id: 'dashboard', key: 'tabDashboard', icon: '📊' },
@@ -321,6 +322,7 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
         qtd: 1,
         ...pricing,
         preco_unitario: pricing.preco,
+        forCast: false,
       }]
     })
   }
@@ -356,18 +358,8 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
     setSaleErr('')
     const openVisit = matchCheckoutVisit(visits, { spaceId, guestId })
     const guest = guests.find(g => g.id === guestId)
-    const bottleBase = cart
-      .filter(it => it.kind === 'shot' || it.produto_id)
-      .reduce((sum, it) => sum + lineUnitPrice(it) * (it.qtd || 1), 0)
-    if (bottleBase > 0 && agents.some(a => a.ativo !== false) && !agentId) {
-      setSaving(false)
-      setSaleErr(t('atomicPos.bottleCastRequired'))
-      return
-    }
     const agent = agents.find(a => a.id === agentId)
-    const bottleFee = bottleBase > 0 && agent
-      ? Math.round(bottleBase * (+agent.comissao_pct || 0) / 100)
-      : null
+    const bottleFee = agent ? drinkBackCommission(cart, agent.comissao_pct) : null
     const obs = packTicketObs({
       details: ticketNote,
       castName: agent?.nome || '',
@@ -686,22 +678,15 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
         )}
         {saleErr && <div className="pos-sale-err">{saleErr}</div>}
         <div className="pos-cart-title">{t('atomicPos.stepCharge')}</div>
-        {cart.some(it => it.kind === 'shot' || it.produto_id) && (
+        {agentId && (
           <div className="pos-cart-ticket">
-            <div>{t('atomicPos.bottleCast')}</div>
-            {agentId ? (
-              <strong>
-                {t('atomicPos.bottleCommission', {
-                  pct: agents.find(a => a.id === agentId)?.comissao_pct || 0,
-                  amount: fmtYen(Math.round(
-                    cart.filter(it => it.kind === 'shot' || it.produto_id).reduce((sum, it) => sum + lineUnitPrice(it) * (it.qtd || 1), 0)
-                    * (+agents.find(a => a.id === agentId)?.comissao_pct || 0) / 100,
-                  )),
-                })}
-              </strong>
-            ) : (
-              <span>{t('atomicPos.bottleCastRequired')}</span>
-            )}
+            <div>{t('atomicPos.drinkBackRule')}</div>
+            <strong>
+              {t('atomicPos.herCommission', {
+                pct: agents.find(a => a.id === agentId)?.comissao_pct || 0,
+                amount: fmtYen(drinkBackCommission(cart, agents.find(a => a.id === agentId)?.comissao_pct || 0)),
+              })}
+            </strong>
           </div>
         )}
         {(agentId || spaceId || guestId) && (
@@ -725,6 +710,15 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
                   <button type="button" className="pos-qty pos-qty-minus" onClick={() => bumpCart(i, -1)}>−</button>
                   <span>{it.qtd}</span>
                   <button type="button" className="pos-qty pos-qty-plus" onClick={() => bumpCart(i, 1)}>+</button>
+                  {agentId && it.kind === 'drink' && !it.produto_id && (
+                    <button
+                      type="button"
+                      className={it.forCast ? 'pos-qty pos-qty-plus' : 'pos-qty'}
+                      onClick={() => setCart(c => c.map((row, j) => j === i ? { ...row, forCast: !row.forCast } : row))}
+                    >
+                      {it.forCast ? t('atomicPos.sheDrank') : t('atomicPos.guestDrank')}
+                    </button>
+                  )}
                   <strong>{fmtYen(lineUnitPrice(it) * it.qtd)}</strong>
                   <button type="button" className="pos-qty-del" onClick={() => setCart(c => c.filter((_, j) => j !== i))}>✕</button>
                 </div>
@@ -1254,10 +1248,7 @@ function PosDashboardTab({ bar, todaySales, salesList, onOrder }) {
         agentMap[s.drink_back_agent_id].total += +s.total || 0
         agentMap[s.drink_back_agent_id].count += 1
         const posted = String(s.obs || '').match(/^Comm:\s*([\d.]+)/m)
-        const pct = +(agents.find(a => a.id === s.drink_back_agent_id)?.comissao_pct || 0)
-        agentMap[s.drink_back_agent_id].comissao += posted
-          ? Math.round(+posted[1])
-          : Math.round((+s.total || 0) * pct / 100)
+        agentMap[s.drink_back_agent_id].comissao += posted ? Math.round(+posted[1]) : 0
       }
       setAgentStats(agents.map(a => ({
         ...a,
