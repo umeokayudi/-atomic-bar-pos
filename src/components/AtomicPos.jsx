@@ -28,6 +28,7 @@ import { summarizeNight, closeVariance, saleOnNight, prevTokyoDateKey, lastBusyN
 import { CASH_CHIPS, cashSettle, isCashMethod, payRecordNote } from '../lib/posPay'
 import { printGuestReceipt } from '../lib/guestReceipt'
 import { drinkBackCommission } from '../lib/drinkBackPay'
+import PosFloor from './PosFloor'
 
 const SUB_TAB_IDS = [
   { id: 'dashboard', key: 'tabDashboard', icon: '📊' },
@@ -1461,6 +1462,7 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
   const [salesList, setSalesList] = useState([])
   const [posErr, setPosErr] = useState('')
   const [loading, setLoading] = useState(true)
+  const [classicTill, setClassicTill] = useState(false)
 
   useEffect(() => { init() }, [bar])
 
@@ -1478,8 +1480,10 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
       supabase.from('drink_back_agents').select('*').eq('bar_id', bar.id).eq('ativo', true),
     ])
     setReady(schema.ready)
-    setDrinks(dR.data || [])
-    setShots(sR.data || [])
+    if (dR.error) setPosErr(dR.error.message || t('atomicPos.tillLoadError'))
+    else if (sR.error) setPosErr(sR.error.message || t('atomicPos.tillLoadError'))
+    setDrinks(dR.error ? [] : (dR.data || []))
+    setShots(sR.error ? [] : (sR.data || []))
     setDiscountCodes(cR.data || [])
     setVipMembers(vR.data || [])
     setDrinkBackAgents(aR.data || [])
@@ -1488,7 +1492,7 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
       setSalesList([])
       setTodaySales({ count: 0, total: 0 })
     } else {
-      setPosErr('')
+      if (!dR.error && !sR.error) setPosErr('')
       const night = summarizeNight(pR.data || [], nightKey)
       setSalesList((pR.data || []).filter(s => saleOnNight(s, nightKey)))
       setTodaySales({ count: night.ticketCount, total: night.drinksTotal })
@@ -1540,16 +1544,32 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
 
       {(ready || subTab !== 'checkout') && subTab !== 'dashboard' && (
         <>
-          {subTab === 'checkout' && ready && (
-            <PosCheckoutTab
-              bar={bar}
-              drinks={drinks}
-              shots={shots}
-              discountCodes={discountCodes}
-              vipMembers={vipMembers}
-              drinkBackAgents={drinkBackAgents}
-              onSale={init}
-            />
+          {subTab === 'checkout' && ready && classicTill && (
+            <>
+              <button type="button" className="pos-chip" onClick={() => setClassicTill(false)}>{t('posFloor.floor')}</button>
+              <PosCheckoutTab
+                bar={bar}
+                drinks={drinks}
+                shots={shots}
+                discountCodes={discountCodes}
+                vipMembers={vipMembers}
+                drinkBackAgents={drinkBackAgents}
+                onSale={init}
+              />
+            </>
+          )}
+          {subTab === 'checkout' && ready && !classicTill && (
+            <>
+              <button type="button" className="pos-chip" onClick={() => setClassicTill(true)}>{t('posFloor.classic')}</button>
+              <PosFloor
+                bar={bar}
+                drinks={drinks}
+                shots={shots}
+                agents={drinkBackAgents}
+                catalogError={posErr}
+                onSale={init}
+              />
+            </>
           )}
           {subTab === 'vip' && <PosVipTab bar={bar} drinks={drinks} onUpdate={init} />}
           {subTab === 'drinkback' && <PosDrinkBackTab bar={bar} onUpdate={init} />}

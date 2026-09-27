@@ -13,7 +13,8 @@
     "audit:live": "node scripts/audit-live.mjs",
     "test:procurement": "node scripts/procurement.test.mjs",
     "test:legacy": "node scripts/legacyAccess.test.mjs",
-    "test:payroll": "node scripts/payroll.test.mjs"
+    "test:payroll": "node scripts/payroll.test.mjs",
+    "test:pos": "node scripts/posFloor.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
