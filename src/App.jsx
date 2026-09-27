@@ -39,6 +39,8 @@ const UsuariosTab = lazy(() => import('./components/Configs').then(m => ({ defau
 const PedidosAdminTab = lazy(() => import('./components/Configs').then(m => ({ default: m.PedidosAdminTab })))
 const FulfillmentHq = lazy(() => import('./components/FulfillmentHq'))
 const ProcurementBoard = lazy(() => import('./components/ProcurementBoard'))
+const EmployeeDesk = lazy(() => import('./components/EmployeeDesk'))
+const PayrollHq = lazy(() => import('./components/PayrollHq'))
 const SupplierPortal = lazy(() => import('./components/SupplierPortal'))
 const DashboardMetricModal = lazy(() => import('./components/DashboardMetricModal'))
 const DashboardCalendar = lazy(() => import('./components/DashboardCalendar'))
@@ -63,10 +65,20 @@ const ADMIN_TABS = [
   { id:'faturas',    labelKey:'nav.invoices', icon:'💰' },
   { id:'suppliers',  labelKey:'nav.suppliers', icon:'🏭' },
   { id:'cashflow',   labelKey:'nav.cashflow', icon:'💸' },
+  { id:'payroll', labelKey:'nav.payroll', icon:'💴' },
 ]
 
 const EMPLOYEE_TABS = [
-  { id:'procurement', labelKey:'nav.procurement', icon:'📦' },
+  { id:'profile', labelKey:'nav.myProfile', icon:'👤' },
+  { id:'shifts', labelKey:'nav.myShifts', icon:'🗓️' },
+  { id:'clock', labelKey:'nav.myClock', icon:'🕒' },
+  { id:'goals', labelKey:'nav.myGoals', icon:'🎯' },
+  { id:'result', labelKey:'nav.myResult', icon:'📈' },
+  { id:'points', labelKey:'nav.myPoints', icon:'⭐' },
+  { id:'occurrences', labelKey:'nav.myOccurrences', icon:'📝' },
+  { id:'rewards', labelKey:'nav.myRewards', icon:'🏅' },
+  { id:'salary', labelKey:'nav.mySalary', icon:'💴' },
+  { id:'procurement', labelKey:'nav.myTasks', icon:'📦' },
 ]
 
 const STAFF_TABS = [
@@ -80,6 +92,7 @@ const STAFF_TABS = [
 const JBM_TABS = [
   { id:'fulfillment', labelKey:'nav.fulfillment', icon:'🚚' },
   { id:'procurement', labelKey:'nav.procurement', icon:'📦' },
+  { id:'payroll', labelKey:'nav.payroll', icon:'💴' },
 ]
 
 const TABS_BY_ID = Object.fromEntries([...ADMIN_TABS, ...EMPLOYEE_TABS, ...STAFF_TABS, ...JBM_TABS].map(tab => [tab.id, tab]))
@@ -564,6 +577,8 @@ function Shell() {
           {activeTab==='pedidos'   && <PedidosAdminTab/>}
           {activeTab==='fulfillment' && <FulfillmentHq/>}
           {activeTab==='procurement' && <ProcurementBoard/>}
+          {['profile', 'shifts', 'clock', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary'].includes(activeTab) && <EmployeeDesk section={activeTab} />}
+          {activeTab==='payroll' && <PayrollHq/>}
           {activeTab==='relatorio' && <RelatorioTab/>}
           {activeTab==='ryoshusho' && <RyoshushoTab/>}
           {activeTab==='seikyusho' && <SeikyushoTab/>}
