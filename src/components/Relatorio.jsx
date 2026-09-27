@@ -136,7 +136,7 @@ export default function RelatorioTab() {
         </>
       }
     >
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 18 }}>
+      <div className="admin-kpi-grid" style={{ marginBottom: 18 }}>
         <PortalKpi label={t('report.purchasesNotes')} value={fmtYen(custoCompras)} color="var(--red)"
           sub={dash.comprasEstimadas ? t('report.purchasesSubEst', { count: comprasMes.length }) : t('report.purchasesSub', { count: comprasMes.length })} />
         <PortalKpi label={t('report.billing')} value={fmtYen(faturamento)} color="var(--navy)"
@@ -170,24 +170,24 @@ export default function RelatorioTab() {
 
       <PortalSurface title={t('report.monthSales')}>
         {vendasDetalhe.length === 0 ? <Empty text={t('report.noSalesMonth')} /> : (
-          <table>
+          <table className="phone-stack">
             <thead>
               <tr><th>{t('common.date')}</th><th>{t('common.bar')}</th><th>{t('common.obs')}</th><th style={{ textAlign: 'right' }}>{t('common.revenue')}</th></tr>
             </thead>
             <tbody>
               {vendasDetalhe.map(v => (
                 <tr key={v.id}>
-                  <td>{fmtDate(v.data)}</td>
-                  <td style={{ color: v.barCor || 'var(--navy)', fontWeight: 600 }}>{v.barNome}</td>
-                  <td style={{ fontSize: 11, color: 'var(--text2)', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.obs || '—'}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmtYen(v.receita)}</td>
+                  <td data-label={t('common.date')}>{fmtDate(v.data)}</td>
+                  <td data-label={t('common.bar')} style={{ color: v.barCor || 'var(--navy)', fontWeight: 600 }}>{v.barNome}</td>
+                  <td data-label={t('common.obs')} style={{ fontSize: 11, color: 'var(--text2)' }}>{v.obs || '—'}</td>
+                  <td data-label={t('common.revenue')} style={{ textAlign: 'right', fontWeight: 700 }}>{fmtYen(v.receita)}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr>
                 <td colSpan={3} style={{ fontWeight: 700 }}>{t('common.total')} ({vendasDetalhe.length})</td>
-                <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--navy)' }}>{fmtYen(receitaTotal)}</td>
+                <td data-label={t('common.total')} style={{ textAlign: 'right', fontWeight: 800, color: 'var(--navy)' }}>{fmtYen(receitaTotal)}</td>
               </tr>
             </tfoot>
           </table>
@@ -196,17 +196,17 @@ export default function RelatorioTab() {
 
       <PortalSurface title={t('report.purchasedItems')}>
         {porProdutoComprado.length === 0 ? <Empty text={t('report.noItems')} /> : (
-          <table>
+          <table className="phone-stack">
             <thead>
               <tr><th>{t('common.product')}</th><th style={{ textAlign: 'right' }}>{t('common.qty')}</th><th style={{ textAlign: 'right' }}>{t('common.total')}</th><th style={{ textAlign: 'right' }}>{t('report.avgPrice')}</th></tr>
             </thead>
             <tbody>
               {porProdutoComprado.map(p => (
                 <tr key={p.nome}>
-                  <td>{p.nome}</td>
-                  <td style={{ textAlign: 'right' }}>{p.qtd}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--red)' }}>{fmtYen(p.custoTotal)}</td>
-                  <td style={{ textAlign: 'right', color: 'var(--text2)' }}>{p.qtd ? fmtYen(Math.round(p.custoTotal / p.qtd)) : '—'}</td>
+                  <td data-label={t('common.product')}>{p.nome}</td>
+                  <td data-label={t('common.qty')} style={{ textAlign: 'right' }}>{p.qtd}</td>
+                  <td data-label={t('common.total')} style={{ textAlign: 'right', fontWeight: 700, color: 'var(--red)' }}>{fmtYen(p.custoTotal)}</td>
+                  <td data-label={t('report.avgPrice')} style={{ textAlign: 'right', color: 'var(--text2)' }}>{p.qtd ? fmtYen(Math.round(p.custoTotal / p.qtd)) : '—'}</td>
                 </tr>
               ))}
             </tbody>

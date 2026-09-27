@@ -932,6 +932,20 @@ html[data-layout="tablet"] .workspace-chrome {
   padding: 20px 24px;
   margin-bottom: 16px;
   box-shadow: var(--shadow);
+  display: flow-root;
+  max-width: 100%;
+  min-width: 0;
+}
+.grid2 > *,
+.grid3 > *,
+.grid4 > * {
+  min-width: 0;
+}
+.bar-add-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px auto;
+  gap: 10px;
+  align-items: end;
 }
 .portal-section-title {
   font-size: 14px;
@@ -1211,11 +1225,98 @@ body.menu-open {
   .card:has(> table) table {
     min-width: 520px;
   }
+
+  html[data-layout="desktop"] .grid4,
+  html[data-layout="desktop"] .admin-kpi-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  html[data-layout="desktop"] .grid3,
+  html[data-layout="desktop"] .grid2 {
+    grid-template-columns: 1fr !important;
+  }
+  .bar-add-row {
+    grid-template-columns: minmax(0, 1fr) 72px;
+  }
+  .bar-add-row .btn-primary {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 480px) {
+  html[data-layout="desktop"] .grid4,
+  html[data-layout="desktop"] .admin-kpi-grid {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 @media (max-width: 480px) {
   .grid4 { grid-template-columns: 1fr; }
   .metric-card-hover:hover { transform: none; }
+}
+
+@media (max-width: 720px) {
+  .portal-surface-card:has(> table.phone-stack) {
+    overflow: visible !important;
+    padding: 12px !important;
+  }
+  table.phone-stack {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+  table.phone-stack thead {
+    display: none;
+  }
+  table.phone-stack tbody,
+  table.phone-stack tfoot,
+  table.phone-stack tr,
+  table.phone-stack td {
+    display: block;
+    width: auto;
+  }
+  table.phone-stack tr {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin: 0 0 10px;
+    padding: 8px 12px;
+    background: var(--bg);
+  }
+  table.phone-stack td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    border: none;
+    padding: 6px 0;
+    text-align: right;
+    white-space: normal;
+    max-width: none;
+  }
+  table.phone-stack td::before {
+    content: attr(data-label);
+    flex: 0 0 42%;
+    text-align: left;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text3);
+  }
+  table.phone-stack td.phone-stack-actions {
+    justify-content: flex-end;
+  }
+  table.phone-stack td.phone-stack-actions::before {
+    content: none;
+  }
+  table.phone-stack td > input,
+  table.phone-stack td > select {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+  }
+  table.phone-stack tfoot td {
+    font-weight: 700;
+  }
 }
 
 .nav-item {
@@ -2292,6 +2393,15 @@ html[data-layout="tablet"] .app-main {
 .pos-head-title { font-size: 22px; font-weight: 800; }
 .pos-head-sub { font-size: 13px; color: var(--text2); margin-top: 4px; }
 .pos-head-today { text-align: right; }
+html[data-device="phone"] .pos-head-today {
+  width: 100%;
+  text-align: left;
+}
+html[data-device="phone"] .pos-head-count {
+  white-space: normal;
+  line-height: 1.45;
+  max-width: 100%;
+}
 .pos-head-label { font-size: 11px; color: var(--text2); text-transform: uppercase; }
 .pos-head-total { font-size: 20px; font-weight: 800; color: var(--green); }
 .pos-head-count { font-size: 11px; color: var(--text2); }
