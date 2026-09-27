@@ -44,3 +44,46 @@ Ainda para remover, quando o piso novo cobrir serviço, VIP e desconto: `PosChec
 ## Procurement
 
 O POS termina em `estoque_movimentos` e `pos_bottles`. Não há reposição automática nem alteração de Procurement.
+
+## Dia operacional e caixa
+
+`pos_vendas.data` é a noite do caixa: antes das 06:00 em Asia/Tokyo pertence à noite anterior. `caixa_movimentos.data` continua sendo o instante real (`now()`), e não é apagado. `caixa_movimentos.operational_day` repete essa noite no momento do lançamento. O fechamento lê os dois: bruto, estornos e líquido vêm das vendas; o movimento de caixa (`pos_venda`, `pos_void`, `taxa_cartao`, `taxa_cartao_estorno`) entra pela noite operacional. Um lançamento de outro livro, como `venda` da JBM, não entra nessa conta.
+
+Um estorno feito noutra noite fica na noite do estorno. A linha de fechamento mostra o líquido das vendas e o líquido do caixa lado a lado. Se um estorno atravessa a noite, os dois números deixam de coincidir de propósito.
+
+## Garrafa na tela
+
+Waste, breakage, spill, complimentary e adjustment usam `pos_bottle_move`. O motivo é obrigatório. A função grava o usuário, o instante, o volume, o status e um evento em `pos_sale_events`. Não há tabela nova.
+
+## Permissões
+
+Nada foi alterado. A matriz abaixo é o que o código já faz.
+
+| Papel | Abre o POS | Abre garrafa / vende / fecha / estorna / waste | Vê garrafas (SELECT) | Outro bar via RPC | Outro bar via SELECT |
+| --- | --- | --- | --- | --- | --- |
+| admin | não, pelo portal do bar | sim | sim | sim | sim |
+| jbm | não, pelo portal do bar | sim | não | sim | não |
+| gerente, caixa, bar_staff, cliente | sim, no próprio bar | sim, no próprio bar | sim, no próprio bar | não | não |
+| fornecedor, funcionario, staff | não | não | não | não | não |
+
+`cliente` aqui é o papel antigo do dono do bar, não um cliente da mesa. Quem passa em `pos_require_bar` pode chamar todas as RPCs do piso, inclusive estorno e waste. Não há uma permissão separada para estorno. jbm chama a RPC porque `pos_require_bar` aceita `admin` e `jbm`, mas a política de SELECT continua sendo `user_can_access_bar`, que não inclui jbm.
+
+## O que o piso novo não chama
+
+`PosFloor` não chama `commitPosSale`, `create_order`, `syncPosStockAndReorder` nem `deductBottlesForPosSale`. Esses nomes continuam em `AtomicPos` só no Previous till, escondido do caixa.
+
+Depois de validar em produção, o que pode sair é o Previous till: `PosCheckoutTab`, `commitPosSale`, `rollbackPosSale` e `deductBottlesForPosSale` / `syncPosStockAndReorder` quando o uso diário não depender mais de serviço, VIP, desconto e keep pour. `create_order` fica: é o livro `vendas` da JBM, não o caixa do bar.
+
+## Suíte de Postgres
+
+`npm run test:pos:pg` não faz nada sem `POS_PG_TEST_URL`. Recusa host `supabase.co` e qualquer base cujo nome não termine em `_test`, a menos que `POS_PG_ALLOW=1`. Não aplicar este comando na base real.
+
+## Checklist da primeira instalação
+
+1. Confirmar que a base de teste não é a de produção.
+2. Aplicar `sql/pos_sale_security.sql` se `user_can_access_bar` ainda deixar `staff` ou `funcionario` entrar só porque `perfis.bar_id` está preenchido.
+3. Aplicar `sql/pos_floor.sql` inteiro. Ele acrescenta `operational_day` e preenche as linhas antigas de `caixa_movimentos` com `pos_tokyo_night(data)`.
+4. Confirmar `produtos.volume_ml` nas garrafas que serão abertas.
+5. Criar ao menos uma receita em `pos_recipes` / `pos_recipe_lines` para cada drink do cardápio antes de cobrar.
+6. Abrir uma garrafa, lançar o drink em dois aparelhos, cobrar uma vez, estornar uma unidade e ler o fechamento da noite.
+7. Rodar `POS_PG_TEST_URL=postgres://.../pos_test npm run test:pos:pg` numa base vazia cujo nome termine em `_test`.

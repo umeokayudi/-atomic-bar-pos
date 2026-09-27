@@ -16,13 +16,14 @@ import {
   openBottlesConcurrent,
   openOrResume,
   operationalNight,
+  posPermission,
   postBottleMove,
   previewSale,
   rememberClose,
   removeTicketItem,
   voidSale,
 } from '../src/lib/posFloor.js'
-import { nightSettlement, summarizeNight } from '../src/lib/nightClose.js'
+import { movementOperationalDay, nightSettlement, reconcileNight, summarizeNight } from '../src/lib/nightClose.js'
 import { tokyoWallToUtcMs } from '../src/lib/tokyo.js'
 
 const hennessy = { id: 'prod-h', nome: 'Hennessy XO', custo: 18000, volume_ml: 700 }
@@ -268,6 +269,10 @@ const complimentary = postBottleMove(
   { kind: 'complimentary', volumeMl: 30, employeeId: 'emp-1', reason: 'guest' },
 )
 assert.equal(complimentary.bottle.status, 'depleted')
+assert.throws(() => postBottleMove(
+  { id: 'b8', status: 'opened', volume_atual: 30, volume_original: 700 },
+  { kind: 'waste', volumeMl: 5, employeeId: 'emp-1' },
+), /reason required/)
 assert.throws(() => lineFromCatalogCross())
 
 function lineFromCatalogCross() {
@@ -338,11 +343,77 @@ assert.match(floor, /pos_preview_ticket/)
 assert.match(floor, /pos_ticket_item/)
 assert.doesNotMatch(floor, /preco_unitario:/)
 assert.doesNotMatch(floor, /previewSale/)
-assert.doesNotMatch(floor, /p_volume/)
+assert.match(floor, /pos_bottle_move/)
+assert.doesNotMatch(floor.slice(0, floor.indexOf('pos_bottle_move')), /p_volume/)
 assert.match(floor, /error\.message/)
 
 const panel = readFileSync('src/components/AtomicPos.jsx', 'utf8')
 assert.match(panel, /access !== 'cashier'/)
 assert.match(panel, /legacyIsolated/)
+assert.match(sql, /operational_day/)
+assert.match(sql, /reason required/)
+assert.doesNotMatch(floor, /commitPosSale|create_order|syncPosStockAndReorder|deductBottlesForPosSale/)
+assert.match(panel, /commitPosSale/)
+assert.match(panel, /syncPosStockAndReorder/)
+
+const at0530 = new Date(tokyoWallToUtcMs(2026, 9, 28, 5, 30)).toISOString()
+const at0600 = new Date(tokyoWallToUtcMs(2026, 9, 28, 6, 0)).toISOString()
+assert.equal(movementOperationalDay({ data: at0530 }), '2026-09-27')
+assert.equal(movementOperationalDay({ data: at0600 }), '2026-09-28')
+assert.equal(movementOperationalDay({ data: at0600, operational_day: '2026-09-27' }), '2026-09-27')
+assert.equal(movementOperationalDay({ data: '2026-09-28' }), '2026-09-28')
+const books = reconcileNight(
+  [{ total: 10000, refunded: 2000, metodo_pagamento: 'card', card_fee: 378, card_fee_reversed: 76, data: '2026-09-27', criado_em: at0530 }],
+  [
+    { tipo: 'entrada', valor: 10000, referencia_tipo: 'pos_venda', data: at0530 },
+    { tipo: 'saida', valor: 378, referencia_tipo: 'taxa_cartao', data: at0530 },
+    { tipo: 'saida', valor: 2000, referencia_tipo: 'pos_void', operational_day: '2026-09-27', data: at0600 },
+    { tipo: 'entrada', valor: 76, referencia_tipo: 'taxa_cartao_estorno', operational_day: '2026-09-27', data: at0600 },
+    { tipo: 'entrada', valor: 999, referencia_tipo: 'venda', data: at0530 },
+  ],
+  '2026-09-27',
+)
+assert.equal(books.gross_sales, 10000)
+assert.equal(books.refunds, 2000)
+assert.equal(books.net_sales, 8000)
+assert.equal(books.card_fees, 378 - 76)
+assert.equal(books.cashNet, 10000 - 2000 - 378 + 76)
+assert.equal(books.aligned, true)
+assert.equal(books.cashIn, 10000)
+
+const roles = ['admin', 'jbm', 'gerente', 'caixa', 'bar_staff', 'cliente', 'fornecedor', 'funcionario', 'staff']
+const matrix = Object.fromEntries(roles.map(role => [role, posPermission(role, { sameBar: true })]))
+for (const role of ['gerente', 'caixa', 'bar_staff', 'cliente']) {
+  assert.equal(matrix[role].openPos, true)
+  assert.equal(matrix[role].openBottle, true)
+  assert.equal(matrix[role].sell, true)
+  assert.equal(matrix[role].close, true)
+  assert.equal(matrix[role].voidSale, true)
+  assert.equal(matrix[role].waste, true)
+  assert.equal(matrix[role].seeBottles, true)
+  assert.equal(matrix[role].rpc, true)
+  assert.equal(matrix[role].select, true)
+  assert.equal(posPermission(role, { sameBar: false }).rpc, false)
+  assert.equal(posPermission(role, { sameBar: false }).select, false)
+}
+assert.equal(matrix.admin.openPos, false)
+assert.equal(matrix.admin.rpc, true)
+assert.equal(matrix.admin.select, true)
+assert.equal(matrix.admin.otherBarRpc, true)
+assert.equal(matrix.admin.otherBarSelect, true)
+assert.equal(matrix.jbm.openPos, false)
+assert.equal(matrix.jbm.rpc, true)
+assert.equal(matrix.jbm.select, false)
+assert.equal(matrix.jbm.seeBottles, false)
+assert.equal(matrix.jbm.otherBarRpc, true)
+assert.equal(matrix.jbm.otherBarSelect, false)
+for (const role of ['fornecedor', 'funcionario', 'staff']) {
+  assert.equal(matrix[role].openPos, false)
+  assert.equal(matrix[role].rpc, false)
+  assert.equal(matrix[role].select, false)
+  assert.equal(matrix[role].openBottle, false)
+  assert.equal(matrix[role].voidSale, false)
+  assert.equal(matrix[role].waste, false)
+}
 
 console.log('pos floor tests passed')

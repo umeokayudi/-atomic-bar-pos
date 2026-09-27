@@ -110,6 +110,7 @@ export function postBottleMove(bottle, { kind, volumeMl, employeeId, reason }) {
   const volume = Math.round(+volumeMl || 0)
   if (volume <= 0) throw new Error('invalid volume')
   if (!employeeId) throw new Error('employee required')
+  if (LOSS_KINDS.has(kind) && !String(reason || '').trim()) throw new Error('reason required')
   if (kind !== 'refund' && volume > (+bottle.volume_atual || 0)) throw new Error('insufficient bottle volume')
   const volumeAtual = kind === 'refund'
     ? Math.round((+bottle.volume_atual || 0) + volume)
@@ -124,7 +125,7 @@ export function postBottleMove(bottle, { kind, volumeMl, employeeId, reason }) {
       kind,
       volume_ml: volume,
       employee_id: employeeId,
-      reason: reason || kind,
+      reason: LOSS_KINDS.has(kind) ? String(reason).trim() : (reason || kind),
     },
   }
 }
@@ -473,4 +474,33 @@ export function commitClose(store, key, vendaId, { failBeforeWrite = false } = {
 
 export function operationalNight(iso) {
   return tokyoNightKey(new Date(iso))
+}
+
+const FLOOR_ROLES = new Set(['cliente', 'gerente', 'caixa', 'bar_staff'])
+
+/**
+ * Mirrors the SQL and the bar shell. It does not grant anything.
+ * RPC: pos_require_bar = user_can_access_bar OR admin/jbm.
+ * SELECT: user_can_access_bar only (admin, or the four floor roles on their own bar).
+ * The till screen is the bar portal, which admin and jbm do not open as themselves.
+ */
+export function posPermission(role, { sameBar = true } = {}) {
+  const floor = sameBar && FLOOR_ROLES.has(role)
+  const hqRpc = role === 'admin' || role === 'jbm'
+  const rpc = hqRpc || floor
+  const select = role === 'admin' || floor
+  const tillScreen = sameBar && FLOOR_ROLES.has(role)
+  return {
+    openPos: tillScreen,
+    openBottle: rpc,
+    sell: rpc,
+    close: rpc,
+    voidSale: rpc,
+    waste: rpc,
+    seeBottles: select,
+    otherBarRpc: role === 'admin' || role === 'jbm',
+    otherBarSelect: role === 'admin',
+    rpc,
+    select,
+  }
 }

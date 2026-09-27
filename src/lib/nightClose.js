@@ -117,6 +117,20 @@ export function saleCardFee(sale) {
   return cardFee(net, 'card')
 }
 
+const POS_CASH_TYPES = new Set(['pos_venda', 'taxa_cartao', 'pos_void', 'taxa_cartao_estorno'])
+
+/** Till night of a cash row. The stored operational_day wins. A real timestamp uses 06:00 JST. A date-only value is already a label and is not shifted. */
+export function movementOperationalDay(move) {
+  if (move?.operational_day) return String(move.operational_day).slice(0, 10)
+  const stamp = move?.data || move?.created_at
+  if (!stamp) return ''
+  const text = String(stamp).trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text.slice(0, 10)
+  const parsed = new Date(text)
+  if (Number.isNaN(parsed.getTime())) return ''
+  return tokyoNightKey(parsed)
+}
+
 export function nightSettlement(sales = []) {
   const gross_sales = (sales || []).reduce((sum, sale) => sum + saleGross(sale), 0)
   const refunds = (sales || []).reduce((sum, sale) => sum + saleRefund(sale), 0)
@@ -168,6 +182,43 @@ export function summarizeNight(sales = [], nightKey = tokyoNightKey()) {
     paypayTotal: pay.paypay,
     otherTotal: pay.other,
     expectedCash: pay.Cash,
+  }
+}
+
+/**
+ * Sales stay on pos_vendas.data (the operational night).
+ * Cash keeps its real timestamp and is grouped by operational_day.
+ * aligned is true when the till-night cash net matches net sales minus the card fee still on the books.
+ */
+export function reconcileNight(sales = [], movements = [], nightKey = tokyoNightKey()) {
+  const books = summarizeNight(sales, nightKey)
+  let cashIn = 0
+  let cashOut = 0
+  let feePaid = 0
+  let feeReversed = 0
+  for (const move of movements || []) {
+    if (movementOperationalDay(move) !== nightKey) continue
+    if (!POS_CASH_TYPES.has(move.referencia_tipo)) continue
+    const amount = Math.round(+move.valor || 0)
+    if (move.referencia_tipo === 'pos_venda' && move.tipo === 'entrada') cashIn += amount
+    else if (move.referencia_tipo === 'pos_void' && move.tipo === 'saida') cashOut += amount
+    else if (move.referencia_tipo === 'taxa_cartao' && move.tipo === 'saida') feePaid += amount
+    else if (move.referencia_tipo === 'taxa_cartao_estorno' && move.tipo === 'entrada') feeReversed += amount
+  }
+  const cashNet = cashIn - cashOut - feePaid + feeReversed
+  const salesAfterFees = books.netSales - books.cardFees
+  return {
+    ...books,
+    gross_sales: books.grossSales,
+    net_sales: books.netSales,
+    card_fees: books.cardFees,
+    cashIn,
+    cashOut,
+    feePaid,
+    feeReversed,
+    cashNet,
+    salesAfterFees,
+    aligned: cashNet === salesAfterFees,
   }
 }
 

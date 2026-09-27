@@ -24,7 +24,7 @@ import { tokyoMonthKey, tokyoNightKey } from '../lib/tokyo'
 import { useI18n } from '../lib/i18n'
 import { matchCheckoutVisit, spacesByZone, activeKeeps } from '../lib/barCrm'
 import { packTicketObs, ticketChargeLines, settingsFromRow, DEFAULT_POS_SETTINGS, effectiveServicePct } from '../lib/nightTicket'
-import { summarizeNight, closeVariance, saleOnNight, prevTokyoDateKey, lastBusyNight } from '../lib/nightClose'
+import { summarizeNight, reconcileNight, nightWindow, closeVariance, saleOnNight, prevTokyoDateKey, lastBusyNight } from '../lib/nightClose'
 import { CASH_CHIPS, cashSettle, isCashMethod, payRecordNote } from '../lib/posPay'
 import { printGuestReceipt } from '../lib/guestReceipt'
 import { drinkBackCommission } from '../lib/drinkBackPay'
@@ -71,19 +71,35 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [nightSales, setNightSales] = useState(salesHint || [])
+  const [cashMoves, setCashMoves] = useState([])
   const [open, setOpen] = useState(!compact)
 
   useEffect(() => {
+    const bounds = nightWindow(nightKey)
+    const salesRich = 'id,total,refunded,card_fee,card_fee_reversed,data,criado_em,metodo_pagamento,obs'
+    const cashRich = 'tipo,valor,referencia_tipo,data,operational_day'
     Promise.all([
       supabase.from('pos_shifts').select('*').eq('bar_id', bar.id).eq('night_key', nightKey).maybeSingle(),
-      supabase.from('pos_vendas').select('id,total,data,criado_em,metodo_pagamento,obs').eq('bar_id', bar.id).gte('data', `${tokyoMonthKey()}-01`),
-    ]).then(([sh, sl]) => {
+      supabase.from('pos_vendas').select(salesRich).eq('bar_id', bar.id).gte('data', `${tokyoMonthKey()}-01`),
+      supabase.from('caixa_movimentos').select(cashRich).eq('bar_id', bar.id).gte('data', bounds.from).lte('data', bounds.to),
+    ]).then(async ([sh, sl, cash]) => {
       setShift(sh.data || null)
-      setNightSales(sl.data || salesHint || [])
+      if (sl.error && /refunded|card_fee/.test(sl.error.message || '')) {
+        const plain = await supabase.from('pos_vendas').select('id,total,data,criado_em,metodo_pagamento,obs').eq('bar_id', bar.id).gte('data', `${tokyoMonthKey()}-01`)
+        setNightSales(plain.data || salesHint || [])
+      } else {
+        setNightSales(sl.data || salesHint || [])
+      }
+      if (cash.error && /operational_day/.test(cash.error.message || '')) {
+        const plain = await supabase.from('caixa_movimentos').select('tipo,valor,referencia_tipo,data').eq('bar_id', bar.id).gte('data', bounds.from).lte('data', bounds.to)
+        setCashMoves(plain.data || [])
+      } else {
+        setCashMoves(cash.data || [])
+      }
     }).catch(() => setShift(null))
   }, [bar.id, nightKey, lastNightKey, salesHint.length])
 
-  const summary = summarizeNight(nightSales, nightKey)
+  const summary = reconcileNight(nightSales, cashMoves, nightKey)
   const lastNight = summarizeNight(nightSales, lastNightKey)
   const lastBusy = lastBusyNight(nightSales, nightKey)
   const prior = lastNight.ticketCount > 0
@@ -108,11 +124,17 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
   async function closeNight() {
     setBusy(true)
     setMsg('')
-    const { data: rows } = await supabase.from('pos_vendas')
-      .select('id,total,data,criado_em,metodo_pagamento,obs')
+    let salesRes = await supabase.from('pos_vendas')
+      .select('id,total,refunded,card_fee,card_fee_reversed,data,criado_em,metodo_pagamento,obs')
       .eq('bar_id', bar.id)
       .gte('data', lastNightKey)
-    const sum = summarizeNight(rows || salesHint, nightKey)
+    if (salesRes.error && /refunded|card_fee/.test(salesRes.error.message || '')) {
+      salesRes = await supabase.from('pos_vendas')
+        .select('id,total,data,criado_em,metodo_pagamento,obs')
+        .eq('bar_id', bar.id)
+        .gte('data', lastNightKey)
+    }
+    const sum = reconcileNight(salesRes.data || salesHint, cashMoves, nightKey)
     const countedCash = counted === '' ? sum.expectedCash : +counted
     const row = {
       bar_id: bar.id,
@@ -157,6 +179,15 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
               cash: fmtYen(summary.cashTotal),
               card: fmtYen(summary.cardTotal),
               paypay: fmtYen(summary.paypayTotal || 0),
+            })}
+          </div>
+          <div className="pos-close-split">
+            {t('atomicPos.booksLine', {
+              gross: fmtYen(summary.gross_sales || summary.grossSales || 0),
+              refunds: fmtYen(summary.refunds || 0),
+              net: fmtYen(summary.net_sales || summary.netSales || summary.drinksTotal || 0),
+              fees: fmtYen(summary.card_fees || summary.cardFees || 0),
+              cash: fmtYen(summary.cashNet || 0),
             })}
           </div>
           {summary.ticketCount === 0 && prior && (

@@ -6,6 +6,7 @@ import { schemaMissing } from '../lib/fulfillment'
 import { groupSpaces } from '../lib/posFloor'
 
 const PAY = ['cash', 'card', 'credit', 'other']
+const BOTTLE_MOVES = ['waste', 'breakage', 'spill', 'complimentary', 'adjustment']
 
 function closeKey(ticketId) {
   const storageKey = `pos-close:${ticketId}`
@@ -33,6 +34,10 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
   const [bottleCode, setBottleCode] = useState('')
   const [bottleProduct, setBottleProduct] = useState('')
   const [bottles, setBottles] = useState([])
+  const [lossBottle, setLossBottle] = useState('')
+  const [lossKind, setLossKind] = useState('waste')
+  const [lossMl, setLossMl] = useState('')
+  const [lossReason, setLossReason] = useState('')
 
   useEffect(() => { setErr(catalogError || '') }, [catalogError])
 
@@ -210,6 +215,35 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
     if (ticket?.id) await refreshPreview(ticket.id)
   }
 
+  async function reloadBoard() {
+    const board = await supabase.rpc('pos_bottle_board', { p_bar: bar.id })
+    if (!board.error) setBottles(board.data || [])
+  }
+
+  async function postBottleLoss() {
+    if (!lossBottle || busy) return
+    if (!lossReason.trim()) {
+      setErr(t('posFloor.reasonRequired'))
+      return
+    }
+    setBusy(true)
+    setErr('')
+    const { error } = await supabase.rpc('pos_bottle_move', {
+      p_bottle: lossBottle,
+      p_kind: lossKind,
+      p_volume: Math.round(+lossMl || 0),
+      p_reason: lossReason.trim(),
+    })
+    setBusy(false)
+    if (error) {
+      setErr(error.message)
+      return
+    }
+    setLossMl('')
+    setLossReason('')
+    await reloadBoard()
+  }
+
   async function changePay(id) {
     setPay(id)
     if (ticket?.id) await refreshPreview(ticket.id, id, agentId)
@@ -334,12 +368,24 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
 
       <div className="pos-floor-bottles">
         {(Array.isArray(bottles) ? bottles : []).filter(row => row.status === 'opened').slice(0, 6).map(row => (
-          <div key={row.id}>
+          <button key={row.id} type="button" className={lossBottle === row.id ? 'is-on' : ''} onClick={() => setLossBottle(row.id)}>
             {row.produto_nome ? `${row.produto_nome} · ` : ''}{row.code} · {row.volume_atual}/{row.volume_original} ml
             {row.remaining_pct != null ? ` · ${row.remaining_pct}%` : ''}
-          </div>
+          </button>
         ))}
       </div>
+      {lossBottle && (
+        <div className="pos-floor-open">
+          <select value={lossKind} onChange={e => setLossKind(e.target.value)}>
+            {BOTTLE_MOVES.map(kind => (
+              <option key={kind} value={kind}>{t(`posFloor.move_${kind}`)}</option>
+            ))}
+          </select>
+          <input value={lossMl} onChange={e => setLossMl(e.target.value)} inputMode="numeric" placeholder={t('posFloor.moveMl')} />
+          <input value={lossReason} onChange={e => setLossReason(e.target.value)} placeholder={t('posFloor.moveReason')} />
+          <button type="button" onClick={postBottleLoss}>{t('posFloor.moveSave')}</button>
+        </div>
+      )}
     </div>
   )
 }

@@ -206,6 +206,15 @@ $$;
 REVOKE ALL ON FUNCTION public.pos_require_bar(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.pos_require_bar(uuid) TO authenticated;
 
+-- Real clock stays in caixa_movimentos.data. operational_day is the till night:
+-- 00:00–05:59 Asia/Tokyo belongs to the previous night; 06:00 starts the new one.
+ALTER TABLE public.caixa_movimentos ADD COLUMN IF NOT EXISTS operational_day date;
+
+UPDATE public.caixa_movimentos
+SET operational_day = public.pos_tokyo_night(data::timestamptz)
+WHERE operational_day IS NULL
+  AND data IS NOT NULL;
+
 CREATE OR REPLACE FUNCTION public.pos_log(
   p_bar uuid,
   p_kind text,
@@ -544,6 +553,9 @@ BEGIN
     RAISE EXCEPTION 'bottle missing';
   END IF;
   actor := public.pos_require_bar(bottle.bar_id);
+  IF p_reason IS NULL OR btrim(p_reason) = '' THEN
+    RAISE EXCEPTION 'reason required';
+  END IF;
   IF p_volume IS NULL OR p_volume <= 0 OR p_volume > bottle.volume_atual THEN
     RAISE EXCEPTION 'insufficient bottle volume';
   END IF;
@@ -556,10 +568,10 @@ BEGIN
         END
     WHERE id = bottle.id;
   INSERT INTO public.pos_bottle_moves (bottle_id, bar_id, produto_id, kind, volume_ml, employee_id, reason)
-  VALUES (bottle.id, bottle.bar_id, bottle.produto_id, p_kind, p_volume, actor, COALESCE(p_reason, p_kind))
+  VALUES (bottle.id, bottle.bar_id, bottle.produto_id, p_kind, p_volume, actor, btrim(p_reason))
   RETURNING id INTO move_id;
   PERFORM public.pos_log(
-    bottle.bar_id, p_kind, actor, NULL, NULL, bottle.id, p_volume, COALESCE(p_reason, p_kind)
+    bottle.bar_id, p_kind, actor, NULL, NULL, bottle.id, p_volume, btrim(p_reason)
   );
   RETURN move_id;
 END;
@@ -961,12 +973,12 @@ BEGIN
     END IF;
   END LOOP;
 
-  INSERT INTO public.caixa_movimentos (bar_id, tipo, valor, descricao, referencia_id, referencia_tipo, data)
-  VALUES (p_bar, 'entrada', subtotal, 'POS ' || COALESCE(p_payment, 'cash'), venda, 'pos_venda', now());
+  INSERT INTO public.caixa_movimentos (bar_id, tipo, valor, descricao, referencia_id, referencia_tipo, data, operational_day)
+  VALUES (p_bar, 'entrada', subtotal, 'POS ' || COALESCE(p_payment, 'cash'), venda, 'pos_venda', now(), night);
 
   IF fee > 0 THEN
-    INSERT INTO public.caixa_movimentos (bar_id, tipo, valor, descricao, referencia_id, referencia_tipo, data)
-    VALUES (p_bar, 'saida', fee, 'Taxa cartão (3.78%)', venda, 'taxa_cartao', now());
+    INSERT INTO public.caixa_movimentos (bar_id, tipo, valor, descricao, referencia_id, referencia_tipo, data, operational_day)
+    VALUES (p_bar, 'saida', fee, 'Taxa cartão (3.78%)', venda, 'taxa_cartao', now(), night);
   END IF;
 
   UPDATE public.pos_tickets
@@ -1017,6 +1029,7 @@ DECLARE
   commission_back integer := 0;
   gross integer;
   already integer;
+  void_night date;
   qty_left integer;
   row record;
   need_ml integer;
@@ -1105,12 +1118,13 @@ BEGIN
     sale.bar_id, p_kind, actor, sale.id, NULL, NULL, value, p_reason, p_approver
   );
 
-  INSERT INTO public.caixa_movimentos (bar_id, tipo, valor, descricao, referencia_id, referencia_tipo, data)
-  VALUES (sale.bar_id, 'saida', value, 'POS ' || p_kind, sale.id, 'pos_void', now());
+  void_night := public.pos_tokyo_night(now());
+  INSERT INTO public.caixa_movimentos (bar_id, tipo, valor, descricao, referencia_id, referencia_tipo, data, operational_day)
+  VALUES (sale.bar_id, 'saida', value, 'POS ' || p_kind, sale.id, 'pos_void', now(), void_night);
 
   IF fee_part > 0 THEN
-    INSERT INTO public.caixa_movimentos (bar_id, tipo, valor, descricao, referencia_id, referencia_tipo, data)
-    VALUES (sale.bar_id, 'entrada', fee_part, 'Estorno taxa cartão', sale.id, 'taxa_cartao_estorno', now());
+    INSERT INTO public.caixa_movimentos (bar_id, tipo, valor, descricao, referencia_id, referencia_tipo, data, operational_day)
+    VALUES (sale.bar_id, 'entrada', fee_part, 'Estorno taxa cartão', sale.id, 'taxa_cartao_estorno', now(), void_night);
   END IF;
 
   UPDATE public.pos_vendas
