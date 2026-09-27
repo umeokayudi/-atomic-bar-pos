@@ -1,5 +1,5 @@
 import { fixAtomicReceivables, revertAtomicPedidosToJune } from './_atomicJuneFix.js'
-import { requireStaff, requireStaffOrTrustedOrigin } from './_requireStaff.js'
+import { requireGlobalFinance } from './_requireStaff.js'
 import { drinksAdminClient } from './_supabaseAdmin.js'
 import { buildLiveSnapshot } from './_cashflowSnapshot.js'
 
@@ -27,13 +27,8 @@ export default async function handler(req, res) {
   try {
     const sb = drinksAdminClient()
 
-    if (req.query.revertPedidosJune === '1' || req.query.fixAtomicJune === '1') {
-      const auth = await requireStaff(req, sb)
-      if (auth.error) return res.status(auth.status).json({ error: auth.error })
-    } else {
-      const auth = await requireStaffOrTrustedOrigin(req, sb)
-      if (auth.error) return res.status(auth.status).json({ error: auth.error })
-    }
+    const auth = await requireGlobalFinance(req, sb)
+    if (auth.error) return res.status(auth.status).json({ error: auth.error })
 
     if (req.query.revertPedidosJune === '1' && req.query.confirm === 'atomic-june-465000') {
       const revert = await revertAtomicPedidosToJune(sb)

@@ -1,4 +1,4 @@
-import { requireStaff } from './_requireStaff.js'
+import { requireGlobalFinance } from './_requireStaff.js'
 import { drinksAdminClient } from './_supabaseAdmin.js'
 
 /** Compras via service role — contorna RLS quando scripts importam sem criado_por */
@@ -7,7 +7,7 @@ export default async function handler(req, res) {
 
   try {
     const admin = drinksAdminClient()
-    const auth = await requireStaff(req, admin)
+    const auth = await requireGlobalFinance(req, admin)
     if (auth.error) return res.status(auth.status).json({ error: auth.error })
 
     const month = req.query?.month || ''

@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { fixAtomicReceivables, revertAtomicPedidosToJune } from './_atomicJuneFix.js'
 import { isSupplierVenda } from './_supplierVenda.js'
-import { requireStaff, requireStaffOrTrustedOrigin } from './_requireStaff.js'
+import { requireGlobalFinance } from './_requireStaff.js'
 import { drinksAdminClient } from './_supabaseAdmin.js'
 
 const BUCKET = 'system-private'
@@ -50,7 +50,7 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     try {
       const sb = drinksAdminClient()
-      const auth = await requireStaff(req, sb)
+      const auth = await requireGlobalFinance(req, sb)
       if (auth.error) return res.status(auth.status).json({ error: auth.error })
 
       const holdingKey = req.body?.holdingKey?.trim()
@@ -85,13 +85,8 @@ export default async function handler(req, res) {
   try {
     const sb = drinksAdminClient()
 
-    if (req.query.revertPedidosJune === '1' || req.query.fixAtomicJune === '1') {
-      const auth = await requireStaff(req, sb)
-      if (auth.error) return res.status(auth.status).json({ error: auth.error })
-    } else {
-      const auth = await requireStaffOrTrustedOrigin(req, sb)
-      if (auth.error) return res.status(auth.status).json({ error: auth.error })
-    }
+    const auth = await requireGlobalFinance(req, sb)
+    if (auth.error) return res.status(auth.status).json({ error: auth.error })
 
     if (req.query.revertPedidosJune === '1' && req.query.confirm === 'atomic-june-465000') {
       const revert = await revertAtomicPedidosToJune(sb)

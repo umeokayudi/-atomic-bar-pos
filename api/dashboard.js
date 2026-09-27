@@ -1,4 +1,4 @@
-import { requireStaff as checkStaff } from './_requireStaff.js'
+import { requireGlobalFinance as checkStaff } from './_requireStaff.js'
 import { createStaffUserClient } from './_supabaseAdmin.js'
 import { isSupplierVenda } from './_supplierVenda.js'
 import {

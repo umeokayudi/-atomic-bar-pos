@@ -1,4 +1,4 @@
-import { requireStaff } from './_requireStaff.js'
+import { requireGlobalFinance } from './_requireStaff.js'
 import { drinksAdminClient } from './_supabaseAdmin.js'
 
 function needsBar(role) {
@@ -18,7 +18,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const auth = await requireStaff(req, admin)
+    const auth = await requireGlobalFinance(req, admin)
     if (auth.error) return res.status(auth.status).json({ error: auth.error })
 
     if (req.method === 'GET') {

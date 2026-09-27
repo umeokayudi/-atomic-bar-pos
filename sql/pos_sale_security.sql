@@ -14,7 +14,13 @@ AS $$
       SELECT 1
       FROM public.perfis p
       WHERE p.id = auth.uid()
-        AND (p.role = 'admin' OR p.bar_id = target_bar)
+        AND (
+          p.role = 'admin'
+          OR (
+            p.bar_id = target_bar
+            AND p.role IN ('cliente', 'gerente', 'caixa', 'bar_staff')
+          )
+        )
     );
 $$;
 

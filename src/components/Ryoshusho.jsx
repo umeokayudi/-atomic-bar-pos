@@ -3,11 +3,15 @@ import { supabase } from '../lib/supabase'
 import { fmtYen, fmtDate, Spinner, Empty, filterSupplierVendas, RowActions } from './utils'
 import { AdminPage, PortalSurface } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
+import { useAuth } from './Auth'
+import { barBookScope } from '../lib/legacyScope'
 
 const TAX_RATE = 0.10
 
 export default function RyoshushoTab() {
   const { t } = useI18n()
+  const { perfil } = useAuth()
+  const scope = barBookScope(perfil?.role, perfil?.bar_id)
   const [bars,      setBars]      = useState([])
   const [vendas,    setVendas]    = useState([])
   const [history,   setHistory]   = useState([])
@@ -26,16 +30,24 @@ export default function RyoshushoTab() {
   const [emitEnd,   setEmitEnd]   = useState('')
   const [emitTel,   setEmitTel]   = useState('')
 
-  useEffect(() => { loadAll() }, [])
+  useEffect(() => { loadAll() }, [perfil?.role, perfil?.bar_id])
 
   async function loadAll() {
     setLoading(true)
+    if (scope.kind === 'none') {
+      setBars([]); setVendas([]); setHistory([]); setLoading(false)
+      return
+    }
     try {
-      const [bRes, vRes, hRes] = await Promise.all([
-        supabase.from('bars').select('*').order('nome'),
-        supabase.from('vendas').select('*, vendas_itens(*, produtos(*))').order('data'),
-        supabase.from('ryoshusho').select('*, bars(nome)').order('criado_em', { ascending: false }).limit(50),
-      ])
+      let barsQ = supabase.from('bars').select('id,nome,cor').order('nome')
+      let vendasQ = supabase.from('vendas').select('*, vendas_itens(*, produtos(id,nome,preco_venda))').order('data')
+      let histQ = supabase.from('ryoshusho').select('*, bars(nome)').order('criado_em', { ascending: false }).limit(50)
+      if (scope.kind === 'bar') {
+        barsQ = barsQ.eq('id', scope.barId)
+        vendasQ = vendasQ.eq('bar_id', scope.barId)
+        histQ = histQ.eq('bar_id', scope.barId)
+      }
+      const [bRes, vRes, hRes] = await Promise.all([barsQ, vendasQ, histQ])
       const b = bRes.data || []
       const v = vRes.data || []
       const h = hRes.data || []
@@ -81,13 +93,15 @@ export default function RyoshushoTab() {
   const bar = bars.find(b => b.id === barId)
 
   async function saveAndDownload() {
-    if (!barId || !periodoIni || !periodoFim) return alert(t('ryoshusho.selectBarPeriod'))
+    const issueBar = scope.kind === 'bar' ? scope.barId : barId
+    if (scope.kind === 'none') return
+    if (!issueBar || !periodoIni || !periodoFim) return alert(t('ryoshusho.selectBarPeriod'))
     if (items.length === 0) return alert(t('ryoshusho.noSalesFound'))
     setGenerating(true)
 
     try {
       await supabase.from('ryoshusho').insert({
-        numero, bar_id: barId,
+        numero, bar_id: issueBar,
         data_emissao: dataEmis,
         periodo_inicio: periodoIni,
         periodo_fim: periodoFim,
@@ -158,9 +172,17 @@ export default function RyoshushoTab() {
       subtotal: Math.round(+ryoForm.total / 1.1),
       consumo_tax: +ryoForm.total - Math.round(+ryoForm.total / 1.1),
       data_emissao: ryoForm.data_emissao,
-    }).eq('id', editRyo.id)
+    }).eq('id', editRyo.id).eq('bar_id', scope.kind === 'bar' ? scope.barId : editRyo.bar_id)
     setEditRyo(null)
     loadAll()
+  }
+
+  if (scope.kind === 'none') {
+    return (
+      <AdminPage title={t('nav.ryoshusho')}>
+        <PortalSurface><Empty text={t('common.needBarLink')} /></PortalSurface>
+      </AdminPage>
+    )
   }
 
   if (loading) return <Spinner text={t('common.loading')} />
@@ -268,7 +290,7 @@ export default function RyoshushoTab() {
                     <td>
                       <RowActions
                         onEdit={() => { setEditRyo(r); setRyoForm({ numero: r.numero, periodo_inicio: r.periodo_inicio, periodo_fim: r.periodo_fim, total: r.total, data_emissao: r.data_emissao }) }}
-                        onDelete={async()=>{ if(!confirm(t('ryoshusho.confirmDelete')))return; await supabase.from('ryoshusho').delete().eq('id',r.id); setHistory(prev=>prev.filter(x=>x.id!==r.id)) }}
+                        onDelete={async()=>{ if(!confirm(t('ryoshusho.confirmDelete')))return; await supabase.from('ryoshusho').delete().eq('id',r.id).eq('bar_id', scope.kind === 'bar' ? scope.barId : r.bar_id); setHistory(prev=>prev.filter(x=>x.id!==r.id)) }}
                       />
                     </td>
                   </tr>

@@ -7,8 +7,9 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST' })
 
   const barAuth = await requireBarAccount(req)
+  let staffAuth = null
   if (barAuth.error) {
-    const staffAuth = await requireStaff(req)
+    staffAuth = await requireStaff(req)
     if (staffAuth.error) return res.status(barAuth.status || 401).json({ error: barAuth.error })
   }
 
@@ -21,6 +22,11 @@ export default async function handler(req, res) {
 
   if (barAuth && !barAuth.error && barAuth.perfil?.bar_id && barAuth.perfil.bar_id !== body.bar_id) {
     return res.status(403).json({ error: 'bar_id does not match this account' })
+  }
+  if (barAuth?.error && staffAuth && !staffAuth.error && staffAuth.perfil?.role !== 'admin' && staffAuth.perfil?.role !== 'service') {
+    if (!staffAuth.perfil?.bar_id || staffAuth.perfil.bar_id !== body.bar_id) {
+      return res.status(403).json({ error: 'bar_id does not match this account' })
+    }
   }
 
   const payload = {

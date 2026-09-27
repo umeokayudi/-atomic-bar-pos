@@ -2,13 +2,13 @@
  * Admin billing hub — overdue summary + email automation status/triggers.
  */
 import { drinksAdminClient } from './_supabaseAdmin.js'
-import { requireStaff } from './_requireStaff.js'
+import { requireGlobalFinance } from './_requireStaff.js'
 import { buildOverdueBillingReport, sendBillingReminders, sendDailyReport } from './_billingReport.js'
 import { buildLiveSnapshot } from './_cashflowSnapshot.js'
 import { emailConfigured, parseRecipients } from './_email.js'
 
 export default async function handler(req, res) {
-  const auth = await requireStaff(req, null, { roles: ['admin', 'staff'] })
+  const auth = await requireGlobalFinance(req, null)
   if (auth.error) return res.status(auth.status).json({ error: auth.error })
 
   const sb = drinksAdminClient()

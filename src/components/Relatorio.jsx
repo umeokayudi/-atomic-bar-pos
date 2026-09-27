@@ -7,12 +7,17 @@ import { aReceberForMonth, faturasAbertasMes } from '../lib/faturasMonth'
 import { ryoshushoForMonth, ryoshushoMonthShare, ryoshushoPeriodSplit } from '../lib/reportPeriod'
 import { loadAllCompras } from '../lib/loadCompras'
 import { loadDashboard } from '../lib/loadDashboard'
+import { useAuth } from './Auth'
+import { barBookScope, canReadCompanyPurchases } from '../lib/legacyScope'
 import ComprasNotasSection from './ComprasNotasSection'
 import { AdminPage, PortalKpi, PortalSurface } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
 
 export default function RelatorioTab() {
   const { t } = useI18n()
+  const { perfil } = useAuth()
+  const scope = barBookScope(perfil?.role, perfil?.bar_id)
+  const companyLedger = canReadCompanyPurchases(perfil?.role)
   const [bars, setBars] = useState([])
   const [compras, setCompras] = useState([])
   const [vendas, setVendas] = useState([])
@@ -25,17 +30,32 @@ export default function RelatorioTab() {
   const [editRyo, setEditRyo] = useState(null)
   const [ryoForm, setRyoForm] = useState({ numero: '', periodo_inicio: '', periodo_fim: '', total: '' })
 
-  useEffect(() => { loadAll() }, [])
+  useEffect(() => { loadAll() }, [perfil?.role, perfil?.bar_id])
 
   async function loadAll() {
     setLoading(true)
+    if (scope.kind === 'none') {
+      setBars([]); setCompras([]); setVendas([]); setRyoshusho([]); setFaturas([])
+      setDashByMonth({}); setDashMonths([]); setLoading(false)
+      return
+    }
+    let barsQ = supabase.from('bars').select('id, nome, cor')
+    let vendasQ = supabase.from('vendas').select('id, data, data_venda, total, bar_id, obs, origem, cast_id')
+    let ryoQ = supabase.from('ryoshusho').select('*')
+    let fatQ = supabase.from('faturas').select('*, bars(nome)').order('data_vencimento', { ascending: false })
+    if (scope.kind === 'bar') {
+      barsQ = barsQ.eq('id', scope.barId)
+      vendasQ = vendasQ.eq('bar_id', scope.barId)
+      ryoQ = ryoQ.eq('bar_id', scope.barId)
+      fatQ = fatQ.eq('bar_id', scope.barId)
+    }
     const [bR, vR, rR, fR, cData, dash] = await Promise.all([
-      supabase.from('bars').select('id, nome, cor'),
-      supabase.from('vendas').select('id, data, data_venda, total, bar_id, obs, origem, cast_id'),
-      supabase.from('ryoshusho').select('*'),
-      supabase.from('faturas').select('*, bars(nome)').order('data_vencimento', { ascending: false }),
-      loadAllCompras(),
-      loadDashboard().catch(() => null),
+      barsQ,
+      vendasQ,
+      ryoQ,
+      fatQ,
+      companyLedger ? loadAllCompras({ allowCompanyLedger: true }) : Promise.resolve([]),
+      companyLedger ? loadDashboard().catch(() => null) : Promise.resolve(null),
     ])
     setBars(bR.data || [])
     setCompras(cData || [])
@@ -101,11 +121,19 @@ export default function RelatorioTab() {
     })
     .sort((a, b) => String(a.data).localeCompare(String(b.data)))
 
+  if (scope.kind === 'none') {
+    return (
+      <AdminPage title={t('nav.report')}>
+        <PortalSurface><Empty text={t('common.needBarLink')} /></PortalSurface>
+      </AdminPage>
+    )
+  }
+
   if (loading) return <Spinner text={t('report.loading')} />
 
   async function saveRyoshusho() {
     if (!editRyo) return
-    await supabase.from('ryoshusho').update({
+    let upd = supabase.from('ryoshusho').update({
       numero: ryoForm.numero,
       periodo_inicio: ryoForm.periodo_inicio,
       periodo_fim: ryoForm.periodo_fim,
@@ -113,13 +141,17 @@ export default function RelatorioTab() {
       subtotal: Math.round(+ryoForm.total / 1.1),
       consumo_tax: +ryoForm.total - Math.round(+ryoForm.total / 1.1),
     }).eq('id', editRyo.id)
+    if (scope.kind === 'bar') upd = upd.eq('bar_id', scope.barId)
+    await upd
     setEditRyo(null)
     loadAll()
   }
 
   async function deleteRyoshusho(r) {
     if (!confirm(t('report.confirmDeleteRyoshusho', { num: r.numero }))) return
-    await supabase.from('ryoshusho').delete().eq('id', r.id)
+    let del = supabase.from('ryoshusho').delete().eq('id', r.id)
+    if (scope.kind === 'bar') del = del.eq('bar_id', scope.barId)
+    await del
     loadAll()
   }
 
@@ -136,13 +168,17 @@ export default function RelatorioTab() {
         </>
       }
     >
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 18 }}>
-        <PortalKpi label={t('report.purchasesNotes')} value={fmtYen(custoCompras)} color="var(--red)"
-          sub={dash.comprasEstimadas ? t('report.purchasesSubEst', { count: comprasMes.length }) : t('report.purchasesSub', { count: comprasMes.length })} />
+      <div className="admin-kpi-grid" style={{ marginBottom: 18 }}>
+        {companyLedger && (
+          <PortalKpi label={t('report.purchasesNotes')} value={fmtYen(custoCompras)} color="var(--red)"
+            sub={dash.comprasEstimadas ? t('report.purchasesSubEst', { count: comprasMes.length }) : t('report.purchasesSub', { count: comprasMes.length })} />
+        )}
         <PortalKpi label={t('report.billing')} value={fmtYen(faturamento)} color="var(--navy)"
           sub={t('report.billingSub', { count: vendasMes.length, type: dash.comprasEstimadas ? t('report.billingTypeOrders') : t('report.billingTypeCharge') })} />
-        <PortalKpi label={t('report.projectedProfit')} value={fmtYen(lucroTotal)} color="var(--green)"
-          sub={t('report.profitSub', { margin: margemGeral })} />
+        {companyLedger && (
+          <PortalKpi label={t('report.projectedProfit')} value={fmtYen(lucroTotal)} color="var(--green)"
+            sub={t('report.profitSub', { margin: margemGeral })} />
+        )}
         <PortalKpi label={t('report.toReceive')} value={fmtYen(aReceber)} color={aReceber > 0 ? 'var(--amber)' : 'var(--green)'}
           sub={faturasMes.length ? t('report.openInvoices', { count: faturasMes.length }) : t('report.nothingPending')} />
       </div>
@@ -160,13 +196,15 @@ export default function RelatorioTab() {
         </div>
       )}
 
-      <ComprasNotasSection
-        comprasMes={comprasMes}
-        totalCompras={custoCompras}
-        creditoBar={creditoBar}
-        creditosBar={creditosBar}
-        onChanged={loadAll}
-      />
+      {companyLedger && (
+        <ComprasNotasSection
+          comprasMes={comprasMes}
+          totalCompras={custoCompras}
+          creditoBar={creditoBar}
+          creditosBar={creditosBar}
+          onChanged={loadAll}
+        />
+      )}
 
       <PortalSurface title={t('report.monthSales')}>
         {vendasDetalhe.length === 0 ? <Empty text={t('report.noSalesMonth')} /> : (
@@ -194,7 +232,7 @@ export default function RelatorioTab() {
         )}
       </PortalSurface>
 
-      <PortalSurface title={t('report.purchasedItems')}>
+      {companyLedger && <PortalSurface title={t('report.purchasedItems')}>
         {porProdutoComprado.length === 0 ? <Empty text={t('report.noItems')} /> : (
           <table>
             <thead>
@@ -212,7 +250,7 @@ export default function RelatorioTab() {
             </tbody>
           </table>
         )}
-      </PortalSurface>
+      </PortalSurface>}
 
       <PortalSurface title={t('report.ryoshushoSection', { month: monthLabel(selMonth) })}>
         {ryoMes.length === 0 ? (

@@ -47,6 +47,8 @@ export default {
     selectSupplier: '— 仕入先を選択 —',
     observation: '備考',
     receiptPhoto: 'レシート写真',
+    companyLedger: '会社の仕入れ、仕入先条件、カタログ原価は管理者だけです。',
+    needBarLink: 'このログインにバーが紐づいていないため、他のバーは閉じたままです。',
     invoiceItems: '伝票明細',
     realCost: '実コスト',
     pointsDiscount: 'ポイント値引',

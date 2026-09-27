@@ -50,7 +50,7 @@ export function hashForRole(role) {
   if (role === 'caixa') return '#/pos'
   if (role === 'bar_staff') return '#/clock'
   if (role === 'fornecedor') return '#/supplier'
-  if (role === 'admin' || role === 'staff' || role === 'funcionario') return '#/jbm'
+  if (role === 'admin' || role === 'jbm' || role === 'staff' || role === 'funcionario') return '#/jbm'
   if (role === 'cliente' || role === 'gerente') return '#/hq'
   return '#/'
 }
@@ -106,6 +106,6 @@ export function doorAllowsRole(door, role) {
   if (door === 'pos') return role === 'caixa' || role === 'cliente' || role === 'gerente' || role === 'bar_staff'
   if (door === 'clock') return role === 'bar_staff' || role === 'cliente' || role === 'gerente'
   if (door === 'gerente') return role === 'cliente' || role === 'gerente'
-  if (door === 'jbm') return role === 'admin' || role === 'funcionario' || role === 'staff'
+  if (door === 'jbm') return role === 'admin' || role === 'jbm' || role === 'funcionario' || role === 'staff'
   return true
 }

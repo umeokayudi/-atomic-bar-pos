@@ -47,6 +47,8 @@ export default {
     selectSupplier: '— Select supplier —',
     observation: 'Notes',
     receiptPhoto: 'Receipt photo',
+    companyLedger: 'Company purchases, supplier terms and catalog cost stay with admin.',
+    needBarLink: 'This login has no bar linked, so other bars stay closed.',
     invoiceItems: 'Invoice items',
     realCost: 'Real cost',
     pointsDiscount: 'Points discount',

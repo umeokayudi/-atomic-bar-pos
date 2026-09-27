@@ -16,6 +16,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { AuthProvider, useAuth, LoginPage } from './components/Auth'
 import { supabase } from './lib/supabase'
 import { isBarRole, isSupplierRole } from './lib/access'
+import { shellTabIds } from './lib/legacyScope'
 import { fmtYen, fmtDate, roleLabel } from './components/utils'
 import { I18nProvider, useI18n } from './lib/i18n'
 import UiPrefsPanel from './components/UiPrefsPanel'
@@ -75,6 +76,13 @@ const STAFF_TABS = [
   { id:'ryoshusho', labelKey:'nav.ryoshusho', icon:'🧾' },
   { id:'products',  labelKey:'nav.products', icon:'🍾' },
 ]
+
+const JBM_TABS = [
+  { id:'fulfillment', labelKey:'nav.fulfillment', icon:'🚚' },
+  { id:'procurement', labelKey:'nav.procurement', icon:'📦' },
+]
+
+const TABS_BY_ID = Object.fromEntries([...ADMIN_TABS, ...EMPLOYEE_TABS, ...STAFF_TABS, ...JBM_TABS].map(tab => [tab.id, tab]))
 
 // ── MINI BAR CHART ────────────────────────────────────────────────────────────
 function BarChart({ data, color='#c19c56', height=80, valueLabel=fmtYen }) {
@@ -479,14 +487,10 @@ function Shell() {
     )
   }
 
-  // ADMIN / FUNCIONÁRIO
-  const tabs = perfil?.role==='admin'
-    ? ADMIN_TABS
-    : perfil?.role==='funcionario'
-      ? EMPLOYEE_TABS
-      : STAFF_TABS
-  if (tab==='dashboard' && perfil?.role==='funcionario') setTab('procurement')
-  else if (tab==='dashboard' && perfil?.role!=='admin') setTab('purchases')
+  // ADMIN / JBM / FUNCIONÁRIO / STAFF — aba fora da lista não monta o livro global
+  const tabs = shellTabIds(perfil?.role).map(id => TABS_BY_ID[id]).filter(Boolean)
+  const activeTab = tabs.some(item => item.id === tab) ? tab : (tabs[0]?.id || '')
+  if (activeTab && activeTab !== tab) setTab(activeTab)
 
   return (
     <div className="app-shell">
@@ -520,7 +524,7 @@ function Shell() {
         </div>
         <nav className="sidebar-nav">
           {tabs.map(nav => (
-            <button key={nav.id} onClick={()=>selectTab(nav.id)} className={`nav-item ${tab===nav.id?'active':''}`}>
+            <button key={nav.id} onClick={()=>selectTab(nav.id)} className={`nav-item ${activeTab===nav.id?'active':''}`}>
               <span>{nav.icon}</span>
               <span style={{fontSize:13}}>{t(nav.labelKey)}</span>
               {nav.id==='pedidos'&&pedidosPendentes>0&&(
@@ -552,23 +556,23 @@ function Shell() {
           <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
         </WorkspaceChrome>
         <Suspense fallback={null}>
-        <div className="fade-in" key={tab}>
-          {tab==='dashboard' && <Dashboard onNav={selectTab}/>}
-          {tab==='billingHub' && <ReportsBilling onNav={selectTab}/>}
-          {tab==='purchases'   && <ComprasTab/>}
-          {tab==='sales'    && <VendasTab/>}
-          {tab==='pedidos'   && <PedidosAdminTab/>}
-          {tab==='fulfillment' && <FulfillmentHq/>}
-          {tab==='procurement' && <ProcurementBoard/>}
-          {tab==='relatorio' && <RelatorioTab/>}
-          {tab==='ryoshusho' && <RyoshushoTab/>}
-          {tab==='seikyusho' && <SeikyushoTab/>}
-          {tab==='products'  && <ProductsTab/>}
-          {tab==='bars'      && <BarsTab/>}
-          {tab==='usuarios'  && <UsuariosTab/>}
-          {tab==='faturas'   && <Faturas />}
-          {tab==='cashflow'   && <Cashflow />}
-          {tab==='suppliers' && <Fornecedores />}
+        <div className="fade-in" key={activeTab}>
+          {activeTab==='dashboard' && <Dashboard onNav={selectTab}/>}
+          {activeTab==='billingHub' && <ReportsBilling onNav={selectTab}/>}
+          {activeTab==='purchases'   && <ComprasTab/>}
+          {activeTab==='sales'    && <VendasTab/>}
+          {activeTab==='pedidos'   && <PedidosAdminTab/>}
+          {activeTab==='fulfillment' && <FulfillmentHq/>}
+          {activeTab==='procurement' && <ProcurementBoard/>}
+          {activeTab==='relatorio' && <RelatorioTab/>}
+          {activeTab==='ryoshusho' && <RyoshushoTab/>}
+          {activeTab==='seikyusho' && <SeikyushoTab/>}
+          {activeTab==='products'  && <ProductsTab/>}
+          {activeTab==='bars'      && <BarsTab/>}
+          {activeTab==='usuarios'  && <UsuariosTab/>}
+          {activeTab==='faturas'   && <Faturas />}
+          {activeTab==='cashflow'   && <Cashflow />}
+          {activeTab==='suppliers' && <Fornecedores />}
         </div>
         </Suspense>
       </main>
