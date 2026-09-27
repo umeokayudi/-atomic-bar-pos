@@ -142,12 +142,12 @@ export default function VendasTab() {
           </div>
         }
       >
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:14 }}>
+        <div className="admin-kpi-grid" style={{ marginBottom:14 }}>
           <PortalKpi label={t('sales.totalSold')} value={fmtYen(totalReceita)} color="var(--blue)" />
         </div>
 
         {loading ? <Spinner /> : filtered.length === 0 ? <Empty text={t('sales.noSales')} /> : (
-          <table>
+          <table className="phone-stack">
             <thead>
               <tr><th>{t('common.date')}</th><th>{t('common.bar')}</th><th>{t('common.items')}</th><th>{t('common.total')}</th><th>{t('common.obs')}</th><th></th></tr>
             </thead>
@@ -156,16 +156,16 @@ export default function VendasTab() {
                 const bar = bars.find(b => b.id === v.bar_id)
                 return (
                   <tr key={v.id}>
-                    <td style={{ whiteSpace:'nowrap' }}>{fmtDate(v.data)}</td>
-                    <td><Badge color={bar?.cor||'var(--blue)'}>{bar?.nome||'?'}</Badge></td>
-                    <td style={{ fontSize:12, color:'var(--text2)', maxWidth:200 }}>
+                    <td data-label={t('common.date')}>{fmtDate(v.data)}</td>
+                    <td data-label={t('common.bar')}><Badge color={bar?.cor||'var(--blue)'}>{bar?.nome||'?'}</Badge></td>
+                    <td data-label={t('common.items')} style={{ fontSize:12, color:'var(--text2)' }}>
                       {(v.vendas_itens||[]).map(it=>
                         `${it.produtos?.nome||'?'} ×${it.qtd}`
                       ).join(' · ')}
                     </td>
-                    <td style={{ fontWeight:700 }}>{fmtYen(v.total)}</td>
-                    <td style={{ color:'var(--text2)' }}>{v.obs||'—'}</td>
-                    <td><DelBtn onClick={()=>deleteVenda(v.id)} /></td>
+                    <td data-label={t('common.total')} style={{ fontWeight:700 }}>{fmtYen(v.total)}</td>
+                    <td data-label={t('common.obs')} style={{ color:'var(--text2)' }}>{v.obs||'—'}</td>
+                    <td className="phone-stack-actions"><DelBtn onClick={()=>deleteVenda(v.id)} /></td>
                   </tr>
                 )
               })}

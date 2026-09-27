@@ -314,7 +314,7 @@ export default function ComprasTab() {
           </select>
         }
       >
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:16 }}>
+        <div className="admin-kpi-grid" style={{ marginBottom:16 }}>
           <PortalKpi label={t('purchases.totalCost')} value={fmtYen(totalCusto)} color="var(--red)" />
           <PortalKpi label={t('purchases.descPontos')} value={fmtYen(totalDesconto)} color="var(--green)" />
           <PortalKpi label={t('purchases.custoReal')} value={fmtYen(totalCusto)} color="var(--blue)" />
@@ -322,30 +322,30 @@ export default function ComprasTab() {
         </div>
 
         {loading ? <Spinner /> : filtered.length === 0 ? <Empty text={t('purchases.noPurchases')} /> : (
-          <table>
+          <table className="phone-stack">
             <thead>
               <tr>
                 <th>{t('common.date')}</th><th>{t('common.supplier')}</th><th>{t('common.payment')}</th>
                 <th>{t('common.subtotal')}</th><th>{t('purchases.descPontos')}</th><th>{t('purchases.custoReal')}</th>
-                <th>Pts</th><th>{t('common.items')}</th><th></th>
+                <th>Pts</th><th>{t('common.payDate')}</th><th></th><th>{t('common.items')}</th><th></th>
               </tr>
             </thead>
             <tbody>
               {filtered.map(c => (
                 <tr key={c.id}>
-                  <td style={{ whiteSpace:'nowrap' }}>{fmtDate(c.data)}</td>
-                  <td style={{ fontWeight:500 }}>{c.fornecedor}</td>
-                  <td><Badge color="var(--blue)">{c.pagamento}</Badge></td>
-                  <td>{fmtYen(c.subtotal)}</td>
-                  <td style={{ color:'var(--green)' }}>
+                  <td data-label={t('common.date')}>{fmtDate(c.data)}</td>
+                  <td data-label={t('common.supplier')} style={{ fontWeight:500 }}>{c.fornecedor}</td>
+                  <td data-label={t('common.payment')}><Badge color="var(--blue)">{c.pagamento}</Badge></td>
+                  <td data-label={t('common.subtotal')}>{fmtYen(c.subtotal)}</td>
+                  <td data-label={t('purchases.descPontos')} style={{ color:'var(--green)' }}>
                     {+c.desconto_pontos > 0 ? `-${fmtYen(c.desconto_pontos)}` : '—'}
                   </td>
-                  <td style={{ fontWeight:700 }}>{fmtYen(c.total_real)}</td>
-                  <td>{+c.pontos_ganhos > 0 ? `+${c.pontos_ganhos}${c.tipo_ponto?' ('+c.tipo_ponto+')':''}` : '—'}</td>
-                  <td>{c.data_pagamento ? fmtDate(c.data_pagamento) : '—'}</td>
-                  <td>{c.foto_url ? <a href={c.foto_url} target="_blank" style={{fontSize:11}}>📷</a> : '—'}</td>
-                  <td>{(c.compras_itens || []).length}</td>
-                  <td><DelBtn onClick={() => deleteCompra(c.id)} /></td>
+                  <td data-label={t('purchases.custoReal')} style={{ fontWeight:700 }}>{fmtYen(c.total_real)}</td>
+                  <td data-label="Pts">{+c.pontos_ganhos > 0 ? `+${c.pontos_ganhos}${c.tipo_ponto?' ('+c.tipo_ponto+')':''}` : '—'}</td>
+                  <td data-label={t('common.payDate')}>{c.data_pagamento ? fmtDate(c.data_pagamento) : '—'}</td>
+                  <td data-label={t('common.photo')}>{c.foto_url ? <a href={c.foto_url} target="_blank" style={{fontSize:11}}>📷</a> : '—'}</td>
+                  <td data-label={t('common.items')}>{(c.compras_itens || []).length}</td>
+                  <td className="phone-stack-actions"><DelBtn onClick={() => deleteCompra(c.id)} /></td>
                 </tr>
               ))}
             </tbody>

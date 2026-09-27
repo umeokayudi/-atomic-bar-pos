@@ -87,23 +87,25 @@ export function ProductsTab() {
 
       <PortalSurface>
         {loading ? <Spinner /> : produtos.length===0 ? <Empty text={t('configs.noProducts')} /> : (
-          <table>
+          <table className="phone-stack">
             <thead><tr><th>{t('configs.productCol')}</th><th>{t('configs.categoryCol')}</th><th>{t('configs.costCol')}</th><th>{t('configs.sellCol')}</th><th>{t('configs.margin')}</th><th></th></tr></thead>
             <tbody>
               {produtos.filter(p=>p.ativo!==false).map(p=>{
                 const m = p.preco_venda>0 ? Math.round((p.preco_venda-p.custo)/p.preco_venda*100) : 0
                 return (
                   <tr key={p.id}>
-                    <td style={{ fontWeight:500 }}>{p.nome}</td>
-                    <td><Badge color="var(--amber)">{p.categoria}</Badge></td>
-                    <td>{fmtYen(p.custo)}</td>
-                    <td>{fmtYen(p.preco_venda)}</td>
-                    <td style={{ fontWeight:700,
+                    <td data-label={t('configs.productCol')} style={{ fontWeight:500 }}>{p.nome}</td>
+                    <td data-label={t('configs.categoryCol')}><Badge color="var(--amber)">{p.categoria}</Badge></td>
+                    <td data-label={t('configs.costCol')}>{fmtYen(p.custo)}</td>
+                    <td data-label={t('configs.sellCol')}>{fmtYen(p.preco_venda)}</td>
+                    <td data-label={t('configs.margin')} style={{ fontWeight:700,
                       color:m>50?'var(--green)':m>30?'var(--amber)':'var(--red)'
                     }}>{m}%</td>
-                    <td style={{ display:'flex', gap:4 }}>
-                      <button style={{padding:'4px 8px',fontSize:12}} onClick={()=>startEdit(p)}>✏️</button>
-                      <DelBtn onClick={()=>del(p.id)} />
+                    <td className="phone-stack-actions">
+                      <span style={{ display:'inline-flex', gap:4 }}>
+                        <button style={{padding:'4px 8px',fontSize:12}} onClick={()=>startEdit(p)}>✏️</button>
+                        <DelBtn onClick={()=>del(p.id)} />
+                      </span>
                     </td>
                   </tr>
                 )
@@ -151,7 +153,7 @@ export function BarsTab() {
   return (
     <AdminPage title={t('nav.bars')} subtitle={t('configs.barsSubtitle')}>
       <PortalSurface title={t('configs.addBar')} style={{ marginBottom: 16 }}>
-        <div style={{ display:'grid', gridTemplateColumns:'2fr 60px auto', gap:10, alignItems:'end' }}>
+        <div className="bar-add-row">
           <div><label className="form-label">{t('configs.barName')}</label>
             <input type="text" value={nome} onChange={e=>setName(e.target.value)} placeholder={t('configs.barName')} /></div>
           <div><label className="form-label">{t('configs.color')}</label>
@@ -161,7 +163,7 @@ export function BarsTab() {
       </PortalSurface>
       <PortalSurface>
         {loading ? <Spinner /> : bars.length===0 ? <Empty text={t('configs.noBars')} /> : (
-          <table>
+          <table className="phone-stack">
             <thead><tr><th>{t('nav.bars')}</th><th>{t('configs.color')}</th><th>{t('nav.sales')}</th><th>{t('configs.totalRevenue')}</th><th></th></tr></thead>
             <tbody>
               {bars.map(b=>{
@@ -169,11 +171,11 @@ export function BarsTab() {
                 const receita = v.reduce((a,x)=>a+(+x.total||0),0)
                 return (
                   <tr key={b.id}>
-                    <td style={{ fontWeight:600 }}>{b.nome}</td>
-                    <td><div style={{ width:24,height:24,borderRadius:6,background:b.cor,border:'0.5px solid var(--border)' }}/></td>
-                    <td>{v.length}</td>
-                    <td style={{ fontWeight:600 }}>{fmtYen(receita)}</td>
-                    <td><DelBtn onClick={()=>del(b.id)} /></td>
+                    <td data-label={t('nav.bars')} style={{ fontWeight:600 }}>{b.nome}</td>
+                    <td data-label={t('configs.color')}><div style={{ width:24,height:24,borderRadius:6,background:b.cor,border:'0.5px solid var(--border)', marginLeft:'auto' }}/></td>
+                    <td data-label={t('nav.sales')}>{v.length}</td>
+                    <td data-label={t('configs.totalRevenue')} style={{ fontWeight:600 }}>{fmtYen(receita)}</td>
+                    <td className="phone-stack-actions"><DelBtn onClick={()=>del(b.id)} /></td>
                   </tr>
                 )
               })}
@@ -353,8 +355,8 @@ export function UsuariosTab() {
         </PortalSurface>
       )}
 
-      <PortalSurface style={{padding:0,overflow:'hidden'}}>
-        <table style={{width:'100%',borderCollapse:'collapse'}}>
+      <PortalSurface>
+        <table className="phone-stack" style={{width:'100%',borderCollapse:'collapse'}}>
           <thead>
             <tr style={{background:'var(--bg2)',borderBottom:'1px solid var(--border)'}}>
               {[t('configs.colName'),t('configs.colEmail'),t('configs.colRole'),t('configs.colBar'),t('configs.colStatus'),t('configs.colActions')].map(h=>(
@@ -367,9 +369,9 @@ export function UsuariosTab() {
               <tr key={u.id} style={{borderBottom:'1px solid var(--border)',background:i%2===0?'white':'var(--bg)'}}>
                 {editId===u.id ? (
                   <>
-                    <td style={{padding:'8px 14px'}}><input className="input" style={{padding:'4px 8px',fontSize:12,width:'100%'}} value={form.nome} onChange={e=>setForm({...form,nome:e.target.value})}/></td>
-                    <td style={{padding:'8px 14px'}}><input className="input" type="email" style={{padding:'4px 8px',fontSize:12,width:'100%'}} value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder={t('configs.changeEmail')}/></td>
-                    <td style={{padding:'8px 14px'}}>
+                    <td data-label={t('configs.colName')} style={{padding:'8px 14px'}}><input className="input" style={{padding:'4px 8px',fontSize:12,width:'100%'}} value={form.nome} onChange={e=>setForm({...form,nome:e.target.value})}/></td>
+                    <td data-label={t('configs.colEmail')} style={{padding:'8px 14px'}}><input className="input" type="email" style={{padding:'4px 8px',fontSize:12,width:'100%'}} value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder={t('configs.changeEmail')}/></td>
+                    <td data-label={t('configs.colRole')} style={{padding:'8px 14px'}}>
                       <select className="input" style={{padding:'4px 8px',fontSize:12}} value={form.role} onChange={e=>setForm({...form,role:e.target.value})}>
                         <option value="admin">{t('shell.roles.admin')}</option>
                         <option value="staff">{t('shell.roles.staff')}</option>
@@ -378,17 +380,17 @@ export function UsuariosTab() {
                         <option value="bar_staff">{t('shell.roles.bar_staff')}</option>
                       </select>
                     </td>
-                    <td style={{padding:'8px 14px'}}>
+                    <td data-label={t('configs.colBar')} style={{padding:'8px 14px'}}>
                       <select className="input" style={{padding:'4px 8px',fontSize:12}} value={form.bar_id} onChange={e=>setForm({...form,bar_id:e.target.value})} disabled={!(form.role==='cliente'||form.role==='caixa'||form.role==='bar_staff')}>
                         <option value="">—</option>
                         {bars.map(b=><option key={b.id} value={b.id}>{b.nome}</option>)}
                       </select>
                     </td>
-                    <td style={{padding:'8px 14px'}}>
+                    <td data-label={t('configs.colStatus')} style={{padding:'8px 14px'}}>
                       <input className="input" type="password" style={{padding:'4px 8px',fontSize:11,width:'100%'}} value={editPw} onChange={e=>setEditPw(e.target.value)} placeholder={t('configs.newPasswordOptional')}/>
                     </td>
-                    <td style={{padding:'8px 14px'}}>
-                      <div style={{display:'flex',gap:6}}>
+                    <td className="phone-stack-actions" style={{padding:'8px 14px'}}>
+                      <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'flex-end'}}>
                         <button className="btn-primary" style={{fontSize:11,padding:'4px 10px'}} disabled={saving} onClick={()=>saveEdit(u.id)}>{saving?'...':t('common.save')}</button>
                         <button onClick={()=>{setEditId(null);setEditPw('')}} style={{fontSize:11,padding:'4px 10px',background:'var(--bg3)',border:'none',borderRadius:6,cursor:'pointer'}}>{t('common.cancel')}</button>
                       </div>
@@ -396,19 +398,19 @@ export function UsuariosTab() {
                   </>
                 ) : (
                   <>
-                    <td style={{padding:'10px 14px',fontSize:13,fontWeight:600}}>{u.nome||'—'}</td>
-                    <td style={{padding:'10px 14px',fontSize:12,color:'var(--text2)'}}>{u.email||'—'}</td>
-                    <td style={{padding:'10px 14px'}}>
-                      <span style={{fontSize:11,fontWeight:700,padding:'3px 8px',borderRadius:20,background:`${roleColor[u.role]||'#ccc'}20`,color:roleColor[u.role]||'#666',textTransform:'uppercase',letterSpacing:'0.04em'}}>{roleLabel(u.role)}</span>
+                    <td data-label={t('configs.colName')} style={{padding:'10px 14px',fontSize:13,fontWeight:600}}>{u.nome||'—'}</td>
+                    <td data-label={t('configs.colEmail')} style={{padding:'10px 14px',fontSize:12,color:'var(--text2)',wordBreak:'break-all'}}>{u.email||'—'}</td>
+                    <td data-label={t('configs.colRole')} style={{padding:'10px 14px'}}>
+                      <span style={{fontSize:11,fontWeight:700,padding:'3px 8px',borderRadius:20,background:`${roleColor[u.role]||'#ccc'}20`,color:roleColor[u.role]||'#666',textTransform:'uppercase',letterSpacing:'0.04em',whiteSpace:'normal'}}>{roleLabel(u.role)}</span>
                     </td>
-                    <td style={{padding:'10px 14px',fontSize:12,color:'var(--text2)'}}>{bars.find(b=>b.id===u.bar_id)?.nome||'—'}</td>
-                    <td style={{padding:'10px 14px',fontSize:11}}>
+                    <td data-label={t('configs.colBar')} style={{padding:'10px 14px',fontSize:12,color:'var(--text2)'}}>{bars.find(b=>b.id===u.bar_id)?.nome||'—'}</td>
+                    <td data-label={t('configs.colStatus')} style={{padding:'10px 14px',fontSize:11}}>
                       {u.role === 'cliente' && !u.bar_id
                         ? <span style={{color:'var(--red)',fontWeight:600}}>{t('configs.noBarLinked')}</span>
                         : <span style={{color:'var(--green)'}}>OK</span>}
                     </td>
-                    <td style={{padding:'10px 14px'}}>
-                      <div style={{display:'flex',gap:6}}>
+                    <td className="phone-stack-actions" style={{padding:'10px 14px'}}>
+                      <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'flex-end'}}>
                         <button onClick={()=>startEdit(u)} style={{fontSize:11,padding:'4px 10px',background:'var(--navy)',color:'white',border:'none',borderRadius:6,cursor:'pointer'}}>{t('common.edit')}</button>
                         <button onClick={()=>deleteUser(u.id)} style={{fontSize:11,padding:'4px 10px',background:'var(--red)',color:'white',border:'none',borderRadius:6,cursor:'pointer'}}>{t('common.delete')}</button>
                       </div>

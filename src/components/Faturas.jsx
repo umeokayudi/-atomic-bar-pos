@@ -86,7 +86,7 @@ function Overview() {
         </PortalAlert>
       )}
 
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:20 }}>
+      <div className="admin-kpi-grid" style={{ marginBottom:20 }}>
         {[
           { label: t('invoices.toReceive'), value: fmtYen(totalPending), color: totalPending > 0 ? 'var(--red)' : 'var(--green)' },
           { label: t('invoices.overdueCount'), value: overdue.length, color: overdue.length > 0 ? 'var(--red)' : 'var(--green)' },
