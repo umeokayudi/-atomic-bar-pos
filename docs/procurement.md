@@ -83,9 +83,31 @@ Este ambiente não tem chave do Supabase, então as RPC não foram chamadas cont
 
 ## Como aplicar
 
-1. No SQL editor do projeto drinks, se ainda não rodou: `sql/pos_sale_security.sql` e `sql/supplier_fulfillment.sql`.
-2. Rodar o arquivo inteiro `sql/procurement.sql`. Se uma versão anterior deste arquivo já foi aplicada, rode de novo: as policies são recriadas e as constraints novas só entram se ainda não existirem. Uma constraint falha se já houver linha com quantidade impossível.
-3. Não rodar de novo por cima de um `supplier_fulfillment.sql` antigo sem repetir `procurement.sql`, porque o fulfillment recria a policy de alertas.
-4. Recarregar o site com Ctrl+Shift+R ou Cmd+Shift+R.
+Ordem, no SQL editor do projeto drinks. Este repositório não executa esse SQL.
 
-O arquivo não cria produto, pedido, bar nem preço de exemplo. Fontes que não são fornecedor são cadastradas na aba Procurement.
+1. `sql/pos_sale_security.sql`
+2. `sql/supplier_fulfillment.sql`
+3. `sql/procurement.sql`
+
+O passo 3 tem de ser o último. `supplier_fulfillment.sql` recria `is_jbm()`, `supplier_advance`, `bar_confirm_delivery` e as policies de alerta. Se ele rodar depois do procurement, o recebimento antigo volta e o estoque pode entrar sem `confirm_bar_shipment`. Nesse caso, rode `sql/procurement.sql` de novo.
+
+## O que a reexecução faz
+
+Pode repetir `sql/procurement.sql` por cima dele mesmo. Não há `DROP TABLE`, `DELETE` de pedido nem `TRUNCATE`.
+
+Idempotente:
+
+- `CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`
+- `CREATE OR REPLACE` das funções, com `search_path = public`
+- `DROP POLICY IF EXISTS` e a policy nova
+- `DROP FUNCTION IF EXISTS submit_bar_order(uuid, timestamptz, text, jsonb)` e a função de 5 argumentos. A de 4 argumentos deixa de existir. O cliente atual manda `p_idempotency_key`; sem a chave, o quinto argumento fica nulo e o pedido antigo continua válido
+- o check de `audience` em `fulfillment_alerts`: o bloco apaga o check cujo texto contém `audience` e cria `fulfillment_alerts_audience_chk` de novo
+
+Não é idempotente, ou falha se o banco já tiver dado incompatível:
+
+- `procurement_tasks_qty_chk` é removida e criada de novo em toda execução. Se alguma tarefa já tiver quantidade negativa, `purchased` acima de `allocated`, `received` acima de `purchased`, `at_bar` acima de `received`, ou status incompatível com a quantidade, o `ADD CONSTRAINT` aborta o script. Nada é apagado; a constraint antiga volta se o editor rodar o arquivo numa transação.
+- `CREATE TABLE IF NOT EXISTS` não altera colunas de uma tabela que já exista. Se um rascunho anterior deste arquivo criou `procurement_tasks` com outra forma, comparar as colunas antes de confiar na reexecução. O check de status da tarefa está no `CREATE TABLE` e não é trocado na segunda rodada.
+- `fulfillment_alerts_audience_chk` recusa `audience` fora de `jbm`, `bar`, `supplier`, `employee`. Linha antiga com outro valor faz o `ADD CONSTRAINT` falhar.
+- `GRANT` de `supplier_advance` fica no arquivo de fulfillment. `CREATE OR REPLACE` no procurement preserva esse grant. Sem o passo 2, a função nova não deve ser aplicada sozinha.
+
+O arquivo não cria produto, pedido, bar nem preço de exemplo. Fontes que não são fornecedor são cadastradas na aba Procurement. Depois de aplicar, recarregar o site com Ctrl+Shift+R ou Cmd+Shift+R.
