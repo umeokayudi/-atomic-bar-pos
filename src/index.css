@@ -4535,4 +4535,20 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
 .proc-form { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; align-items: center; }
 .proc-form input, .proc-form select { min-width: 140px; }
 
+.pos-floor { display: flex; flex-direction: column; gap: 12px; padding-bottom: 92px; }
+.pos-floor-zones, .pos-floor-spaces, .pos-floor-cats, .pos-floor-pay { display: flex; gap: 8px; overflow-x: auto; }
+.pos-floor button { min-height: 44px; border-radius: 12px; border: 1px solid var(--border); background: white; padding: 8px 12px; font-weight: 700; }
+.pos-floor button.is-on, .pos-floor-charge { background: var(--navy); color: white; }
+.pos-floor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pos-floor-card { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left; }
+.pos-floor-ticket { background: white; border-radius: 16px; padding: 12px; border: 1px solid var(--border); }
+.pos-floor-line { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--border); }
+.pos-floor-total { display: flex; justify-content: space-between; font-size: 22px; margin-top: 8px; }
+.pos-floor-pay { position: sticky; bottom: 0; background: var(--bg); padding: 8px 0; }
+.pos-floor-empty, .pos-floor-meta { color: var(--text2); font-size: 13px; }
+.pos-floor-open { display: grid; gap: 8px; }
+@media (min-width: 900px) {
+  .pos-floor-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
 
