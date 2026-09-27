@@ -1470,15 +1470,20 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
     setLoading(true)
     const nightKey = tokyoNightKey()
     const from = prevTokyoDateKey(nightKey)
-    const [schema, dR, sR, cR, vR, pR, aR] = await Promise.all([
+    const salesSelect = 'total,refunded,card_fee,card_fee_reversed,criado_em,data,metodo_pagamento,obs,drink_back_agent_id'
+    const [schema, dR, sR, cR, vR, salesFirst, aR] = await Promise.all([
       checkPosSchema(supabase),
       supabase.from('drink_menu').select('*').eq('bar_id', bar.id).order('nome'),
-      supabase.from('bar_pricing').select('*, produtos(nome,categoria,preco_venda)').eq('bar_id', bar.id),
+      supabase.from('bar_pricing').select('*, produtos(nome,categoria,preco_venda,volume_ml,custo)').eq('bar_id', bar.id),
       supabase.from('discount_codes').select('*').eq('bar_id', bar.id).eq('ativo', true),
       supabase.from('vip_members').select('*').eq('bar_id', bar.id).eq('ativo', true),
-      supabase.from('pos_vendas').select('total,criado_em,data,metodo_pagamento,obs,drink_back_agent_id').eq('bar_id', bar.id).gte('data', from).order('criado_em'),
+      supabase.from('pos_vendas').select(salesSelect).eq('bar_id', bar.id).gte('data', from).order('criado_em'),
       supabase.from('drink_back_agents').select('*').eq('bar_id', bar.id).eq('ativo', true),
     ])
+    let pR = salesFirst
+    if (pR.error && /refunded|card_fee/.test(pR.error.message || '')) {
+      pR = await supabase.from('pos_vendas').select('total,criado_em,data,metodo_pagamento,obs,drink_back_agent_id').eq('bar_id', bar.id).gte('data', from).order('criado_em')
+    }
     setReady(schema.ready)
     if (dR.error) setPosErr(dR.error.message || t('atomicPos.tillLoadError'))
     else if (sR.error) setPosErr(sR.error.message || t('atomicPos.tillLoadError'))
@@ -1544,9 +1549,10 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
 
       {(ready || subTab !== 'checkout') && subTab !== 'dashboard' && (
         <>
-          {subTab === 'checkout' && ready && classicTill && (
+          {subTab === 'checkout' && ready && classicTill && access !== 'cashier' && (
             <>
               <button type="button" className="pos-chip" onClick={() => setClassicTill(false)}>{t('posFloor.floor')}</button>
+              <p className="pos-floor-empty">{t('posFloor.legacyIsolated')}</p>
               <PosCheckoutTab
                 bar={bar}
                 drinks={drinks}
@@ -1558,9 +1564,11 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
               />
             </>
           )}
-          {subTab === 'checkout' && ready && !classicTill && (
+          {subTab === 'checkout' && ready && (!classicTill || access === 'cashier') && (
             <>
-              <button type="button" className="pos-chip" onClick={() => setClassicTill(true)}>{t('posFloor.classic')}</button>
+              {access !== 'cashier' && (
+                <button type="button" className="pos-chip" onClick={() => setClassicTill(true)}>{t('posFloor.classic')}</button>
+              )}
               <PosFloor
                 bar={bar}
                 drinks={drinks}

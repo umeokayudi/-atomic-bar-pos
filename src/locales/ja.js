@@ -1117,6 +1117,10 @@ export default {
     noProducts: 'この分類に商品がありません。',
     classic: '以前のレジ',
     floor: 'フロアレジ',
+    recipe: 'レシピ',
+    available: '開栓',
+    volumeCatalog: '容量は商品マスタから取ります。',
+    legacyIsolated: '以前のレジは別の帳簿です。この伝票は締めません。',
   },
   nav: {
     dashboard: 'ダッシュボード',

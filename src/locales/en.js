@@ -1117,6 +1117,10 @@ export default {
     noProducts: 'No products in this category.',
     classic: 'Previous till',
     floor: 'Floor till',
+    recipe: 'Recipe',
+    available: 'Open',
+    volumeCatalog: 'Volume comes from the product.',
+    legacyIsolated: 'Previous till is a separate book. It does not close this ticket.',
   },
   nav: {
     dashboard: 'Dashboard',

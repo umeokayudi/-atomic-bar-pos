@@ -1,25 +1,30 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { useAuth } from './Auth'
 import { useI18n } from '../lib/i18n'
 import { fmtYen } from './utils'
 import { schemaMissing } from '../lib/fulfillment'
-import { groupSpaces, previewSale } from '../lib/posFloor'
+import { groupSpaces } from '../lib/posFloor'
 
 const PAY = ['cash', 'card', 'credit', 'other']
 
-function newKey() {
-  return crypto.randomUUID()
+function closeKey(ticketId) {
+  const storageKey = `pos-close:${ticketId}`
+  const existing = sessionStorage.getItem(storageKey)
+  if (existing) return existing
+  const created = crypto.randomUUID()
+  sessionStorage.setItem(storageKey, created)
+  return created
 }
 
 export default function PosFloor({ bar, drinks = [], shots = [], agents = [], catalogError = '', onSale }) {
   const { t } = useI18n()
-  const { user } = useAuth()
   const [spaces, setSpaces] = useState([])
   const [spaceId, setSpaceId] = useState('')
   const [zone, setZone] = useState('table')
   const [cat, setCat] = useState('all')
+  const [ticket, setTicket] = useState(null)
   const [lines, setLines] = useState([])
+  const [preview, setPreview] = useState(null)
   const [pay, setPay] = useState('cash')
   const [agentId, setAgentId] = useState('')
   const [err, setErr] = useState(catalogError || '')
@@ -27,9 +32,7 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
   const [openForm, setOpenForm] = useState(false)
   const [bottleCode, setBottleCode] = useState('')
   const [bottleProduct, setBottleProduct] = useState('')
-  const [bottleMl, setBottleMl] = useState('700')
   const [bottles, setBottles] = useState([])
-  const keyRef = useRef(newKey())
 
   useEffect(() => { setErr(catalogError || '') }, [catalogError])
 
@@ -57,73 +60,124 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
       nome: s.produtos?.nome || s.nome,
       categoria: s.produtos?.categoria || 'Other',
       preco_venda: s.preco_drink,
+      volume_ml: s.produtos?.volume_ml,
       kind: 'shot',
     })),
   ]), [drinks, shots])
   const cats = ['all', ...new Set(catalog.map(row => row.categoria).filter(Boolean))]
   const visible = catalog.filter(row => cat === 'all' || row.categoria === cat)
-  const agent = agents.find(row => row.id === agentId) || null
-  let preview = null
-  let previewErr = ''
-  try {
-    if (lines.length) {
-      preview = previewSale({
-        items: lines,
-        catalog,
-        bottles,
-        agent,
-        payment: pay,
-        barId: bar.id,
-        employeeId: user?.id,
-      })
+  const space = spaces.find(row => row.id === spaceId)
+  const blocked = preview?.blocked || ''
+
+  async function refreshPreview(ticketId, payment = pay, agent = agentId) {
+    if (!ticketId) {
+      setPreview(null)
+      return
     }
-  } catch (e) {
-    previewErr = e.message
-  }
-
-  function addProduct(product) {
-    setErr('')
-    keyRef.current = newKey()
-    setLines(prev => {
-      const hit = prev.find(row => (row.drink_menu_id || row.produto_id) === product.id)
-      if (hit) {
-        return prev.map(row => (row.drink_menu_id || row.produto_id) === product.id ? { ...row, qtd: row.qtd + 1 } : row)
-      }
-      return [...prev, {
-        drink_menu_id: product.kind === 'drink' ? product.id : null,
-        produto_id: product.kind === 'shot' ? product.id : null,
-        qtd: 1,
-        forCast: false,
-      }]
+    const res = await supabase.rpc('pos_preview_ticket', {
+      p_bar: bar.id,
+      p_ticket: ticketId,
+      p_payment: payment,
+      p_agent: agent || null,
     })
+    if (res.error) {
+      if (!schemaMissing(res.error)) setErr(res.error.message)
+      setPreview(null)
+      return
+    }
+    setPreview(res.data || null)
   }
 
-  function bump(index, delta) {
-    keyRef.current = newKey()
-    setLines(prev => prev.map((row, i) => i === index ? { ...row, qtd: row.qtd + delta } : row).filter(row => row.qtd > 0))
+  async function loadSpace(id) {
+    if (!id) {
+      setTicket(null)
+      setLines([])
+      setPreview(null)
+      return
+    }
+    const res = await supabase.rpc('pos_load_ticket', { p_bar: bar.id, p_space: id, p_guest: '' })
+    if (res.error) {
+      setErr(res.error.message)
+      return
+    }
+    const row = res.data || {}
+    setTicket(row)
+    setLines(row.items || [])
+    await refreshPreview(row.id)
+  }
+
+  async function chooseSpace(id) {
+    setErr('')
+    setSpaceId(id)
+    await loadSpace(id)
+  }
+
+  async function addProduct(product) {
+    if (!spaceId || busy) {
+      setErr(t('posFloor.pickSpace'))
+      return
+    }
+    setBusy(true)
+    setErr('')
+    let ticketId = ticket?.id
+    if (!ticketId) {
+      const opened = await supabase.rpc('pos_load_ticket', { p_bar: bar.id, p_space: spaceId, p_guest: '' })
+      if (opened.error) {
+        setErr(opened.error.message)
+        setBusy(false)
+        return
+      }
+      ticketId = opened.data?.id
+      setTicket(opened.data)
+    }
+    const saved = await supabase.rpc('pos_ticket_item', {
+      p_bar: bar.id,
+      p_ticket: ticketId,
+      p_item: null,
+      p_qtd: 1,
+      p_for_cast: false,
+      p_drink: product.kind === 'drink' ? product.id : null,
+      p_produto: product.kind === 'shot' ? product.id : null,
+    })
+    setBusy(false)
+    if (saved.error) {
+      setErr(saved.error.message)
+      return
+    }
+    await loadSpace(spaceId)
+  }
+
+  async function changeItem(line, qtd, forCast = line.for_cast) {
+    if (!ticket?.id || busy) return
+    setBusy(true)
+    setErr('')
+    const saved = await supabase.rpc('pos_ticket_item', {
+      p_bar: bar.id,
+      p_ticket: ticket.id,
+      p_item: line.id,
+      p_qtd: qtd,
+      p_for_cast: forCast,
+      p_drink: null,
+      p_produto: null,
+    })
+    setBusy(false)
+    if (saved.error) {
+      setErr(saved.error.message)
+      return
+    }
+    await loadSpace(spaceId)
   }
 
   async function charge() {
-    if (!lines.length || busy) return
+    if (!ticket?.id || !lines.length || busy || blocked) return
     setBusy(true)
     setErr('')
-    const saved = await supabase.rpc('pos_save_ticket', {
-      p_bar: bar.id,
-      p_ticket: null,
-      p_space: spaceId || null,
-      p_guest: '',
-      p_items: lines,
-    })
-    if (saved.error) {
-      setErr(saved.error.message)
-      setBusy(false)
-      return
-    }
+    const key = closeKey(ticket.id)
     const closed = await supabase.rpc('pos_close_ticket', {
       p_bar: bar.id,
-      p_ticket: saved.data,
+      p_ticket: ticket.id,
       p_payment: pay,
-      p_key: keyRef.current,
+      p_key: key,
       p_agent: agentId || null,
     })
     setBusy(false)
@@ -131,9 +185,11 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
       setErr(closed.error.message)
       return
     }
+    sessionStorage.removeItem(`pos-close:${ticket.id}`)
+    setTicket(null)
     setLines([])
+    setPreview(null)
     setSpaceId('')
-    keyRef.current = newKey()
     onSale?.()
   }
 
@@ -143,7 +199,6 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
       p_bar: bar.id,
       p_produto: bottleProduct,
       p_code: bottleCode,
-      p_volume: Math.round(+bottleMl || 0),
     })
     if (error) {
       setErr(error.message)
@@ -152,9 +207,20 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
     setOpenForm(false)
     const board = await supabase.rpc('pos_bottle_board', { p_bar: bar.id })
     if (!board.error) setBottles(board.data || [])
+    if (ticket?.id) await refreshPreview(ticket.id)
   }
 
-  const space = spaces.find(row => row.id === spaceId)
+  async function changePay(id) {
+    setPay(id)
+    if (ticket?.id) await refreshPreview(ticket.id, id, agentId)
+  }
+
+  async function changeAgent(id) {
+    setAgentId(id)
+    if (ticket?.id) await refreshPreview(ticket.id, pay, id)
+  }
+
+  const selectedBottle = shots.find(row => row.produto_id === bottleProduct)
 
   return (
     <div className="pos-floor">
@@ -167,7 +233,7 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
       </div>
       <div className="pos-floor-spaces">
         {(groups[zone] || []).map(row => (
-          <button key={row.id} type="button" className={spaceId === row.id ? 'is-on' : ''} onClick={() => setSpaceId(row.id)}>
+          <button key={row.id} type="button" className={spaceId === row.id ? 'is-on' : ''} onClick={() => chooseSpace(row.id)}>
             {row.nome}
           </button>
         ))}
@@ -177,21 +243,28 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
       <div className="pos-floor-ticket">
         <strong>{space?.nome || t('posFloor.pickSpace')}</strong>
         {lines.length === 0 && <div className="pos-floor-empty">{t('posFloor.emptyTicket')}</div>}
-        {lines.map((line, index) => {
+        {lines.map(line => {
+          const shown = (preview?.lines || []).find(row => row.id === line.id)
           const product = catalog.find(row => row.id === (line.drink_menu_id || line.produto_id))
-          const unit = product ? Math.round(+product.preco_venda || +product.preco_drink || 0) : 0
           return (
-            <div key={index} className="pos-floor-line">
+            <div key={line.id} className="pos-floor-line">
               <div>
-                <div>{product?.nome || t('posFloor.unknown')}</div>
-                <button type="button" onClick={() => setLines(prev => prev.map((row, i) => i === index ? { ...row, forCast: !row.forCast } : row))}>
-                  {line.forCast ? t('posFloor.sheDrank') : t('posFloor.markGuest')}
+                <div>{shown?.nome || product?.nome || t('posFloor.unknown')}</div>
+                <button type="button" onClick={() => changeItem(line, line.qtd, !line.for_cast)}>
+                  {line.for_cast ? t('posFloor.sheDrank') : t('posFloor.markGuest')}
                 </button>
               </div>
-              <div>{fmtYen(unit)} × {line.qtd}</div>
+              <div>
+                {fmtYen(shown?.unit_price || 0)} × {line.qtd}
+                {shown?.mode === 'ml' && (
+                  <div className="pos-floor-meta">
+                    {t('posFloor.recipe')} {shown.required_ml || 0} ml · {t('posFloor.available')} {shown.available_ml || 0} ml
+                  </div>
+                )}
+              </div>
               <div className="pos-floor-qty">
-                <button type="button" onClick={() => bump(index, -1)}>-</button>
-                <button type="button" onClick={() => bump(index, 1)}>+</button>
+                <button type="button" onClick={() => changeItem(line, line.qtd - 1)}>-</button>
+                <button type="button" onClick={() => changeItem(line, line.qtd + 1)}>+</button>
               </div>
             </div>
           )
@@ -205,9 +278,10 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
             {t('posFloor.fee')} {fmtYen(preview.fee)} · {t('posFloor.net')} {fmtYen(preview.net)} · {t('posFloor.commission')} {fmtYen(preview.commission)}
           </div>
         )}
+        {blocked && <div className="pos-sale-err">{blocked}</div>}
       </div>
 
-      {(err || previewErr) && <div className="pos-sale-err">{err || previewErr}</div>}
+      {err && <div className="pos-sale-err">{err}</div>}
 
       <div className="pos-floor-cats">
         {cats.map(id => (
@@ -225,17 +299,17 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
       </div>
 
       <div className="pos-floor-pay">
-        <select value={agentId} onChange={e => setAgentId(e.target.value)}>
+        <select value={agentId} onChange={e => changeAgent(e.target.value)}>
           <option value="">{t('posFloor.noCast')}</option>
           {agents.filter(row => row.ativo !== false).map(row => (
             <option key={row.id} value={row.id}>{row.nome}</option>
           ))}
         </select>
         {PAY.map(id => (
-          <button key={id} type="button" className={pay === id ? 'is-on' : ''} onClick={() => setPay(id)}>{t(`posFloor.pay_${id}`)}</button>
+          <button key={id} type="button" className={pay === id ? 'is-on' : ''} onClick={() => changePay(id)}>{t(`posFloor.pay_${id}`)}</button>
         ))}
         <button type="button" onClick={() => setOpenForm(v => !v)}>{t('posFloor.openBottle')}</button>
-        <button type="button" className="pos-floor-charge" disabled={busy || !lines.length} onClick={charge}>
+        <button type="button" className="pos-floor-charge" disabled={busy || !lines.length || !!blocked} onClick={charge}>
           {busy ? t('posFloor.saving') : t('posFloor.charge')}
         </button>
       </div>
@@ -249,14 +323,21 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
             ))}
           </select>
           <input value={bottleCode} onChange={e => setBottleCode(e.target.value)} placeholder={t('posFloor.bottleCode')} />
-          <input value={bottleMl} onChange={e => setBottleMl(e.target.value)} inputMode="numeric" />
+          <span className="pos-floor-meta">
+            {selectedBottle?.produtos?.volume_ml
+              ? `${selectedBottle.produtos.volume_ml} ml`
+              : t('posFloor.volumeCatalog')}
+          </span>
           <button type="button" onClick={openBottle}>{t('posFloor.confirmOpen')}</button>
         </div>
       )}
 
       <div className="pos-floor-bottles">
         {(Array.isArray(bottles) ? bottles : []).filter(row => row.status === 'opened').slice(0, 6).map(row => (
-          <div key={row.id}>{row.code} · {row.volume_atual} ml</div>
+          <div key={row.id}>
+            {row.produto_nome ? `${row.produto_nome} · ` : ''}{row.code} · {row.volume_atual}/{row.volume_original} ml
+            {row.remaining_pct != null ? ` · ${row.remaining_pct}%` : ''}
+          </div>
         ))}
       </div>
     </div>
