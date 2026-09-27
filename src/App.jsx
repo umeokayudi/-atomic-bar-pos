@@ -37,6 +37,7 @@ const BarsTab = lazy(() => import('./components/Configs').then(m => ({ default: 
 const UsuariosTab = lazy(() => import('./components/Configs').then(m => ({ default: m.UsuariosTab })))
 const PedidosAdminTab = lazy(() => import('./components/Configs').then(m => ({ default: m.PedidosAdminTab })))
 const FulfillmentHq = lazy(() => import('./components/FulfillmentHq'))
+const ProcurementBoard = lazy(() => import('./components/ProcurementBoard'))
 const SupplierPortal = lazy(() => import('./components/SupplierPortal'))
 const DashboardMetricModal = lazy(() => import('./components/DashboardMetricModal'))
 const DashboardCalendar = lazy(() => import('./components/DashboardCalendar'))
@@ -51,6 +52,7 @@ const ADMIN_TABS = [
   { id:'sales',    labelKey:'nav.sales', icon:'💴' },
   { id:'pedidos',   labelKey:'nav.orders', icon:'📋' },
   { id:'fulfillment', labelKey:'nav.fulfillment', icon:'🚚' },
+  { id:'procurement', labelKey:'nav.procurement', icon:'📦' },
   { id:'relatorio', labelKey:'nav.report', icon:'📈' },
   { id:'ryoshusho', labelKey:'nav.ryoshusho', icon:'🧾' },
   { id:'seikyusho', labelKey:'nav.seikyusho', icon:'📄' },
@@ -60,6 +62,10 @@ const ADMIN_TABS = [
   { id:'faturas',    labelKey:'nav.invoices', icon:'💰' },
   { id:'suppliers',  labelKey:'nav.suppliers', icon:'🏭' },
   { id:'cashflow',   labelKey:'nav.cashflow', icon:'💸' },
+]
+
+const EMPLOYEE_TABS = [
+  { id:'procurement', labelKey:'nav.procurement', icon:'📦' },
 ]
 
 const STAFF_TABS = [
@@ -474,8 +480,13 @@ function Shell() {
   }
 
   // ADMIN / FUNCIONÁRIO
-  const tabs = perfil?.role==='admin' ? ADMIN_TABS : STAFF_TABS
-  if (tab==='dashboard' && perfil?.role!=='admin') setTab('purchases')
+  const tabs = perfil?.role==='admin'
+    ? ADMIN_TABS
+    : perfil?.role==='funcionario'
+      ? EMPLOYEE_TABS
+      : STAFF_TABS
+  if (tab==='dashboard' && perfil?.role==='funcionario') setTab('procurement')
+  else if (tab==='dashboard' && perfil?.role!=='admin') setTab('purchases')
 
   return (
     <div className="app-shell">
@@ -548,6 +559,7 @@ function Shell() {
           {tab==='sales'    && <VendasTab/>}
           {tab==='pedidos'   && <PedidosAdminTab/>}
           {tab==='fulfillment' && <FulfillmentHq/>}
+          {tab==='procurement' && <ProcurementBoard/>}
           {tab==='relatorio' && <RelatorioTab/>}
           {tab==='ryoshusho' && <RyoshushoTab/>}
           {tab==='seikyusho' && <SeikyushoTab/>}

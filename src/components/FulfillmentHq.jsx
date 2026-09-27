@@ -183,6 +183,9 @@ export default function FulfillmentHq() {
             <div key={a.id} className="ff-assign">
               <strong>{a.supplier_name}</strong>
               <StatusBadge status={a.status} />
+              {['delivered', 'in_transit', 'partial'].includes(a.status) && (
+                <p className="ff-note">{t('procurement.supplierMarkedNotStock')}</p>
+              )}
               <ul>{(a.items || []).map(it => <li key={it.order_item_id}>{it.product} × {it.quantity_requested}{it.purchase_price != null ? ` · ¥${it.purchase_price}` : ''}</li>)}</ul>
               <AssignmentActions status={a.status} busy={busy} onAction={async (action) => {
                 setBusy(true)

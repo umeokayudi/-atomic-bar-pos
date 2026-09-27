@@ -4531,5 +4531,8 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
   .ff-list { grid-template-columns: 1fr 1fr; }
   .ff-form { grid-template-columns: 1fr 1fr auto auto; align-items: center; }
 }
+.proc-lanes { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin: 12px 0; }
+.proc-form { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; align-items: center; }
+.proc-form input, .proc-form select { min-width: 140px; }
 
 

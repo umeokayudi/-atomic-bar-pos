@@ -17,7 +17,7 @@ AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.perfis p
     WHERE p.id = auth.uid()
-      AND p.role IN ('admin', 'funcionario', 'jbm')
+      AND p.role IN ('admin', 'jbm')
   );
 $$;
 
