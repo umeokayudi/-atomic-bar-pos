@@ -9,19 +9,27 @@ import { staffFetch } from '../lib/apiAuth'
 import { AdminPage, PortalSurface } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
+import { canReadProductCost } from '../lib/legacyScope'
 
 // ── PRODUTOS ─────────────────────────────────────────────────────────────────
 export function ProductsTab() {
   const { t } = useI18n()
+  const { perfil } = useAuth()
+  const catalogCost = canReadProductCost(perfil?.role)
   const [produtos, setProducts] = useState([])
   const [loading, setLoading]   = useState(true)
   const [saving,  setSaving]    = useState(false)
   const [editId,  setEditId]    = useState(null)
   const [form, setForm] = useState({ nome:'', categoria:'Cerveja', custo:0, preco_venda:0 })
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [perfil?.role])
   async function load() {
     setLoading(true)
+    if (!canReadProductCost(perfil?.role)) {
+      setProducts([])
+      setLoading(false)
+      return
+    }
     const { data } = await supabase.from('produtos').select('*').order('nome')
     setProducts(data||[])
     setLoading(false)
@@ -30,6 +38,7 @@ export function ProductsTab() {
   const setF = (k,v) => setForm(f=>({...f,[k]:v}))
 
   async function save() {
+    if (!canReadProductCost(perfil?.role)) return
     if (!form.nome) return
     setSaving(true)
     if (editId) {
@@ -52,6 +61,14 @@ export function ProductsTab() {
   function startEdit(p) {
     setEditId(p.id)
     setForm({ nome:p.nome, categoria:p.categoria, custo:p.custo, preco_venda:p.preco_venda })
+  }
+
+  if (!catalogCost) {
+    return (
+      <AdminPage title={t('nav.products')}>
+        <PortalSurface><Empty text={t('common.companyLedger')} /></PortalSurface>
+      </AdminPage>
+    )
   }
 
   return (

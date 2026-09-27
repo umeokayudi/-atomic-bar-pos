@@ -48,7 +48,7 @@ export async function requireStaff(req, _admin, opts = {}) {
   if (error || !user) return { error: 'Invalid session', status: 401 }
 
   const userDb = createStaffUserClient(token)
-  const { data: perfil } = await userDb.from('perfis').select('role').eq('id', user.id).single()
+  const { data: perfil } = await userDb.from('perfis').select('role, bar_id').eq('id', user.id).single()
   if (!perfil || perfil.role === 'cliente' || perfil.role === 'caixa' || perfil.role === 'bar_staff') {
     return { error: 'No permission', status: 403 }
   }
@@ -60,6 +60,15 @@ export async function requireStaff(req, _admin, opts = {}) {
   }
 
   return { user, perfil, token }
+}
+
+/** Company ledgers and service-role snapshots. Admin, or the internal cron secret. Not staff. */
+export async function requireGlobalFinance(req, admin) {
+  const auth = await requireStaff(req, admin, { roles: ['admin'] })
+  if (auth.error) return auth
+  if (auth.service) return auth
+  if (auth.perfil?.role !== 'admin') return { error: 'No permission', status: 403 }
+  return auth
 }
 
 /** Conta do bar (dono, caixa tablet, staff). Nunca libera painel JBM. */

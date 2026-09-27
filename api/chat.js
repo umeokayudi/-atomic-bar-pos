@@ -1,6 +1,6 @@
 import { setCorsHeaders, handleCorsPreflight } from './_cors.js'
 import { geminiGenerate } from './_gemini.js'
-import { requireStaffOrTrustedOrigin } from './_requireStaff.js'
+import { requireGlobalFinance, requireStaffOrTrustedOrigin } from './_requireStaff.js'
 import { drinksAdminClient } from './_supabaseAdmin.js'
 
 function extractText(data) {
@@ -32,6 +32,8 @@ export default async function handler(req, res) {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
 
     if (body.module === 'seikyusho') {
+      const finance = await requireGlobalFinance(req, admin)
+      if (finance.error) return res.status(finance.status).json({ error: finance.error })
       const { handleSeikyushoRequest } = await import('./_seikyushoCore.js')
       return await handleSeikyushoRequest(res, body)
     }

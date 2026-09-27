@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
+import { barBookScope, canReadProductCost } from '../lib/legacyScope'
 import { fmtYen, fmtDate, monthKey, monthLabel, Badge, Spinner, Empty, DelBtn, isSupplierProduct, filterSupplierVendas } from './utils'
 import { AdminPage, PortalSurface, PortalKpi } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
 
 export default function VendasTab() {
   const { t } = useI18n()
-  const { user } = useAuth()
+  const { user, perfil } = useAuth()
+  const scope = barBookScope(perfil?.role, perfil?.bar_id)
   const [vendas,   setVendas]   = useState([])
   const [produtos, setProdutos] = useState([])
   const [bars,     setBars]     = useState([])
@@ -17,14 +19,26 @@ export default function VendasTab() {
   const [filterBar,   setFilterBar]   = useState('')
   const [form, setForm] = useState({ data: new Date().toISOString().slice(0,10), bar_id: '', obs: '', itens: [] })
 
-  useEffect(() => { loadAll() }, [])
+  useEffect(() => { loadAll() }, [perfil?.role, perfil?.bar_id])
 
   async function loadAll() {
     setLoading(true)
+    if (scope.kind === 'none') {
+      setVendas([]); setProdutos([]); setBars([]); setLoading(false)
+      return
+    }
+    let vendasQ = supabase.from('vendas').select('*, vendas_itens(*, produtos(id,nome,preco_venda,categoria))').order('data', { ascending: false })
+    let barsQ = supabase.from('bars').select('id,nome,cor').order('nome')
+    const productCols = canReadProductCost(perfil?.role) ? '*' : 'id,nome,preco_venda,categoria'
+    let produtosQ = supabase.from('produtos').select(productCols).eq('ativo', true).order('nome')
+    if (scope.kind === 'bar') {
+      vendasQ = vendasQ.eq('bar_id', scope.barId)
+      barsQ = barsQ.eq('id', scope.barId)
+    }
     const [{ data: v }, { data: p }, { data: b }] = await Promise.all([
-      supabase.from('vendas').select('*, vendas_itens(*, produtos(*))').order('data', { ascending: false }),
-      supabase.from('produtos').select('*').eq('ativo', true).order('nome'),
-      supabase.from('bars').select('*').order('nome')
+      vendasQ,
+      produtosQ,
+      barsQ,
     ])
     setVendas(filterSupplierVendas(v || []))
     setProdutos((p || []).filter(isSupplierProduct))
@@ -49,11 +63,13 @@ export default function VendasTab() {
   }, 0)
 
   async function saveVenda() {
+    if (scope.kind === 'none') return
     if (!form.itens.length) return alert(t('sales.addOneItem'))
-    if (!form.bar_id) return alert(t('sales.selectBar'))
+    const barId = scope.kind === 'bar' ? scope.barId : form.bar_id
+    if (!barId) return alert(t('sales.selectBar'))
     setSaving(true)
     const { data: venda, error } = await supabase.from('vendas').insert({
-      data: form.data, bar_id: form.bar_id,
+      data: form.data, bar_id: barId,
       total: totalVendaForm, obs: form.obs || t('sales.defaultObs'), criado_por: user.id,
     }).select().single()
     if (!error) {
@@ -71,8 +87,18 @@ export default function VendasTab() {
 
   async function deleteVenda(id) {
     if (!confirm(t('sales.confirmDelete'))) return
-    await supabase.from('vendas').delete().eq('id', id)
+    let del = supabase.from('vendas').delete().eq('id', id)
+    if (scope.kind === 'bar') del = del.eq('bar_id', scope.barId)
+    await del
     loadAll()
+  }
+
+  if (scope.kind === 'none') {
+    return (
+      <AdminPage title={t('nav.sales')}>
+        <PortalSurface><Empty text={t('common.needBarLink')} /></PortalSurface>
+      </AdminPage>
+    )
   }
 
   return (

@@ -1,4 +1,4 @@
-import { requireStaff } from '../_requireStaff.js'
+import { requireGlobalFinance } from '../_requireStaff.js'
 import { drinksAdminClient } from '../_supabaseAdmin.js'
 import holdingModules from '../_routeHoldingModules.js'
 import holdingAudit from '../_routeHoldingAudit.js'
@@ -32,7 +32,7 @@ export default async function handler(req, res) {
 
   try {
     const sb = drinksAdminClient()
-    const auth = await requireStaff(req, sb)
+    const auth = await requireGlobalFinance(req, sb)
     if (auth.error) return res.status(auth.status).json({ error: auth.error })
 
     if (req.method === 'GET') {

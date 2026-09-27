@@ -7,6 +7,7 @@ import {
   PAGAMENTOS, analyzeReceipt
 } from './utils'
 import { loadAllCompras } from '../lib/loadCompras'
+import { canReadCompanyPurchases, canReadSuppliers } from '../lib/legacyScope'
 import { SupplierPricePanel } from './SupplierPriceCheck'
 import PurchaseCashflowAdvisor from './PurchaseCashflowAdvisor'
 import { AdminPage, PortalSurface, PortalKpi } from './ui/PageLayout'
@@ -14,7 +15,8 @@ import { useI18n } from '../lib/i18n'
 
 export default function ComprasTab() {
   const { t } = useI18n()
-  const { user } = useAuth()
+  const { user, perfil } = useAuth()
+  const companyLedger = canReadCompanyPurchases(perfil?.role)
   const [compras, setCompras] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving,  setSaving]  = useState(false)
@@ -35,8 +37,12 @@ export default function ComprasTab() {
     }
   }
 
-  useEffect(() => { load(); loadFornecedores() }, [])
+  useEffect(() => { load(); loadFornecedores() }, [perfil?.role])
   async function loadFornecedores() {
+    if (!canReadSuppliers(perfil?.role)) {
+      setFornecedores([])
+      return
+    }
     const { data } = await supabase.from('fornecedores').select('id,nome,pagamento,prazo_entrega_dias,pontos_pct').order('nome')
     setFornecedores(data||[])
   }
@@ -46,7 +52,12 @@ export default function ComprasTab() {
 
   async function load() {
     setLoading(true)
-    const data = await loadAllCompras()
+    if (!canReadCompanyPurchases(perfil?.role)) {
+      setCompras([])
+      setLoading(false)
+      return
+    }
+    const data = await loadAllCompras({ allowCompanyLedger: true })
     setCompras((data || []).sort((a, b) => compraDate(b).localeCompare(compraDate(a))))
     setLoading(false)
   }
@@ -90,6 +101,7 @@ export default function ComprasTab() {
   }
 
   async function saveCompra() {
+    if (!canReadCompanyPurchases(perfil?.role)) return
     if (!form.fornecedor) return alert(t('purchases.enterSupplier'))
     setSaving(true)
     const total_real = (+form.total_pago || +form.subtotal) - (+form.desconto_pontos || 0)
@@ -146,6 +158,16 @@ export default function ComprasTab() {
     if (!confirm(t('purchases.confirmDelete'))) return
     await supabase.from('compras').delete().eq('id', id)
     load()
+  }
+
+  if (!companyLedger) {
+    return (
+      <AdminPage title={t('nav.purchases')}>
+        <PortalSurface>
+          <Empty text={t('common.companyLedger')} />
+        </PortalSurface>
+      </AdminPage>
+    )
   }
 
   return (

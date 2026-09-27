@@ -9,6 +9,7 @@ import { billChecks } from '../lib/billMatch'
 import { filterSupplierVendas } from './utils'
 import { useI18n } from '../lib/i18n'
 import { asReactText } from '../lib/errText'
+import { canLoadOverdueAlerts } from '../lib/legacyScope'
 import { panelBoxStyle, placeNotifPanel } from '../lib/notifPanel'
 
 export function useNotifications() {
@@ -66,11 +67,15 @@ export function useNotifications() {
 
 /** JBM admin: overdue invoices/purchases across bars. */
 export function useOverdueAlerts() {
-  const { user } = useAuth()
+  const { user, perfil } = useAuth()
   const [alerts, setAlerts] = useState(null)
+  const allowed = canLoadOverdueAlerts(perfil?.role)
 
   const load = useCallback(async () => {
-    if (!user) return
+    if (!user || !allowed) {
+      setAlerts({ faturas: [], compras: [], faturasTotal: 0, comprasTotal: 0 })
+      return
+    }
     const today = new Date().toISOString().slice(0, 10)
     const [fR, cR, foR] = await Promise.all([
       supabase.from('faturas').select('*, bars(nome)').order('data_vencimento'),
@@ -97,7 +102,7 @@ export function useOverdueAlerts() {
       faturasTotal: faturaSplit.overdueTotal,
       comprasTotal: compraSplit.overdueTotal,
     })
-  }, [user])
+  }, [user, allowed])
 
   useEffect(() => {
     load()

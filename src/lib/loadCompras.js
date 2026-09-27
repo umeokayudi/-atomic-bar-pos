@@ -5,7 +5,8 @@ const SELECT = '*, compras_itens(*)'
 
 /** Carrega compras — tenta Supabase direto; se RLS bloquear, usa API com service role */
 export async function loadCompras(opts = {}) {
-  const { month } = opts
+  const { month, allowCompanyLedger = false } = opts
+  if (!allowCompanyLedger) return []
 
   const { data: direct, error } = await supabase
     .from('compras')
@@ -45,6 +46,6 @@ export async function loadCompras(opts = {}) {
 }
 
 /** Todas as compras (histórico completo para custo unitário) */
-export async function loadAllCompras() {
-  return loadCompras()
+export async function loadAllCompras(opts = {}) {
+  return loadCompras(opts)
 }
