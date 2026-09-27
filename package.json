@@ -12,7 +12,8 @@
     "deploy:jbm": "bash scripts/deploy-vercel.sh jbm",
     "audit:live": "node scripts/audit-live.mjs",
     "test:procurement": "node scripts/procurement.test.mjs",
-    "test:legacy": "node scripts/legacyAccess.test.mjs"
+    "test:legacy": "node scripts/legacyAccess.test.mjs",
+    "test:payroll": "node scripts/payroll.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

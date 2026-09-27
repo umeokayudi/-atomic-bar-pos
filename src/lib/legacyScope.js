@@ -38,10 +38,13 @@ export function shellTabIds(role) {
     return [
       'dashboard', 'billingHub', 'purchases', 'sales', 'pedidos', 'fulfillment', 'procurement',
       'relatorio', 'ryoshusho', 'seikyusho', 'products', 'bars', 'usuarios', 'faturas', 'suppliers', 'cashflow',
+      'payroll',
     ]
   }
-  if (role === 'jbm') return ['procurement', 'fulfillment']
-  if (role === 'funcionario') return ['procurement']
+  if (role === 'jbm') return ['procurement', 'fulfillment', 'payroll']
+  if (role === 'funcionario') {
+    return ['profile', 'shifts', 'clock', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary', 'procurement']
+  }
   if (role === 'staff') return ['purchases', 'sales', 'relatorio', 'ryoshusho', 'products']
   return []
 }
