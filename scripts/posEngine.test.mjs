@@ -124,6 +124,8 @@ for (const source of [mobile, tablet]) {
   assert.match(source, /ConfirmPay/)
 }
 assert.match(floor, /posEngine/)
+assert.match(floor, /function scanCode/)
+assert.match(floor, /err_closed/)
 assert.match(floor, /pos_close_ticket/)
 assert.match(floor, /pos_close_with_charges/)
 assert.match(floor, /chargeLock/)

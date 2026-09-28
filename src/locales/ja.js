@@ -1255,6 +1255,8 @@ export default {
     'err_bad-total': '合計が正しくありません。',
     err_busy: '会計はすでに進行中です。',
     err_sale: '売上を締められませんでした。',
+    err_closed: 'この席は会計済みです。',
+    unavailable: '販売不可',
   },
   nav: {
     dashboard: 'ダッシュボード',

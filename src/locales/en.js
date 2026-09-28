@@ -1255,6 +1255,8 @@ export default {
     'err_bad-total': 'The total is not valid.',
     err_busy: 'Payment is already in progress.',
     err_sale: 'The sale could not be closed.',
+    err_closed: 'This table is closed.',
+    unavailable: 'Unavailable',
   },
   nav: {
     dashboard: 'Dashboard',

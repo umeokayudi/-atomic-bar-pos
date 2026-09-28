@@ -18,24 +18,25 @@ export function PosSearch({ t, query, onQuery, onScan }) {
   )
 }
 
-export function ProductButton({ product, onAdd }) {
+export function ProductButton({ t, product, onAdd }) {
   const code = productCodes(product)[0]
   const problem = productProblem(product)
   return (
     <button type="button" className="pos-product-card" onClick={() => onAdd(product)} disabled={!!problem}>
       <span>{product.nome}</span>
       {code && <small>{code}</small>}
-      <strong>{problem ? '' : fmtYen(product.preco_venda || product.preco_drink || 0)}</strong>
+      {product.categoria && <small>{product.categoria}</small>}
+      <strong>{problem ? t('posFloor.unavailable') : fmtYen(product.preco_venda || product.preco_drink || 0)}</strong>
     </button>
   )
 }
 
-export function ProductGrid({ products, onAdd, empty }) {
+export function ProductGrid({ t, products, onAdd, empty }) {
   if (!products.length) return <p className="pos-floor-empty">{empty}</p>
   return (
     <div className="pos-product-grid">
       {products.map(product => (
-        <ProductButton key={`${product.kind || 'drink'}-${product.id}`} product={product} onAdd={onAdd} />
+        <ProductButton key={`${product.kind || 'drink'}-${product.id}`} t={t} product={product} onAdd={onAdd} />
       ))}
     </div>
   )

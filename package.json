@@ -15,6 +15,7 @@
     "test:legacy": "node scripts/legacyAccess.test.mjs",
     "test:payroll": "node scripts/payroll.test.mjs",
     "test:pos": "node scripts/posFloor.test.mjs && node scripts/posEngine.test.mjs",
+    "test:security": "node scripts/securityModel.test.mjs",
     "test:employees": "node scripts/employeeAccess.test.mjs",
     "test:pos:pg": "node scripts/posFloor.pg.test.mjs"
   },

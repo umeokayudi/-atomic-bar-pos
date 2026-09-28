@@ -68,13 +68,6 @@ export default function EstoqueTab() {
       obs: formObs || 'Bottle opened',
       criado_por: user.id
     })
-    // Update produto estoque_atual
-    const prod = produtos.find(p => p.id === formProdId)
-    if (prod) {
-      await supabase.from('produtos').update({
-        estoque_atual: Math.max(0, (prod.estoque_atual || 0) - formQtd)
-      }).eq('id', formProdId)
-    }
     setSaving(false)
     setFormObs('')
     setFormQtd(1)

@@ -12,6 +12,7 @@ import {
   favoriteProducts,
   paymentProblem,
   posEvent,
+  productCodes,
   productProblem,
   quoteSale,
   recommendProducts,
@@ -277,6 +278,10 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
       setErr(t(`posFloor.err_${problem}`))
       return
     }
+    if (ticket?.status && ticket.status !== 'open') {
+      setErr(t('posFloor.err_closed'))
+      return
+    }
     if (!spaceId || busy) {
       setErr(t('posFloor.pickSpace'))
       setStep('tables')
@@ -312,6 +317,17 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
     }
     setUndoLine({ drink: product.kind === 'drink' ? product.id : null, produto: product.kind === 'shot' ? product.id : null })
     await loadSpace(spaceId)
+  }
+
+  function scanCode(code) {
+    const text = String(code || '').trim()
+    setScanning(false)
+    setStep('products')
+    setQuery(text)
+    if (!text) return
+    const needle = text.toLowerCase()
+    const exact = searchProducts(catalog, text).filter(product => productCodes(product).some(value => value.toLowerCase() === needle))
+    if (exact.length === 1) addProduct(exact[0])
   }
 
   async function undoLast() {
@@ -486,7 +502,7 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
     selectedBottle, catalogError, catalog, orientation, setZone, chooseSpace, addProduct,
     changeItem, requestQty, confirmRemove, charge, askCharge, changePay, changeAgent, openBottle, askLoss,
     confirmLoss, openSettings: () => setSettingsOpen(true),
-    query, setQuery, favorites, recommendations, quote, confirming, setConfirming,
+    query, setQuery, favorites, recommendations, quote, confirming, setConfirming, scanCode,
     scanning, setScanning, detailed, setDetailed, why, setWhy, undoLast, canConfigure,
     openPosSettings: () => setPosSettingsOpen(true),
   }
