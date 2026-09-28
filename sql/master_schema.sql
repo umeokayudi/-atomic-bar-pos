@@ -16,5 +16,6 @@
 \ir supplier_fulfillment.sql
 \ir procurement.sql
 \ir pos_floor.sql
+\ir pos_ux.sql
 \ir payroll.sql
 \ir bar_employees.sql

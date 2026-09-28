@@ -1,12 +1,26 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useI18n } from '../lib/i18n'
 import { schemaMissing } from '../lib/fulfillment'
 import { groupSpaces } from '../lib/posFloor'
 import { readPosDeviceMode, suggestPosDeviceMode, writePosDeviceMode } from '../lib/posDeviceMode'
+import {
+  configFromRow,
+  configToRow,
+  defaultPosConfig,
+  favoriteKey,
+  favoriteProducts,
+  paymentProblem,
+  posEvent,
+  productProblem,
+  quoteSale,
+  recommendProducts,
+  searchProducts,
+} from '../lib/posEngine'
 import PosModePicker from './pos/PosModePicker'
 import PosMobile from './pos/PosMobile'
 import PosTablet from './pos/PosTablet'
+import PosBarSettings from './pos/PosBarSettings'
 
 const PAY = ['cash', 'card', 'credit', 'other']
 const BOTTLE_MOVES = ['waste', 'breakage', 'spill', 'complimentary', 'adjustment']
@@ -20,7 +34,23 @@ function closeKey(ticketId) {
   return created
 }
 
-export default function PosFloor({ bar, drinks = [], shots = [], agents = [], catalogError = '', onSale }) {
+function catalogProduct(row, kind) {
+  return {
+    ...row,
+    id: row.id,
+    kind,
+    nome: row.nome,
+    nome_ja: row.nome_ja || row.name_ja || row.produtos?.nome_ja || '',
+    nome_en: row.nome_en || row.name_en || row.produtos?.nome_en || '',
+    sku: row.sku || row.codigo || row.code || row.produtos?.sku || row.produtos?.codigo || '',
+    barcode: row.barcode || row.ean || row.produtos?.barcode || row.produtos?.ean || '',
+    custo: row.custo ?? row.produtos?.custo,
+    ativo: row.ativo !== false && row.produtos?.ativo !== false,
+    criado_em: row.criado_em || row.created_at || row.produtos?.criado_em,
+  }
+}
+
+export default function PosFloor({ bar, drinks = [], shots = [], agents = [], catalogError = '', onSale, canConfigure = false }) {
   const { t } = useI18n()
   const [spaces, setSpaces] = useState([])
   const [spaceId, setSpaceId] = useState('')
@@ -46,7 +76,19 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
   const [mode, setMode] = useState(null)
   const [asking, setAsking] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [step, setStep] = useState('tables')
+  const [step, setStep] = useState('products')
+  const [query, setQuery] = useState('')
+  const [config, setConfig] = useState(defaultPosConfig)
+  const [configInstalled, setConfigInstalled] = useState(false)
+  const [posSettingsOpen, setPosSettingsOpen] = useState(false)
+  const [savingConfig, setSavingConfig] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const [scanning, setScanning] = useState(false)
+  const [detailed, setDetailed] = useState(false)
+  const [why, setWhy] = useState('')
+  const [undoLine, setUndoLine] = useState(null)
+  const chargeLock = useRef(false)
+  const events = useRef([])
   const [pendingRemove, setPendingRemove] = useState(null)
   const [lossAsk, setLossAsk] = useState(false)
   const [orientation, setOrientation] = useState(() => (
@@ -113,20 +155,48 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
   }, [bar.id])
 
   const groups = groupSpaces(spaces)
+  useEffect(() => {
+    let cancelled = false
+    supabase.from('pos_bar_config').select('*').eq('bar_id', bar.id).maybeSingle().then(({ data, error }) => {
+      if (cancelled) return
+      if (error) {
+        setConfig(defaultPosConfig())
+        setConfigInstalled(false)
+        if (!schemaMissing(error)) setErr(error.message)
+        return
+      }
+      setConfig(configFromRow(data))
+      setConfigInstalled(true)
+    })
+    return () => { cancelled = true }
+  }, [bar.id])
+
   const catalog = useMemo(() => ([
-    ...(drinks || []).map(d => ({ ...d, id: d.id, kind: 'drink' })),
-    ...(shots || []).map(s => ({
+    ...(drinks || []).map(d => catalogProduct(d, 'drink')),
+    ...(shots || []).map(s => catalogProduct({
+      ...s,
       id: s.produto_id,
       produto_id: s.produto_id,
       nome: s.produtos?.nome || s.nome,
       categoria: s.produtos?.categoria || 'Other',
       preco_venda: s.preco_drink,
       volume_ml: s.produtos?.volume_ml,
-      kind: 'shot',
-    })),
+    }, 'shot')),
   ]), [drinks, shots])
   const cats = ['all', ...new Set(catalog.map(row => row.categoria).filter(Boolean))]
-  const visible = catalog.filter(row => cat === 'all' || row.categoria === cat)
+  const matches = query.trim()
+    ? searchProducts(catalog, query)
+    : catalog.filter(row => cat === 'all' || row.categoria === cat)
+  const visible = matches
+  const favorites = favoriteProducts(catalog, config.favorites)
+  const cartKeys = lines.map(line => `${line.drink_menu_id ? 'drink' : 'shot'}:${line.drink_menu_id || line.produto_id}`)
+  const recommendations = recommendProducts({ catalog, config, cartKeys })
+  const quote = quoteSale({
+    subtotal: preview?.subtotal || 0,
+    method: pay,
+    config,
+    servicePoint: 'dine-in',
+  })
   const space = spaces.find(row => row.id === spaceId)
   const blocked = preview?.blocked || ''
 
@@ -202,12 +272,19 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
   }
 
   async function addProduct(product) {
+    const problem = productProblem(product)
+    if (problem) {
+      setErr(t(`posFloor.err_${problem}`))
+      return
+    }
     if (!spaceId || busy) {
       setErr(t('posFloor.pickSpace'))
+      setStep('tables')
       return
     }
     setBusy(true)
     setErr('')
+    events.current.push(posEvent('product_added', { id: product.id, barId: bar.id }))
     let ticketId = ticket?.id
     if (!ticketId) {
       const opened = await supabase.rpc('pos_load_ticket', { p_bar: bar.id, p_space: spaceId, p_guest: '' })
@@ -233,7 +310,20 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
       setErr(saved.error.message)
       return
     }
+    setUndoLine({ drink: product.kind === 'drink' ? product.id : null, produto: product.kind === 'shot' ? product.id : null })
     await loadSpace(spaceId)
+  }
+
+  async function undoLast() {
+    if (!undoLine || busy) return
+    const line = lines.find(row => (
+      (undoLine.drink && row.drink_menu_id === undoLine.drink)
+      || (undoLine.produto && row.produto_id === undoLine.produto)
+    ))
+    setUndoLine(null)
+    if (!line) return
+    events.current.push(posEvent('product_removed', { id: line.id, barId: bar.id }))
+    await changeItem(line, Math.max(0, line.qtd - 1))
   }
 
   async function changeItem(line, qtd, forCast = line.for_cast) {
@@ -257,23 +347,54 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
     await loadSpace(spaceId)
   }
 
+  function askCharge() {
+    if (blocked) {
+      setErr(blocked)
+      return
+    }
+    const problem = paymentProblem({ method: pay, lineCount: lines.length, quote, charging: busy || chargeLock.current })
+    if (problem || !ticket?.id) {
+      setErr(t(`posFloor.err_${problem || 'empty'}`))
+      return
+    }
+    setConfirming(true)
+  }
+
   async function charge() {
-    if (!ticket?.id || !lines.length || busy || blocked) return
+    if (!ticket?.id || !lines.length || busy || blocked || chargeLock.current || !confirming) return
+    const problem = paymentProblem({ method: pay, lineCount: lines.length, quote, charging: false })
+    if (problem) {
+      setErr(t(`posFloor.err_${problem}`))
+      return
+    }
+    const extras = quote.service + quote.tax + quote.surcharge
+    if (extras > 0 && !configInstalled) {
+      setErr(t('posFloor.chargesNotInstalled'))
+      return
+    }
+    chargeLock.current = true
     setBusy(true)
     setErr('')
     const key = closeKey(ticket.id)
-    const closed = await supabase.rpc('pos_close_ticket', {
+    const args = {
       p_bar: bar.id,
       p_ticket: ticket.id,
       p_payment: pay,
       p_key: key,
       p_agent: agentId || null,
-    })
+    }
+    const closed = extras > 0
+      ? await supabase.rpc('pos_close_with_charges', { ...args, p_point: 'dine-in' })
+      : await supabase.rpc('pos_close_ticket', args)
     setBusy(false)
+    chargeLock.current = false
     if (closed.error) {
-      setErr(closed.error.message)
+      if (extras > 0 && schemaMissing(closed.error)) setErr(t('posFloor.chargesNotInstalled'))
+      else setErr(t('posFloor.err_sale'))
       return
     }
+    events.current.push(posEvent('sale_closed', { barId: bar.id, method: pay, total: quote.total }))
+    setConfirming(false)
     sessionStorage.removeItem(`pos-close:${ticket.id}`)
     setTicket(null)
     setLines([])
@@ -328,8 +449,23 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
     await reloadBoard()
   }
 
+  async function saveConfig(next) {
+    if (!canConfigure) return
+    setSavingConfig(true)
+    const { error } = await supabase.from('pos_bar_config').upsert(configToRow(bar.id, next))
+    setSavingConfig(false)
+    if (error) {
+      setErr(schemaMissing(error) ? t('posFloor.settingsMissing') : t('posFloor.settingsDenied'))
+      return
+    }
+    setConfig(configFromRow(next))
+    setConfigInstalled(true)
+    setPosSettingsOpen(false)
+  }
+
   async function changePay(id) {
     setPay(id)
+    setConfirming(false)
     if (ticket?.id) await refreshPreview(ticket.id, id, agentId)
   }
 
@@ -348,11 +484,27 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
     lossMl, setLossMl, lossReason, setLossReason, bottleMoves: BOTTLE_MOVES,
     step, setStep, sheet: step === 'ticket', pendingRemove, setPendingRemove, lossAsk, setLossAsk,
     selectedBottle, catalogError, catalog, orientation, setZone, chooseSpace, addProduct,
-    changeItem, requestQty, confirmRemove, charge, changePay, changeAgent, openBottle, askLoss,
+    changeItem, requestQty, confirmRemove, charge, askCharge, changePay, changeAgent, openBottle, askLoss,
     confirmLoss, openSettings: () => setSettingsOpen(true),
+    query, setQuery, favorites, recommendations, quote, confirming, setConfirming,
+    scanning, setScanning, detailed, setDetailed, why, setWhy, undoLast, canConfigure,
+    openPosSettings: () => setPosSettingsOpen(true),
   }
 
   if (!modeReady) return null
+
+  if (posSettingsOpen && canConfigure) {
+    return (
+      <PosBarSettings
+        t={t}
+        config={config}
+        catalog={catalog}
+        saving={savingConfig}
+        onSave={saveConfig}
+        onClose={() => setPosSettingsOpen(false)}
+      />
+    )
+  }
 
   return (
     <>

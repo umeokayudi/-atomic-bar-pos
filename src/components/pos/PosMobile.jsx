@@ -1,4 +1,5 @@
 import { fmtYen } from '../utils'
+import { ChipRow, ConfirmPay, PosScanner, PosSearch, ProductGrid, QuoteLines, RecommendRow } from './PosWidgets'
 
 export default function PosMobile({ t, floor }) {
   const {
@@ -15,7 +16,10 @@ export default function PosMobile({ t, floor }) {
           <strong>{space?.nome || t('posFloor.pickSpace')}</strong>
           <span>{fmtYen(preview?.subtotal || 0)}</span>
         </div>
-        <button type="button" onClick={floor.openSettings}>{t('posFloor.layout')}</button>
+        <div className="pos-top-actions">
+          {floor.canConfigure && <button type="button" onClick={floor.openPosSettings}>{t('posFloor.settingsShort')}</button>}
+          <button type="button" onClick={floor.openSettings}>{t('posFloor.layout')}</button>
+        </div>
       </header>
 
       {err && <div className="pos-sale-err">{err}</div>}
@@ -42,20 +46,34 @@ export default function PosMobile({ t, floor }) {
 
       {step === 'products' && (
         <section className="pos-m-panel">
-          <div className="pos-m-cats">
-            {cats.map(id => (
-              <button key={id} type="button" className={cat === id ? 'is-on' : ''} onClick={() => floor.setCat(id)}>{id}</button>
-            ))}
-          </div>
-          <div className="pos-m-grid">
-            {visible.map(product => (
-              <button key={product.id} type="button" className="pos-m-product" onClick={() => floor.addProduct(product)}>
-                <span>{product.nome}</span>
-                <strong>{fmtYen(product.preco_venda || product.preco_drink || 0)}</strong>
-              </button>
-            ))}
-            {visible.length === 0 && <p className="pos-floor-empty">{catalogError || t('posFloor.noProducts')}</p>}
-          </div>
+          <PosSearch t={t} query={floor.query} onQuery={floor.setQuery} onScan={() => floor.setScanning(true)} />
+          {!floor.spaceId && (
+            <ChipRow label={t('posFloor.pickSpace')}>
+              {floor.spaces.map(row => (
+                <button key={row.id} type="button" onClick={() => floor.chooseSpace(row.id)}>{row.nome}</button>
+              ))}
+            </ChipRow>
+          )}
+          {floor.favorites.length > 0 && !floor.query.trim() && (
+            <ChipRow label={t('posFloor.favorites')}>
+              {floor.favorites.map(product => (
+                <button key={product.id} type="button" className="pos-fav" onClick={() => floor.addProduct(product)}>
+                  {product.nome}
+                </button>
+              ))}
+            </ChipRow>
+          )}
+          {!floor.query.trim() && (
+            <div className="pos-m-cats">
+              {cats.map(id => (
+                <button key={id} type="button" className={cat === id ? 'is-on' : ''} onClick={() => floor.setCat(id)}>
+                  {id === 'all' ? t('posFloor.all') : id}
+                </button>
+              ))}
+            </div>
+          )}
+          <RecommendRow t={t} items={floor.recommendations} onAdd={floor.addProduct} why={floor.why} setWhy={floor.setWhy} />
+          <ProductGrid products={visible} onAdd={floor.addProduct} empty={catalogError || t('posFloor.noProducts')} />
         </section>
       )}
 
@@ -69,36 +87,39 @@ export default function PosMobile({ t, floor }) {
 
       {step === 'pay' && (
         <section className="pos-m-panel pos-m-pay-panel">
-          <div className="pos-m-total">
-            <span>{t('posFloor.total')}</span>
-            <strong>{fmtYen(preview?.subtotal || 0)}</strong>
-          </div>
-          {preview && (
+          <QuoteLines t={t} quote={floor.quote} />
+          {floor.detailed && preview && (
             <p className="pos-floor-meta">
               {t('posFloor.fee')} {fmtYen(preview.fee)} · {t('posFloor.net')} {fmtYen(preview.net)} · {t('posFloor.commission')} {fmtYen(preview.commission)}
             </p>
           )}
-          <select value={agentId} onChange={e => floor.changeAgent(e.target.value)}>
-            <option value="">{t('posFloor.noCast')}</option>
-            {agents.filter(row => row.ativo !== false).map(row => (
-              <option key={row.id} value={row.id}>{row.nome}</option>
-            ))}
-          </select>
+          {floor.detailed && (
+            <select value={agentId} onChange={e => floor.changeAgent(e.target.value)}>
+              <option value="">{t('posFloor.noCast')}</option>
+              {agents.filter(row => row.ativo !== false).map(row => (
+                <option key={row.id} value={row.id}>{row.nome}</option>
+              ))}
+            </select>
+          )}
           <div className="pos-m-pays">
             {payments.map(id => (
               <button key={id} type="button" className={pay === id ? 'is-on' : ''} onClick={() => floor.changePay(id)}>{t(`posFloor.pay_${id}`)}</button>
             ))}
           </div>
-          <button type="button" onClick={() => floor.setOpenForm(v => !v)}>{t('posFloor.openBottle')}</button>
-          {openForm && <BottleForm t={t} floor={floor} shots={shots} bottleProduct={bottleProduct} bottleCode={bottleCode} selectedBottle={selectedBottle} />}
-          <BottleLoss t={t} floor={floor} bottles={bottles} lossBottle={lossBottle} lossKind={lossKind} lossMl={lossMl} lossReason={lossReason} bottleMoves={bottleMoves} />
+          <button type="button" onClick={() => floor.setDetailed(value => !value)}>{t('posFloor.detailed')}</button>
+          {floor.detailed && <button type="button" onClick={() => floor.setOpenForm(v => !v)}>{t('posFloor.openBottle')}</button>}
+          {floor.detailed && openForm && <BottleForm t={t} floor={floor} shots={shots} bottleProduct={bottleProduct} bottleCode={bottleCode} selectedBottle={selectedBottle} />}
+          {floor.detailed && <BottleLoss t={t} floor={floor} bottles={bottles} lossBottle={lossBottle} lossKind={lossKind} lossMl={lossMl} lossReason={lossReason} bottleMoves={bottleMoves} />}
           {blocked && <div className="pos-sale-err">{blocked}</div>}
         </section>
       )}
 
       <div className="pos-m-dock">
-        <button type="button" className="pos-m-charge" disabled={busy || !lines.length || !!blocked} onClick={floor.charge}>
-          {busy ? t('posFloor.saving') : `${t('posFloor.charge')} ${fmtYen(preview?.subtotal || 0)}`}
+        <button type="button" className="pos-m-cart" onClick={() => floor.setStep('ticket')}>
+          {t('posFloor.cart', { count: lines.length, amount: fmtYen(floor.quote?.total || 0) })}
+        </button>
+        <button type="button" className="pos-m-charge" disabled={busy || !lines.length || !!blocked} onClick={floor.askCharge}>
+          {busy ? t('posFloor.saving') : t('posFloor.confirmPay', { amount: fmtYen(floor.quote?.total || 0) })}
         </button>
         <nav className="pos-m-nav" aria-label={t('posFloor.layout')}>
           {[
@@ -115,6 +136,12 @@ export default function PosMobile({ t, floor }) {
         </nav>
       </div>
 
+      {floor.confirming && (
+        <ConfirmPay t={t} quote={floor.quote} busy={busy} onCancel={() => floor.setConfirming(false)} onConfirm={floor.charge} />
+      )}
+      {floor.scanning && (
+        <PosScanner t={t} onClose={() => floor.setScanning(false)} onCode={code => { floor.setQuery(code); floor.setScanning(false); floor.setStep('products') }} />
+      )}
       {pendingRemove && (
         <Confirm
           title={t('posFloor.removeLine')}
@@ -140,6 +167,7 @@ export default function PosMobile({ t, floor }) {
 function TicketLines({ t, floor, lines, preview }) {
   return (
     <div className="pos-m-lines">
+      <button type="button" onClick={floor.undoLast}>{t('posFloor.undo')}</button>
       {lines.length === 0 && <p className="pos-floor-empty">{t('posFloor.emptyTicket')}</p>}
       {lines.map(line => {
         const shown = (preview?.lines || []).find(row => row.id === line.id)
@@ -157,7 +185,7 @@ function TicketLines({ t, floor, lines, preview }) {
             </div>
             <div className="pos-m-qty">
               <button type="button" onClick={() => floor.requestQty(line, line.qtd - 1)}>-</button>
-              <span>{line.qtd}</span>
+              <input inputMode="numeric" value={line.qtd} onChange={event => floor.requestQty(line, Math.round(Number(event.target.value) || 0))} />
               <button type="button" onClick={() => floor.requestQty(line, line.qtd + 1)}>+</button>
             </div>
             <span>{fmtYen(shown?.unit_price || 0)}</span>

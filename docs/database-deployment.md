@@ -25,6 +25,9 @@ O banco já precisa ter o catálogo antigo (bares, produtos, pedidos, vendas, PO
 5. `sql/pos_floor.sql`  
    Comanda, garrafa, movimento e fechamento do caixa. Escreve em `pos_vendas` e `caixa_movimentos`. Não escreve `vendas` nem procurement.
 
+5b. `sql/pos_ux.sql`  
+   Configuração do caixa por bar (favoritos, IA, serviço, imposto, acréscimo de cartão) e o fechamento que soma essas taxas na mesma venda. Não cria produto, pedido nem um segundo livro. Não aplicar em produção. Depende de `pos_close_ticket`.
+
 6. `sql/payroll.sql`  
    Folha. Lê `time_clock` e `perfis`. Não cria o ponto.
 
