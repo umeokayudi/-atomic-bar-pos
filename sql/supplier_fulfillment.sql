@@ -1,5 +1,7 @@
 -- Supplier fulfillment for drink orders.
--- Run once in the Supabase SQL editor (drinks project).
+-- Run once in the Supabase SQL editor (drinks project), BEFORE sql/procurement.sql.
+-- Do not run this file again after procurement.sql. It would put back the older
+-- supplier_advance, bar_confirm_delivery, and fulfillment_alerts policies.
 -- Does not create a second bars/products/orders catalog.
 -- Existing books stay: pedidos = the bar's drink order, fornecedores = suppliers,
 -- produtos = products, pos_vendas = till, vendas/faturas = JBM bill.
