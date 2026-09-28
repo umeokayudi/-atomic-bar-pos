@@ -78,7 +78,36 @@ Depois de validar em produção, o que pode sair é o Previous till: `PosCheckou
 
 `npm run test:pos:pg` não faz nada sem `POS_PG_TEST_URL`. Recusa host `supabase.co` e qualquer base cujo nome não termine em `_test`, a menos que `POS_PG_ALLOW=1`. Não aplicar este comando na base real.
 
+Cada execução gera ids, mesas, códigos de garrafa e chaves de idempotência novos. As linhas da execução anterior permanecem na base. Os asserts continuam exigindo a contagem exata dessas fixtures novas. A suíte não apaga a base e não transforma `COUNT(*) = 1` em `COUNT(*) >= 1`.
+
+`sql/pos_sale_security.sql` depende do schema legado do projeto (`perfis`, `produtos` com estoque, `cast_members`, `vendas`, `vendas_itens`, `cast_comissoes`). Numa base vazia ele não aplica. `sql/pos_floor.sql` depende dessas tabelas já existirem e de `auth.uid()`. A suíte cria só o mínimo disso no PostgreSQL local: schema `auth`, `auth.uid()` lendo `pos.test_actor`, `perfis` e as tabelas de catálogo/caixa que o arquivo altera. Os papéis `authenticated` e `anon` foram criados apenas no cluster de teste, para os `GRANT` desse arquivo encontrarem os mesmos nomes do Supabase. Isso não cria esses objetos em produção.
+
+## Validação Supabase
+
+Bloqueado por ausência de ambiente Supabase de teste.
+
+O código do piso foi validado num PostgreSQL local descartável (`pos_test` em `127.0.0.1`), não num projeto Supabase. Nessa base local passaram `npm run test:pos:pg` (inclusive uma segunda execução na mesma base), `npm run test:pos`, `npm run test:procurement` (36 testes) e `npm run build`. Também passaram, só localmente, concorrência, idempotência, leitura com `pos_rls` sem bypass de RLS, `operational_day` (05:30 Asia/Tokyo na noite anterior e 06:00 na noite nova) e estoque/estorno.
+
+A validação Supabase continua pendente. Não existe projeto Supabase de staging/teste confirmado. Nenhum SQL foi aplicado em Supabase. Nenhuma RPC foi executada lá. Nenhum usuário autenticado real foi testado. RLS real, concorrência real e o fluxo de caixa autenticado não foram validados. Produção permanece intocada: sem SQL e sem deploy.
+
+Os únicos projetos conhecidos no repositório são de produção e não servem como ambiente de teste: bebidas `ojirgkqtqvugqktyuhem` e holding `fxsakrshmldmkdmbevna`.
+
+Para desbloquear a próxima etapa é necessário um projeto Supabase separado, de staging/teste, com:
+
+1. Auth
+2. Postgres
+3. RLS
+4. Usuários de teste para `admin`, `jbm`, `gerente`, `caixa`, `bar_staff`, `cliente`, `fornecedor`, `funcionario` e `staff`, em pelo menos dois bares
+5. O schema legado que `sql/pos_sale_security.sql` exige (`perfis`, `produtos` com estoque, `cast_members`, `vendas`, `vendas_itens`, `cast_comissoes`)
+6. Dados mínimos de POS: produto com `volume_ml`, estoque selado, drink no cardápio e receita
+
+Depois que esse projeto existir, e só depois de confirmar que não é produção, aplicar nele, nesta ordem, `sql/pos_sale_security.sql` e `sql/pos_floor.sql`. Em seguida executar os testes autenticados: bar A para bar A, bar A para bar B, fornecedor e funcionário bloqueados no POS, jbm com RPC permitida e SELECT direto conforme a policy, abrir garrafa, lançar em dois aparelhos, cobrar, estornar uma unidade, fechamento, 05:30 e 06:00 Asia/Tokyo, duas sessões concorrentes e os movimentos de garrafa sem duplicar estoque.
+
+Não há URL, project ref, `DATABASE_URL`, `SUPABASE_DB_URL` nem credencial desse projeto de teste. Não há resultado de teste Supabase para registrar.
+
 ## Checklist da primeira instalação
+
+Este checklist só vale para o projeto Supabase de staging/teste descrito acima. Não aplicar estes passos em `ojirgkqtqvugqktyuhem` nem em `fxsakrshmldmkdmbevna`.
 
 1. Confirmar que a base de teste não é a de produção.
 2. Aplicar `sql/pos_sale_security.sql` se `user_can_access_bar` ainda deixar `staff` ou `funcionario` entrar só porque `perfis.bar_id` está preenchido.
@@ -86,4 +115,4 @@ Depois de validar em produção, o que pode sair é o Previous till: `PosCheckou
 4. Confirmar `produtos.volume_ml` nas garrafas que serão abertas.
 5. Criar ao menos uma receita em `pos_recipes` / `pos_recipe_lines` para cada drink do cardápio antes de cobrar.
 6. Abrir uma garrafa, lançar o drink em dois aparelhos, cobrar uma vez, estornar uma unidade e ler o fechamento da noite.
-7. Rodar `POS_PG_TEST_URL=postgres://.../pos_test npm run test:pos:pg` numa base vazia cujo nome termine em `_test`.
+7. Rodar `POS_PG_TEST_URL=postgres://.../pos_test npm run test:pos:pg` numa base cujo nome termine em `_test`. A suíte pode repetir na mesma base: cada execução usa fixtures novas.
