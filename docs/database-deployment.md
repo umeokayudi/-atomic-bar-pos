@@ -2,6 +2,8 @@
 
 Este documento é o mapa do schema que o código espera. Ele não foi aplicado em produção. Os projetos `ojirgkqtqvugqktyuhem` e `fxsakrshmldmkdmbevna` não foram consultados nem alterados.
 
+A ordem abaixo não é a migration de produção. Vários scripts atuais assumem colunas e tabelas que a auditoria de produção não encontrou (`produtos.bar_id`, `pos_vendas`). A decisão fechada está em `docs/database-architecture-resolution.md`. Não instalar o pacote até existir uma única migration feita a partir desse documento.
+
 O editor SQL do Supabase não inclui outro arquivo. `sql/master_schema.sql` só funciona no `psql`, com `\ir`. No editor, cole cada arquivo abaixo, um por vez, nesta ordem.
 
 ## Ordem
