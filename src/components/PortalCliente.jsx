@@ -43,6 +43,7 @@ const BarSpacesTab = lazy(() => import('./BarSpacesTab'))
 import { fetchAllStockMovements } from '../lib/posSupply'
 import { coalesceStockMoves, decorateStockList, deliveryNoteMoves, posPourMoves, stockFlow, stockGlance } from '../lib/barStock'
 import { groupedNavForRole, primaryDockForRole, defaultBarTab, posAccessForRole, canManageBarTeam, isGerente, costAccessForRole, canPlaceDrinkOrders } from '../lib/access'
+import { AccountSecurity } from './Auth'
 import { isTillKiosk, isClockKiosk, loginDoorFromHash, setDoorHash, doorAllowsRole } from '../lib/barDoors'
 import UiPrefsPanel from './UiPrefsPanel'
 import { useI18n } from '../lib/i18n'
@@ -2214,6 +2215,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
           <div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginBottom:10,lineHeight:1.5}}>
             {t(footerKey)}
           </div>
+          {isGerente(perfil?.role) || perfil?.role === 'caixa' || perfil?.role === 'bar_staff' ? <AccountSecurity /> : null}
           <button onClick={signOut} className="sidebar-signout">{t('common.signOut')}</button>
         </div>
       </aside>

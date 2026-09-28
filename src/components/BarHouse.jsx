@@ -1,6 +1,7 @@
 import { useMemo, useEffect, useState } from 'react'
 import { fmtYen, Spinner } from './utils'
 import { staffFetch } from '../lib/apiAuth'
+import StaffAccess from './StaffAccess'
 import { invalidateBarTeam, loadBarTeam, peekBarTeam } from '../lib/barTeam'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
@@ -55,8 +56,15 @@ function personFrom(row, source) {
     idiomas: asList(row.idiomas),
     estilo: row.estilo || '',
     contato: row.contato || '',
-    notas: row.notas || '',
+    notas: row.notas || row.notes || '',
     aniversario: String(row.aniversario || '').slice(0, 10),
+    email: row.email || '',
+    role: row.role || '',
+    job_role: row.job_role || '',
+    employment_status: row.employment_status || '',
+    phone: row.phone || row.contato || '',
+    employee_code: row.employee_code || '',
+    start_date: row.start_date || '',
   }
 }
 
@@ -545,6 +553,9 @@ export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
     <div className="fade-in house-page">
       {err && <div className="pos-sale-err">{asReactText(err)}</div>}
       {loading && <Spinner />}
+      {section === 'staff' && (
+        <StaffAccess people={people} onChanged={load} />
+      )}
       {section === 'staff' && (
         <StaffBlock
           people={people}

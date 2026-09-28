@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { useAuth } from './Auth'
+import { AccountSecurity, useAuth } from './Auth'
 import { useI18n } from '../lib/i18n'
 import { fmtYen, Empty } from './utils'
 import { AdminPage, PortalKpi, PortalSurface } from './ui/PageLayout'
@@ -75,6 +75,7 @@ export default function EmployeeDesk({ section = 'salary' }) {
       {!missing && section === 'profile' && (
         <PortalSurface title={perfil?.nome || t('employee.profile')}>
           <p>{t(`shell.roles.${perfil?.role}`) || perfil?.role}</p>
+          <AccountSecurity />
           <p>{t('employee.barsWorked')}: {clock.byBar.length ? clock.byBar.map(b => b.barId || '—').join(', ') : t('employee.none')}</p>
         </PortalSurface>
       )}

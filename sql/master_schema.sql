@@ -17,3 +17,4 @@
 \ir procurement.sql
 \ir pos_floor.sql
 \ir payroll.sql
+\ir bar_employees.sql

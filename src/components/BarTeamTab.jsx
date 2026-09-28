@@ -16,8 +16,7 @@ export default function BarTeamTab({ bar, embedded = false }) {
   const [saving, setSaving] = useState(false)
   const [busyId, setBusyId] = useState('')
   const [err, setErr] = useState('')
-  const [created, setCreated] = useState(null)
-  const [form, setForm] = useState({ nome: '', email: '', password: '', salario_hora: '1200', salario_mes: '', drink_back: false, comissao_pct: '10' })
+  const [form, setForm] = useState({ nome: '', email: '', salario_hora: '1200', salario_mes: '', drink_back: false, comissao_pct: '10' })
   const [payId, setPayId] = useState('')
   const [pay, setPay] = useState({ salario_hora: '', salario_mes: '', drink_back: false, comissao_pct: '10' })
   const range = monthRange()
@@ -45,10 +44,9 @@ export default function BarTeamTab({ bar, embedded = false }) {
   const byId = Object.fromEntries(rows.map(r => [r.staff_id, r]))
 
   async function createLogin() {
-    setErr(''); setCreated(null); setSaving(true)
+    setErr(''); setSaving(true)
     const email = String(form.email || '').trim().toLowerCase()
-    const password = String(form.password || '')
-    if (!form.nome.trim() || !email || password.length < 6) {
+    if (!form.nome.trim() || !email) {
       setErr(t('team.loginRequired'))
       setSaving(false)
       return
@@ -57,22 +55,16 @@ export default function BarTeamTab({ bar, embedded = false }) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        action: 'createStaff',
-        role: 'bar_staff',
+        action: 'inviteEmployee',
+        job_role: 'staff',
         nome: form.nome.trim(),
         email,
-        password,
-        salario_hora: +form.salario_hora || 0,
-        salario_mes: +form.salario_mes || 0,
-        drink_back: !!form.drink_back,
-        comissao_pct: form.drink_back ? (+form.comissao_pct || 0) : 0,
       }),
     })
     const json = await res.json().catch(() => ({}))
     if (!res.ok) setErr(errText(json.error, t('team.createFailed')))
     else {
-      setCreated({ email: json.email || email, password: json.password || password, nome: json.nome || form.nome })
-      setForm({ nome: '', email: '', password: '', salario_hora: '1200', salario_mes: '', drink_back: false, comissao_pct: '10' })
+      setForm({ nome: '', email: '', salario_hora: '1200', salario_mes: '', drink_back: false, comissao_pct: '10' })
       await load()
     }
     setSaving(false)
@@ -135,7 +127,6 @@ export default function BarTeamTab({ bar, embedded = false }) {
           <input type="number" placeholder={t('team.hourly')} value={form.salario_hora} onChange={e => setForm({ ...form, salario_hora: e.target.value })} />
           <input type="number" placeholder={t('team.monthly')} value={form.salario_mes} onChange={e => setForm({ ...form, salario_mes: e.target.value })} />
           <input type="email" placeholder={t('auth.email')} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-          <input type="text" autoComplete="new-password" placeholder={t('auth.password')} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
         </div>
         <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10, fontSize: 13 }}>
           <input type="checkbox" checked={!!form.drink_back} onChange={e => setForm({ ...form, drink_back: e.target.checked })} />
@@ -145,16 +136,8 @@ export default function BarTeamTab({ bar, embedded = false }) {
           <input type="number" min="0" max="100" placeholder={t('team.commission')} value={form.comissao_pct} onChange={e => setForm({ ...form, comissao_pct: e.target.value })} style={{ marginTop: 8, maxWidth: 180 }} />
         )}
         <button className="btn-primary" disabled={saving} onClick={createLogin} style={{ marginTop: 8, padding: '10px 16px' }}>
-          {saving ? t('common.wait') : t('team.createLogin')}
+          {saving ? t('common.wait') : t('staffMgmt.invite')}
         </button>
-        {created && (
-          <div className="created-login">
-            <div style={{ fontWeight: 800, marginBottom: 6 }}>{t('team.createdOnce')}</div>
-            <div>{t('auth.email')}: <strong>{created.email}</strong></div>
-            <div>{t('auth.password')}: <strong>{created.password}</strong></div>
-            <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 8 }}>{t('team.staffCanDo')}</div>
-          </div>
-        )}
       </div>
 
       <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>

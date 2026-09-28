@@ -248,7 +248,7 @@ export function UsuariosTab() {
   }
 
   async function saveEdit(id) {
-    if (form.role === 'cliente' || form.role === 'caixa' || form.role === 'bar_staff') {
+    if (['cliente', 'gerente', 'caixa', 'bar_staff'].includes(form.role)) {
       if (!form.bar_id) {
         setErr('Select a bar for this login')
         return
@@ -265,8 +265,8 @@ export function UsuariosTab() {
           nome: form.nome,
           email: form.email,
           role: form.role,
-          bar_id: (form.role === 'cliente' || form.role === 'caixa' || form.role === 'bar_staff') ? form.bar_id : null,
-          password: editPw || undefined,
+          bar_id: ['cliente', 'gerente', 'caixa', 'bar_staff'].includes(form.role) ? form.bar_id : null,
+          password: undefined,
         }),
       })
       const json = await res.json()
@@ -280,6 +280,18 @@ export function UsuariosTab() {
       setErr(errText(e))
     }
     setSaving(false)
+  }
+
+  async function setAccess(id, access) {
+    setErr('')
+    const res = await staffFetch('/api/admin-user', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, access }),
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) setErr(errText(json.error, t('staffMgmt.saveFailed')))
+    else load()
   }
 
   async function deleteUser(id) {
@@ -327,15 +339,21 @@ export function UsuariosTab() {
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
             <input className="input" placeholder={t('configs.fullName')} value={form.nome} onChange={e=>setForm({...form,nome:e.target.value})}/>
             <input className="input" placeholder={t('auth.email')} type="email" value={newEmail} onChange={e=>setNewEmail(e.target.value)}/>
-            <input className="input" placeholder={t('configs.passwordMin')} type="password" value={newPw} onChange={e=>setNewPw(e.target.value)}/>
+            {!['cliente', 'gerente', 'caixa', 'bar_staff'].includes(form.role) && (
+              <input className="input" placeholder={t('configs.passwordMin')} type="password" value={newPw} onChange={e=>setNewPw(e.target.value)}/>
+            )}
+            {['cliente', 'gerente', 'caixa', 'bar_staff'].includes(form.role) && (
+              <div style={{ fontSize: 12, color: 'var(--text2)', alignSelf: 'center' }}>{t('staffMgmt.inviteInstead')}</div>
+            )}
             <select className="input" value={form.role} onChange={e=>setForm({...form,role:e.target.value})}>
               <option value="admin">Admin</option>
               <option value="staff">{t('shell.roles.staff')}</option>
               <option value="cliente">{t('configs.roleClientPortal')}</option>
+              <option value="gerente">{t('shell.roles.gerente')}</option>
               <option value="caixa">{t('shell.roles.caixa')}</option>
               <option value="bar_staff">{t('shell.roles.bar_staff')}</option>
             </select>
-            {(form.role === 'cliente' || form.role === 'caixa' || form.role === 'bar_staff') && (
+            {['cliente', 'gerente', 'caixa', 'bar_staff'].includes(form.role) && (
               <select className="input" value={form.bar_id} onChange={e=>setForm({...form,bar_id:e.target.value})} style={{ gridColumn:'span 2' }}>
                 <option value="">{t('configs.selectBarRequired')}</option>
                 {bars.map(b=><option key={b.id} value={b.id}>{b.nome}</option>)}
@@ -343,15 +361,16 @@ export function UsuariosTab() {
             )}
           </div>
           <div style={{display:'flex',gap:8}}>
-            <button className="btn-primary" style={{fontSize:12,padding:'8px 16px'}} disabled={creating||!newEmail||!newPw||!form.nome||((form.role==='cliente'||form.role==='caixa'||form.role==='bar_staff')&&!form.bar_id)}
+            <button className="btn-primary" style={{fontSize:12,padding:'8px 16px'}} disabled={creating||!newEmail||(!['cliente','gerente','caixa','bar_staff'].includes(form.role)&&!newPw)||!form.nome||((form.role==='cliente'||form.role==='gerente'||form.role==='caixa'||form.role==='bar_staff')&&!form.bar_id)}
               onClick={async()=>{
                 setCreating(true)
                 setErr('')
                 try {
+                  const barRole = ['cliente', 'gerente', 'caixa', 'bar_staff'].includes(form.role)
                   const res = await staffFetch('/api/admin-user', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: newEmail, password: newPw, nome: form.nome, role: form.role, bar_id: form.bar_id || null })
+                    body: JSON.stringify({ email: newEmail, password: barRole ? undefined : newPw, nome: form.nome, role: form.role, bar_id: form.bar_id || null })
                   })
                   const json = await res.json()
                   if (!res.ok) throw new Error(errText(json.error, 'Create failed'))
@@ -391,19 +410,18 @@ export function UsuariosTab() {
                         <option value="admin">{t('shell.roles.admin')}</option>
                         <option value="staff">{t('shell.roles.staff')}</option>
                         <option value="cliente">{t('shell.roles.cliente')}</option>
+                        <option value="gerente">{t('shell.roles.gerente')}</option>
                         <option value="caixa">{t('shell.roles.caixa')}</option>
                         <option value="bar_staff">{t('shell.roles.bar_staff')}</option>
                       </select>
                     </td>
                     <td style={{padding:'8px 14px'}}>
-                      <select className="input" style={{padding:'4px 8px',fontSize:12}} value={form.bar_id} onChange={e=>setForm({...form,bar_id:e.target.value})} disabled={!(form.role==='cliente'||form.role==='caixa'||form.role==='bar_staff')}>
+                      <select className="input" style={{padding:'4px 8px',fontSize:12}} value={form.bar_id} onChange={e=>setForm({...form,bar_id:e.target.value})} disabled={!['cliente', 'gerente', 'caixa', 'bar_staff'].includes(form.role)}>
                         <option value="">—</option>
                         {bars.map(b=><option key={b.id} value={b.id}>{b.nome}</option>)}
                       </select>
                     </td>
-                    <td style={{padding:'8px 14px'}}>
-                      <input className="input" type="password" style={{padding:'4px 8px',fontSize:11,width:'100%'}} value={editPw} onChange={e=>setEditPw(e.target.value)} placeholder={t('configs.newPasswordOptional')}/>
-                    </td>
+                    <td style={{padding:'8px 14px', fontSize: 11, color: 'var(--text2)'}}>{t('auth.forgotPassword')}</td>
                     <td style={{padding:'8px 14px'}}>
                       <div style={{display:'flex',gap:6}}>
                         <button className="btn-primary" style={{fontSize:11,padding:'4px 10px'}} disabled={saving} onClick={()=>saveEdit(u.id)}>{saving?'...':t('common.save')}</button>
@@ -427,7 +445,11 @@ export function UsuariosTab() {
                     <td style={{padding:'10px 14px'}}>
                       <div style={{display:'flex',gap:6}}>
                         <button onClick={()=>startEdit(u)} style={{fontSize:11,padding:'4px 10px',background:'var(--navy)',color:'white',border:'none',borderRadius:6,cursor:'pointer'}}>{t('common.edit')}</button>
-                        <button onClick={()=>deleteUser(u.id)} style={{fontSize:11,padding:'4px 10px',background:'var(--red)',color:'white',border:'none',borderRadius:6,cursor:'pointer'}}>{t('common.delete')}</button>
+                        {['cliente', 'gerente', 'caixa', 'bar_staff'].includes(u.role) ? (
+                          <button onClick={() => setAccess(u.id, 'suspended')} style={{fontSize:11,padding:'4px 10px',background:'var(--red)',color:'white',border:'none',borderRadius:6,cursor:'pointer'}}>{t('staffMgmt.suspend')}</button>
+                        ) : (
+                          <button onClick={()=>deleteUser(u.id)} style={{fontSize:11,padding:'4px 10px',background:'var(--red)',color:'white',border:'none',borderRadius:6,cursor:'pointer'}}>{t('common.delete')}</button>
+                        )}
                       </div>
                     </td>
                   </>
