@@ -13,16 +13,21 @@ export function secretsMatch(plain, hashed) {
 }
 
 function laneHmacKey() {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.INTERNAL_API_SECRET || 'atomic-lane'
+  const key = String(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.INTERNAL_API_SECRET || '').trim()
+  return key || null
 }
 
 export function signLanePayload(payload) {
+  const key = laneHmacKey()
+  if (!key) return null
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url')
-  const sig = createHmac('sha256', laneHmacKey()).update(body).digest('base64url')
+  const sig = createHmac('sha256', key).update(body).digest('base64url')
   return `lane:${body}.${sig}`
 }
 
 export function verifyLaneToken(token) {
+  const key = laneHmacKey()
+  if (!key) return null
   if (!token || !String(token).startsWith('lane:')) return null
   const rest = String(token).slice(5)
   const dot = rest.lastIndexOf('.')
@@ -30,7 +35,7 @@ export function verifyLaneToken(token) {
   const body = rest.slice(0, dot)
   const sig = rest.slice(dot + 1)
   if (!body || !sig) return null
-  const expect = createHmac('sha256', laneHmacKey()).update(body).digest('base64url')
+  const expect = createHmac('sha256', key).update(body).digest('base64url')
   const a = Buffer.from(sig)
   const b = Buffer.from(expect)
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null

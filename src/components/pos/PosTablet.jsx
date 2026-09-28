@@ -56,7 +56,7 @@ export default function PosTablet({ t, floor }) {
             </div>
           )}
           <RecommendRow t={t} items={floor.recommendations} onAdd={floor.addProduct} why={floor.why} setWhy={floor.setWhy} />
-          <ProductGrid products={visible} onAdd={floor.addProduct} empty={catalogError || t('posFloor.noProducts')} />
+          <ProductGrid t={t} products={visible} onAdd={floor.addProduct} empty={catalogError || t('posFloor.noProducts')} />
         </section>
 
         <aside className="pos-t-ticket">
@@ -153,7 +153,7 @@ export default function PosTablet({ t, floor }) {
         <ConfirmPay t={t} quote={floor.quote} busy={busy} onCancel={() => floor.setConfirming(false)} onConfirm={floor.charge} />
       )}
       {floor.scanning && (
-        <PosScanner t={t} onClose={() => floor.setScanning(false)} onCode={code => { floor.setQuery(code); floor.setScanning(false) }} />
+        <PosScanner t={t} onClose={() => floor.setScanning(false)} onCode={floor.scanCode} />
       )}
 
       {pendingRemove && (

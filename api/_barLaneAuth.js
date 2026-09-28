@@ -112,6 +112,7 @@ export async function loginLane(email, password) {
     exp: Date.now() + 12 * 60 * 60 * 1000,
   }
   const token = signLanePayload(perfil)
+  if (!token) return { error: 'Lane sign-in is not configured', status: 503 }
   void runLiveOp(admin, {
     table: 'bar_sessions',
     mode: 'insert',
