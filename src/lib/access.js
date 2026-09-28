@@ -46,7 +46,7 @@ const GERENTE_NAV = [
   { id: 'entregas', labelKey: 'nav.portalDeliveries', icon: '📦' },
   { id: 'faturas', labelKey: 'nav.portalInvoices', icon: '📄' },
   { id: 'espacos', labelKey: 'nav.portalSpaces', icon: '🪑' },
-  { id: 'clientes', labelKey: 'nav.portalGuests', icon: '🥂' },
+  { id: 'clientes', labelKey: 'nav.portalGuests', icon: '👥' },
   { id: 'ponto', labelKey: 'nav.portalClock', icon: '🕒' },
   { id: 'fechamento', labelKey: 'nav.portalClose', icon: '📒' },
   { id: 'metas', labelKey: 'nav.portalGoals', icon: '🎯' },
@@ -72,11 +72,11 @@ const GERENTE_NAV = [
 ]
 
 const NAV_GROUPS = [
-  { id: 'tonight', labelKey: 'nav.groupTonight', ids: ['inicio', 'pos', 'pedidos', 'entregas', 'faturas', 'espacos', 'clientes', 'ponto', 'fechamento'] },
-  { id: 'numbers', labelKey: 'nav.groupNumbers', ids: ['metas', 'pagamentos', 'salarios', 'eventos', 'ia'] },
+  { id: 'tonight', labelKey: 'nav.groupTonight', ids: ['inicio', 'pos', 'espacos', 'clientes', 'ponto', 'fechamento'] },
+  { id: 'supply', labelKey: 'nav.groupSupply', ids: ['pedidos', 'entregas', 'estoque'] },
+  { id: 'office', labelKey: 'nav.groupOffice', ids: ['faturas', 'pagamentos', 'salarios', 'custos', 'precos', 'recibos'] },
+  { id: 'numbers', labelKey: 'nav.groupNumbers', ids: ['metas', 'eventos', 'ia'] },
   { id: 'house', labelKey: 'nav.groupHouse', ids: ['staff', 'fornecedor', 'parceiro', 'drinkback', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'] },
-  { id: 'supply', labelKey: 'nav.groupSupply', ids: ['estoque'] },
-  { id: 'office', labelKey: 'nav.groupOffice', ids: ['custos', 'precos', 'recibos'] },
 ]
 
 const CAIXA_NAV = [
@@ -119,8 +119,8 @@ export function primaryDockForRole(role) {
   return [
     { id: 'inicio', icon: '🏠', labelKey: 'nav.portalHome' },
     { id: 'pos', icon: '🧾', labelKey: 'nav.portalPos' },
-    { id: 'pedidos', icon: '🛒', labelKey: 'nav.portalOrders' },
     { id: 'espacos', icon: '🪑', labelKey: 'nav.portalSpaces' },
+    { id: 'pedidos', icon: '🛒', labelKey: 'nav.portalOrders' },
     { id: 'ponto', icon: '🕒', labelKey: 'nav.portalClock' },
   ]
 }
