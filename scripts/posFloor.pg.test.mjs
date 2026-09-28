@@ -5,8 +5,22 @@
  *   POS_PG_TEST_URL=postgres://.../pos_test npm run test:pos:pg
  *
  * Without POS_PG_TEST_URL the suite skips. It is not part of npm run test:pos.
+ *
+ * Each run mints its own fixture ids, spaces, bottle codes and idempotency keys.
+ * Earlier rows stay in the database. Asserts still expect exact counts for this
+ * run's ids. They do not widen to "at least one".
+ *
+ * sql/pos_sale_security.sql is a repair for a database that already has the
+ * legacy drinks schema (perfis, produtos, cast_members, vendas). It is not
+ * applied here. sql/pos_floor.sql alters those existing tables and calls
+ * auth.uid(); this file creates only the minimum auth schema, perfis and
+ * catalog tables a local Postgres needs before applying it. Roles named
+ * authenticated and anon, when present, belong to the local test cluster so
+ * the Supabase GRANTs in that file can run. Creating them here does not
+ * create them in production.
  */
 import assert from 'node:assert/strict'
+import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 
 const url = process.env.POS_PG_TEST_URL
@@ -19,17 +33,26 @@ if (/supabase\.co/i.test(url) && process.env.POS_PG_ALLOW !== '1') {
   process.exit(1)
 }
 
-const bar = '11111111-1111-1111-1111-111111111111'
-const other = '22222222-2222-2222-2222-222222222222'
-const userA = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
-const userB = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
-const userJbm = 'cccccccc-cccc-cccc-cccc-cccccccccccc'
-const userSupplier = 'dddddddd-dddd-dddd-dddd-dddddddddddd'
-const spirit = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
-const sealed = 'abababab-abab-abab-abab-abababababab'
-const drink = 'ffffffff-ffff-ffff-ffff-ffffffffffff'
-const space = '12121212-1212-1212-1212-121212121212'
-const agent = '34343434-3434-3434-3434-343434343434'
+const bar = randomUUID()
+const other = randomUUID()
+const userA = randomUUID()
+const userB = randomUUID()
+const userJbm = randomUUID()
+const userSupplier = randomUUID()
+const spirit = randomUUID()
+const sealed = randomUUID()
+const drink = randomUUID()
+const space = randomUUID()
+const spaceSame = randomUUID()
+const spaceBare = randomUUID()
+const spacePour = randomUUID()
+const spaceUnit = randomUUID()
+const agent = randomUUID()
+const pourCode = `POUR-${randomUUID()}`
+const keySame = `same-key-${randomUUID()}`
+const keyBare = `no-recipe-${randomUUID()}`
+const keyPour = `pour-key-${randomUUID()}`
+const keyUnit = `unit-key-${randomUUID()}`
 
 const preamble = `
 CREATE SCHEMA IF NOT EXISTS auth;
@@ -283,7 +306,7 @@ async function main() {
   assert.equal(dupSales[0].venda_id, realSales[0].venda_id)
 
   const ticket2 = await tx(root, userA, async () => {
-    const loaded = await root.query(`SELECT public.pos_load_ticket($1, $2, '') AS ticket`, [bar, '99999999-9999-9999-9999-999999999999'])
+    const loaded = await root.query(`SELECT public.pos_load_ticket($1, $2, '') AS ticket`, [bar, spaceSame])
     const id = loaded.rows[0].ticket.id
     await root.query(
       `SELECT public.pos_ticket_item($1, $2, NULL, 1, false, NULL, $3)`,
@@ -293,8 +316,8 @@ async function main() {
   })
   const sameKey = await race(
     a, b, userA, userB,
-    `SELECT public.pos_close_ticket($1, $2, 'cash', 'same-key', NULL)`,
-    [bar, ticket2],
+    `SELECT public.pos_close_ticket($1, $2, 'cash', $3, NULL)`,
+    [bar, ticket2, keySame],
   )
   assert.equal(sameKey.filter(row => row.ok).length, 2)
   const sameBodies = sameKey.filter(row => row.ok).map(row => row.row.rows[0].pos_close_ticket)
@@ -302,14 +325,14 @@ async function main() {
   assert.equal(new Set(sameBodies.map(body => body.venda_id)).size, 1)
 
   const bare = await tx(root, userA, async () => {
-    const loaded = await root.query(`SELECT public.pos_load_ticket($1, $2, '') AS ticket`, [bar, '88888888-8888-8888-8888-888888888888'])
+    const loaded = await root.query(`SELECT public.pos_load_ticket($1, $2, '') AS ticket`, [bar, spaceBare])
     const id = loaded.rows[0].ticket.id
     await root.query(`SELECT public.pos_ticket_item($1, $2, NULL, 1, true, $3, NULL)`, [bar, id, drink])
     return id
   })
   await expectRaise(root, userA, () => root.query(
-    `SELECT public.pos_close_ticket($1, $2, 'card', 'no-recipe', $3)`,
-    [bar, bare, agent],
+    `SELECT public.pos_close_ticket($1, $2, 'card', $3, $4)`,
+    [bar, bare, keyBare, agent],
   ), /recipe required/)
 
   await root.query(`
@@ -333,18 +356,18 @@ async function main() {
   )
   const bottleId = await tx(root, userA, async () => {
     const openedBottle = await root.query(
-      `SELECT public.pos_open_bottle($1, $2, 'POUR-1') AS id`,
-      [bar, spirit],
+      `SELECT public.pos_open_bottle($1, $2, $3) AS id`,
+      [bar, spirit, pourCode],
     )
     return openedBottle.rows[0].id
   })
   const pour = await tx(root, userA, async () => {
-    const loaded = await root.query(`SELECT public.pos_load_ticket($1, $2, '') AS ticket`, [bar, '77777777-7777-7777-7777-777777777777'])
+    const loaded = await root.query(`SELECT public.pos_load_ticket($1, $2, '') AS ticket`, [bar, spacePour])
     const id = loaded.rows[0].ticket.id
     await root.query(`SELECT public.pos_ticket_item($1, $2, NULL, 2, true, $3, NULL)`, [bar, id, drink])
     const closed = await root.query(
-      `SELECT public.pos_close_ticket($1, $2, 'card', 'pour-key', $3) AS body`,
-      [bar, id, agent],
+      `SELECT public.pos_close_ticket($1, $2, 'card', $3, $4) AS body`,
+      [bar, id, keyPour, agent],
     )
     return closed.rows[0].body
   })
@@ -403,12 +426,12 @@ async function main() {
   assert.equal(restoredMl.rows[0].n, 30)
 
   const unitSale = await tx(root, userA, async () => {
-    const loaded = await root.query(`SELECT public.pos_load_ticket($1, $2, '') AS ticket`, [bar, '66666666-6666-6666-6666-666666666666'])
+    const loaded = await root.query(`SELECT public.pos_load_ticket($1, $2, '') AS ticket`, [bar, spaceUnit])
     const id = loaded.rows[0].ticket.id
     await root.query(`SELECT public.pos_ticket_item($1, $2, NULL, 1, false, NULL, $3)`, [bar, id, sealed])
     const closed = await root.query(
-      `SELECT public.pos_close_ticket($1, $2, 'cash', 'unit-key', NULL) AS body`,
-      [bar, id],
+      `SELECT public.pos_close_ticket($1, $2, 'cash', $3, NULL) AS body`,
+      [bar, id, keyUnit],
     )
     return closed.rows[0].body
   })

@@ -78,6 +78,10 @@ Depois de validar em produção, o que pode sair é o Previous till: `PosCheckou
 
 `npm run test:pos:pg` não faz nada sem `POS_PG_TEST_URL`. Recusa host `supabase.co` e qualquer base cujo nome não termine em `_test`, a menos que `POS_PG_ALLOW=1`. Não aplicar este comando na base real.
 
+Cada execução gera ids, mesas, códigos de garrafa e chaves de idempotência novos. As linhas da execução anterior permanecem na base. Os asserts continuam exigindo a contagem exata dessas fixtures novas. A suíte não apaga a base e não transforma `COUNT(*) = 1` em `COUNT(*) >= 1`.
+
+`sql/pos_sale_security.sql` depende do schema legado do projeto (`perfis`, `produtos` com estoque, `cast_members`, `vendas`, `vendas_itens`, `cast_comissoes`). Numa base vazia ele não aplica. `sql/pos_floor.sql` depende dessas tabelas já existirem e de `auth.uid()`. A suíte cria só o mínimo disso no PostgreSQL local: schema `auth`, `auth.uid()` lendo `pos.test_actor`, `perfis` e as tabelas de catálogo/caixa que o arquivo altera. Os papéis `authenticated` e `anon` foram criados apenas no cluster de teste, para os `GRANT` desse arquivo encontrarem os mesmos nomes do Supabase. Isso não cria esses objetos em produção.
+
 ## Checklist da primeira instalação
 
 1. Confirmar que a base de teste não é a de produção.
@@ -86,4 +90,4 @@ Depois de validar em produção, o que pode sair é o Previous till: `PosCheckou
 4. Confirmar `produtos.volume_ml` nas garrafas que serão abertas.
 5. Criar ao menos uma receita em `pos_recipes` / `pos_recipe_lines` para cada drink do cardápio antes de cobrar.
 6. Abrir uma garrafa, lançar o drink em dois aparelhos, cobrar uma vez, estornar uma unidade e ler o fechamento da noite.
-7. Rodar `POS_PG_TEST_URL=postgres://.../pos_test npm run test:pos:pg` numa base vazia cujo nome termine em `_test`.
+7. Rodar `POS_PG_TEST_URL=postgres://.../pos_test npm run test:pos:pg` numa base cujo nome termine em `_test`. A suíte pode repetir na mesma base: cada execução usa fixtures novas.
