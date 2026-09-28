@@ -26,6 +26,9 @@ O banco já precisa ter o catálogo antigo (bares, produtos, pedidos, vendas, PO
 6. `sql/payroll.sql`  
    Folha. Lê `time_clock` e `perfis`. Não cria o ponto.
 
+7. `sql/bar_employees.sql`  
+   Convites e status do funcionário do bar (`invited`, `active`, `suspended`, `inactive`). Reescreve `user_can_access_bar` para recusar quem está suspenso, inativo ou ainda não aceitou o convite. Não guarda senha e não apaga `perfis`.
+
 Não fazem parte da instalação: `seed_usuarios.sql`, `RESET_UMEOKAGROUP.sql`, `NOVO_BAR.sql`. Eles criam login ou bar.
 
 Depois, rode `sql/verify_schema.sql`. Ele só lê. Uma linha `MISSING` ou `CONFLICT` significa que a instalação não está completa. A linha `SUMMARY` fica `OK` só quando todas as outras estão `OK`.

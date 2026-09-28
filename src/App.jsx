@@ -13,7 +13,7 @@ import { LogoSidebar } from './components/Logo'
 import { MobileTopBar, ShellOverlay, WorkspaceChrome, useMobileMenuLock } from './components/MobileShell'
 import { useNotifications, NotificationBell, useOverdueAlerts } from './components/Notifications'
 import { useState, useEffect, useRef, lazy, Suspense } from 'react'
-import { AuthProvider, useAuth, LoginPage } from './components/Auth'
+import { AuthProvider, useAuth, LoginPage, SetPasswordPage, AccountSecurity } from './components/Auth'
 import { supabase } from './lib/supabase'
 import { isBarRole, isSupplierRole } from './lib/access'
 import { shellTabIds } from './lib/legacyScope'
@@ -447,7 +447,7 @@ function Dashboard({ onNav }) {
 
 // ── SHELL ─────────────────────────────────────────────────────────────────────
 function Shell() {
-  const { user, perfil, loading, signOut } = useAuth()
+  const { user, perfil, loading, signOut, passwordGate } = useAuth()
   const { layout } = useUiPrefs()
   const { t } = useI18n()
   const [tab, setTab] = useState('dashboard')
@@ -492,6 +492,8 @@ function Shell() {
         .then(({ count }) => setPedidosPendentes(count||0))
     }
   }, [perfil])
+
+  if (passwordGate) return <SetPasswordPage />
 
   if (loading || (user && !perfil)) return (
     <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16,background:'var(--navy)'}}>
@@ -596,6 +598,7 @@ function Shell() {
               <div style={{fontSize:10,color:'rgba(193,156,86,0.7)'}}>{roleLabel(perfil?.role)}</div>
             </div>
           </div>
+          <AccountSecurity />
           <button onClick={signOut} className="sidebar-signout">{t('common.signOut')}</button>
         </div>
       </aside>

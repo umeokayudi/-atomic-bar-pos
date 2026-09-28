@@ -1,9 +1,10 @@
 /** Dono do bar gerencia equipe, PIN, GPS e tablet. Não toca no fornecimento JBM. */
 
 import { tryDrinksAdminClient, createStaffUserClient } from './_supabaseAdmin.js'
-import { requireBarAccount } from './_requireStaff.js'
+import { isAllowedOrigin, requireBarAccount } from './_requireStaff.js'
 import { hashSecret, randomTabletCode } from './_hash.js'
 import { isMissingSchemaError, loadBarWithGeo, listStaffWithExtras, runLiveOp, saveBarGeo, saveStaffExtras } from './_barLiveStore.js'
+import { invitePayload, publicEmployee, canManageEmployees } from '../src/lib/employeeAccess.js'
 
 function bodyOf(req) {
   return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
@@ -39,6 +40,39 @@ function payExtras(body) {
   if (body.comissao_pct != null) extra.comissao_pct = +body.comissao_pct || 0
   if (body.drink_back === false) extra.comissao_pct = 0
   return extra
+}
+
+function missingRelation(error) {
+  const message = String(error?.message || error || '')
+  return isMissingSchemaError(error) || /bar_employees/i.test(message)
+}
+
+async function writeEmployeeAudit(admin, { actorId, action, entityId, metadata }) {
+  if (!admin) return
+  await admin.from('audit_logs').insert({
+    user_id: actorId || null,
+    action,
+    entity_type: 'bar_employees',
+    entity_id: entityId || null,
+    metadata: metadata || {},
+  })
+}
+
+async function attachDirectory(db, barId, staff) {
+  const emp = await db.from('bar_employees').select('id,bar_id,job_role,permission_role,phone,employee_code,status,start_date,notes').eq('bar_id', barId)
+  const byId = Object.fromEntries((emp.error ? [] : emp.data || []).map(row => [row.id, row]))
+  return (staff || []).map(person => {
+    const extra = byId[person.id]
+    return publicEmployee({
+      ...person,
+      job_role: extra?.job_role || person.cargo || person.role,
+      employment_status: extra?.status || 'active',
+      phone: extra?.phone || person.contato || '',
+      employee_code: extra?.employee_code || '',
+      start_date: extra?.start_date || '',
+      notes: extra?.notes || person.notas || '',
+    })
+  })
 }
 
 async function loadAgents(db, barId) {
@@ -145,7 +179,7 @@ export default async function handler(req, res) {
         filters: [{ op: 'eq', k: 'bar_id', v: barId }],
       })
       return res.status(200).json({
-        staff: staff || [],
+        staff: await attachDirectory(db, barId, staff),
         people: peopleLive.data || [],
         registry: (await runLiveOp(db, {
           table: 'bar_registry',
@@ -500,46 +534,116 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST' && body.action === 'createStaff') {
-      if (!admin) return res.status(503).json({ error: 'Creating a login needs SUPABASE_SERVICE_ROLE_KEY' })
-      const { email, password, nome, role, cargo, salario_hora, pin } = body
-      if (!email || !password || !nome) return res.status(400).json({ error: 'email, password, name required' })
-      const staffRole = role === 'caixa' ? 'caixa' : 'bar_staff'
-      const { data: created, error: cErr } = await admin.auth.admin.createUser({
-        email: String(email).trim().toLowerCase(),
-        password,
-        email_confirm: true,
-        user_metadata: { nome },
+      return res.status(400).json({ error: 'Managers cannot set an employee password. Send an invitation.' })
+    }
+
+    if (req.method === 'POST' && body.action === 'inviteEmployee') {
+      if (!canManageEmployees(auth.perfil.role)) return res.status(403).json({ error: 'No permission' })
+      if (!admin) return res.status(503).json({ error: 'Inviting an employee needs SUPABASE_SERVICE_ROLE_KEY' })
+      const invite = invitePayload(body)
+      if (invite.error) return res.status(400).json({ error: invite.error })
+      const origin = String(req.headers.origin || '').replace(/\/$/, '')
+      const redirectTo = isAllowedOrigin(req) ? `${origin}/` : undefined
+      const { data: created, error: cErr } = await admin.auth.admin.inviteUserByEmail(invite.email, {
+        data: { nome: invite.nome },
+        redirectTo,
       })
       if (cErr) return res.status(400).json({ error: cErr.message })
       const uid = created.user.id
       const { error: pErr } = await admin.from('perfis').upsert({
         id: uid,
-        nome,
-        email: String(email).trim().toLowerCase(),
-        role: staffRole,
+        nome: invite.nome,
+        email: invite.email,
+        role: invite.permission,
         bar_id: barId,
       }, { onConflict: 'id' })
       if (pErr) {
         await admin.auth.admin.deleteUser(uid).catch(() => {})
         return res.status(400).json({ error: pErr.message })
       }
-      const extraPatch = {}
-      if (cargo || staffRole) extraPatch.cargo = cargo || staffRole
-      if (salario_hora != null) extraPatch.salario_hora = +salario_hora || 0
-      Object.assign(extraPatch, payExtras(body))
-      if (pin) extraPatch.clock_pin_hash = hashSecret(String(pin))
-      extraPatch.ativo = true
-      const extras = await saveStaffExtras(db, uid, extraPatch)
-      if (!extras.ok && extras.error) {
-        return res.status(400).json({ error: extras.error })
+      const row = {
+        id: uid,
+        bar_id: barId,
+        job_role: invite.job_role,
+        permission_role: invite.permission,
+        phone: invite.phone || null,
+        employee_code: invite.employee_code || null,
+        status: 'invited',
+        start_date: invite.start_date,
+        notes: invite.notes || null,
+        invited_at: new Date().toISOString(),
       }
-      const drink = await syncDrinkBackAgent(db, barId, uid, {
-        nome,
-        drink_back: !!extraPatch.drink_back,
-        comissao_pct: extraPatch.comissao_pct || 0,
+      const saved = await admin.from('bar_employees').insert(row)
+      if (saved.error) {
+        await admin.from('perfis').delete().eq('id', uid)
+        await admin.auth.admin.deleteUser(uid).catch(() => {})
+        const hint = missingRelation(saved.error) ? ' Apply sql/bar_employees.sql in the Supabase SQL editor.' : ''
+        return res.status(400).json({ error: saved.error.message + hint })
+      }
+      await saveStaffExtras(db, uid, { cargo: invite.job_role, contato: invite.phone, notas: invite.notes, ativo: true })
+      await writeEmployeeAudit(admin, {
+        actorId: auth.user?.id,
+        action: 'employee_invited',
+        entityId: uid,
+        metadata: { bar_id: barId, job_role: invite.job_role, email: invite.email },
       })
-      if (!drink.ok) return res.status(400).json({ error: drink.error })
-      return res.status(200).json({ ok: true, id: uid, email: String(email).trim().toLowerCase(), password, nome })
+      return res.status(200).json({
+        ok: true,
+        id: uid,
+        email: invite.email,
+        nome: invite.nome,
+        job_role: invite.job_role,
+        employment_status: 'invited',
+      })
+    }
+
+    if (req.method === 'POST' && body.action === 'updateEmployee') {
+      if (!canManageEmployees(auth.perfil.role)) return res.status(403).json({ error: 'No permission' })
+      if (!body.id) return res.status(400).json({ error: 'id required' })
+      if (body.password || body.pin) return res.status(400).json({ error: 'Managers cannot set an employee password' })
+      const { data: existing } = await db.from('perfis').select('id,bar_id,role,nome').eq('id', body.id).maybeSingle()
+      if (!existing || existing.bar_id !== barId) return res.status(404).json({ error: 'Staff not found' })
+      if (existing.role === 'cliente') return res.status(403).json({ error: 'Cannot edit the bar owner' })
+      const directory = admin
+        ? await admin.from('bar_employees').select('id,bar_id,status,job_role').eq('id', body.id).maybeSingle()
+        : await db.from('bar_employees').select('id,bar_id,status,job_role').eq('id', body.id).maybeSingle()
+      if (directory.error && missingRelation(directory.error)) {
+        return res.status(503).json({ error: 'Apply sql/bar_employees.sql in the Supabase SQL editor.' })
+      }
+      if (!directory.data || directory.data.bar_id !== barId) return res.status(404).json({ error: 'Staff not found' })
+      const userDb = !auth.lane && auth.token ? createStaffUserClient(auth.token) : null
+      const status = body.status || directory.data.status
+      const job = body.job_role || null
+      if (userDb && (body.status || body.job_role)) {
+        const changed = await userDb.rpc('bar_set_employee_access', {
+          p_employee: body.id,
+          p_status: status,
+          p_job_role: job,
+        })
+        if (changed.error) return res.status(400).json({ error: changed.error.message })
+      } else if (admin && (body.status || body.job_role)) {
+        return res.status(400).json({ error: 'Employee access changes require the manager Supabase session.' })
+      }
+      const patch = {}
+      if (body.phone != null) patch.phone = String(body.phone).trim()
+      if (body.notes != null) patch.notes = String(body.notes).trim()
+      if (body.employee_code != null) patch.employee_code = String(body.employee_code).trim()
+      if (body.start_date != null) patch.start_date = String(body.start_date).slice(0, 10) || null
+      if (Object.keys(patch).length) {
+        const writer = userDb || admin
+        const updated = await writer.from('bar_employees').update(patch).eq('id', body.id).eq('bar_id', barId)
+        if (updated.error) return res.status(400).json({ error: updated.error.message })
+      }
+      if (body.nome != null && admin) {
+        await admin.from('perfis').update({ nome: String(body.nome).trim() }).eq('id', body.id).eq('bar_id', barId)
+      }
+      if (admin && body.status === 'suspended') {
+        await admin.auth.admin.updateUserById(body.id, { ban_duration: '876000h' })
+      }
+      if (admin && body.status === 'active') {
+        await admin.auth.admin.updateUserById(body.id, { ban_duration: 'none' })
+      }
+      return res.status(200).json({ ok: true })
     }
 
     if (req.method === 'PATCH') {
