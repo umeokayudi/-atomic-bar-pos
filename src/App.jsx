@@ -97,6 +97,38 @@ const JBM_TABS = [
 
 const TABS_BY_ID = Object.fromEntries([...ADMIN_TABS, ...EMPLOYEE_TABS, ...STAFF_TABS, ...JBM_TABS].map(tab => [tab.id, tab]))
 
+const SHELL_NAV_GROUPS = {
+  admin: [
+    { id: 'overview', labelKey: 'nav.groupOverview', ids: ['dashboard'] },
+    { id: 'operations', labelKey: 'nav.groupTonight', ids: ['pedidos', 'fulfillment', 'procurement', 'sales', 'purchases'] },
+    { id: 'supply', labelKey: 'nav.groupSupply', ids: ['products', 'suppliers'] },
+    { id: 'customers', labelKey: 'nav.groupCustomers', ids: ['bars', 'usuarios'] },
+    { id: 'people', labelKey: 'nav.groupPeople', ids: ['payroll'] },
+    { id: 'finance', labelKey: 'nav.groupOffice', ids: ['billingHub', 'faturas', 'ryoshusho', 'cashflow'] },
+    { id: 'reporting', labelKey: 'nav.groupReporting', ids: ['relatorio'] },
+    { id: 'documents', labelKey: 'nav.groupDocuments', ids: ['seikyusho'] },
+  ],
+  jbm: [
+    { id: 'operations', labelKey: 'nav.groupTonight', ids: ['fulfillment', 'procurement'] },
+    { id: 'people', labelKey: 'nav.groupPeople', ids: ['payroll'] },
+  ],
+}
+
+function groupedShellTabs(role, tabs) {
+  const spec = SHELL_NAV_GROUPS[role]
+  if (!spec) return [{ id: 'main', labelKey: null, items: tabs }]
+  const byId = Object.fromEntries(tabs.map(item => [item.id, item]))
+  const used = new Set()
+  const groups = spec.map(group => {
+    const items = group.ids.map(id => byId[id]).filter(Boolean)
+    items.forEach(item => used.add(item.id))
+    return { id: group.id, labelKey: group.labelKey, items }
+  }).filter(group => group.items.length)
+  const rest = tabs.filter(item => !used.has(item.id))
+  if (rest.length) groups.push({ id: 'rest', labelKey: null, items: rest })
+  return groups.length ? groups : [{ id: 'main', labelKey: null, items: tabs }]
+}
+
 // ── MINI BAR CHART ────────────────────────────────────────────────────────────
 function BarChart({ data, color='#c19c56', height=80, valueLabel=fmtYen }) {
   const [active, setActive] = useState(null)
@@ -536,17 +568,22 @@ function Shell() {
           <LogoSidebar />
         </div>
         <nav className="sidebar-nav">
-          {tabs.map(nav => (
-            <button key={nav.id} onClick={()=>selectTab(nav.id)} className={`nav-item ${activeTab===nav.id?'active':''}`}>
-              <span>{nav.icon}</span>
-              <span style={{fontSize:13}}>{t(nav.labelKey)}</span>
-              {nav.id==='pedidos'&&pedidosPendentes>0&&(
-                <span style={{marginLeft:'auto',background:'var(--gold)',color:'var(--navy)',fontSize:10,fontWeight:800,padding:'1px 6px',borderRadius:10}}>{pedidosPendentes}</span>
-              )}
-              {nav.id==='billingHub'&&(overdueAlerts?.faturas?.length ?? 0)>0&&(
-                <span style={{marginLeft:'auto',background:'var(--red)',color:'white',fontSize:10,fontWeight:800,padding:'1px 6px',borderRadius:10}}>{overdueAlerts.faturas.length}</span>
-              )}
-            </button>
+          {groupedShellTabs(perfil?.role, tabs).map(group => (
+            <div key={group.id} className="nav-group">
+              {group.labelKey && <div className="nav-group-label">{t(group.labelKey)}</div>}
+              {group.items.map(nav => (
+                <button key={nav.id} onClick={()=>selectTab(nav.id)} className={`nav-item ${activeTab===nav.id?'active':''}`}>
+                  <span>{nav.icon}</span>
+                  <span style={{fontSize:13}}>{t(nav.labelKey)}</span>
+                  {nav.id==='pedidos'&&pedidosPendentes>0&&(
+                    <span style={{marginLeft:'auto',background:'var(--gold)',color:'var(--navy)',fontSize:10,fontWeight:800,padding:'1px 6px',borderRadius:10}}>{pedidosPendentes}</span>
+                  )}
+                  {nav.id==='billingHub'&&(overdueAlerts?.faturas?.length ?? 0)>0&&(
+                    <span style={{marginLeft:'auto',background:'var(--red)',color:'white',fontSize:10,fontWeight:800,padding:'1px 6px',borderRadius:10}}>{overdueAlerts.faturas.length}</span>
+                  )}
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
         <div className="sidebar-footer">
