@@ -1607,6 +1607,7 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
                 agents={drinkBackAgents}
                 catalogError={posErr}
                 onSale={init}
+                canConfigure={access === 'owner'}
               />
             </>
           )}
