@@ -4551,4 +4551,223 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
   .pos-floor-grid { grid-template-columns: repeat(4, 1fr); }
 }
 
+.pos-mode-picker {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 16, 40, 0.55);
+}
+.pos-mode-card {
+  width: min(420px, 100%);
+  background: white;
+  border-radius: 20px;
+  padding: 24px;
+  text-align: center;
+}
+.pos-mode-card h2 { margin: 0 0 8px; font-size: 22px; }
+.pos-mode-card p { margin: 0 0 16px; color: var(--text2); }
+.pos-mode-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pos-mode-choices button {
+  min-height: 96px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: white;
+  font-size: 18px;
+  font-weight: 800;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+.pos-mode-choices button.is-suggested { border-color: var(--navy); }
+.pos-mode-choices button.is-danger { background: #9b2c2c; color: white; }
+.pos-mode-choices button span { font-size: 32px; }
+
+.pos-mode-mobile {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 120px);
+  padding-bottom: calc(128px + var(--pos-keyboard, 0px));
+}
+.pos-m-top, .pos-t-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.pos-m-top strong, .pos-t-top strong { font-size: 20px; }
+.pos-m-top button, .pos-t-top button {
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: white;
+  font-weight: 800;
+  padding: 8px 14px;
+}
+.pos-m-zones, .pos-m-cats, .pos-m-pays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pos-m-zones button, .pos-m-cats button, .pos-m-pays button, .pos-m-form button, .pos-m-line button {
+  min-height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: white;
+  font-weight: 800;
+  padding: 8px 14px;
+}
+.pos-m-zones button.is-on, .pos-m-cats button.is-on, .pos-m-pays button.is-on, .pos-m-card.is-on, .pos-m-nav button.is-on, .pos-m-form button.is-on {
+  background: var(--navy);
+  color: white;
+}
+.pos-m-cards, .pos-m-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+.pos-m-card, .pos-m-product {
+  min-height: 88px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: white;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 12px;
+  text-align: left;
+  font-weight: 800;
+}
+.pos-m-sheet {
+  background: white;
+  border-radius: 20px 20px 0 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+}
+.pos-m-line, .pos-t-line {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.pos-m-qty, .pos-t-qty { display: flex; align-items: center; gap: 8px; }
+.pos-m-qty button, .pos-t-qty button {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: white;
+  font-size: 22px;
+  font-weight: 800;
+}
+.pos-m-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--pos-keyboard, 0px);
+  z-index: 25;
+  background: white;
+  border-top: 1px solid var(--border);
+  padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+}
+.pos-m-charge, .pos-t-charge {
+  width: 100%;
+  min-height: 56px;
+  border: none;
+  border-radius: 14px;
+  background: var(--navy);
+  color: white;
+  font-size: 18px;
+  font-weight: 800;
+}
+.pos-m-charge:disabled, .pos-t-charge:disabled { opacity: 0.45; }
+.pos-m-nav {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin-top: 8px;
+}
+.pos-m-nav button {
+  min-height: 48px;
+  border: none;
+  background: transparent;
+  font-weight: 800;
+  font-size: 13px;
+}
+.pos-m-form, .pos-m-pay-panel { display: grid; gap: 8px; margin-top: 12px; }
+.pos-m-form input, .pos-m-form select, .pos-m-pay-panel select, .pos-t-pay select {
+  min-height: 48px;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  scroll-margin-bottom: 140px;
+}
+.pos-m-total, .pos-t-pay .pos-m-total { display: flex; justify-content: space-between; font-size: 22px; font-weight: 800; }
+.pos-orient-landscape.pos-mode-mobile .pos-m-grid { grid-template-columns: repeat(3, 1fr); }
+
+.pos-mode-tablet { display: flex; flex-direction: column; gap: 12px; min-height: calc(100dvh - 140px); }
+.pos-t-board {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 340px;
+  gap: 12px;
+  align-items: stretch;
+  min-height: 0;
+  flex: 1;
+}
+.pos-t-spaces, .pos-t-products, .pos-t-ticket {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  min-height: 0;
+  overflow: auto;
+}
+.pos-t-zones, .pos-t-cats, .pos-t-pays { display: flex; flex-wrap: wrap; gap: 8px; }
+.pos-t-zones button, .pos-t-cats button, .pos-t-pays button, .pos-t-spaces button, .pos-t-bottles button, .pos-m-form button {
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: white;
+  font-weight: 800;
+  padding: 8px 12px;
+}
+.pos-t-zones button.is-on, .pos-t-cats button.is-on, .pos-t-pays button.is-on, .pos-t-spaces button.is-on, .pos-t-bottles button.is-on {
+  background: var(--navy);
+  color: white;
+}
+.pos-t-space-list { display: grid; gap: 8px; margin-top: 12px; }
+.pos-t-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.pos-t-product {
+  min-height: 96px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: #f7f9fc;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px;
+  text-align: left;
+  font-weight: 800;
+}
+.pos-t-ticket { display: flex; flex-direction: column; }
+.pos-t-lines { flex: 1; overflow: auto; }
+.pos-t-pay { position: sticky; bottom: 0; background: white; padding-top: 8px; display: grid; gap: 8px; }
+.pos-orient-portrait.pos-mode-tablet .pos-t-board { grid-template-columns: 200px minmax(0, 1fr); }
+.pos-orient-portrait.pos-mode-tablet .pos-t-ticket { grid-column: 1 / -1; max-height: 46vh; }
+
 
