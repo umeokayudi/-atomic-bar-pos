@@ -35,6 +35,26 @@ Confirmado pela auditoria read-only. O que não foi visto na API não é tratado
 6. `time_clock` não existe. A folha só lê essa tabela. O funcionário já é `perfis`, não uma tabela nova.
 7. `verify_schema.sql` trata `pos_vendas` como tabela legada “sem CREATE neste repositório”. Em produção ela não é legada: está ausente. A migration planejada tem de criá-la. O verificador atual não serve como lista de instalação até ser alinhado com este documento.
 
+### Matriz `bar_id`
+
+“Tem” significa o que a auditoria read-only viu ou o que o app já filtra com sucesso em produção. “Deve ter” é a decisão desta arquitetura. Tabela ausente conta como não tem.
+
+| Objeto | Tem `bar_id` | Deve ter `bar_id` | Motivo |
+|---|---|---|---|
+| `produtos` | não | não | Catálogo global. `atomic-bar-pos/src/pages/POS.jsx` ainda filtra `produtos.bar_id`; esse arquivo é o caixa antigo e não define o modelo. O app atual (`Configs`, compras, fornecedores, procurement) lê `produtos` sem bar |
+| `vendas` | sim | sim | Conta da JBM com o bar. `pedidoVenda.js` e `Vendas.jsx` gravam `bar_id` |
+| `vendas_itens` | não | não | O bar chega por `venda_id` → `vendas.bar_id` |
+| `caixa_movimentos` | não | sim, anulável | O piso grava o caixa do bar. `Cashflow.jsx` e `Compras.jsx` gravam movimento da JBM sem bar. `NOT NULL` quebraria o caixa da holding |
+| `estoque_movimentos` | sim | sim | Este é o livro de estoque lacrado por bar. A auditoria viu `bar_id` |
+| `pedidos` | sim | sim | Encomenda de um bar. `posSupply.js` grava `bar_id` |
+| `pedidos_itens` | não | não | O bar chega por `pedido_id` → `pedidos.bar_id` |
+| `perfis` | sim | sim para login de bar; nulo para `admin` e `jbm` | Um perfil, um bar. `user_can_access_bar` já compara `perfis.bar_id` |
+| `cast_members` | tabela não provada | sim, quando for criada | Comissão antiga, não login. `migration.sql` já desenha `bar_id NOT NULL`. Não substitui `perfis` |
+| `time_clock` | tabela ausente | sim | Ponto daquele login naquele bar. `staff_id` = `perfis.id` |
+| `bar_spaces` | tabela ausente | sim | Mesa ou sala de um bar. Não é `vendas.mesa` |
+| `pos_vendas` | tabela ausente | sim | Caixa do bar. Tabela nova, não é `vendas` |
+| procurement | misto, tabelas ausentes | só no fato que é do bar | `procurement_source_products` é fonte × produto global, sem `bar_id`. `bar_product_prices` e `replenishment_rules` têm `bar_id`. `locations.bar_id` só quando `type = 'BAR'`. `procurement_routing_rules.destination_bar_id` é o destino, não uma cópia do produto. `procurement_stock_moves` usa `location_id` |
+
 ## C. Produto e bar
 
 **Decisão: `produtos` é catálogo global. Não receberá `bar_id`.**
@@ -75,6 +95,18 @@ O que o código de compras/entregas grava hoje (`src/lib/pedidoVenda.js`, `src/c
 
 O piso novo (`PosFloor`) chama `pos_close_ticket`. Não chama `create_order`.
 
+| | `vendas` |
+|---|---|
+| CURRENT | Existe. Colunas usadas pelo app: `bar_id`, `data`, `data_venda`, `total`, `obs`, `criado_por`, `cast_id`, `comissao_total`. Sem `forma_pagamento`, `mesa`, `status`, `origem` |
+| REQUIRED | As colunas que o app já grava. `origem` continua opcional: `pedidoVenda.js` retira o campo se a coluna não existir. `cast_id` e `comissao_total` ficam porque já estão em produção |
+| MIGRATION | Nenhuma coluna de balcão. Não adicionar `forma_pagamento`, `mesa` nem `status`. `origem` só entra se a fatura automática precisar do valor `'fornecedor'`; não é requisito do caixa |
+
+| | `vendas_itens` |
+|---|---|
+| CURRENT | Existe. O app grava `venda_id`, `produto_id`, `qtd`, `preco_unitario` |
+| REQUIRED | Essas quatro. Sem `bar_id` |
+| MIGRATION | Nenhuma coluna nova |
+
 ### `pos_vendas` — caixa do bar
 
 Não existe em produção e não equivale a `vendas`. É tabela nova. O `ALTER` no topo de `sql/pos_floor.sql` falha enquanto a tabela não existir. A migration planejada cria a tabela com as colunas que os dois escritores usam, e o `ALTER` posterior vira redundante.
@@ -87,6 +119,18 @@ Não existe em produção e não equivale a `vendas`. É tabela nova. O `ALTER` 
 O caixa anterior (`commitPosSale`) também grava, quando a coluna existe: `vip_member_id`, `discount_code_id`, `obs`, `space_id`, `guest_id`, `visit_id`. O estorno e o fechamento da noite leem `void_status`, `refunded`, `comissao_estornada`, `card_fee_reversed`.
 
 `data` é a noite operacional (antes das 06:00 em Tóquio pertence à noite anterior). Não é `vendas.data`.
+
+| | `pos_vendas` |
+|---|---|
+| CURRENT | Ausente. Não há equivalente em `vendas` |
+| REQUIRED | `bar_id`, `data`, `subtotal`, `desconto_total`, `total`, `metodo_pagamento`, `tipo`, `criado_por`, `comissao_valor`, `drink_back_agent_id`, `card_fee`. O estorno lê `void_status`, `refunded`, `comissao_estornada`, `card_fee_reversed`. `commitPosSale` também grava, e recua se a coluna faltar: `vip_member_id`, `discount_code_id`, `obs`, `space_id`, `guest_id`, `visit_id` |
+| MIGRATION | `CREATE TABLE` com o conjunto REQUIRED antes de qualquer `ALTER`. O `ALTER` do topo de `sql/pos_floor.sql` deixa de ser o primeiro passo |
+
+| | `pos_vendas_itens` |
+|---|---|
+| CURRENT | Ausente |
+| REQUIRED | `pos_venda_id`, `drink_menu_id`, `produto_id`, `nome`, `qtd`, `preco_unitario`, `preco_lista`, `tipo_preco`, `desconto_valor`, `for_cast`, `comissao_valor`, `refunded_qtd`, `stock_mode` |
+| MIGRATION | `CREATE TABLE` junto com `pos_vendas`. Sem `bar_id`: a venda pai já tem |
 
 ### `caixa_movimentos`
 
