@@ -24,16 +24,16 @@ function GoalChart({ rows, goal }) {
   const bw = (w - pad * 2) / n
   const y = v => h - 22 - (v / max) * (h - 40)
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="goal-chart" role="img">
-      {goal > 0 && <line x1={pad} x2={w - pad} y1={y(goal)} y2={y(goal)} stroke="#c19c56" strokeDasharray="5 4" strokeWidth="2" />}
+    <svg viewBox={`0 0 ${w} ${h}`} className="goal-chart" role="img" style={{ color: 'var(--text2)' }}>
+      {goal > 0 && <line x1={pad} x2={w - pad} y1={y(goal)} y2={y(goal)} stroke="currentColor" strokeDasharray="5 4" strokeWidth="2" />}
       {rows.map((r, i) => {
         const top = y(r.sales || 0)
         const height = Math.max(0, h - 22 - top)
         const hit = goal > 0 && r.sales >= goal
         return (
           <g key={r.key || i}>
-            <rect x={pad + i * bw + 6} y={top} width={Math.max(8, bw - 12)} height={height} rx="5" fill={hit ? '#34c759' : '#8eb7ff'} />
-            <text x={pad + i * bw + bw / 2} y={h - 6} textAnchor="middle" fill="rgba(255,255,255,0.72)" fontSize="11">{r.label}</text>
+            <rect x={pad + i * bw + 6} y={top} width={Math.max(8, bw - 12)} height={height} rx="4" fill={hit ? 'var(--green)' : 'var(--blue)'} />
+            <text x={pad + i * bw + bw / 2} y={h - 6} textAnchor="middle" fill="currentColor" fontSize="11">{r.label}</text>
           </g>
         )
       })}
@@ -154,6 +154,21 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
   const toPay = bills.filter(a => a.days <= 7).reduce((sum, a) => sum + (+a.amount || 0), 0)
   const worked = whatWorked(tickets)
   const peak = worked.peakHours?.[0]
+  const tonightRows = (tickets || []).filter(s => nightKeyOfSale(s) === night)
+  const tonightCount = tonightRows.length
+  const tonightSum = tonightRows.reduce((sum, s) => sum + (+s.total || 0), 0)
+  const tonightAvg = tonightCount ? Math.round(tonightSum / tonightCount) : null
+  const guestCount = new Set(tonightRows.map(s => s.guest_id).filter(Boolean)).size
+  const hourSeries = progress.hora?.series || []
+  const soldHours = hourSeries.filter(h => h.sales > 0)
+  const bestHour = soldHours.reduce((best, row) => (row.sales > (best?.sales || 0) ? row : best), null)
+  const quietHour = soldHours.length >= 2
+    ? soldHours.reduce((quiet, row) => (row.sales < quiet.sales ? row : quiet))
+    : null
+  const tonightSales = progress.noite.sales || 0
+  const bestShare = bestHour && tonightSales > 0 ? Math.round((bestHour.sales / tonightSales) * 100) : null
+  const hourMax = Math.max(1, ...hourSeries.map(h => +h.sales || 0))
+  const lucro = progress.lucro || {}
   const birthdays = new Map()
   for (const p of [...(staff || []), ...(people || [])]) {
     if (p?.id && p.aniversario) birthdays.set(p.id, p.aniversario)
@@ -218,6 +233,82 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
 
   return (
     <div className="desk">
+      <header className="desk-head">
+        <h2>{t('portal.desk.title')}</h2>
+        <p>{t('portal.desk.lead')}</p>
+      </header>
+
+      <section className="desk-kpis" aria-label={t('portal.desk.title')}>
+        <article className="desk-kpi">
+          <span>{t('portal.desk.salesKpi')}</span>
+          <strong>{tonightCount ? money(tonightSum) : t('portal.desk.insufficient')}</strong>
+          <em>{progress.noite.goal > 0 ? `${t('portal.desk.target')} ${money(progress.noite.goal)}` : t('portal.goals.noGoal')}</em>
+          {progress.noite.goal > 0 && (
+            <i className="desk-kpi-meter"><b style={{ width: `${Math.max(0, Math.min(progress.noite.pct || 0, 100))}%` }} /></i>
+          )}
+        </article>
+        <article className="desk-kpi">
+          <span>{t('portal.desk.profitKpi')} · {t('portal.desk.monthProfit')}</span>
+          <strong>{lucro.sales ? money(lucro.profit) : t('portal.desk.insufficient')}</strong>
+          <em>{lucro.goal > 0 ? `${t('portal.desk.target')} ${money(lucro.goal)}` : t('portal.goals.noGoal')}</em>
+          {lucro.sales ? <small>{t('portal.desk.costKpi')} {money(lucro.cost)}</small> : null}
+        </article>
+        <article className="desk-kpi">
+          <span>{t('portal.desk.ticketKpi')}</span>
+          <strong>{tonightAvg == null ? t('portal.desk.insufficient') : money(tonightAvg)}</strong>
+          <em>{tonightCount ? t('portal.desk.tickets', { count: tonightCount }) : t('portal.desk.ordersKpi')}</em>
+        </article>
+        <article className="desk-kpi">
+          <span>{t('portal.desk.guestsKpi')}</span>
+          <strong>{guestCount ? guestCount : t('portal.desk.insufficient')}</strong>
+          <em>{t('portal.desk.ordersKpi')} {tonightCount || '—'}</em>
+        </article>
+      </section>
+
+      <section className="desk-card desk-profit">
+        <h3>{t('portal.desk.profitKpi')}</h3>
+        <div className="desk-cash">
+          <div><span>{t('portal.desk.salesKpi')}</span><strong>{lucro.sales ? money(lucro.sales) : t('portal.desk.insufficient')}</strong></div>
+          <div><span>{t('portal.desk.costKpi')}</span><strong>{lucro.sales ? money(lucro.cost) : t('portal.desk.insufficient')}</strong></div>
+          <div><span>{t('portal.desk.profitKpi')}</span><strong>{lucro.sales ? money(lucro.profit) : t('portal.desk.insufficient')}</strong></div>
+        </div>
+        <p className="desk-note">{t('portal.desk.cogsNote')}</p>
+        {lucro.goal > 0 ? (
+          <p className="desk-note">
+            {t('portal.desk.paceLabel')}: {money(lucro.profit)} · {money(lucro.pace)}
+            {lucro.gap > 0 ? ` · ${t('portal.desk.remaining', { amount: money(lucro.gap) })}` : ''}
+          </p>
+        ) : (
+          <p className="desk-note">{t('portal.goals.noGoal')}</p>
+        )}
+      </section>
+
+      <section className="desk-card">
+        <h3>{t('portal.desk.hourlyTitle')}</h3>
+        {!soldHours.length && <div className="desk-empty">{t('portal.desk.insufficient')}</div>}
+        {!!soldHours.length && (
+          <div className="desk-hours">
+            {hourSeries.map(h => (
+              <div key={h.hour} className="desk-hour">
+                <span>{h.label}</span>
+                <i><b style={{ width: `${Math.round(((+h.sales || 0) / hourMax) * 100)}%` }} /></i>
+                <em>{h.sales ? money(h.sales) : '—'}</em>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="desk-hour-notes">
+          <p>
+            <strong>{t('portal.desk.bestHour')}</strong>
+            {bestHour ? ` ${bestHour.label} · ${money(bestHour.sales)}${bestShare != null ? ` · ${t('portal.desk.share', { pct: bestShare })}` : ''}` : ` ${t('portal.desk.insufficient')}`}
+          </p>
+          <p>
+            <strong>{t('portal.desk.quietHour')}</strong>
+            {quietHour ? ` ${quietHour.label} · ${money(quietHour.sales)}` : ` ${t('portal.desk.insufficient')}`}
+          </p>
+        </div>
+      </section>
+
       <section className="goal-hero desk-goal">
         <div className="goal-modes">
           {SPANS.map(id => (
