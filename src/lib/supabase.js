@@ -33,26 +33,15 @@ function resolveAnonKey(raw) {
 const supabaseUrl = resolveSupabaseUrl(import.meta.env.VITE_SUPABASE_URL)
 const supabaseKey = resolveAnonKey(import.meta.env.VITE_SUPABASE_ANON_KEY)
 
-const TAB_ID_KEY = 'bebidas_tab_id'
-
-function getTabId() {
-  if (typeof sessionStorage === 'undefined') return 'ssr'
-  let id = sessionStorage.getItem(TAB_ID_KEY)
-  if (!id) {
-    id = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
-    sessionStorage.setItem(TAB_ID_KEY, id)
-  }
-  return id
-}
-
 const projectRef = supabaseUrl.match(/https:\/\/([^.]+)/)?.[1] || DRINKS_REF
 
 const rawSupabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
-    storage: typeof sessionStorage !== 'undefined' ? sessionStorage : undefined,
-    storageKey: `sb-${projectRef}-auth-${getTabId()}`,
+    storage: typeof localStorage !== 'undefined' ? localStorage : undefined,
+    storageKey: `sb-${projectRef}-auth-token`,
     persistSession: true,
     autoRefreshToken: true,
+    detectSessionInUrl: true,
   },
 })
 

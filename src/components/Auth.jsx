@@ -2,34 +2,13 @@ import { LogoLogin } from './Logo'
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase, drinksAuth } from '../lib/supabase'
 import { useI18n, LANGS } from '../lib/i18n'
-import {
-  readLanePerfil,
-  readLaneToken,
-  writeLaneSession,
-  clearLaneSession,
-  isLaneEmail,
-} from '../lib/barLanes'
+import { clearLaneSession } from '../lib/barLanes'
+import { barMatches, loginBlockedReason, sessionMatchesProfile } from '../lib/authGate'
 import { setHashForRole } from '../lib/barDoors'
-import { asReactText, errText } from '../lib/errText'
+import { asReactText } from '../lib/errText'
 
 const AuthContext = createContext(null)
 export const useAuth = () => useContext(AuthContext)
-
-function laneUserFromPerfil(perfil) {
-  if (!perfil) return null
-  return { id: perfil.id, email: perfil.email }
-}
-
-async function tryLaneLogin(email, password) {
-  const res = await fetch('/api/bar/lane-login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  })
-  const json = await res.json().catch(() => ({}))
-  if (!res.ok) return { error: { message: errText(json.error, 'Incorrect email or password') } }
-  return { error: null, token: json.token, perfil: { ...json.perfil, lane: true } }
-}
 
 function authLinkKind() {
   if (typeof location === 'undefined') return ''
@@ -45,75 +24,90 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const [passwordGate, setPasswordGate] = useState(() => authLinkKind())
 
-  function applyLane(perfil) {
-    const next = { ...perfil, lane: true }
-    setUser(laneUserFromPerfil(next))
-    setPerfil(next)
-    setLoading(false)
-  }
-
   useEffect(() => {
+    clearLaneSession()
     drinksAuth.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUser(session.user)
         loadPerfil(session.user.id)
         return
       }
-      const lane = readLanePerfil()
-      const token = readLaneToken()
-      if (lane && token) applyLane(lane)
-      else setLoading(false)
+      setLoading(false)
     })
     const { data: { subscription } } = drinksAuth.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') setPasswordGate('recovery')
       else if (authLinkKind() === 'invite') setPasswordGate('invite')
+      if (event === 'TOKEN_REFRESHED' && session?.user) {
+        setUser(session.user)
+        return
+      }
       if (session?.user) {
         clearLaneSession()
         setUser(session.user)
         loadPerfil(session.user.id)
         return
       }
-      const lane = readLanePerfil()
-      const token = readLaneToken()
-      if (lane && token) applyLane(lane)
-      else { setUser(null); setPerfil(null); setLoading(false) }
+      if (event === 'SIGNED_OUT') {
+        setUser(null)
+        setPerfil(null)
+        setLoading(false)
+      }
     })
     return () => subscription.unsubscribe()
   }, [])
 
-  async function loadPerfil(uid) {
-    let { data } = await supabase.from('perfis').select('*').eq('id', uid).single()
-    setPerfil(data)
+  async function rejectSession(reason) {
+    try { await drinksAuth.auth.signOut({ scope: 'local' }) } catch { /* already cleared */ }
+    clearLaneSession()
+    setUser(null)
+    setPerfil(null)
     setLoading(false)
+    return { error: { message: reason }, perfil: null }
+  }
+
+  async function acceptProfile(uid, perfil) {
+    if (!sessionMatchesProfile(uid, perfil)) return rejectSession('profile-mismatch')
+    let status = null
+    let employeeBar = null
+    if (['cliente', 'gerente', 'caixa', 'bar_staff'].includes(perfil.role)) {
+      const emp = await supabase.from('bar_employees').select('status,bar_id').eq('id', uid).maybeSingle()
+      if (!emp.error && emp.data) {
+        status = emp.data.status || null
+        employeeBar = emp.data.bar_id || null
+      }
+    }
+    if (!barMatches(perfil.bar_id, employeeBar)) return rejectSession('other-bar')
+    const blocked = loginBlockedReason(perfil.role, status)
+    if (blocked) return rejectSession(blocked)
+    if (status === 'invited') {
+      await supabase.rpc('bar_accept_invitation').catch(() => {})
+    }
+    setPerfil(perfil)
+    setLoading(false)
+    return { error: null, perfil }
+  }
+
+  async function loadPerfil(uid) {
+    const loaded = await supabase.from('perfis').select('*').eq('id', uid).maybeSingle()
+    if (loaded.error || !loaded.data) {
+      await rejectSession('profile-mismatch')
+      return
+    }
+    await acceptProfile(uid, loaded.data)
   }
 
   async function signIn(email, password) {
     const e = String(email || '').trim().toLowerCase()
     const p = String(password || '')
-
-    if (isLaneEmail(e)) {
-      const lane = await tryLaneLogin(e, p)
-      if (lane.error) return lane
-      writeLaneSession(lane.token, lane.perfil, false)
-      applyLane(lane.perfil)
-      return { error: null, perfil: lane.perfil }
-    }
-
     clearLaneSession()
     const result = await drinksAuth.auth.signInWithPassword({ email: e, password: p })
-    if (!result.error) {
-      const uid = result.data?.user?.id
-      let perfil = null
-      if (uid) {
-        const loaded = await supabase.from('perfis').select('*').eq('id', uid).single()
-        perfil = loaded.data
-        setPerfil(perfil)
-        setUser(result.data.user)
-        setLoading(false)
-      }
-      return { error: null, perfil }
-    }
-    return result
+    if (result.error) return result
+    const uid = result.data?.user?.id
+    if (!uid) return { error: { message: 'profile-mismatch' }, perfil: null }
+    setUser(result.data.user)
+    const loaded = await supabase.from('perfis').select('*').eq('id', uid).maybeSingle()
+    if (loaded.error || !loaded.data) return rejectSession('profile-mismatch')
+    return acceptProfile(uid, loaded.data)
   }
 
   async function signOut() {
@@ -219,7 +213,10 @@ export function LoginPage() {
       const { error, perfil } = await signIn(email, pass)
       if (error) {
         const msg = String(error.message || '').toLowerCase()
-        if (msg.includes('api key') || msg.includes('jwt') || msg.includes('not configured')) {
+        if (msg === 'suspended') setErr(t('auth.suspended'))
+        else if (msg === 'profile-mismatch') setErr(t('auth.profileMissing'))
+        else if (msg === 'other-bar') setErr(t('auth.otherBar'))
+        else if (msg.includes('api key') || msg.includes('jwt') || msg.includes('not configured')) {
           setErr(t('auth.badProject'))
         } else if (msg.includes('fetch') || msg.includes('network') || msg.includes('failed')) {
           setErr(t('auth.network'))

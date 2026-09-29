@@ -11,14 +11,12 @@ export const WRITTEN_LOGINS = {
   pos: {
     lane: 'pos',
     email: 'pos@atomic.bar',
-    password: 'PosOnly#2026',
     role: 'caixa',
     nome: 'Atomic POS',
   },
   gerente: {
     lane: 'gerente',
     email: 'umeokayudi@gmail.com',
-    password: 'JbmVer#2026',
     role: 'cliente',
     nome: 'Gerente Atomic',
     via: 'supabase',
@@ -26,17 +24,14 @@ export const WRITTEN_LOGINS = {
   funcionario: {
     lane: 'funcionario',
     email: 'funcionario@atomic.bar',
-    password: 'Funcionario#2026',
     role: 'bar_staff',
     nome: 'Funcionário Atomic',
-    pin: '2468',
     salario_hora: 1500,
     cargo: 'Floor',
   },
   jbm: {
     lane: 'jbm',
     email: 'umeokagroup@gmail.com',
-    password: 'Jbm#Fornecedor2026',
     role: 'admin',
     nome: 'Alexandre Umeoka',
     via: 'supabase',

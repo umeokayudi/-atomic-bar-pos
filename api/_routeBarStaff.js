@@ -637,7 +637,7 @@ export default async function handler(req, res) {
       if (body.nome != null && admin) {
         await admin.from('perfis').update({ nome: String(body.nome).trim() }).eq('id', body.id).eq('bar_id', barId)
       }
-      if (admin && body.status === 'suspended') {
+      if (admin && (body.status === 'suspended' || body.status === 'inactive')) {
         await admin.auth.admin.updateUserById(body.id, { ban_duration: '876000h' })
       }
       if (admin && body.status === 'active') {
