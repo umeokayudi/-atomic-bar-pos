@@ -18,6 +18,7 @@
     "test:security": "node scripts/securityModel.test.mjs",
     "test:migration": "node scripts/validateMigration.mjs",
     "test:migration:pg": "node scripts/migrationLegacy.pg.test.mjs",
+    "check:bar-pricing": "node scripts/checkBarPricingDuplicates.mjs",
     "test:employees": "node scripts/employeeAccess.test.mjs",
     "test:pos:pg": "node scripts/posFloor.pg.test.mjs"
   },

@@ -1,6 +1,6 @@
 # Prontidão
 
-Classificação contra o código deste repositório e a auditoria read-only de produção já feita. Não é uma certificação do ambiente ao vivo.
+Classificação contra o código deste repositório e a auditoria read-only de produção já feita. Não é uma certificação do ambiente ao vivo. Esta passagem não consultou o banco e não muda esta tabela para READY. A decisão da migration está em `docs/migration-readiness-decision.md`.
 
 | Área | Estado | Motivo |
 |---|---|---|

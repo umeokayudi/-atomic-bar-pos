@@ -4,7 +4,7 @@ Migration designed but not executed on production.
 
 `sql/migration_final.sql` não foi aplicado em `ojirgkqtqvugqktyuhem` nem no holding. Não houve deploy. O que foi executado foi só em bancos Postgres locais descartáveis (`migration_legacy_empty_9777`, `migration_legacy_data_9777`, `migration_pricing_dups_9777`), criados e apagáveis nesta máquina. O fixture `scripts/fixtures/legacy_schema.sql` reconstrói o catálogo que o repositório não cria. Não é um dump de produção.
 
-Esta auditoria não chama a migration de production-ready. As policies reais de `vendas`, `pedidos`, `perfis` e `produtos` não estão no repositório.
+Esta auditoria não chama a migration de production-ready. As policies reais de `vendas`, `pedidos`, `perfis` e `produtos` não estão no repositório. A separação KNOWN / UNKNOWN / INFERRED está em `docs/production-schema-evidence.md`. A decisão desta etapa está em `docs/migration-readiness-decision.md`.
 
 ## 1. Schema legado que o repositório realmente define
 

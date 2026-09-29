@@ -1,4 +1,5 @@
 -- Local stand-in for the legacy catalog this repository does not CREATE.
+-- A passing run of this file does not prove the production database matches it.
 -- Columns follow the read-only production audit and the writes in src/ and api/.
 -- It is not a production dump. It does not add produtos.bar_id.
 -- Supabase already has auth.uid(), authenticated, and anon. This file creates
