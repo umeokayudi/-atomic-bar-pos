@@ -1683,6 +1683,9 @@ export default {
       insufficient: 'Insufficient data',
       monthProfit: 'This month',
       cogsNote: 'Product cost and gross margin are not on this till.',
+      marginMissing: 'Gross margin: insufficient data.',
+      paceNow: 'Current pace {amount}/hour. Required pace {need}/hour.',
+      projected: 'Projected {amount}',
     },
     close: {
       loading: 'Loading the close...',

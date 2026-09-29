@@ -5048,4 +5048,123 @@ html[data-device="phone"] .menu-toggle {
   .desk-kpi strong { font-size: 20px; }
 }
 
+.ops-section { display: flex; justify-content: space-between; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px; }
+.ops-section h2 { margin: 0; font-size: 22px; letter-spacing: -0.02em; }
+.ops-section p { margin: 4px 0 0; color: var(--text2); font-size: 13px; }
+.ops-section-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.desk-goals, .desk-insights { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.desk-insights { grid-template-columns: 1fr 1fr; margin-top: 12px; }
+.desk-goal-card, .ops-insight {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 14px 16px;
+  min-width: 0;
+}
+.desk-goal-card span, .ops-insight span {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text3);
+}
+.desk-goal-card strong, .ops-insight strong { display: block; margin-top: 6px; font-size: 18px; letter-spacing: -0.02em; }
+.desk-goal-card em, .desk-goal-card small, .ops-insight p {
+  display: block;
+  margin-top: 4px;
+  font-style: normal;
+  color: var(--text2);
+  font-size: 12px;
+}
+.ops-switch { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.ops-switch button {
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  font-weight: 700;
+}
+.ops-switch button.is-on { background: var(--blue); color: #fff; border-color: var(--blue); }
+.ops-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--text2);
+  font-size: 11px;
+  font-weight: 700;
+}
+.ops-badge.is-ok { background: var(--green-bg); color: var(--green); }
+.ops-badge.is-warn { background: var(--amber-bg); color: var(--amber); }
+.ops-badge.is-bad { background: var(--red-bg); color: var(--red); }
+.stock-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.floor-card.is-occupied, .floor-card.is-reserved, .floor-card.is-free { background: var(--bg2); border-color: var(--border); }
+.floor-status { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 11px; font-weight: 700; color: var(--text2); }
+.floor-status i { width: 8px; height: 8px; border-radius: 50%; background: var(--text3); display: inline-block; }
+.floor-status.is-occupied i { background: var(--amber); }
+.floor-status.is-reserved i { background: var(--blue); }
+.floor-status.is-free i { background: var(--green); }
+.pos-product-card { gap: 4px; }
+.pos-product-photo { width: 100%; height: 72px; object-fit: cover; border-radius: 10px; background: var(--bg3); }
+.pos-product-photo.is-empty { display: block; }
+.clock-now { display: flex; justify-content: space-between; gap: 16px; align-items: center; flex-wrap: wrap; }
+.clock-now .people-me-btn { min-height: 56px; min-width: 160px; font-size: 16px; }
+.floor-money article { background: var(--bg2); }
+html[data-device="phone"] .desk-goals,
+html[data-device="phone"] .desk-insights,
+html[data-device="phone"] .stock-grid,
+html[data-device="phone"] .floor-grid,
+html[data-device="phone"] .clock-now { grid-template-columns: 1fr !important; }
+html[data-device="phone"] .app-main table.ops-table { display: block; min-width: 0 !important; }
+html[data-device="phone"] .app-main table.ops-table thead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+html[data-device="phone"] .app-main table.ops-table tbody { display: grid; gap: 8px; }
+html[data-device="phone"] .app-main table.ops-table tr {
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--bg2);
+}
+html[data-device="phone"] .app-main table.ops-table td {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  border: none;
+  padding: 4px 0;
+  min-width: 0;
+}
+html[data-device="phone"] .app-main table.ops-table td::before {
+  content: attr(data-label);
+  color: var(--text3);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  flex: 0 0 42%;
+}
+html[data-device="phone"] .guests-form .btn-primary,
+html[data-device="phone"] .clock-now .people-me-btn {
+  width: 100%;
+  position: sticky;
+  bottom: calc(84px + env(safe-area-inset-bottom, 0));
+  z-index: 4;
+}
+@media (max-width: 900px) {
+  .desk-goals { grid-template-columns: 1fr; }
+}
+
 

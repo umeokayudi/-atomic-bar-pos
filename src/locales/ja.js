@@ -1683,6 +1683,9 @@ export default {
       insufficient: 'データが足りません',
       monthProfit: '今月',
       cogsNote: '原価と粗利率はこのレジにありません。',
+      marginMissing: '粗利率: データが足りません。',
+      paceNow: 'いまのペース {amount}/時間。必要なペース {need}/時間。',
+      projected: '着地見込み {amount}',
     },
     close: {
       loading: '締めを読み込み中...',

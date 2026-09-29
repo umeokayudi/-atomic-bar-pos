@@ -427,13 +427,15 @@ export default function BarSpacesTab({ bar }) {
           </div>
           <div className="floor-grid">
             {z.spaces.map(s => (
-              <div key={s.id} className="card floor-card" style={{
-                padding: 12,
-                borderColor: s.occupied ? 'var(--navy)' : s.reserved ? 'var(--gold, #b8860b)' : 'var(--border)',
-                background: s.occupied ? 'rgba(26,78,138,0.06)' : 'var(--bg2)',
-              }}>
+              <div key={s.id} className={`card floor-card${s.occupied ? ' is-occupied' : s.reserved ? ' is-reserved' : ' is-free'}`} style={{ padding: 12 }}>
                 <div className="floor-card-head">
-                  <div style={{ fontWeight: 800, fontSize: 14 }}>{s.nome}</div>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 16 }}>{s.nome}</div>
+                    <div className={`floor-status${s.occupied ? ' is-occupied' : s.reserved ? ' is-reserved' : ' is-free'}`}>
+                      <i aria-hidden="true" />
+                      {s.occupied ? t('spaces.seated') : s.reserved ? t('spaces.reserved') : t('spaces.free')}
+                    </div>
+                  </div>
                   <button type="button" className="floor-edit-btn" onClick={() => setEdit({
                     id: s.id,
                     nome: s.nome || '',

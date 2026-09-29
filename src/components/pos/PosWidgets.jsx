@@ -18,11 +18,17 @@ export function PosSearch({ t, query, onQuery, onScan }) {
   )
 }
 
+function productPhoto(product) {
+  return product?.foto_url || product?.imagem || product?.image_url || product?.foto || product?.produtos?.foto_url || ''
+}
+
 export function ProductButton({ t, product, onAdd }) {
   const code = productCodes(product)[0]
   const problem = productProblem(product)
+  const photo = productPhoto(product)
   return (
     <button type="button" className="pos-product-card" onClick={() => onAdd(product)} disabled={!!problem}>
+      {photo ? <img className="pos-product-photo" src={photo} alt="" loading="lazy" width="72" height="72" /> : <span className="pos-product-photo is-empty" aria-hidden="true" />}
       <span>{product.nome}</span>
       {code && <small>{code}</small>}
       {product.categoria && <small>{product.categoria}</small>}

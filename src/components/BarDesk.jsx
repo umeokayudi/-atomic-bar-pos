@@ -4,13 +4,15 @@ import { staffFetch } from '../lib/apiAuth'
 import { invalidateBarTeam, loadBarTeam, peekBarTeam } from '../lib/barTeam'
 import { buildBarDesk } from '../lib/barDesk'
 import { addDays, cardCash, monthBounds, paymentAgenda, periodReport, sameWeekdaySales, stillToSell, tenderOf, weekdayOf } from '../lib/barClose'
-import { buildGoalProgress, shiftBand } from '../lib/barGoals'
+import { buildGoalProgress, openHours, shiftBand } from '../lib/barGoals'
 import { whatWorked } from '../lib/barStrategy'
 import { nightKeyOfSale } from '../lib/nightClose'
+import { hourOfSale } from '../lib/nightClose'
 import { lastDayOfMonth, tokyoHour, tokyoNightKey } from '../lib/tokyo'
 import { useI18n } from '../lib/i18n'
 import { errText } from '../lib/errText'
 import BarOwnerAi from './BarOwnerAi'
+import { GoalProgress, InsightCard, KpiCard, MetricSwitch } from './ui/ops'
 
 const SPANS = ['turno', 'noite', 'semana', 'mes']
 const DAY_KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
@@ -80,6 +82,7 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [ask, setAsk] = useState(false)
+  const [hourMetric, setHourMetric] = useState('sales')
 
   useEffect(() => {
     let cancelled = false
@@ -160,15 +163,49 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
   const tonightAvg = tonightCount ? Math.round(tonightSum / tonightCount) : null
   const guestCount = new Set(tonightRows.map(s => s.guest_id).filter(Boolean)).size
   const hourSeries = progress.hora?.series || []
-  const soldHours = hourSeries.filter(h => h.sales > 0)
-  const bestHour = soldHours.reduce((best, row) => (row.sales > (best?.sales || 0) ? row : best), null)
-  const quietHour = soldHours.length >= 2
-    ? soldHours.reduce((quiet, row) => (row.sales < quiet.sales ? row : quiet))
+  const buckets = new Map()
+  for (const sale of tonightRows) {
+    const hour = hourOfSale(sale)
+    if (hour == null) continue
+    const prev = buckets.get(hour) || { sales: 0, orders: 0 }
+    prev.sales += +sale.total || 0
+    prev.orders += 1
+    buckets.set(hour, prev)
+  }
+  const hourView = hourSeries.map(row => {
+    const hit = buckets.get(row.hour) || { sales: row.sales || 0, orders: 0 }
+    const sales = hit.sales || 0
+    const orders = hit.orders || 0
+    const ticket = orders > 0 ? Math.round(sales / orders) : null
+    const value = hourMetric === 'orders' ? orders : hourMetric === 'ticket' ? (ticket || 0) : sales
+    return { ...row, sales, orders, ticket, value }
+  })
+  const ranked = hourView.filter(row => (hourMetric === 'orders' ? row.orders > 0 : hourMetric === 'ticket' ? row.ticket != null : row.sales > 0))
+  const bestHour = ranked.reduce((best, row) => (row.value > (best?.value || 0) ? row : best), null)
+  const quietHour = ranked.length >= 2
+    ? ranked.reduce((quiet, row) => (row.value < quiet.value ? row : quiet))
     : null
   const tonightSales = progress.noite.sales || 0
-  const bestShare = bestHour && tonightSales > 0 ? Math.round((bestHour.sales / tonightSales) * 100) : null
-  const hourMax = Math.max(1, ...hourSeries.map(h => +h.sales || 0))
+  const bestShare = bestHour && hourMetric === 'sales' && tonightSales > 0 ? Math.round((bestHour.sales / tonightSales) * 100) : null
+  const hourMax = Math.max(1, ...hourView.map(row => +row.value || 0))
   const lucro = progress.lucro || {}
+  const open = openHours(progress.abre, progress.fecha)
+  const nowHour = tokyoHour(new Date())
+  const nowIndex = open.indexOf(nowHour)
+  const elapsedHours = nowIndex >= 0 ? nowIndex + 1 : 0
+  const hoursLeft = nowIndex >= 0 ? Math.max(0, open.length - nowIndex - 1) : 0
+  const currentPace = elapsedHours > 0 && tonightSum > 0 ? Math.round(tonightSum / elapsedHours) : null
+  const nightLeft = stillToSell(tonightSum, progress.noite.goal)
+  const requiredPace = nightLeft != null && hoursLeft > 0 ? Math.round(nightLeft / hoursLeft) : null
+  const monthSum = monthTickets.reduce((sum, sale) => sum + (+sale.total || 0), 0)
+  const dayNum = +night.slice(8, 10) || 0
+  const projected = dayNum > 0 && monthSum > 0 ? Math.round((monthSum / dayNum) * dim) : null
+  function hourText(row) {
+    if (!row) return t('portal.desk.insufficient')
+    if (hourMetric === 'orders') return `${row.label} · ${row.orders}`
+    if (hourMetric === 'ticket') return row.ticket == null ? t('portal.desk.insufficient') : `${row.label} · ${money(row.ticket)}`
+    return `${row.label} · ${money(row.sales)}${bestShare != null && row === bestHour ? ` · ${t('portal.desk.share', { pct: bestShare })}` : ''}`
+  }
   const birthdays = new Map()
   for (const p of [...(staff || []), ...(people || [])]) {
     if (p?.id && p.aniversario) birthdays.set(p.id, p.aniversario)
@@ -239,30 +276,54 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
       </header>
 
       <section className="desk-kpis" aria-label={t('portal.desk.title')}>
-        <article className="desk-kpi">
-          <span>{t('portal.desk.salesKpi')}</span>
-          <strong>{tonightCount ? money(tonightSum) : t('portal.desk.insufficient')}</strong>
-          <em>{progress.noite.goal > 0 ? `${t('portal.desk.target')} ${money(progress.noite.goal)}` : t('portal.goals.noGoal')}</em>
-          {progress.noite.goal > 0 && (
-            <i className="desk-kpi-meter"><b style={{ width: `${Math.max(0, Math.min(progress.noite.pct || 0, 100))}%` }} /></i>
-          )}
-        </article>
-        <article className="desk-kpi">
-          <span>{t('portal.desk.profitKpi')} · {t('portal.desk.monthProfit')}</span>
-          <strong>{lucro.sales ? money(lucro.profit) : t('portal.desk.insufficient')}</strong>
-          <em>{lucro.goal > 0 ? `${t('portal.desk.target')} ${money(lucro.goal)}` : t('portal.goals.noGoal')}</em>
-          {lucro.sales ? <small>{t('portal.desk.costKpi')} {money(lucro.cost)}</small> : null}
-        </article>
-        <article className="desk-kpi">
-          <span>{t('portal.desk.ticketKpi')}</span>
-          <strong>{tonightAvg == null ? t('portal.desk.insufficient') : money(tonightAvg)}</strong>
-          <em>{tonightCount ? t('portal.desk.tickets', { count: tonightCount }) : t('portal.desk.ordersKpi')}</em>
-        </article>
-        <article className="desk-kpi">
-          <span>{t('portal.desk.guestsKpi')}</span>
-          <strong>{guestCount ? guestCount : t('portal.desk.insufficient')}</strong>
-          <em>{t('portal.desk.ordersKpi')} {tonightCount || '—'}</em>
-        </article>
+        <KpiCard
+          label={t('portal.desk.salesKpi')}
+          value={tonightCount ? money(tonightSum) : t('portal.desk.insufficient')}
+          detail={progress.noite.goal > 0 ? `${t('portal.desk.target')} ${money(progress.noite.goal)}` : t('portal.goals.noGoal')}
+          meter={progress.noite.goal > 0 ? progress.noite.pct : null}
+        />
+        <KpiCard
+          label={`${t('portal.desk.profitKpi')} · ${t('portal.desk.monthProfit')}`}
+          value={lucro.sales ? money(lucro.profit) : t('portal.desk.insufficient')}
+          detail={lucro.sales ? `${t('portal.desk.costKpi')} ${money(lucro.cost)}` : t('portal.desk.cogsNote')}
+          meter={lucro.goal > 0 ? lucro.pct : null}
+        />
+        <KpiCard
+          label={t('portal.desk.ticketKpi')}
+          value={tonightAvg == null ? t('portal.desk.insufficient') : money(tonightAvg)}
+          detail={tonightCount ? t('portal.desk.tickets', { count: tonightCount }) : t('portal.desk.ordersKpi')}
+        />
+        <KpiCard
+          label={t('portal.desk.guestsKpi')}
+          value={guestCount ? guestCount : t('portal.desk.insufficient')}
+          detail={`${t('portal.desk.ordersKpi')} ${tonightCount || '—'}`}
+        />
+      </section>
+
+      <section className="desk-goals">
+        <GoalProgress
+          label={t('portal.desk.span.noite')}
+          current={money(progress.noite.sales || 0)}
+          target={progress.noite.goal > 0 ? money(progress.noite.goal) : ''}
+          pct={progress.noite.goal > 0 ? progress.noite.pct : null}
+          remaining={nightLeft == null ? t('portal.goals.noGoal') : t('portal.desk.remaining', { amount: money(nightLeft) })}
+          extra={currentPace == null ? t('portal.desk.insufficient') : t('portal.desk.paceNow', { amount: money(currentPace), need: requiredPace == null ? t('portal.desk.insufficient') : money(requiredPace) })}
+        />
+        <GoalProgress
+          label={t('portal.desk.span.semana')}
+          current={money(progress.semana.sales || 0)}
+          target={progress.semana.goal > 0 ? money(progress.semana.goal) : ''}
+          pct={progress.semana.goal > 0 ? progress.semana.pct : null}
+          remaining={progress.semana.goal > 0 ? t('portal.desk.remaining', { amount: money(stillToSell(progress.semana.sales, progress.semana.goal)) }) : t('portal.goals.noGoal')}
+        />
+        <GoalProgress
+          label={t('portal.desk.span.mes')}
+          current={money(progress.mes.sales || 0)}
+          target={progress.mes.goal > 0 ? money(progress.mes.goal) : ''}
+          pct={progress.mes.goal > 0 ? progress.mes.pct : null}
+          remaining={progress.mes.goal > 0 ? t('portal.desk.remaining', { amount: money(stillToSell(progress.mes.sales, progress.mes.goal)) }) : t('portal.goals.noGoal')}
+          extra={projected == null ? t('portal.desk.insufficient') : t('portal.desk.projected', { amount: money(projected) })}
+        />
       </section>
 
       <section className="desk-card desk-profit">
@@ -273,6 +334,7 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
           <div><span>{t('portal.desk.profitKpi')}</span><strong>{lucro.sales ? money(lucro.profit) : t('portal.desk.insufficient')}</strong></div>
         </div>
         <p className="desk-note">{t('portal.desk.cogsNote')}</p>
+        <p className="desk-note">{t('portal.desk.marginMissing')}</p>
         {lucro.goal > 0 ? (
           <p className="desk-note">
             {t('portal.desk.paceLabel')}: {money(lucro.profit)} · {money(lucro.pace)}
@@ -285,27 +347,30 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
 
       <section className="desk-card">
         <h3>{t('portal.desk.hourlyTitle')}</h3>
-        {!soldHours.length && <div className="desk-empty">{t('portal.desk.insufficient')}</div>}
-        {!!soldHours.length && (
+        <MetricSwitch
+          value={hourMetric}
+          onChange={setHourMetric}
+          options={[
+            { id: 'sales', label: t('portal.desk.salesKpi') },
+            { id: 'orders', label: t('portal.desk.ordersKpi') },
+            { id: 'ticket', label: t('portal.desk.ticketKpi') },
+          ]}
+        />
+        {!ranked.length && <div className="desk-empty">{t('portal.desk.insufficient')}</div>}
+        {!!ranked.length && (
           <div className="desk-hours">
-            {hourSeries.map(h => (
-              <div key={h.hour} className="desk-hour">
-                <span>{h.label}</span>
-                <i><b style={{ width: `${Math.round(((+h.sales || 0) / hourMax) * 100)}%` }} /></i>
-                <em>{h.sales ? money(h.sales) : '—'}</em>
+            {hourView.map(row => (
+              <div key={row.hour} className="desk-hour">
+                <span>{row.label}</span>
+                <i><b style={{ width: `${Math.round(((+row.value || 0) / hourMax) * 100)}%` }} /></i>
+                <em>{row.value ? (hourMetric === 'orders' ? row.orders : money(hourMetric === 'ticket' ? row.ticket : row.sales)) : '—'}</em>
               </div>
             ))}
           </div>
         )}
-        <div className="desk-hour-notes">
-          <p>
-            <strong>{t('portal.desk.bestHour')}</strong>
-            {bestHour ? ` ${bestHour.label} · ${money(bestHour.sales)}${bestShare != null ? ` · ${t('portal.desk.share', { pct: bestShare })}` : ''}` : ` ${t('portal.desk.insufficient')}`}
-          </p>
-          <p>
-            <strong>{t('portal.desk.quietHour')}</strong>
-            {quietHour ? ` ${quietHour.label} · ${money(quietHour.sales)}` : ` ${t('portal.desk.insufficient')}`}
-          </p>
+        <div className="desk-insights">
+          <InsightCard kicker={t('portal.desk.bestHour')} title={hourText(bestHour)} />
+          <InsightCard kicker={t('portal.desk.quietHour')} title={hourText(quietHour)} />
         </div>
       </section>
 

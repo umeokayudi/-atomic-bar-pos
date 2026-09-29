@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import { fmtYen, fmtDate, Spinner, Empty } from './utils'
 import { AdminPage, PortalSurface, PortalAlert } from './ui/PageLayout'
+import { StatusBadge } from './ui/ops'
 import { useI18n } from '../lib/i18n'
 
 export default function EstoqueTab() {
@@ -145,11 +146,10 @@ export default function EstoqueTab() {
       )}
 
       <PortalSurface title={t('estoque.stockLevels')} style={{ marginBottom: 16 }}>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:8 }}>
+        <div className="stock-grid">
           {stockList.filter(p => p.estoque > 0 || p.estoque_atual > 0).map(p => {
             const stock = p.estoque || p.estoque_atual || 0
             const status = stock <= 0 ? 'out' : stock <= 3 ? 'low' : 'ok'
-            const colors = { out:'var(--red)', low:'var(--amber)', ok:'var(--green)' }
             return (
               <div key={p.id} style={{
                 border:'1px solid var(--border)', borderRadius:10,
@@ -157,14 +157,11 @@ export default function EstoqueTab() {
               }}>
                 <div style={{ fontSize:12, fontWeight:600, marginBottom:4 }}>{p.nome}</div>
                 <div style={{ fontSize:11, color:'var(--text2)', marginBottom:8 }}>{p.categoria}</div>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                  <span style={{ fontSize:18, fontWeight:800, color:colors[status] }}>{stock}</span>
-                  <span style={{ fontSize:10, fontWeight:600, padding:'2px 8px', borderRadius:20,
-                    background:status==='ok'?'#f0fdf4':status==='low'?'#fffbeb':'#fef2f2',
-                    color:colors[status]
-                  }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap: 8 }}>
+                  <span style={{ fontSize:18, fontWeight:800 }}>{stock}</span>
+                  <StatusBadge tone={status === 'ok' ? 'ok' : status === 'low' ? 'warn' : 'bad'}>
                     {status === 'ok' ? t('estoque.ok') : status === 'low' ? t('estoque.low') : t('estoque.empty')}
-                  </span>
+                  </StatusBadge>
                 </div>
               </div>
             )
