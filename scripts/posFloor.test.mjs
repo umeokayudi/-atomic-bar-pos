@@ -23,7 +23,7 @@ import {
   removeTicketItem,
   voidSale,
 } from '../src/lib/posFloor.js'
-import { movementOperationalDay, nightSettlement, reconcileNight, summarizeNight } from '../src/lib/nightClose.js'
+import { countedCashInput, movementOperationalDay, nightSettlement, reconcileNight, summarizeNight } from '../src/lib/nightClose.js'
 import { tokyoWallToUtcMs } from '../src/lib/tokyo.js'
 import { readPosDeviceMode, suggestPosDeviceMode, writePosDeviceMode } from '../src/lib/posDeviceMode.js'
 
@@ -381,6 +381,9 @@ assert.equal(books.card_fees, 378 - 76)
 assert.equal(books.cashNet, 10000 - 2000 - 378 + 76)
 assert.equal(books.aligned, true)
 assert.equal(books.cashIn, 10000)
+assert.equal(countedCashInput('', 170000).error, 'counted-required')
+assert.equal(countedCashInput('168000', 170000).variance, -2000)
+assert.doesNotMatch(panel, /counted === '' \? sum\.expectedCash/)
 
 const roles = ['admin', 'jbm', 'gerente', 'caixa', 'bar_staff', 'cliente', 'fornecedor', 'funcionario', 'staff']
 const matrix = Object.fromEntries(roles.map(role => [role, posPermission(role, { sameBar: true })]))

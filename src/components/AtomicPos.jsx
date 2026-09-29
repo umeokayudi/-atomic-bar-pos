@@ -24,7 +24,7 @@ import { tokyoMonthKey, tokyoNightKey } from '../lib/tokyo'
 import { useI18n } from '../lib/i18n'
 import { matchCheckoutVisit, spacesByZone, activeKeeps } from '../lib/barCrm'
 import { packTicketObs, ticketChargeLines, settingsFromRow, DEFAULT_POS_SETTINGS, effectiveServicePct } from '../lib/nightTicket'
-import { summarizeNight, reconcileNight, nightWindow, closeVariance, saleOnNight, prevTokyoDateKey, lastBusyNight } from '../lib/nightClose'
+import { summarizeNight, reconcileNight, nightWindow, countedCashInput, saleOnNight, prevTokyoDateKey, lastBusyNight } from '../lib/nightClose'
 import { CASH_CHIPS, cashSettle, isCashMethod, payRecordNote } from '../lib/posPay'
 import { printGuestReceipt } from '../lib/guestReceipt'
 import { drinkBackCommission } from '../lib/drinkBackPay'
@@ -135,7 +135,13 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
         .gte('data', lastNightKey)
     }
     const sum = reconcileNight(salesRes.data || salesHint, cashMoves, nightKey)
-    const countedCash = counted === '' ? sum.expectedCash : +counted
+    const count = countedCashInput(counted, sum.expectedCash)
+    if (count.error) {
+      setMsg(t('atomicPos.countedRequired'))
+      setBusy(false)
+      return
+    }
+    const countedCash = count.countedCash
     const row = {
       bar_id: bar.id,
       night_key: nightKey,
@@ -149,7 +155,7 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
       other_total: (sum.otherTotal || 0) + (sum.paypayTotal || 0),
       expected_cash: sum.expectedCash,
       counted_cash: countedCash,
-      variance: closeVariance(sum.expectedCash, countedCash),
+      variance: count.variance,
     }
     let error
     if (shift?.id) {

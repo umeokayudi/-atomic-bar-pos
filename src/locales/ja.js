@@ -632,6 +632,7 @@ export default {
     nightOpen: 'ナイト {date}',
     closeNight: '締めする',
     cashCounted: '現金実査 ¥',
+    countedRequired: '締める前に実査の現金を入れてください。空欄は一致ではありません。',
     closedOk: '締め完了',
     alreadyClosed: 'このナイトは締め済み',
     servicePct: 'サービス料 %',

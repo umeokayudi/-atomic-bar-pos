@@ -632,6 +632,7 @@ export default {
     nightOpen: 'Night {date}',
     closeNight: 'Close night',
     cashCounted: 'Cash counted ¥',
+    countedRequired: 'Enter the counted cash before closing. An empty count is not a match.',
     closedOk: 'Night closed',
     alreadyClosed: 'This night is already closed',
     servicePct: 'Service %',
