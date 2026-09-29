@@ -4,7 +4,7 @@ Date: 2026-09-29
 
 STAGING SUPABASE NECESSÁRIO
 
-No public staging URL exists. No Supabase project was created. Production was not deployed and no SQL was executed.
+A later request said a staging project already exists. `npx supabase projects list` still returns `AccessTokenRequiredError`. No project ref could be read, so the new project could not be distinguished from the protected ones. Schema, users, Preview variables, and deploy were not started. Production was not deployed and no SQL was executed.
 
 ## Identity
 
@@ -18,7 +18,7 @@ No public staging URL exists. No Supabase project was created. Production was no
 
 ## Why staging was not created
 
-`npx supabase projects list` returns `AccessTokenRequiredError`. There is no `SUPABASE_ACCESS_TOKEN` in this environment, and `~/.supabase` has no login. A new project cannot be created, and no existing project can be verified as separate from production.
+`npx supabase projects list` returns `AccessTokenRequiredError`. There is no `SUPABASE_ACCESS_TOKEN` in this environment, and `~/.supabase` has no login. Vercel project `jbm` still has only the three Production variables. No Preview variables exist. Without a project list, a ref cannot be confirmed as staging.
 
 The protected projects were not used:
 
