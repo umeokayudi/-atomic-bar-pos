@@ -30,6 +30,41 @@
 --     (the clock API writes one row per punch: tipo in|out, punched_at)
 --   - payroll line type "transport" (the ledger has no writer for it)
 --   - gross/net columns (payroll stores typed lines; the screen adds them up)
+--
+-- Historical caixa_movimentos rows have no bar_id and no operational_day.
+-- descricao is free text and referencia_id does not exist yet, so no row can be
+-- tied to a bar without guessing. This file does not update those rows.
+-- After RLS, HQ (admin, jbm) still sees them. A bar user does not.
+
+-- Stop before any other change when an existing bar_pricing table cannot take
+-- a unique (bar_id, produto_id) key. Do not delete the duplicate rows.
+DO $$
+DECLARE
+  dup_groups integer;
+BEGIN
+  IF to_regclass('public.bar_pricing') IS NULL THEN
+    RETURN;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'bar_pricing' AND column_name = 'bar_id'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'bar_pricing' AND column_name = 'produto_id'
+  ) THEN
+    RAISE EXCEPTION 'BLOCKED: bar_pricing exists without bar_id and produto_id. This migration will not rewrite that table.';
+  END IF;
+  SELECT count(*) INTO dup_groups
+  FROM (
+    SELECT bar_id, produto_id
+    FROM public.bar_pricing
+    GROUP BY bar_id, produto_id
+    HAVING count(*) > 1
+  ) d;
+  IF dup_groups > 0 THEN
+    RAISE EXCEPTION 'BLOCKED: bar_pricing has % duplicate (bar_id, produto_id) groups. Resolve them manually. This migration does not delete rows.', dup_groups;
+  END IF;
+END $$;
 
 CREATE OR REPLACE FUNCTION public.user_can_access_bar(target_bar uuid)
 RETURNS boolean
@@ -313,17 +348,23 @@ $$;
 REVOKE ALL ON FUNCTION public.is_jbm() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.is_jbm() TO authenticated;
 
+-- plpgsql so this can be created before supplier_users exists.
+-- A SQL-language function checks that table at CREATE time, and production
+-- does not have supplier_users yet. The result is the same set of ids.
 CREATE OR REPLACE FUNCTION public.my_supplier_ids()
 RETURNS SETOF uuid
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
+BEGIN
+  RETURN QUERY
   SELECT su.supplier_id
   FROM public.supplier_users su
   WHERE su.user_id = auth.uid()
     AND su.active;
+END;
 $$;
 
 REVOKE ALL ON FUNCTION public.my_supplier_ids() FROM PUBLIC;

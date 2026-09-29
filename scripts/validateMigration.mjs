@@ -9,6 +9,9 @@ const sql = readFileSync(new URL('../sql/migration_final.sql', import.meta.url),
 const code = sql.replace(/--.*$/gm, '')
 
 assert.match(sql, /Migration designed but not executed/)
+assert.match(sql, /BLOCKED: bar_pricing has % duplicate/)
+assert.doesNotMatch(code, /DELETE FROM public\.bar_pricing/i)
+assert.match(sql, /This file does not update those rows/)
 
 const tables = [
   'pos_vendas',

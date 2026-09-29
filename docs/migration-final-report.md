@@ -2,7 +2,7 @@
 
 Migration designed but not executed.
 
-`sql/migration_final.sql` está pronto para revisão humana. Não foi aplicado em `ojirgkqtqvugqktyuhem`, nem no holding `fxsakrshmldmkdmbevna`, nem num banco local nesta etapa. Não houve deploy.
+`sql/migration_final.sql` está pronto para revisão humana. Não foi aplicado em `ojirgkqtqvugqktyuhem` nem no holding `fxsakrshmldmkdmbevna`. Não houve deploy. A auditoria de compatibilidade e o teste em Postgres descartável estão em `docs/migration-legacy-audit.md`.
 
 O resultado desta etapa é **MIGRATION READY FOR REVIEW**. Não é migration aplicada e não é production ready.
 
@@ -92,7 +92,9 @@ Ordem interna, que não deve ser invertida:
 
 ## 8. Como validar depois da execução
 
-Antes de executar, `npm run test:migration` confere o texto: tabelas, colunas, funções, RLS das tabelas de bar, ausência de `USING (true)`, `search_path` em `SECURITY DEFINER`, ausência de `produtos.bar_id`, separação `vendas` / `pos_vendas`, e ausência do backfill.
+Antes de executar, `npm run test:migration` confere o texto: tabelas, colunas, funções, RLS das tabelas de bar, ausência de `USING (true)`, `search_path` em `SECURITY DEFINER`, ausência de `produtos.bar_id`, separação `vendas` / `pos_vendas`, ausência do backfill, e a parada explícita de `bar_pricing` duplicado.
+
+`npm run test:migration:pg` aplica o arquivo em Postgres local descartável: catálogo legado vazio, catálogo com dados simulados, e uma segunda execução. Um terceiro banco com preço duplicado tem de abortar sem apagar a linha. Isso não substitui a leitura das policies reais de produção.
 
 Depois de executar num banco descartável:
 
