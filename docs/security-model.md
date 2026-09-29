@@ -57,3 +57,5 @@ Sessão de pista (`lane:`) só é assinada com `SUPABASE_SERVICE_ROLE_KEY` ou `I
 ## Limite
 
 Enquanto as policies não forem confirmadas em produção, este documento não torna o ambiente seguro. Instalar o SQL sem a migration planejada pode falhar no meio e deixar funções apontando para tabelas que não existem.
+
+`vendas`, `pedidos`, `perfis` e `produtos` não têm `CREATE POLICY` neste repositório. Escrever uma policy para elas agora seria adivinhação. Estado: BLOCKED / EXTERNAL VERIFICATION REQUIRED. A evidência está em `docs/production-schema-evidence.md`.

@@ -36,4 +36,8 @@ assert.doesNotMatch(posUx, /GRANT SELECT, INSERT, UPDATE ON public\.pos_bar_conf
 const src = read('src/lib/supabase.js')
 assert.doesNotMatch(src, /service_role/)
 
+const pricingCheck = read('scripts/checkBarPricingDuplicates.mjs').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
+assert.doesNotMatch(pricingCheck, /\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE)\b/i)
+assert.match(pricingCheck, /refusing a Supabase host/)
+
 console.log('security model tests passed')

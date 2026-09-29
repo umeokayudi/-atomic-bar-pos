@@ -5,7 +5,7 @@
  *   node scripts/migrationLegacy.pg.test.mjs
  */
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
 const migration = new URL('../sql/migration_final.sql', import.meta.url)
@@ -119,6 +119,21 @@ const dupOut = psql(dupDb, ['-f', migration.pathname], true)
 assert.match(dupOut, /BLOCKED: bar_pricing has 1 duplicate/)
 assert.equal(scalar(dupDb, `SELECT count(*) FROM public.bar_pricing`), '2')
 assert.equal(scalar(dupDb, `SELECT to_regclass('public.pos_vendas') IS NULL`), 't')
+
+function checkPricing(database) {
+  return spawnSync(process.execPath, ['scripts/checkBarPricingDuplicates.mjs'], {
+    encoding: 'utf8',
+    env: { ...process.env, BAR_PRICING_CHECK_URL: `postgresql://ubuntu@/${database}?host=/var/run/postgresql` },
+  })
+}
+const found = checkPricing(dupDb)
+assert.equal(found.status, 2, found.stderr)
+assert.match(found.stdout, /duplicate_groups: 1/)
+assert.match(found.stdout, /11111111-1111-4111-8111-111111111111\t33333333-3333-4333-8333-333333333333\t2\t/)
+assert.equal(scalar(dupDb, `SELECT count(*) FROM public.bar_pricing`), '2')
+const clean = checkPricing(dataDb)
+assert.equal(clean.status, 0, clean.stderr)
+assert.match(clean.stdout, /duplicate_groups: 0/)
 
 const source = readFileSync(migration, 'utf8')
 assert.doesNotMatch(source, /UPDATE public\.caixa_movimentos\s+SET operational_day/i)
