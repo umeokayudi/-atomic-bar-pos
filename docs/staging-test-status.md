@@ -10,6 +10,7 @@ No public staging URL was created. A preview of this build would open the browse
 |---|---|
 | Staging URL | none |
 | Branch | `cursor/hospitality-ux-9777` |
+| Commit | latest on `cursor/hospitality-ux-9777` that contains this file |
 | Vercel deployment | none created for this request |
 | Supabase used | none. Production was not contacted. |
 | Test users | none created |
