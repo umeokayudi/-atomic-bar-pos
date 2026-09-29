@@ -91,15 +91,13 @@ Relidas no SQL do repositório. Nenhuma usa `USING (true)`. `SECURITY DEFINER` d
 
 ## Testes locais
 
-Não validam produção.
+Não validam produção. Nesta etapa, no Postgres descartável desta máquina:
 
-- `npm run test:migration:pg`
-- `npm run test:security`
-- `npm run test:pos`
-- `npm run test:procurement`
-- `npm run test:employees`
-- `npm run test:payroll`
-- `npm run test:pos:pg` em banco local, não em Supabase
-- `npm run build`
-
-O resultado desta execução está no corpo da PR.
+- `npm run test:migration:pg` PASS
+- `npm run test:security` PASS
+- `npm run test:pos` PASS
+- `npm run test:procurement` PASS
+- `npm run test:employees` PASS
+- `npm run test:payroll` PASS
+- `npm run test:pos:pg` PASS em `pos_floor_9777_test`, não em Supabase
+- `npm run build` PASS
