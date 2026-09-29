@@ -1,6 +1,8 @@
 # Prontidão
 
-Classificação contra o código deste repositório e a auditoria read-only de produção já feita. Não é uma certificação do ambiente ao vivo. Esta passagem não consultou o banco e não muda esta tabela para READY. A decisão da migration está em `docs/migration-readiness-decision.md`.
+Classificação contra o código deste repositório e a auditoria read-only de produção já feita. Não é uma certificação do ambiente ao vivo. Esta passagem não consultou o banco e não muda esta tabela para READY. A decisão da migration está em `docs/migration-readiness-decision.md`. O mapa desta etapa de hardening está em `docs/production-hardening-audit.md`.
+
+O login do caixa e do funcionário no cliente passou a exigir sessão do Supabase Auth. Isso não foi executado contra um projeto Auth real. A linha de Authentication continua NEEDS WORK.
 
 | Área | Estado | Motivo |
 |---|---|---|

@@ -20,6 +20,7 @@
     "test:migration:pg": "node scripts/migrationLegacy.pg.test.mjs",
     "check:bar-pricing": "node scripts/checkBarPricingDuplicates.mjs",
     "test:employees": "node scripts/employeeAccess.test.mjs",
+    "test:auth": "node scripts/authGate.test.mjs",
     "test:pos:pg": "node scripts/posFloor.pg.test.mjs"
   },
   "dependencies": {

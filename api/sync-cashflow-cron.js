@@ -3,10 +3,10 @@
  * Protected by CRON_SECRET or Vercel cron header.
  */
 import { createClient } from '@supabase/supabase-js'
-import { drinksAdminClient } from './_supabaseAdmin.js'
+import { drinksAdminClient, holdingUrlFromEnv, SUPABASE_CONFIG_ERROR } from './_supabaseAdmin.js'
 import { buildLiveSnapshot } from './_cashflowSnapshot.js'
 
-const HOLDING_URL = process.env.HOLDING_SUPABASE_URL || 'https://fxsakrshmldmkdmbevna.supabase.co'
+const HOLDING_URL = holdingUrlFromEnv()
 const BUCKET = 'system-private'
 const FILE = 'cashflow_snapshot.json'
 const KEY_FILE = 'holding_service_role_key.txt'
@@ -33,6 +33,7 @@ export default async function handler(req, res) {
   }
 
   try {
+    if (!HOLDING_URL) return res.status(500).json({ error: SUPABASE_CONFIG_ERROR })
     const holdingKey = await resolveHoldingKey()
     if (!holdingKey) {
       return res.status(500).json({ error: 'HOLDING_SERVICE_ROLE_KEY missing — run scripts/set-holding-sync-secret.mjs' })

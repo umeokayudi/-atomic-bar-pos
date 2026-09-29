@@ -226,6 +226,15 @@ export function closeVariance(expectedCash, countedCash) {
   return Math.round((+countedCash || 0) - (+expectedCash || 0))
 }
 
+/** A blank count is not a match. The caller must show the variance. */
+export function countedCashInput(counted, expectedCash) {
+  if (counted == null || String(counted).trim() === '') return { error: 'counted-required' }
+  const n = Number(counted)
+  if (!Number.isFinite(n)) return { error: 'counted-required' }
+  const countedCash = Math.round(n)
+  return { countedCash, variance: closeVariance(expectedCash, countedCash) }
+}
+
 export function pourKeep(keep, pct) {
   const remaining = Math.max(0, Math.min(100, Math.round((+keep?.remaining_pct || 0) - (+pct || 0))))
   return {

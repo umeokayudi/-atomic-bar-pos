@@ -14,7 +14,7 @@ import { MobileTopBar, ShellOverlay, WorkspaceChrome, useMobileMenuLock } from '
 import { useNotifications, NotificationBell, useOverdueAlerts } from './components/Notifications'
 import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { AuthProvider, useAuth, LoginPage, SetPasswordPage, AccountSecurity } from './components/Auth'
-import { supabase } from './lib/supabase'
+import { supabase, supabaseConfigError } from './lib/supabase'
 import { isBarRole, isSupplierRole } from './lib/access'
 import { shellTabIds } from './lib/legacyScope'
 import { fmtYen, fmtDate, roleLabel } from './components/utils'
@@ -646,5 +646,15 @@ function AppInner() {
 }
 
 export default function App() {
+  if (supabaseConfigError) {
+    return (
+      <div style={{ padding: 24, background: '#fff', color: '#111', minHeight: '100vh', fontFamily: 'system-ui, sans-serif' }}>
+        <h1 style={{ fontSize: 22, margin: '0 0 8px' }}>{supabaseConfigError}</h1>
+        <p style={{ margin: 0, maxWidth: 520, lineHeight: 1.45 }}>
+          Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY for this deployment. The app does not substitute another project.
+        </p>
+      </div>
+    )
+  }
   return <ErrorBoundary><AppInner /></ErrorBoundary>
 }

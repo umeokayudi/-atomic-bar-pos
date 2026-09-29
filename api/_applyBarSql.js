@@ -66,7 +66,10 @@ export async function applyBarPosSql(extraPass) {
   const sql = bundledBarSql()
   const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SUPABASE_DB_URL
   const pass = extraPass || process.env.SUPABASE_DB_PASSWORD || process.env.POSTGRES_PASSWORD
-  const ref = (process.env.VITE_SUPABASE_URL || 'https://ojirgkqtqvugqktyuhem.supabase.co').match(/https:\/\/([^.]+)/)?.[1]
+  const configuredUrl = String(process.env.VITE_SUPABASE_URL || '').trim()
+  const ref = /^https:\/\/[a-z0-9]+\.supabase\.co/i.test(configuredUrl)
+    ? configuredUrl.match(/https:\/\/([^.]+)/)?.[1]
+    : ''
 
   const attempts = []
   if (dbUrl) attempts.push(dbUrl)

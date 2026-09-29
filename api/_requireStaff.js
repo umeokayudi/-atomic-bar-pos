@@ -10,6 +10,7 @@ export function isAllowedOrigin(req) {
   const origins = [
     'https://jbm-master.vercel.app',
     'https://bebidas-control.vercel.app',
+    'https://jbmtech.vercel.app',
     'http://localhost:5173',
     'http://localhost:3000',
     'http://localhost:4173',
