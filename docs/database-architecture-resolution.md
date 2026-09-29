@@ -1,6 +1,6 @@
 # Resolução de arquitetura do banco
 
-Decisão fechada antes de qualquer migration. Este arquivo não cria, altera nem lê produção. Os fatos de produção vêm da auditoria read-only já feita em `ojirgkqtqvugqktyuhem`. Nesta tarefa não houve SQL, deploy, nem mudança de dados.
+Decisão fechada antes de aplicar qualquer migration. Este arquivo não lê nem altera produção. Os fatos de produção vêm da auditoria read-only já feita em `ojirgkqtqvugqktyuhem`. O SQL revisável está em `sql/migration_final.sql` e não foi executado. Não houve deploy nem mudança de dados.
 
 O princípio é um só: não duplicar produto, venda, caixa nem funcionário. Onde o código novo e a produção discordam, a produção manda na forma da tabela que já existe, e o código que exige uma coluna inexistente fica bloqueado até a migration planejada.
 
@@ -225,7 +225,7 @@ As tabelas `payroll_*` são livro de pagamento. `employee_id` não tem outra ori
 
 ## I. O que a migration planejada precisa fazer
 
-Uma migration, nesta ordem lógica. Ainda não escrita como SQL executável.
+Uma migration, nesta ordem lógica. O SQL revisável está em `sql/migration_final.sql`. Ele foi desenhado e não foi executado.
 
 1. Não adicionar `produtos.bar_id`.
 2. Não instalar `deduct_stock` nem `create_order` enquanto eles filtrarem `produtos.bar_id` ou gravarem balcão em `vendas`.
@@ -262,3 +262,34 @@ Mesmo esses scripts só entram na janela planejada. Não foram aplicados aqui.
 - Qualquer backfill de `caixa_movimentos.bar_id`. Linhas antigas não têm bar. Isso é decisão de dados, não de `ADD COLUMN`.
 
 Não há segunda tabela de produto, de venda de balcão, de caixa nem de funcionário.
+
+## L. Arquitetura final desta migration
+
+`sql/migration_final.sql` é o único arquivo planejado para preparar produção. Ele junta o que as seções C–K já decidiram. Não foi aplicado em `ojirgkqtqvugqktyuhem` nem no holding.
+
+Livros que permanecem separados:
+
+| Livro | Tabela | Papel |
+|---|---|---|
+| Conta da JBM com o bar | `vendas` + `vendas_itens` | não recebe `forma_pagamento`, `mesa`, `status` nem `origem` |
+| Caixa do bar | `pos_vendas` + `pos_vendas_itens` | criado antes de qualquer `ALTER` do piso |
+| Movimento de caixa | `caixa_movimentos` | ganha `bar_id` anulável, `referencia_tipo`, `referencia_id`, `operational_day`. Sem `UPDATE` do histórico |
+| Catálogo | `produtos` | global. Sem `bar_id` |
+| Estoque lacrado do bar | `estoque_movimentos` | saldo operacional. `produtos.estoque_atual` continua legado global |
+| Identidade | `perfis` | único usuário. `bar_employees` só guarda título e status |
+
+O que cada bar controla fora de `produtos`: preço de balcão em `bar_pricing`, preço JBM em `bar_product_prices`, drink em `drink_menu`, estoque no livro, mínimo em `replenishment_rules`, favorito e IA e taxa em `pos_bar_config`.
+
+Piso: `bar_spaces`, `pos_tickets`, `pos_ticket_items`. O ticket guarda `open`, `closed` ou `void`. Disponível, ocupado e aguardando pagamento são leitura da tela, não quatro status gravados. `pos_idempotency` e `pos_sale_events` impedem a segunda venda da mesma chave. `pos_close_with_charges` não aplica taxa de novo quando a chave já fechou.
+
+CRM: `bar_guests` e `bar_visits`, com `bar_id`. A visita aponta para o espaço, o convidado e, quando existe, `pos_vendas`. O papel `cliente` continua sendo o login do dono do bar, não o convidado.
+
+Ponto: uma linha por batida (`tipo` `in` ou `out`, `punched_at`). O trigger `time_clock_guard` recusa segunda entrada, saída sem entrada e sobreposição. Intervalo (`break`) não é coluna: a API não grava isso. A noite operacional continua `pos_tokyo_night` (Ásia/Tóquio, antes das 06:00 pertence à noite anterior).
+
+Folha: `payroll_rules`, `payroll_periods`, `payroll_lines`, `payroll_audit`. Tipos já existentes: `base_salary`, `regular_hours`, `overtime`, `night_premium`, `commission`, `bonus`, `reward`, `advance`, `deduction`, `adjustment`. Bruto e líquido são a soma das linhas. Transporte não entra: não há escritor.
+
+Compras: `sql/supplier_fulfillment.sql` e, depois, `sql/procurement.sql`, para a função mais nova prevalecer. Fluxo: pedido do bar, plano, fonte, tarefa, compra, recebimento, depósito, embarque, confirmação do bar, estoque. `deduct_stock` e `create_order` ficam de fora.
+
+RLS liga nas tabelas novas e em `caixa_movimentos`. Não liga em `vendas`, `pedidos`, `perfis` nem `produtos`. Policy não usa `USING (true)`. Função `SECURITY DEFINER` declara `search_path`.
+
+`scripts/buildMigrationFinal.mjs` regenera o arquivo a partir dos scripts fonte. Editar só o SQL fonte sem rodar o builder deixa `sql/migration_final.sql` defasado. O validador estático é `scripts/validateMigration.mjs`.

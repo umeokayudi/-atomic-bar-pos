@@ -2,7 +2,7 @@
 
 Este documento é o mapa do schema que o código espera. Ele não foi aplicado em produção. Os projetos `ojirgkqtqvugqktyuhem` e `fxsakrshmldmkdmbevna` não foram consultados nem alterados.
 
-A ordem abaixo não é a migration de produção. Vários scripts atuais assumem colunas e tabelas que a auditoria de produção não encontrou (`produtos.bar_id`, `pos_vendas`). A decisão fechada está em `docs/database-architecture-resolution.md`. Não instalar o pacote até existir uma única migration feita a partir desse documento.
+A ordem abaixo não é a migration de produção. A migration única planejada é `sql/migration_final.sql`. Ela foi desenhada e não foi executada. O relatório está em `docs/migration-final-report.md`. Não colar os arquivos numerados abaixo em produção: `deduct_stock`, `create_order` e o `UPDATE` de `caixa_movimentos` ficaram de fora do arquivo consolidado de propósito.
 
 O editor SQL do Supabase não inclui outro arquivo. `sql/master_schema.sql` só funciona no `psql`, com `\ir`. No editor, cole cada arquivo abaixo, um por vez, nesta ordem.
 

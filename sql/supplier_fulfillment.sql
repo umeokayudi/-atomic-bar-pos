@@ -26,17 +26,23 @@ $$;
 REVOKE ALL ON FUNCTION public.is_jbm() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.is_jbm() TO authenticated;
 
+-- plpgsql so this can be created before supplier_users exists.
+-- A SQL-language function checks that table at CREATE time, and production
+-- does not have supplier_users yet. The result is the same set of ids.
 CREATE OR REPLACE FUNCTION public.my_supplier_ids()
 RETURNS SETOF uuid
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
+BEGIN
+  RETURN QUERY
   SELECT su.supplier_id
   FROM public.supplier_users su
   WHERE su.user_id = auth.uid()
     AND su.active;
+END;
 $$;
 
 REVOKE ALL ON FUNCTION public.my_supplier_ids() FROM PUBLIC;
