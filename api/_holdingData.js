@@ -1,16 +1,16 @@
 import { createClient } from '@supabase/supabase-js'
-import { DRINKS_SUPABASE_URL } from './_supabaseAdmin.js'
+import { holdingUrlFromEnv, SUPABASE_CONFIG_ERROR } from './_supabaseAdmin.js'
 
-const HOLDING_URL = process.env.HOLDING_SUPABASE_URL || 'https://fxsakrshmldmkdmbevna.supabase.co'
-const rawDrinksUrl = process.env.VITE_SUPABASE_URL || ''
-const DRINKS_URL = /^https:\/\/[a-z0-9]+\.supabase\.co/i.test(rawDrinksUrl) ? rawDrinksUrl : DRINKS_SUPABASE_URL
+const HOLDING_URL = holdingUrlFromEnv()
+const rawDrinksUrl = String(process.env.VITE_SUPABASE_URL || '').trim().replace(/\/$/, '')
+const DRINKS_URL = /^https:\/\/[a-z0-9]+\.supabase\.co$/i.test(rawDrinksUrl) ? rawDrinksUrl : ''
 const BUCKET = 'system-private'
 const KEY_FILE = 'holding_service_role_key.txt'
 
 export async function resolveHoldingKey() {
   if (process.env.HOLDING_SERVICE_ROLE_KEY) return process.env.HOLDING_SERVICE_ROLE_KEY
   const drinksKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!drinksKey) return null
+  if (!drinksKey || !DRINKS_URL) return null
   const sb = createClient(DRINKS_URL, drinksKey, { auth: { autoRefreshToken: false, persistSession: false } })
   try {
     const { data } = await sb.storage.from(BUCKET).download(KEY_FILE)
@@ -21,6 +21,7 @@ export async function resolveHoldingKey() {
 
 export async function holdingAdminClient() {
   const key = await resolveHoldingKey()
+  if (!HOLDING_URL) throw new Error(SUPABASE_CONFIG_ERROR)
   if (!key) throw new Error('HOLDING_SERVICE_ROLE_KEY is not configured')
   return createClient(HOLDING_URL, key, { auth: { autoRefreshToken: false, persistSession: false } })
 }

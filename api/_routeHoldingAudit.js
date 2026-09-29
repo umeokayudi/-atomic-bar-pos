@@ -2,13 +2,13 @@ import { createClient } from '@supabase/supabase-js'
 import { fixAtomicReceivables, revertAtomicPedidosToJune } from './_atomicJuneFix.js'
 import { isSupplierVenda } from './_supplierVenda.js'
 import { requireGlobalFinance } from './_requireStaff.js'
-import { drinksAdminClient } from './_supabaseAdmin.js'
+import { drinksAdminClient, holdingUrlFromEnv, SUPABASE_CONFIG_ERROR } from './_supabaseAdmin.js'
 
 const BUCKET = 'system-private'
 const HOLDING_FILE = 'jbm_holding.json'
 const HOLDING_KEY_FILE = 'holding_service_role_key.txt'
 const CASHFLOW_FILE = 'cashflow_snapshot.json'
-const HOLDING_URL = process.env.HOLDING_SUPABASE_URL || 'https://fxsakrshmldmkdmbevna.supabase.co'
+const HOLDING_URL = holdingUrlFromEnv()
 
 async function resolveHoldingKey(sb) {
   if (process.env.HOLDING_SERVICE_ROLE_KEY) return process.env.HOLDING_SERVICE_ROLE_KEY
@@ -21,6 +21,7 @@ async function resolveHoldingKey(sb) {
 
 async function pushToJbmMaster(sb, payload) {
   const holdingKey = await resolveHoldingKey(sb)
+  if (!HOLDING_URL) return { pushed: false, reason: SUPABASE_CONFIG_ERROR }
   if (!holdingKey) return { pushed: false, reason: 'holding key not registered' }
 
   const holdingSb = createClient(HOLDING_URL, holdingKey, { auth: { autoRefreshToken: false, persistSession: false } })
@@ -55,6 +56,7 @@ export default async function handler(req, res) {
 
       const holdingKey = req.body?.holdingKey?.trim()
       if (!holdingKey) return res.status(400).json({ error: 'holdingKey required' })
+      if (!HOLDING_URL) return res.status(500).json({ error: SUPABASE_CONFIG_ERROR })
 
       const holdingSb = createClient(HOLDING_URL, holdingKey, { auth: { autoRefreshToken: false, persistSession: false } })
       const { data: buckets } = await holdingSb.storage.listBuckets()

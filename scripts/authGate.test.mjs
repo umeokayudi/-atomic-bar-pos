@@ -46,11 +46,38 @@ assert.doesNotMatch(signIn, /writeLaneSession/)
 assert.doesNotMatch(auth, /applyLane/)
 
 const client = readFileSync(new URL('../src/lib/supabase.js', import.meta.url), 'utf8')
+const configSource = readFileSync(new URL('../src/lib/supabaseConfig.js', import.meta.url), 'utf8')
 assert.match(client, /localStorage/)
 assert.match(client, /storageKey: `sb-\$\{projectRef\}-auth-token`/)
 assert.doesNotMatch(client, /auth-\$\{getTabId/)
 assert.match(client, /autoRefreshToken: true/)
 assert.doesNotMatch(client, /service_role/)
+assert.match(configSource, /Supabase configuration missing/)
+assert.doesNotMatch(client + configSource, /ojirgkqtqvugqktyuhem/)
+assert.doesNotMatch(client + configSource, /eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9/)
+assert.doesNotMatch(client + configSource, /return DRINKS_URL/)
+assert.doesNotMatch(client + configSource, /return DRINKS_ANON/)
+const admin = readFileSync(new URL('../api/_supabaseAdmin.js', import.meta.url), 'utf8')
+assert.doesNotMatch(admin, /ojirgkqtqvugqktyuhem/)
+assert.doesNotMatch(admin, /fxsakrshmldmkdmbevna/)
+assert.match(admin, /Supabase configuration missing/)
+
+const { readSupabasePublicConfig, SUPABASE_CONFIG_ERROR } = await import('../src/lib/supabaseConfig.js')
+assert.equal(readSupabasePublicConfig({}).error, SUPABASE_CONFIG_ERROR)
+assert.equal(readSupabasePublicConfig({
+  VITE_SUPABASE_URL: 'https://ojirgkqtqvugqktyuhem.supabase.co',
+}).error, SUPABASE_CONFIG_ERROR)
+const stagingAnon = [
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9',
+  Buffer.from(JSON.stringify({ ref: 'stagingrefonly0001', role: 'anon' })).toString('base64url'),
+  'sig',
+].join('.')
+const staging = readSupabasePublicConfig({
+  VITE_SUPABASE_URL: 'https://stagingrefonly0001.supabase.co',
+  VITE_SUPABASE_ANON_KEY: stagingAnon,
+})
+assert.equal(staging.ref, 'stagingrefonly0001')
+assert.equal(staging.error, undefined)
 
 const lanes = readFileSync(new URL('../src/lib/barLanes.js', import.meta.url), 'utf8')
 assert.doesNotMatch(lanes, /password:/)
