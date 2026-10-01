@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from './Auth'
 import { fmtYen, Spinner } from './utils'
 import { staffFetch } from '../lib/apiAuth'
+import { isLocalDemo } from '../lib/supabase'
 import { payrollFromPunches, monthRange, hoursBetween } from '../lib/timeClock'
 import { canManageBarTeam } from '../lib/access'
 import { loadBarTeam } from '../lib/barTeam'
@@ -37,6 +38,13 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
 
   async function load() {
     setLoading(true)
+    if (isLocalDemo) {
+      setPunches([])
+      setStaff([])
+      setErr('Time clock is unavailable in local mode. No punches were loaded.')
+      setLoading(false)
+      return
+    }
     try {
       const [j, team] = await Promise.all([
         staffFetch(`/api/time-clock?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`).then(r => r.json()),

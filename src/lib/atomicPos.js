@@ -91,9 +91,14 @@ export function validateDiscountCode(code, { drinkMenuId, produtoId } = {}) {
 }
 
 export async function checkPosSchema(supabase) {
+  if (supabase?.__localDemo) {
+    return { ready: true, source: 'local-demo' }
+  }
   try {
     const r = await fetch('/api/pos-status', { signal: AbortSignal.timeout(8000) })
-    const j = await r.json()
+    const text = await r.text()
+    const trimmed = text.trim()
+    const j = (trimmed.startsWith('{') || trimmed.startsWith('[')) ? JSON.parse(trimmed) : null
     if (j?.ready) return { ready: true, source: j.source }
   } catch {}
   const { error } = await supabase.from('pos_vendas').select('id').limit(1)

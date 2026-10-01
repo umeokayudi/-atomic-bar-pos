@@ -10,6 +10,7 @@ import { nightKeyOfSale } from '../lib/nightClose'
 import { hourOfSale } from '../lib/nightClose'
 import { lastDayOfMonth, tokyoHour, tokyoNightKey } from '../lib/tokyo'
 import { useI18n } from '../lib/i18n'
+import { isLocalDemo } from '../lib/supabase'
 import { errText } from '../lib/errText'
 import BarOwnerAi from './BarOwnerAi'
 import { InsightCard, MetricSwitch } from './ui/ops'
@@ -283,7 +284,9 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
   const stockLow = Array.isArray(hq?.jbm?.estoqueBaixo)
     ? hq.jbm.estoqueBaixo.length
     : (Number.isFinite(hq?.sources?.inventory?.low) ? hq.sources.inventory.low : null)
-  const noSalesCopy = 'No completed sales for this period'
+  const noSalesCopy = isLocalDemo
+    ? 'No sales recorded in this demo session.'
+    : 'No completed sales for this period'
 
   return (
     <div className="executive-dashboard command-center">
@@ -335,7 +338,7 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
           value={money(lucro.profit)}
           detail={profitStatus === METRIC_STATUS.AVAILABLE
             ? `${t('portal.desk.costKpi')} ${money(lucro.cost)}`
-            : 'Profit needs recorded cost, not sales alone'}
+            : 'Gross profit requires recorded product costs.'}
         />
       </div>
 
@@ -398,11 +401,14 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
                   ]}
                 />
               </div>
-              {!ranked.length && (
+              {!ranked.length && chartHasSales && (
                 <EmptyState
                   title="No operational data yet"
                   detail="Activity will appear here after transactions are recorded."
                 />
+              )}
+              {!ranked.length && !chartHasSales && (
+                <p className="metric-detail">Hourly activity will appear with recorded sales.</p>
               )}
               {!!ranked.length && (
                 <div className="desk-hours">
@@ -439,7 +445,7 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
         </section>
 
         <aside className="command-side">
-          <Panel title="Shift status">
+          <Panel title="Shift overview">
             {!shiftKnown && <p className="metric-detail">Shift status is unavailable without the live register.</p>}
             {shiftKnown && !onClock.length && <p className="metric-detail">{t('portal.desk.emptyClock')}</p>}
             {onClock.map(r => (
@@ -500,7 +506,11 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
                 detail={stockLow > 0 ? 'Items at or below minimum' : 'No items below minimum'}
               />
             )}
-            {!stockKnown && <p className="metric-detail">Low stock is unavailable without the inventory ledger.</p>}
+            {!stockKnown && (
+              <p className="metric-detail">
+                {isLocalDemo ? 'Inventory data is unavailable in local mode.' : 'Low stock is unavailable without the inventory ledger.'}
+              </p>
+            )}
             {!lateBills.length && !nextBills.length && !incoming.length && (
               <p className="metric-detail">No payment alerts from the current books.</p>
             )}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { supabase } from '../lib/supabase'
+import { isLocalDemo, supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import { fmtYen, fmtDate, Spinner, SectionTitle } from './utils'
 import {
@@ -116,7 +116,9 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
           ? `${t('atomicPos.nightClose')} · ${summary.ticketCount} · ${fmtYen(summary.drinksTotal)}`
           : prior
             ? t('atomicPos.lastNight', { date: prior.date, count: prior.count, amount: fmtYen(prior.amount) })
-            : `${t('atomicPos.nightClose')} · 0 · ${fmtYen(0)}`}
+            : (isLocalDemo
+              ? 'No sales recorded in this demo session.'
+              : `${t('atomicPos.nightClose')} · 0 · ${fmtYen(0)}`)}
       </button>
     )
   }
@@ -1553,8 +1555,8 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
         </div>
         <div className="pos-head-today">
           <div className="pos-head-label">{t('atomicPos.tillTonight')}</div>
-          <div className="pos-head-total">{fmtYen(todaySales.total)}</div>
-          <div className="pos-head-count">{posErr ? t('atomicPos.tillLoadError') : t('atomicPos.salesCount', { count: todaySales.count })}</div>
+          <div className="pos-head-total">{isLocalDemo && !posErr && todaySales.count === 0 ? '—' : fmtYen(todaySales.total)}</div>
+          <div className="pos-head-count">{posErr ? t('atomicPos.tillLoadError') : (isLocalDemo && todaySales.count === 0 ? 'No sales recorded in this demo session.' : t('atomicPos.salesCount', { count: todaySales.count }))}</div>
         </div>
       </div>
 

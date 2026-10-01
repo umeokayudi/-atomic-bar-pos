@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { isLocalDemo, supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import { Spinner, SectionTitle, fmtYen } from './utils'
 import { useI18n } from '../lib/i18n'
@@ -325,20 +325,23 @@ export default function BarSpacesTab({ bar }) {
 
       <RangeCalendar from={vipFrom} to={vipTo} onChange={(a, b) => { setVipFrom(a); setVipTo(b) }} />
       <p className="desk-note">{t('spaces.vip.moneyLead')}</p>
+      {isLocalDemo && !roomSales.length && (
+        <p className="metric-detail">No sales recorded in this demo session. These totals are not a closed register.</p>
+      )}
       <div className="floor-money">
         <article>
           <span>{t('spaces.vip.floorMoney')}</span>
-          <b>{fmtYen(money.floor.revenue)}</b>
+          <b>{isLocalDemo && !roomSales.length ? '—' : fmtYen(money.floor.revenue)}</b>
           <em>{money.floor.tickets}</em>
         </article>
         <article>
           <span>{t('spaces.vip.roomMoney')}</span>
-          <b>{fmtYen(money.vip.revenue)}</b>
+          <b>{isLocalDemo && !roomSales.length ? '—' : fmtYen(money.vip.revenue)}</b>
           <em>{money.vip.tickets}</em>
         </article>
         <article>
           <span>{t('spaces.vip.openMoney')}</span>
-          <b>{fmtYen(money.open.revenue)}</b>
+          <b>{isLocalDemo && !roomSales.length ? '—' : fmtYen(money.open.revenue)}</b>
           <em>{money.open.tickets}</em>
         </article>
       </div>

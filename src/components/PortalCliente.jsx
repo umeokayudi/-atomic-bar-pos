@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
-import { supabase } from '../lib/supabase'
+import { isLocalDemo, supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import { callGeminiChat, imageDataUrlToParts, parseJsonFromAI } from '../lib/ai'
 import { LogoSidebar } from './Logo'
@@ -819,6 +819,9 @@ function InventoryTab({ bar, onOrder }) {
 
   return (
     <div className="fade-in" style={{ maxWidth:800 }}>
+      {isLocalDemo && !produtos.length && (
+        <p className="metric-detail">Inventory data is unavailable in local mode. Missing stock is not zero stock.</p>
+      )}
 
       {/* Alert banners */}
       {critical.length > 0 && (

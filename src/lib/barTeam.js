@@ -1,4 +1,5 @@
 import { staffFetch } from './apiAuth'
+import { isLocalDemo } from './supabase'
 
 const TTL_MS = 45_000
 const KEY = 'bar-team'
@@ -33,11 +34,27 @@ export function invalidateBarTeam() {
   try { sessionStorage.removeItem(KEY) } catch { /* ignore */ }
 }
 
+async function readJsonBody(res) {
+  const text = await res.text()
+  const trimmed = text.trim()
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+    return { error: 'unavailable', unavailable: true, status: res.status }
+  }
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    return { error: 'unavailable', unavailable: true, status: res.status }
+  }
+}
+
 export function loadBarTeam({ fresh } = {}) {
+  if (isLocalDemo) {
+    return Promise.resolve({ error: 'local-demo', unavailable: true })
+  }
   if (!fresh && mem && Date.now() - at < TTL_MS) return Promise.resolve(mem)
   if (!fresh && inflight) return inflight
   inflight = staffFetch('/api/bar-staff')
-    .then(r => r.json())
+    .then(readJsonBody)
     .then(j => {
       if (!j?.error) {
         mem = j
@@ -46,6 +63,7 @@ export function loadBarTeam({ fresh } = {}) {
       }
       return j
     })
+    .catch(() => ({ error: 'unavailable', unavailable: true }))
     .finally(() => { inflight = null })
   return inflight
 }

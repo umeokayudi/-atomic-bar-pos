@@ -1,4 +1,5 @@
 import { staffFetch } from './apiAuth'
+import { isLocalDemo } from './supabase'
 import { getGlobalLang } from './i18n'
 import { buildHqChatSystem as buildHqChatSystemBase, localHqAnswer as localHqAnswerBase } from './hqChat'
 import { localHoursPay } from './timeClock'
@@ -49,6 +50,9 @@ export function invalidateHqSnapshot() {
 }
 
 export async function fetchHqSnapshot(month, { fresh, full } = {}) {
+  if (isLocalDemo) {
+    throw new Error('HQ sync is unavailable in local demo mode')
+  }
   const key = hqKey(month, full)
   const hit = hqCache.get(key)
   if (!fresh && hit?.data && Date.now() - hit.at < HQ_TTL_MS) return hit.data
