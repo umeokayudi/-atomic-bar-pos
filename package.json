@@ -16,6 +16,7 @@
     "test:payroll": "node scripts/payroll.test.mjs",
     "test:pos": "node scripts/posFloor.test.mjs",
     "test:supabase": "node scripts/supabaseTarget.test.mjs",
+    "test:analytics": "node scripts/managerAnalytics.test.mjs",
     "test:pos:pg": "node scripts/posFloor.pg.test.mjs"
   },
   "dependencies": {

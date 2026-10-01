@@ -14,7 +14,8 @@ import { isLocalDemo } from '../lib/supabase'
 import { errText } from '../lib/errText'
 import BarOwnerAi from './BarOwnerAi'
 import { InsightCard, MetricSwitch } from './ui/ops'
-import { ChartPanel, DashboardHeader, EmptyState, METRIC_STATUS, MetricCard, OperationalStatus, Panel, QuickAction, StatusBadge } from './ui/executive'
+import { DashboardHeader, METRIC_STATUS, OperationalStatus, Panel, QuickAction, StatusBadge } from './ui/executive'
+import ManagerPro from './ManagerPro'
 
 const SPANS = ['turno', 'noite', 'semana', 'mes']
 const DAY_KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
@@ -297,61 +298,17 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
         title="Overview"
         subtitle={`${night} · Asia/Tokyo · ${isLocalDemo ? 'Local demo. No remote sync.' : 'Connected register.'}`}
       >
-        <div className="goal-modes">
-          {SPANS.map(id => (
-            <button key={id} type="button" className={span === id ? 'is-on' : ''} onClick={() => { setSpan(id); setEditing(false) }}>
-              {t(`portal.desk.span.${id}`)}
-            </button>
-          ))}
-        </div>
         <QuickAction primary icon="ia" onClick={() => onTab?.('ia')}>Ask AI</QuickAction>
       </DashboardHeader>
 
-      <div className="kpi-grid">
-        <MetricCard
-          label="Net Sales"
-          status={salesStatus}
-          value={money(tonightSum)}
-          detail={salesStatus === METRIC_STATUS.AVAILABLE
-            ? (progress.noite.goal > 0 ? `${t('portal.desk.target')} ${money(progress.noite.goal)}` : t('portal.goals.noGoal'))
-            : noSalesCopy}
-          trend={priorWeek ? `${cmp.delta >= 0 ? '+' : '−'}${money(Math.abs(cmp.delta))}` : ''}
-        />
-        <MetricCard
-          label="Orders"
-          status={salesStatus}
-          value={String(tonightCount)}
-          detail={salesStatus === METRIC_STATUS.AVAILABLE ? t('portal.desk.ordersKpi') : noSalesCopy}
-        />
-        <MetricCard
-          label="Average Ticket"
-          status={ticketStatus}
-          value={money(tonightAvg)}
-          detail={ticketStatus === METRIC_STATUS.AVAILABLE ? t('portal.desk.tickets', { count: tonightCount }) : noSalesCopy}
-        />
-        <MetricCard
-          label="Guests"
-          status={guestStatus}
-          value={String(guestCount)}
-          detail={guestStatus === METRIC_STATUS.AVAILABLE ? t('portal.desk.ordersKpi') : noSalesCopy}
-        />
-        <MetricCard
-          label="Gross Profit"
-          status={profitStatus}
-          value={money(lucro.profit)}
-          detail={profitStatus === METRIC_STATUS.AVAILABLE
-            ? `Month sales ${money(lucro.sales)} minus recorded costs ${money(lucro.cost)}.`
-            : 'Insufficient data. Profit is omitted until both sales and recorded costs exist.'}
-        />
-        <MetricCard
-          label="Gross Margin"
-          status={profitStatus}
-          value={marginPct == null ? '—' : `${marginPct}%`}
-          detail={profitStatus === METRIC_STATUS.AVAILABLE
-            ? 'Profit divided by the same month sales. Not a forecast.'
-            : 'Insufficient data. Margin is not estimated from sales alone.'}
-        />
-      </div>
+      <ManagerPro
+        bar={bar}
+        tickets={tickets}
+        people={[...(staff || []), ...(people || [])].filter((person, index, list) => person?.id && list.findIndex(item => item.id === person.id) === index)}
+        goals={goals}
+        registry={registry}
+        payroll={hq?.payroll}
+      />
 
       <div className="quick-actions">
         <QuickAction primary icon="pos" onClick={() => onTab?.('pos')}>Open POS</QuickAction>
@@ -361,120 +318,6 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
       </div>
 
       <div className="command-grid">
-        <section className="command-main">
-          <ChartPanel
-            title="Sales performance"
-            extra={priorWeek ? <span className="eyebrow">Vs last {t(`portal.close.days.${weekdayOf(night)}`)}</span> : null}
-          >
-            {!chartHasSales && (
-              <EmptyState
-                title="No operational data yet"
-                detail="Activity will appear here after transactions are recorded."
-              />
-            )}
-            {chartHasSales && <GoalChart rows={chart} goal={chartGoal} />}
-            {priorWeek && (
-              <p className="metric-detail">
-                {t('portal.desk.vsWeek', {
-                  day: t(`portal.close.days.${weekdayOf(night)}`),
-                  now: money(cmp.now),
-                  before: money(cmp.before),
-                  delta: `${cmp.delta >= 0 ? '+' : '−'}${money(Math.abs(cmp.delta))}`,
-                })}
-              </p>
-            )}
-            <div className="goal-hero-goal">
-              {salesStatus === METRIC_STATUS.AVAILABLE
-                ? t('portal.desk.sold', { amount: money(view.sales) })
-                : noSalesCopy}
-              {view.goal > 0 && salesStatus === METRIC_STATUS.AVAILABLE ? ` · ${t('portal.desk.goalOf', { amount: money(view.goal) })}` : ''}
-            </div>
-            {editing ? (
-              <div className="desk-goal-edit">
-                <input type="number" min="0" value={draft} onChange={e => setDraft(e.target.value)} />
-                <button type="button" className="btn-primary" disabled={busy} onClick={saveSpanGoal}>{t('portal.goals.save')}</button>
-                <button type="button" className="house-text" onClick={() => setEditing(false)}>{t('house.cancel')}</button>
-              </div>
-            ) : (
-              <button type="button" className="house-text" onClick={() => { setDraft(String(view.goal || '')); setEditing(true) }}>{t('portal.desk.changeGoal')}</button>
-            )}
-
-            <div className="command-subsection">
-              <div className="panel-head">
-                <h3 className="section-title">{t('portal.desk.hourlyTitle')}</h3>
-                <MetricSwitch
-                  value={hourMetric}
-                  onChange={setHourMetric}
-                  options={[
-                    { id: 'sales', label: t('portal.desk.salesKpi') },
-                    { id: 'orders', label: t('portal.desk.ordersKpi') },
-                    { id: 'ticket', label: t('portal.desk.ticketKpi') },
-                  ]}
-                />
-              </div>
-              {!ranked.length && chartHasSales && (
-                <EmptyState
-                  title="No operational data yet"
-                  detail="Activity will appear here after transactions are recorded."
-                />
-              )}
-              {!ranked.length && !chartHasSales && (
-                <p className="metric-detail">Hourly activity will appear with recorded sales.</p>
-              )}
-              {!!ranked.length && (
-                <div className="desk-hours">
-                  {hourView.map(row => (
-                    <div key={row.hour} className="desk-hour">
-                      <span>{row.label}</span>
-                      <i><b style={{ width: `${Math.round(((+row.value || 0) / hourMax) * 100)}%` }} /></i>
-                      <em>{row.value ? (hourMetric === 'orders' ? row.orders : money(hourMetric === 'ticket' ? row.ticket : row.sales)) : '—'}</em>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="desk-insights">
-                <InsightCard kicker={t('portal.desk.bestHour')} title={hourText(bestHour)} />
-                <InsightCard kicker={t('portal.desk.quietHour')} title={hourText(quietHour)} />
-              </div>
-            </div>
-          </ChartPanel>
-
-          <Panel title="Insights">
-            {!priorWeek && !(stockLow > 0) && (
-              <p className="metric-detail">No insight is shown until a comparison or a recorded stock alert exists. Missing figures stay blank.</p>
-            )}
-            {priorWeek && (
-              <p className="metric-detail">
-                {t('portal.desk.vsWeek', {
-                  day: t(`portal.close.days.${weekdayOf(night)}`),
-                  now: money(cmp.now),
-                  before: money(cmp.before),
-                  delta: `${cmp.delta >= 0 ? '+' : '−'}${money(Math.abs(cmp.delta))}`,
-                })} Source: recorded till tickets for this night and the previous same weekday.
-              </p>
-            )}
-            {stockLow > 0 && (
-              <p className="metric-detail">{stockLow} stock item{stockLow === 1 ? '' : 's'} at or below the configured minimum. Source: inventory ledger.</p>
-            )}
-          </Panel>
-
-          <Panel title="Attributed sales">
-            <p className="metric-detail">Names come from ticket attribution. This is not a product-category rollup.</p>
-            {!worked.topCast?.length && (
-              <EmptyState
-                title="No operational data yet"
-                detail="Activity will appear here after transactions are recorded."
-              />
-            )}
-            {worked.topCast?.map(row => (
-              <div key={row.nome} className="desk-row">
-                <strong>{row.nome}</strong>
-                <b>{money(row.sales)}</b>
-              </div>
-            ))}
-          </Panel>
-        </section>
-
         <aside className="command-side">
           <Panel title="Shift overview">
             {!shiftKnown && <p className="metric-detail">Shift status is unavailable without the live register.</p>}
