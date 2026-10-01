@@ -5736,7 +5736,14 @@ html[data-layout="desktop"] .app-main {
 @media (max-width: 1024px) {
   .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-.manager-pro { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.manager-pro, .owner-view, .reports-studio, .approval-center { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.owner-lead p { font-size: 18px; line-height: 1.45; margin: 0 0 8px; }
+.report-sheet { background: #fff; }
+.report-sheet section { padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
+.report-sheet p { margin: 0 0 4px; font-size: 14px; }
+.ai-stages { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 8px 0; list-style: none; }
+.ai-stages li { font-size: 11px; color: #8a8378; border: 1px solid var(--border); border-radius: 99px; padding: 3px 8px; }
+.ai-stages li.is-on { color: #1d4ed8; border-color: #bfdbfe; background: #eff6ff; }
 .mp-filters, .mp-custom, .mp-compare { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .mp-compare select, .mp-custom input { min-height: 36px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); padding: 0 8px; }
 .mp-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }

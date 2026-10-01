@@ -16,6 +16,9 @@ import BarOwnerAi from './BarOwnerAi'
 import { InsightCard, MetricSwitch } from './ui/ops'
 import { DashboardHeader, METRIC_STATUS, OperationalStatus, Panel, QuickAction, StatusBadge } from './ui/executive'
 import ManagerPro from './ManagerPro'
+import OwnerView from './OwnerView'
+import ReportsStudio from './ReportsStudio'
+import ApprovalCenter from './ApprovalCenter'
 
 const SPANS = ['turno', 'noite', 'semana', 'mes']
 const DAY_KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
@@ -85,6 +88,11 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [ask, setAsk] = useState(false)
+  const [mode, setMode] = useState(() => {
+    try { return sessionStorage.getItem('atomic-bar-desk-mode') === 'manager' ? 'manager' : 'owner' }
+    catch { return 'owner' }
+  })
+  const [section, setSection] = useState('analytics')
   const [hourMetric, setHourMetric] = useState('sales')
 
   useEffect(() => {
@@ -295,20 +303,54 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
     <div className="executive-dashboard command-center">
       <DashboardHeader
         kicker={bar?.nome || 'Bar operations'}
-        title="Overview"
+        title={mode === 'owner' ? 'Owner' : 'Manager Pro'}
         subtitle={`${night} · Asia/Tokyo · ${isLocalDemo ? 'Local demo. No remote sync.' : 'Connected register.'}`}
       >
+        <div className="goal-modes">
+          <button type="button" className={mode === 'owner' ? 'is-on' : ''} onClick={() => { setMode('owner'); try { sessionStorage.setItem('atomic-bar-desk-mode', 'owner') } catch { /* ignore */ } }}>Owner</button>
+          <button type="button" className={mode === 'manager' ? 'is-on' : ''} onClick={() => { setMode('manager'); try { sessionStorage.setItem('atomic-bar-desk-mode', 'manager') } catch { /* ignore */ } }}>Manager Pro</button>
+        </div>
         <QuickAction primary icon="ia" onClick={() => onTab?.('ia')}>Ask AI</QuickAction>
       </DashboardHeader>
 
-      <ManagerPro
-        bar={bar}
-        tickets={tickets}
-        people={[...(staff || []), ...(people || [])].filter((person, index, list) => person?.id && list.findIndex(item => item.id === person.id) === index)}
-        goals={goals}
-        registry={registry}
-        payroll={hq?.payroll}
-      />
+      {mode === 'owner' && (
+        <OwnerView
+          bar={bar}
+          tickets={tickets}
+          people={[...(staff || []), ...(people || [])].filter((person, index, list) => person?.id && list.findIndex(item => item.id === person.id) === index)}
+          goals={goals}
+          registry={registry}
+          payroll={hq?.payroll}
+          onManage={() => { setMode('manager'); try { sessionStorage.setItem('atomic-bar-desk-mode', 'manager') } catch { /* ignore */ } }}
+        />
+      )}
+      {mode === 'manager' && (
+        <>
+          <div className="goal-modes">
+            <button type="button" className={section === 'analytics' ? 'is-on' : ''} onClick={() => setSection('analytics')}>Analytics</button>
+            <button type="button" className={section === 'reports' ? 'is-on' : ''} onClick={() => setSection('reports')}>Reports</button>
+            <button type="button" className={section === 'approvals' ? 'is-on' : ''} onClick={() => setSection('approvals')}>Approvals</button>
+            <button type="button" onClick={() => onTab?.('ia')}>AI Operations</button>
+            <button type="button" onClick={() => onTab?.('fechamento')}>Cash closing</button>
+            <button type="button" onClick={() => onTab?.('estoque')}>Inventory</button>
+            <button type="button" onClick={() => onTab?.('staff')}>Employees</button>
+          </div>
+          {section === 'analytics' && (
+            <ManagerPro
+              bar={bar}
+              tickets={tickets}
+              people={[...(staff || []), ...(people || [])].filter((person, index, list) => person?.id && list.findIndex(item => item.id === person.id) === index)}
+              goals={goals}
+              registry={registry}
+              payroll={hq?.payroll}
+            />
+          )}
+          {section === 'reports' && (
+            <ReportsStudio bar={bar} tickets={tickets} people={[...(staff || []), ...(people || [])].filter((person, index, list) => person?.id && list.findIndex(item => item.id === person.id) === index)} registry={registry} payroll={hq?.payroll} />
+          )}
+          {section === 'approvals' && <ApprovalCenter onTab={onTab} />}
+        </>
+      )}
 
       <div className="quick-actions">
         <QuickAction primary icon="pos" onClick={() => onTab?.('pos')}>Open POS</QuickAction>

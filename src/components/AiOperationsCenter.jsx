@@ -163,6 +163,16 @@ export default function AiOperationsCenter({ bar, onTab }) {
                 <strong>{row.title}</strong>
                 <span className={`status-badge is-${row.status === 'failed' ? 'danger' : row.status === 'approved' ? 'occupied' : 'available'}`}>{row.status}</span>
               </header>
+              <ol className="ai-stages">
+                {['Draft', 'Calculation', 'Human review', 'Approval recorded', 'Execution', 'Verification'].map(stage => {
+                  const reached = (row.status === 'calculating' && stage === 'Calculation')
+                    || (row.status === 'ready' && ['Draft', 'Calculation', 'Human review'].includes(stage))
+                    || (row.status === 'approved' && ['Draft', 'Calculation', 'Human review', 'Approval recorded'].includes(stage))
+                    || (row.status === 'failed' && stage === 'Calculation')
+                  return <li key={stage} className={reached ? 'is-on' : ''}>{stage}</li>
+                })}
+              </ol>
+              <p className="metric-detail">Execution and verification stay off until a backend confirms the existing operation. Approval here does not close cash, payroll, or a month.</p>
               <p>{row.body}</p>
               <dl>
                 <div><dt>Action</dt><dd>{row.id}</dd></div>
