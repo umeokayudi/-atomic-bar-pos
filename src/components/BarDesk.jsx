@@ -271,7 +271,9 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
   }
 
   const salesStatus = tonightCount > 0 ? METRIC_STATUS.AVAILABLE : METRIC_STATUS.INSUFFICIENT
-  const profitStatus = lucro.sales ? METRIC_STATUS.AVAILABLE : METRIC_STATUS.INSUFFICIENT
+  const marginReady = lucro.cost > 0 && lucro.sales > 0
+  const profitStatus = marginReady ? METRIC_STATUS.AVAILABLE : METRIC_STATUS.INSUFFICIENT
+  const marginPct = marginReady ? Math.round((lucro.profit / lucro.sales) * 100) : null
   const ticketStatus = tonightAvg == null ? METRIC_STATUS.INSUFFICIENT : METRIC_STATUS.AVAILABLE
   const guestStatus = tonightCount > 0 ? METRIC_STATUS.AVAILABLE : METRIC_STATUS.INSUFFICIENT
   const chartHasSales = chart.some(row => row.sales > 0)
@@ -293,7 +295,7 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
       <DashboardHeader
         kicker={bar?.nome || 'Bar operations'}
         title="Overview"
-        subtitle={t('portal.desk.lead')}
+        subtitle={`${night} · Asia/Tokyo · ${isLocalDemo ? 'Local demo. No remote sync.' : 'Connected register.'}`}
       >
         <div className="goal-modes">
           {SPANS.map(id => (
@@ -302,6 +304,7 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
             </button>
           ))}
         </div>
+        <QuickAction primary icon="ia" onClick={() => onTab?.('ia')}>Ask AI</QuickAction>
       </DashboardHeader>
 
       <div className="kpi-grid">
@@ -337,8 +340,16 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
           status={profitStatus}
           value={money(lucro.profit)}
           detail={profitStatus === METRIC_STATUS.AVAILABLE
-            ? `${t('portal.desk.costKpi')} ${money(lucro.cost)}`
-            : 'Gross profit requires recorded product costs.'}
+            ? `Month sales ${money(lucro.sales)} minus recorded costs ${money(lucro.cost)}.`
+            : 'Insufficient data. Profit is omitted until both sales and recorded costs exist.'}
+        />
+        <MetricCard
+          label="Gross Margin"
+          status={profitStatus}
+          value={marginPct == null ? '—' : `${marginPct}%`}
+          detail={profitStatus === METRIC_STATUS.AVAILABLE
+            ? 'Profit divided by the same month sales. Not a forecast.'
+            : 'Insufficient data. Margin is not estimated from sales alone.'}
         />
       </div>
 
@@ -428,7 +439,27 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
             </div>
           </ChartPanel>
 
-          <Panel title="Top products">
+          <Panel title="Insights">
+            {!priorWeek && !(stockLow > 0) && (
+              <p className="metric-detail">No insight is shown until a comparison or a recorded stock alert exists. Missing figures stay blank.</p>
+            )}
+            {priorWeek && (
+              <p className="metric-detail">
+                {t('portal.desk.vsWeek', {
+                  day: t(`portal.close.days.${weekdayOf(night)}`),
+                  now: money(cmp.now),
+                  before: money(cmp.before),
+                  delta: `${cmp.delta >= 0 ? '+' : '−'}${money(Math.abs(cmp.delta))}`,
+                })} Source: recorded till tickets for this night and the previous same weekday.
+              </p>
+            )}
+            {stockLow > 0 && (
+              <p className="metric-detail">{stockLow} stock item{stockLow === 1 ? '' : 's'} at or below the configured minimum. Source: inventory ledger.</p>
+            )}
+          </Panel>
+
+          <Panel title="Attributed sales">
+            <p className="metric-detail">Names come from ticket attribution. This is not a product-category rollup.</p>
             {!worked.topCast?.length && (
               <EmptyState
                 title="No operational data yet"

@@ -92,15 +92,21 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
             <div className="people-me-kicker">{t('clock.you')}</div>
             <div className="people-me-name">{perfil?.nome}</div>
             <div className="people-me-sub">
-              {meRow.open ? t('clock.openShift') : t('clock.offShift')}
-              {' · '}{(meRow.hours || 0).toFixed(1)}h · {fmtYen(meRow.pay || 0)}
-              {meRow.open && liveHours > 0 ? ` · ${t('clock.workingNow', { hours: liveHours.toFixed(1) })}` : ''}
+              {isLocalDemo
+                ? 'Hours and pay are not loaded in local mode.'
+                : (
+                  <>
+                    {meRow.open ? t('clock.openShift') : t('clock.offShift')}
+                    {' · '}{(meRow.hours || 0).toFixed(1)}h · {fmtYen(meRow.pay || 0)}
+                    {meRow.open && liveHours > 0 ? ` · ${t('clock.workingNow', { hours: liveHours.toFixed(1) })}` : ''}
+                  </>
+                )}
             </div>
           </div>
           <button
             type="button"
             className={meRow.open ? 'people-out people-me-btn' : 'people-in people-me-btn'}
-            disabled={!meId || busy}
+            disabled={!meId || busy || isLocalDemo}
             onClick={() => mark(meRow.open ? 'out' : 'in')}
           >
             {busy ? t('common.wait') : (meRow.open ? t('clock.bigOut') : t('clock.bigIn'))}

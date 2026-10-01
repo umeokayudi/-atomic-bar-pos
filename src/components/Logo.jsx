@@ -22,7 +22,7 @@ export function LogoMobileHeader() {
 export function LogoSidebar() {
   return (
     <div className="sidebar-logo">
-      <LogoMark size={32} stroke="white" fill="white" />
+      <LogoMark size={32} stroke="#1c1917" fill="#1c1917" />
       <div className="sidebar-logo-text">
         <div className="sidebar-logo-name">JBM</div>
         <div className="sidebar-logo-sub">Drinks</div>

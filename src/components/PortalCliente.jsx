@@ -23,13 +23,13 @@ import {
   projectItemRevenue,
 } from '../lib/clientAnalytics'
 import BarDesk from './BarDesk'
+import AiOperationsCenter from './AiOperationsCenter'
 import AutoReorder from './AutoReorder'
 import BillMatch from './BillMatch'
 import RangeCalendar from './RangeCalendar'
 import AutoClose from './AutoClose'
 const ClientAnalyticsTab = lazy(() => import('./ClientAnalyticsTab'))
 const PortalRecibosTab = lazy(() => import('./PortalRecibosTab'))
-const PortalClienteAI = lazy(() => import('./PortalClienteAI'))
 const AtomicPosPanel = lazy(() => import('./AtomicPos'))
 const TimeClockPanel = lazy(() => import('./TimeClock'))
 const BarTeamTab = lazy(() => import('./BarTeamTab'))
@@ -809,6 +809,7 @@ function InventoryTab({ bar, onOrder }) {
   const filtered = showUnknown ? searched : searched.filter(p => p.hasCount)
 
   const glance = stockGlance(filtered)
+  const inventoryKnown = !(isLocalDemo && !produtos.length)
   const critical = filtered.filter(p => p.crit)
   const low      = filtered.filter(p => p.low)
   const selectedProd = list.find(p => p.id === selected)
@@ -892,9 +893,9 @@ function InventoryTab({ bar, onOrder }) {
       {/* Summary */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, margin:'20px 0' }}>
         {[
-          { label:t('portal.inventory.totalProducts'), value:glance.total, icon:'📦', color:'var(--navy)' },
-          { label:t('portal.inventory.needAttention'), value:glance.needAttention, icon:critical.length>0?'🚨':'⚠️', color:critical.length>0?'#ff3b30':low.length>0?'#ff9500':'var(--green)' },
-          { label:t('portal.inventory.wellStocked'), value:glance.wellStocked, icon:'✅', color:'#34c759' },
+          { label:t('portal.inventory.totalProducts'), value:inventoryKnown ? glance.total : '—', icon:'📦', color:'var(--navy)' },
+          { label:t('portal.inventory.needAttention'), value:inventoryKnown ? glance.needAttention : '—', icon:critical.length>0?'🚨':'⚠️', color:critical.length>0?'#ff3b30':low.length>0?'#ff9500':'var(--green)' },
+          { label:t('portal.inventory.wellStocked'), value:inventoryKnown ? glance.wellStocked : '—', icon:'✅', color:'#34c759' },
         ].map(s => (
           <div key={s.label} style={{
             background:'var(--bg2)', border:'1px solid var(--border)',
@@ -907,7 +908,7 @@ function InventoryTab({ bar, onOrder }) {
         ))}
       </div>
       <div className="stock-from-hint">{t('portal.inventory.fromDeliveries')}</div>
-      <div className="stock-from-hint">{t('portal.inventory.flowHint', { in: flow.delivered, out: flow.poured })}</div>
+      {inventoryKnown && <div className="stock-from-hint">{t('portal.inventory.flowHint', { in: flow.delivered, out: flow.poured })}</div>}
       {unknownCount > 0 && (
         <div className="stock-from-hint">
           {t('portal.inventory.unknownCount', { count: unknownCount })}
@@ -2270,7 +2271,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         {tab==='precos'    && canManageBarTeam(perfil?.role) && <PrecosCardapioTab bar={bar} />}
         {tab==='faturas'   && canManageBarTeam(perfil?.role) && <FaturasTab bar={bar} />}
         {tab==='recibos'  && canManageBarTeam(perfil?.role) && <TabHold><PortalRecibosTab bar={bar} /></TabHold>}
-        {tab==='ia'       && canManageBarTeam(perfil?.role) && <TabHold><PortalClienteAI bar={bar} /></TabHold>}
+        {tab==='ia'       && canManageBarTeam(perfil?.role) && <TabHold><AiOperationsCenter bar={bar} onTab={selectTab} /></TabHold>}
         </main>
       </div>
       {DOCK.length > 0 && (

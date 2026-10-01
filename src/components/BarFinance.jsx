@@ -27,6 +27,18 @@ function money(n) {
   return fmtYen(Math.round(+n || 0))
 }
 
+function CloseGuide() {
+  return (
+    <ol className="close-guide">
+      <li>Collect the opening float, payments, refunds, and movements already stored on this register.</li>
+      <li>Compare the expected cash from those records with the counted cash. Do not adjust tickets to force a match.</li>
+      <li>Review differences only when a record explains them. A gap without a record stays unexplained.</li>
+      <li>Edit notes on this screen. Approving a note in AI Operations does not close the register.</li>
+      <li>Finalize only with the existing close action after an authorized person confirms the summary.</li>
+    </ol>
+  )
+}
+
 function CloseHours({ goals, busy, onSave }) {
   const { t } = useI18n()
   const cfg = closeSettings(goals)
@@ -244,6 +256,7 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
       <div className="house-page panel">
         <h1 className="section-title">{title}</h1>
         <p className="metric-detail">{asReactText(err || t('common.loading'))}</p>
+        {section === 'fechamento' && <CloseGuide />}
       </div>
     )
   }
@@ -296,6 +309,7 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
 
       {section === 'fechamento' && (
         <>
+          <CloseGuide />
           <DayStaffBoard />
           <section className="desk-card">
             <h3>{t('portal.close.weekday')}</h3>
