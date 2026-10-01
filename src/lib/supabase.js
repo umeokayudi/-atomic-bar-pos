@@ -17,13 +17,25 @@ function jwtRef(raw) {
 }
 
 function resolveSupabaseUrl(raw) {
-  const v = String(raw || '').trim()
-  if (v.includes(DRINKS_REF)) return v.replace(/\/$/, '')
+  const v = String(raw || '').trim().replace(/\/$/, '')
+  // Local `vite` must not substitute either protected project when env is missing or wrong.
+  if (import.meta.env.DEV) {
+    if (!/^https:\/\/[a-z0-9]+\.supabase\.co$/i.test(v)) return ''
+    if (v.includes(DRINKS_REF) || v.includes('fxsakrshmldmkdmbevna')) return ''
+    return v
+  }
+  if (v.includes(DRINKS_REF)) return v
   return DRINKS_URL
 }
 
 function resolveAnonKey(raw) {
   const v = String(raw || '').trim()
+  if (import.meta.env.DEV) {
+    if (!v || /placeholder|SENSITIVE/i.test(v) || v.length < 80) return ''
+    const ref = jwtRef(v)
+    if (ref === DRINKS_REF || ref === 'fxsakrshmldmkdmbevna') return ''
+    return v
+  }
   if (!v || /placeholder|SENSITIVE/i.test(v) || v.length < 80) return DRINKS_ANON
   if (jwtRef(v) && jwtRef(v) !== DRINKS_REF) return DRINKS_ANON
   if (jwtRef(v) === DRINKS_REF) return v
@@ -32,6 +44,9 @@ function resolveAnonKey(raw) {
 
 const supabaseUrl = resolveSupabaseUrl(import.meta.env.VITE_SUPABASE_URL)
 const supabaseKey = resolveAnonKey(import.meta.env.VITE_SUPABASE_ANON_KEY)
+if (import.meta.env.DEV && (!supabaseUrl || !supabaseKey)) {
+  throw new Error('Supabase configuration missing')
+}
 
 const TAB_ID_KEY = 'bebidas_tab_id'
 
