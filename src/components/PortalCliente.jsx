@@ -58,6 +58,7 @@ import { asReactText } from '../lib/errText'
 import { NotificationBell, useBarOverdueAlerts } from './Notifications'
 import DemoModeBanner from './DemoModeBanner'
 import NavIcon from './ui/NavIcon'
+import { NavigationItem } from './ui/system'
 const BarOrdersTab = lazy(() => import('./BarOrdersTab'))
 const DashboardCalendar = lazy(() => import('./DashboardCalendar'))
 
@@ -2203,16 +2204,14 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
             <div key={g.id} className="nav-group">
               {g.labelKey && <div className="nav-group-label">{t(g.labelKey)}</div>}
               {g.items.map(n => (
-                <button
+                <NavigationItem
                   key={n.id}
-                  type="button"
+                  active={tab===n.id}
+                  icon={<NavIcon name={n.id} />}
                   onClick={() => selectTab(n.id)}
-                  className={`nav-item sidebar-link${tab===n.id ? ' active' : ''}`}
-                  aria-current={tab===n.id ? 'page' : undefined}
                 >
-                  <NavIcon name={n.id} />
-                  <span>{t(n.labelKey)}</span>
-                </button>
+                  {t(n.labelKey)}
+                </NavigationItem>
               ))}
             </div>
           ))}
