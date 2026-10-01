@@ -5577,9 +5577,13 @@ html[data-layout="desktop"] .app-main {
   border-radius: 8px;
   background: var(--surface);
 }
-.app-content { padding: 20px 28px 36px; }
-.page-title { font-size: 24px; letter-spacing: -0.6px; }
-.kpi-grid { gap: 12px; margin: 16px 0 18px; }
+.app-content { padding: 14px 24px 28px; }
+.page-title { font-size: 22px; letter-spacing: -0.5px; }
+.page-subtitle { margin-top: 2px; }
+.kpi-grid { gap: 10px; margin: 12px 0; }
+.metric-card { padding: 12px 14px; }
+.panel { padding: 14px; }
+.quick-actions { margin-top: 12px; }
 .metric-card,
 .panel {
   background: var(--surface);
@@ -5592,7 +5596,7 @@ html[data-layout="desktop"] .app-main {
   border-color: var(--accent);
   color: #fff;
 }
-.pos-chip { min-height: 40px; border-radius: 10px; }
+.pos-chip { min-height: 44px; border-radius: 10px; }
 .pos-chip.is-on,
 .pos-chip-cast.is-on {
   background: var(--accent);
@@ -5631,10 +5635,12 @@ html[data-layout="desktop"] .app-main {
   min-width: 0;
 }
 .command-subsection {
-  margin-top: 14px;
-  padding-top: 12px;
+  margin-top: 10px;
+  padding-top: 8px;
   border-top: 1px solid var(--border);
 }
+.command-center .goal-chart { max-height: 128px; }
+.command-center .desk-insights { margin-top: 8px; }
 .empty-state {
   display: grid;
   justify-items: start;

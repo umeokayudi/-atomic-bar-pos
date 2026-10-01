@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { isLocalDemo, supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import { fmtYen, Spinner } from './utils'
 import { staffFetch } from '../lib/apiAuth'
@@ -94,7 +94,14 @@ export function BarCommandActions({ onTab, ids }) {
   )
 }
 
+function jsonObject(text) {
+  const trimmed = String(text || '').trim()
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null
+  try { return JSON.parse(trimmed) } catch { return null }
+}
+
 export async function loadCostBooks(barId, monthKey) {
+  if (isLocalDemo) return null
   const mes = isMonthKey(monthKey) ? monthKey : tokyoMonthKey()
   try {
     const hq = await fetchHqSnapshot(mes, { full: true })
@@ -103,12 +110,12 @@ export async function loadCostBooks(barId, monthKey) {
     // fall through
   }
   const range = monthRange(`${mes}-01`)
-  const [vR, fR, posR, clockR, teamR, rentR] = await Promise.all([
+  const [vR, fR, posR, clockText, teamText, rentR] = await Promise.all([
     supabase.from('vendas').select('*').eq('bar_id', barId),
     supabase.from('faturas').select('*').eq('bar_id', barId),
     supabase.from('pos_vendas').select('total,data').eq('bar_id', barId),
-    staffFetch(`/api/time-clock?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`).then(r => r.json()).catch(() => ({ punches: [] })),
-    staffFetch('/api/bar-staff').then(r => r.json()).catch(() => ({ staff: [] })),
+    staffFetch(`/api/time-clock?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`).then(r => r.text()).then(jsonObject),
+    staffFetch('/api/bar-staff').then(r => r.text()).then(jsonObject),
     supabase.from('bar_overhead').select('kind,month_key,amount').eq('bar_id', barId).eq('kind', 'rent').eq('month_key', mes),
   ])
   const vendas = filterSupplierVendas(vR.data || [])
@@ -117,8 +124,9 @@ export async function loadCostBooks(barId, monthKey) {
   const posMonthTotal = (posR.data || [])
     .filter(s => String(s.data || '').startsWith(mes))
     .reduce((a, s) => a + (+s.total || 0), 0)
-  const payroll = payrollFromPunches(clockR.punches || [], teamR.staff || [], range, {
-    nightPremium: teamR.goals?.adicional_noturno !== false,
+  if (!clockText || !teamText) return null
+  const payroll = payrollFromPunches(clockText.punches || [], teamText.staff || [], range, {
+    nightPremium: teamText.goals?.adicional_noturno !== false,
   })
   const staffMonthPay = payroll.reduce((a, r) => a + (+r.pay || 0), 0)
   const rentMonth = (rentR.data || []).reduce((a, r) => a + (+r.amount || 0), 0)

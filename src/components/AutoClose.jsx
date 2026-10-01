@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { isLocalDemo, supabase } from '../lib/supabase'
 import { staffFetch } from '../lib/apiAuth'
 import { loadBarTeam, peekBarTeam } from '../lib/barTeam'
 import { shiftsDue } from '../lib/autoClose'
@@ -16,10 +16,11 @@ export default function AutoClose({ bar }) {
     if (!bar?.id || running.current) return undefined
     let cancelled = false
     async function run() {
-      if (running.current) return
+      if (running.current || isLocalDemo) return
       running.current = true
       try {
         const team = peekBarTeam() || await loadBarTeam()
+        if (team?.error || team?.unavailable) return
         const goals = team?.goals || {}
         const due = shiftsDue(goals)
         if (!due.length || cancelled) return
@@ -76,6 +77,8 @@ export default function AutoClose({ bar }) {
             body: JSON.stringify({ action: 'saveCloseSettings', ...patch }),
           })
         }
+      } catch {
+        /* A failed register read must not close a shift or surface as a JSON parse error. */
       } finally {
         running.current = false
       }

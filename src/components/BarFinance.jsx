@@ -177,7 +177,9 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
     const [teamRes, hq, clockRes] = await Promise.all([
       loadBarTeam(),
       fetchHqSnapshot().catch(() => cachedHq),
-      staffFetch(`/api/time-clock?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`).then(r => r.json()).catch(() => ({ punches: [] })),
+      isLocalDemo
+        ? Promise.resolve({ punches: [] })
+        : staffFetch(`/api/time-clock?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`).then(r => r.json()).catch(() => ({ punches: [] })),
     ])
     if (teamRes.error) throw new Error(errText(teamRes.error))
     const nightPremium = teamRes.goals?.adicional_noturno !== false
