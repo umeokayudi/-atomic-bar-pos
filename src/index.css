@@ -5618,4 +5618,88 @@ html[data-layout="desktop"] .app-main {
   .app-content { padding: 16px 12px 88px; }
 }
 
+.command-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(260px, 0.85fr);
+  gap: 14px;
+  align-items: start;
+}
+.command-main,
+.command-side {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.command-subsection {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.empty-state {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  padding: 4px 0 8px;
+  color: var(--text-secondary);
+}
+.empty-state-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.empty-state-icon svg { width: 16px; height: 16px; }
+.empty-state strong { color: var(--text-primary); font-size: 13px; }
+.empty-state p { margin: 0; font-size: 12px; line-height: 1.45; }
+.ops-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+.ops-status-label { font-size: 12px; font-weight: 650; color: var(--text-primary); }
+.ops-status-value { font-variant-numeric: tabular-nums; font-size: 14px; }
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.status-badge.is-available { color: var(--success); background: var(--success-soft); }
+.status-badge.is-occupied { color: var(--accent); background: var(--accent-soft); }
+.status-badge.is-reserved,
+.status-badge.is-warning { color: var(--warning); background: var(--warning-soft); }
+.status-badge.is-danger,
+.status-badge.is-attention { color: var(--danger); background: var(--danger-soft); }
+.kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.floor-card.is-free { border-left: 3px solid var(--success); }
+.floor-card.is-occupied { border-left: 3px solid var(--accent); }
+.floor-card.is-reserved { border-left: 3px solid var(--warning); }
+.floor-card.is-free .floor-status,
+.floor-card.is-occupied .floor-status,
+.floor-card.is-reserved .floor-status {
+  background: transparent;
+  padding: 0;
+  min-height: 0;
+}
+.pos-search { position: sticky; top: 0; z-index: 2; background: var(--surface); }
+.pos-qty { width: 44px; height: 44px; }
+.pos-cart { box-shadow: var(--shadow-card); }
+.floor-stale-badge { background: var(--danger-soft); color: var(--danger); }
+@media (max-width: 1200px) {
+  .command-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 1024px) {
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 
