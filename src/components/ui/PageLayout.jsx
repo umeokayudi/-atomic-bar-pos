@@ -2,7 +2,7 @@
 
 export function PageHeader({ title, subtitle, actions }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+    <div className="ab-page-header">
       <div>
         <div className="portal-page-title">{title}</div>
         {subtitle && <div className="portal-page-sub">{subtitle}</div>}
