@@ -2214,12 +2214,12 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
           ))}
         </nav>
         <div className="sidebar-footer">
-          <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.06em'}}>{t('shell.clientPortal')}</div>
-          <div style={{fontSize:13,fontWeight:700,color:'var(--gold)',marginBottom:2}}>{bar.nome}</div>
-          <div style={{fontSize:12,fontWeight:700,color:'rgba(255,255,255,0.85)',marginBottom:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{perfil?.nome || ''}</div>
-          <div style={{fontSize:10,color:'rgba(193,156,86,0.75)',marginBottom:12}}>{perfil?.role ? roleLabel(perfil.role) : ''}</div>
-          <div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginBottom:10,lineHeight:1.5}}>
-            {t(footerKey)}
+          <div className="sidebar-profile">
+            <div className="sidebar-profile-kicker">{t('shell.clientPortal')}</div>
+            <div className="sidebar-profile-bar">{bar.nome}</div>
+            <div className="sidebar-profile-name">{perfil?.nome || ''}</div>
+            <div className="sidebar-profile-role">{perfil?.role ? roleLabel(perfil.role) : ''}</div>
+            <div className="sidebar-profile-note">{t(footerKey)}</div>
           </div>
           <button onClick={signOut} className="sidebar-signout">{t('common.signOut')}</button>
         </div>

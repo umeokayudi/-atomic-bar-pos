@@ -21,11 +21,11 @@ export function LogoMobileHeader() {
 
 export function LogoSidebar() {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <LogoMark size={40} stroke="white" fill="white" />
-      <div style={{ lineHeight: 1 }}>
-        <div style={{ fontSize: 16, fontWeight: 900, color: 'white', letterSpacing: 1 }}>JBM</div>
-        <div style={{ fontSize: 9, color: '#c19c56', letterSpacing: 3, textTransform: 'uppercase', marginTop: 3 }}>Drinks</div>
+    <div className="sidebar-logo">
+      <LogoMark size={32} stroke="white" fill="white" />
+      <div className="sidebar-logo-text">
+        <div className="sidebar-logo-name">JBM</div>
+        <div className="sidebar-logo-sub">Drinks</div>
       </div>
     </div>
   )
