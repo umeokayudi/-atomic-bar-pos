@@ -8,6 +8,7 @@ import { loadBarTeam } from '../lib/barTeam'
 import StaffPayCards from './StaffPayCards'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
+import { SectionHeader } from './ui/ops'
 
 export async function postClockMark({ barId, staffId, tipo, managerMark }) {
   const res = await staffFetch('/api/time-clock', {
@@ -74,12 +75,11 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
   }
 
   return (
-    <div className="fade-in">
-      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>{t('clock.title')}</div>
-      <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16 }}>{t('clock.selfHint')}</div>
+    <div className="fade-in clock-page">
+      <SectionHeader title={t('clock.title')} lead={t('clock.selfHint')} />
       {err && <div className="pos-sale-err" style={{ marginBottom: 12 }}>{asReactText(err)}</div>}
       {loading ? <Spinner /> : (
-        <div className="card people-me">
+        <div className="card people-me clock-now">
           <div>
             <div className="people-me-kicker">{t('clock.you')}</div>
             <div className="people-me-name">{perfil?.nome}</div>
