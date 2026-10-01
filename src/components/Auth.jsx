@@ -11,6 +11,7 @@ import {
 } from '../lib/barLanes'
 import { setHashForRole } from '../lib/barDoors'
 import { asReactText, errText } from '../lib/errText'
+import DemoModeBanner from './DemoModeBanner'
 
 const AuthContext = createContext(null)
 export const useAuth = () => useContext(AuthContext)
@@ -198,6 +199,7 @@ export function LoginPage() {
       minHeight: '100vh', display: 'flex', background: 'var(--navy)',
       alignItems: 'center', justifyContent: 'center', padding: 20,
     }}>
+      <DemoModeBanner />
       <div style={{
         position: 'fixed', inset: 0, opacity: 0.03, pointerEvents: 'none',
         backgroundImage: 'repeating-linear-gradient(45deg,#c19c56 0,#c19c56 1px,transparent 0,transparent 50%)',

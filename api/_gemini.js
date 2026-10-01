@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { assertServerMayConnect } from '../src/lib/supabaseTarget.js'
 
 const PREFERRED = [
   'gemini-3.7-flash',
@@ -38,6 +39,7 @@ async function resolveGeminiKey() {
   if (!url || !serviceKey) return null
 
   try {
+    assertServerMayConnect(url)
     const sb = createClient(url, serviceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     })

@@ -1,5 +1,25 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+.demo-mode-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  background: #1c2430;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.45;
+  padding: 8px 14px;
+  text-align: center;
+}
+
+.app-shell:has(.demo-mode-banner) {
+  padding-top: 42px;
+}
+
 :root,
 [data-theme="modern"] {
   /* Graphite navigation. Blue is the only primary action. */

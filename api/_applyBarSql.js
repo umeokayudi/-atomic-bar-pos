@@ -63,6 +63,9 @@ async function tryPg(connectionString, sql) {
 }
 
 export async function applyBarPosSql(extraPass) {
+  if (process.env.VERCEL_ENV === 'preview') {
+    return { ok: false, error: 'Preview refuses protected Supabase projects' }
+  }
   const sql = bundledBarSql()
   const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SUPABASE_DB_URL
   const pass = extraPass || process.env.SUPABASE_DB_PASSWORD || process.env.POSTGRES_PASSWORD

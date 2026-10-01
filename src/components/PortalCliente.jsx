@@ -56,6 +56,7 @@ import { fetchHqSnapshot, peekHqSnapshot } from '../lib/hqSnapshot'
 import { booksAreSeparate } from '../lib/costBooks'
 import { asReactText } from '../lib/errText'
 import { NotificationBell, useBarOverdueAlerts } from './Notifications'
+import DemoModeBanner from './DemoModeBanner'
 const BarOrdersTab = lazy(() => import('./BarOrdersTab'))
 const DashboardCalendar = lazy(() => import('./DashboardCalendar'))
 
@@ -2143,6 +2144,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   if (!doorAllowsRole(door, perfil?.role) && (door === 'pos' || door === 'clock')) {
     return (
       <div className="till-kiosk-wrong">
+        <DemoModeBanner />
         <div>
           <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>{t(door === 'pos' ? 'auth.doorPosTitle' : 'auth.doorStaffTitle')}</div>
           <p>{t('auth.wrongDoor')}</p>
@@ -2155,6 +2157,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   if (tillKiosk || clockKiosk) {
     return (
       <div className={`app-shell is-till-kiosk${tillKiosk ? ' is-pos' : ' is-clock'}`}>
+        <DemoModeBanner />
         <header className="till-kiosk-bar">
           <div>
             <div className="till-kiosk-name">{bar.nome}</div>
@@ -2180,6 +2183,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
 
   return (
     <div className={`app-shell${DOCK.length ? ' has-easy-dock' : ''}`}>
+      <DemoModeBanner />
       <ShellOverlay open={menuOpen} onClose={() => setMenuOpen(false)} />
       <MobileTopBar
         open={menuOpen}

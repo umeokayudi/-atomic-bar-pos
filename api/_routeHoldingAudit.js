@@ -3,6 +3,7 @@ import { fixAtomicReceivables, revertAtomicPedidosToJune } from './_atomicJuneFi
 import { isSupplierVenda } from './_supplierVenda.js'
 import { requireGlobalFinance } from './_requireStaff.js'
 import { drinksAdminClient } from './_supabaseAdmin.js'
+import { assertServerMayConnect } from '../src/lib/supabaseTarget.js'
 
 const BUCKET = 'system-private'
 const HOLDING_FILE = 'jbm_holding.json'
@@ -23,6 +24,7 @@ async function pushToJbmMaster(sb, payload) {
   const holdingKey = await resolveHoldingKey(sb)
   if (!holdingKey) return { pushed: false, reason: 'holding key not registered' }
 
+  assertServerMayConnect(HOLDING_URL)
   const holdingSb = createClient(HOLDING_URL, holdingKey, { auth: { autoRefreshToken: false, persistSession: false } })
   const { data: buckets } = await holdingSb.storage.listBuckets()
   if (!buckets?.some(b => b.name === BUCKET)) {
@@ -56,6 +58,7 @@ export default async function handler(req, res) {
       const holdingKey = req.body?.holdingKey?.trim()
       if (!holdingKey) return res.status(400).json({ error: 'holdingKey required' })
 
+      assertServerMayConnect(HOLDING_URL)
       const holdingSb = createClient(HOLDING_URL, holdingKey, { auth: { autoRefreshToken: false, persistSession: false } })
       const { data: buckets } = await holdingSb.storage.listBuckets()
       if (!buckets?.some(b => b.name === BUCKET)) {

@@ -23,6 +23,7 @@ import UiPrefsPanel from './components/UiPrefsPanel'
 import { UiPrefsProvider, useUiPrefs, LAYOUTS } from './lib/uiPrefs'
 import { loadDashboard, invalidateDashboard } from './lib/loadDashboard'
 import { PageHeader, PortalHero, PortalKpi, PortalSurface, PortalAlert } from './components/ui/PageLayout'
+import DemoModeBanner from './components/DemoModeBanner'
 const PortalCliente = lazy(() => import('./components/PortalCliente'))
 const ComprasTab = lazy(() => import('./components/Compras'))
 const VendasTab = lazy(() => import('./components/Vendas'))
@@ -507,6 +508,7 @@ function Shell() {
 
   return (
     <div className="app-shell">
+      <DemoModeBanner />
       <ShellOverlay open={menuOpen} onClose={() => setMenuOpen(false)} />
       <MobileTopBar
         open={menuOpen}

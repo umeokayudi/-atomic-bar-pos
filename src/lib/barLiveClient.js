@@ -208,6 +208,7 @@ class LiveQuery {
 }
 
 export function wrapBarLive(client) {
+  if (client?.__localDemo) return client
   const rawFrom = client.from.bind(client)
   return new Proxy(client, {
     get(target, prop, receiver) {

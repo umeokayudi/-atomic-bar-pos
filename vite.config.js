@@ -56,6 +56,16 @@ function localApi() {
   }
 }
 
-export default defineConfig({
+function deployChannel(command) {
+  if (process.env.VERCEL_ENV === 'preview') return 'preview'
+  if (process.env.VERCEL_ENV === 'production') return 'production'
+  if (command === 'serve') return 'development'
+  return 'production'
+}
+
+export default defineConfig(({ command }) => ({
   plugins: [react(), localApi()],
-})
+  define: {
+    'import.meta.env.VITE_DEPLOY_CHANNEL': JSON.stringify(deployChannel(command)),
+  },
+}))

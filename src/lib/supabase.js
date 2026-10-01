@@ -1,52 +1,24 @@
 import { createClient } from '@supabase/supabase-js'
 import { wrapBarLive } from './barLiveClient'
+import { createLocalDemoClient } from './localDemoClient'
+import { resolveDataTarget } from './supabaseTarget'
 
-/** Always the Drinks project. Vercel of atomic-bar-pos often injects a placeholder or Holding key. */
-export const DRINKS_REF = 'ojirgkqtqvugqktyuhem'
-export const DRINKS_URL = `https://${DRINKS_REF}.supabase.co`
-export const DRINKS_ANON =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qaXJna3F0cXZ1Z3FrdHl1aGVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NTkwNTIsImV4cCI6MjA5NjEzNTA1Mn0.nRiZHav9wAY2HRKrO66W9HhY3R5wGZHMM8UH5W4PK_M'
+const channel = import.meta.env.VITE_DEPLOY_CHANNEL || (import.meta.env.DEV ? 'development' : 'production')
 
-function jwtRef(raw) {
-  try {
-    const payload = JSON.parse(atob(String(raw).split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
-    return payload.ref || ''
-  } catch {
-    return ''
-  }
-}
+// The live drinks key stays inside the production branch so a Preview bundle can drop it.
+const drinksAnon = import.meta.env.VITE_DEPLOY_CHANNEL === 'production'
+  ? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qaXJna3F0cXZ1Z3FrdHl1aGVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1NTkwNTIsImV4cCI6MjA5NjEzNTA1Mn0.nRiZHav9wAY2HRKrO66W9HhY3R5wGZHMM8UH5W4PK_M'
+  : ''
 
-function resolveSupabaseUrl(raw) {
-  const v = String(raw || '').trim().replace(/\/$/, '')
-  // Local `vite` must not substitute either protected project when env is missing or wrong.
-  if (import.meta.env.DEV) {
-    if (!/^https:\/\/[a-z0-9]+\.supabase\.co$/i.test(v)) return ''
-    if (v.includes(DRINKS_REF) || v.includes('fxsakrshmldmkdmbevna')) return ''
-    return v
-  }
-  if (v.includes(DRINKS_REF)) return v
-  return DRINKS_URL
-}
+const target = resolveDataTarget({
+  channel,
+  url: import.meta.env.VITE_SUPABASE_URL,
+  anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+  drinksAnon,
+})
 
-function resolveAnonKey(raw) {
-  const v = String(raw || '').trim()
-  if (import.meta.env.DEV) {
-    if (!v || /placeholder|SENSITIVE/i.test(v) || v.length < 80) return ''
-    const ref = jwtRef(v)
-    if (ref === DRINKS_REF || ref === 'fxsakrshmldmkdmbevna') return ''
-    return v
-  }
-  if (!v || /placeholder|SENSITIVE/i.test(v) || v.length < 80) return DRINKS_ANON
-  if (jwtRef(v) && jwtRef(v) !== DRINKS_REF) return DRINKS_ANON
-  if (jwtRef(v) === DRINKS_REF) return v
-  return DRINKS_ANON
-}
-
-const supabaseUrl = resolveSupabaseUrl(import.meta.env.VITE_SUPABASE_URL)
-const supabaseKey = resolveAnonKey(import.meta.env.VITE_SUPABASE_ANON_KEY)
-if (import.meta.env.DEV && (!supabaseUrl || !supabaseKey)) {
-  throw new Error('Supabase configuration missing')
-}
+export const dataMode = target.mode
+export const isLocalDemo = target.mode === 'local'
 
 const TAB_ID_KEY = 'bebidas_tab_id'
 
@@ -60,16 +32,19 @@ function getTabId() {
   return id
 }
 
-const projectRef = supabaseUrl.match(/https:\/\/([^.]+)/)?.[1] || DRINKS_REF
+function remoteClient() {
+  const projectRef = target.url.match(/https:\/\/([^.]+)/)?.[1] || 'remote'
+  return createClient(target.url, target.key, {
+    auth: {
+      storage: typeof sessionStorage !== 'undefined' ? sessionStorage : undefined,
+      storageKey: `sb-${projectRef}-auth-${getTabId()}`,
+      persistSession: true,
+      autoRefreshToken: true,
+    },
+  })
+}
 
-const rawSupabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    storage: typeof sessionStorage !== 'undefined' ? sessionStorage : undefined,
-    storageKey: `sb-${projectRef}-auth-${getTabId()}`,
-    persistSession: true,
-    autoRefreshToken: true,
-  },
-})
+const rawSupabase = isLocalDemo ? createLocalDemoClient() : remoteClient()
 
 export const drinksAuth = rawSupabase
 export const supabase = wrapBarLive(rawSupabase)

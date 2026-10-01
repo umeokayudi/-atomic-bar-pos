@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { assertServerMayConnect } from '../src/lib/supabaseTarget.js'
 
 export const DRINKS_SUPABASE_URL = 'https://ojirgkqtqvugqktyuhem.supabase.co'
 export const DRINKS_PROJECT_REF = 'ojirgkqtqvugqktyuhem'
@@ -50,14 +51,18 @@ function resolveServiceRoleKey() {
 
 /** Valida JWT de staff — usa anon key do projeto Drinks (não service role). */
 export function drinksAuthClient() {
-  return createClient(resolveDrinksUrl(), resolveAnonKey(), {
+  const url = resolveDrinksUrl()
+  assertServerMayConnect(url)
+  return createClient(url, resolveAnonKey(), {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 }
 
 /** Queries com RLS usando o JWT do staff logado. */
 export function createStaffUserClient(accessToken) {
-  return createClient(resolveDrinksUrl(), resolveAnonKey(), {
+  const url = resolveDrinksUrl()
+  assertServerMayConnect(url)
+  return createClient(url, resolveAnonKey(), {
     global: { headers: { Authorization: `Bearer ${accessToken}` } },
     auth: { autoRefreshToken: false, persistSession: false },
   })
@@ -65,7 +70,9 @@ export function createStaffUserClient(accessToken) {
 
 /** Service-role client for JBM Drinks (bebidas-control). Throws if the key is missing. */
 export function drinksAdminClient() {
-  return createClient(resolveDrinksUrl(), resolveServiceRoleKey(), {
+  const url = resolveDrinksUrl()
+  assertServerMayConnect(url)
+  return createClient(url, resolveServiceRoleKey(), {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 }

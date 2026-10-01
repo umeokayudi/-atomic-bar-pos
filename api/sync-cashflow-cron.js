@@ -4,6 +4,7 @@
  */
 import { createClient } from '@supabase/supabase-js'
 import { drinksAdminClient } from './_supabaseAdmin.js'
+import { assertServerMayConnect } from '../src/lib/supabaseTarget.js'
 import { buildLiveSnapshot } from './_cashflowSnapshot.js'
 
 const HOLDING_URL = process.env.HOLDING_SUPABASE_URL || 'https://fxsakrshmldmkdmbevna.supabase.co'
@@ -46,6 +47,7 @@ export default async function handler(req, res) {
       geradoEm: new Date().toISOString(),
     }
 
+    assertServerMayConnect(HOLDING_URL)
     const holdingSb = createClient(HOLDING_URL, holdingKey, { auth: { autoRefreshToken: false, persistSession: false } })
     const { data: buckets } = await holdingSb.storage.listBuckets()
     if (!buckets?.some(b => b.name === BUCKET)) {
