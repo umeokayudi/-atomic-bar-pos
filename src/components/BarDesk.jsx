@@ -13,8 +13,7 @@ import { useI18n } from '../lib/i18n'
 import { errText } from '../lib/errText'
 import BarOwnerAi from './BarOwnerAi'
 import { InsightCard, MetricSwitch } from './ui/ops'
-import { ChartEmpty, MetricCard, Panel } from './ui/executive'
-import NavIcon from './ui/NavIcon'
+import { ChartPanel, DashboardHeader, EmptyState, METRIC_STATUS, MetricCard, OperationalStatus, Panel, QuickAction, StatusBadge } from './ui/executive'
 
 const SPANS = ['turno', 'noite', 'semana', 'mes']
 const DAY_KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
@@ -270,100 +269,93 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
     return json.error ? errText(json.error) : ''
   }
 
-  const salesStatus = tonightCount > 0 ? 'available' : 'insufficient'
-  const profitStatus = lucro.sales ? 'available' : 'insufficient'
-  const ticketStatus = tonightAvg == null ? 'insufficient' : 'available'
-  const guestStatus = tonightCount > 0 ? 'available' : 'insufficient'
+  const salesStatus = tonightCount > 0 ? METRIC_STATUS.AVAILABLE : METRIC_STATUS.INSUFFICIENT
+  const profitStatus = lucro.sales ? METRIC_STATUS.AVAILABLE : METRIC_STATUS.INSUFFICIENT
+  const ticketStatus = tonightAvg == null ? METRIC_STATUS.INSUFFICIENT : METRIC_STATUS.AVAILABLE
+  const guestStatus = tonightCount > 0 ? METRIC_STATUS.AVAILABLE : METRIC_STATUS.INSUFFICIENT
   const chartHasSales = chart.some(row => row.sales > 0)
   const priorWeek = span === 'noite' && cmp.before > 0
   const shiftKnown = Array.isArray(hq?.payroll)
   const floorKnown = floor && (floor.seated != null || floor.free != null)
   const cashKnown = monthTickets.length > 0
 
+  const stockKnown = Array.isArray(hq?.jbm?.estoqueBaixo) || Number.isFinite(hq?.sources?.inventory?.low)
+  const stockLow = Array.isArray(hq?.jbm?.estoqueBaixo)
+    ? hq.jbm.estoqueBaixo.length
+    : (Number.isFinite(hq?.sources?.inventory?.low) ? hq.sources.inventory.low : null)
+  const noSalesCopy = 'No completed sales for this period'
+
   return (
-    <div className="executive-dashboard">
-      <header className="dashboard-header">
-        <div>
-          <div className="eyebrow">Bar operations</div>
-          <h1 className="page-title">Overview</h1>
-          <p className="page-subtitle">{t('portal.desk.lead')}</p>
-        </div>
-        <div className="dashboard-header-actions goal-modes">
+    <div className="executive-dashboard command-center">
+      <DashboardHeader
+        kicker={bar?.nome || 'Bar operations'}
+        title="Overview"
+        subtitle={t('portal.desk.lead')}
+      >
+        <div className="goal-modes">
           {SPANS.map(id => (
             <button key={id} type="button" className={span === id ? 'is-on' : ''} onClick={() => { setSpan(id); setEditing(false) }}>
               {t(`portal.desk.span.${id}`)}
             </button>
           ))}
         </div>
-      </header>
-
-      <div className="quick-actions">
-        <button type="button" className="action-primary" onClick={() => onTab?.('pos')}>
-          <NavIcon name="pos" />
-          Open POS
-        </button>
-        <button type="button" className="action-secondary" onClick={() => onTab?.('espacos')}>
-          <NavIcon name="espacos" />
-          View Floor
-        </button>
-        <button type="button" className="action-secondary" onClick={() => onTab?.('pedidos')}>
-          <NavIcon name="pedidos" />
-          Orders
-        </button>
-        <button type="button" className="action-secondary" onClick={() => onTab?.('fechamento')}>
-          <NavIcon name="fechamento" />
-          Cash Register
-        </button>
-      </div>
+      </DashboardHeader>
 
       <div className="kpi-grid">
         <MetricCard
           label="Net Sales"
           status={salesStatus}
           value={money(tonightSum)}
-          detail={salesStatus === 'available'
+          detail={salesStatus === METRIC_STATUS.AVAILABLE
             ? (progress.noite.goal > 0 ? `${t('portal.desk.target')} ${money(progress.noite.goal)}` : t('portal.goals.noGoal'))
-            : 'No completed sales for this period'}
+            : noSalesCopy}
           trend={priorWeek ? `${cmp.delta >= 0 ? '+' : '−'}${money(Math.abs(cmp.delta))}` : ''}
-        />
-        {profitStatus === 'available' && (
-          <MetricCard
-            label="Gross Profit"
-            status="available"
-            value={money(lucro.profit)}
-            detail={`${t('portal.desk.costKpi')} ${money(lucro.cost)}`}
-          />
-        )}
-        <MetricCard
-          label="Average Ticket"
-          status={ticketStatus}
-          value={money(tonightAvg)}
-          detail={ticketStatus === 'available' ? t('portal.desk.tickets', { count: tonightCount }) : 'No completed sales for this period'}
         />
         <MetricCard
           label="Orders"
           status={salesStatus}
           value={String(tonightCount)}
-          detail={salesStatus === 'available' ? t('portal.desk.ordersKpi') : 'No completed sales for this period'}
+          detail={salesStatus === METRIC_STATUS.AVAILABLE ? t('portal.desk.ordersKpi') : noSalesCopy}
+        />
+        <MetricCard
+          label="Average Ticket"
+          status={ticketStatus}
+          value={money(tonightAvg)}
+          detail={ticketStatus === METRIC_STATUS.AVAILABLE ? t('portal.desk.tickets', { count: tonightCount }) : noSalesCopy}
         />
         <MetricCard
           label="Guests"
           status={guestStatus}
           value={String(guestCount)}
-          detail={guestStatus === 'available' ? t('portal.desk.ordersKpi') : 'No completed sales for this period'}
+          detail={guestStatus === METRIC_STATUS.AVAILABLE ? t('portal.desk.ordersKpi') : noSalesCopy}
+        />
+        <MetricCard
+          label="Gross Profit"
+          status={profitStatus}
+          value={money(lucro.profit)}
+          detail={profitStatus === METRIC_STATUS.AVAILABLE
+            ? `${t('portal.desk.costKpi')} ${money(lucro.cost)}`
+            : 'Profit needs recorded cost, not sales alone'}
         />
       </div>
 
-      <div className="dashboard-main-grid">
-        <section className="dashboard-primary">
-          <Panel
-            title="Sales"
+      <div className="quick-actions">
+        <QuickAction primary icon="pos" onClick={() => onTab?.('pos')}>Open POS</QuickAction>
+        <QuickAction icon="espacos" onClick={() => onTab?.('espacos')}>Floor</QuickAction>
+        <QuickAction icon="pedidos" onClick={() => onTab?.('pedidos')}>Orders</QuickAction>
+        <QuickAction icon="fechamento" onClick={() => onTab?.('fechamento')}>Cash Register</QuickAction>
+      </div>
+
+      <div className="command-grid">
+        <section className="command-main">
+          <ChartPanel
+            title="Sales performance"
             extra={priorWeek ? <span className="eyebrow">Vs last {t(`portal.close.days.${weekdayOf(night)}`)}</span> : null}
           >
             {!chartHasSales && (
-              <ChartEmpty
-                title="Not enough data yet"
-                detail="Sales activity will appear here once transactions are recorded."
+              <EmptyState
+                title="No operational data yet"
+                detail="Activity will appear here after transactions are recorded."
               />
             )}
             {chartHasSales && <GoalChart rows={chart} goal={chartGoal} />}
@@ -378,10 +370,10 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
               </p>
             )}
             <div className="goal-hero-goal">
-              {salesStatus === 'available'
+              {salesStatus === METRIC_STATUS.AVAILABLE
                 ? t('portal.desk.sold', { amount: money(view.sales) })
-                : 'No completed sales for this period'}
-              {view.goal > 0 && salesStatus === 'available' ? ` · ${t('portal.desk.goalOf', { amount: money(view.goal) })}` : ''}
+                : noSalesCopy}
+              {view.goal > 0 && salesStatus === METRIC_STATUS.AVAILABLE ? ` · ${t('portal.desk.goalOf', { amount: money(view.goal) })}` : ''}
             </div>
             {editing ? (
               <div className="desk-goal-edit">
@@ -392,50 +384,49 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
             ) : (
               <button type="button" className="house-text" onClick={() => { setDraft(String(view.goal || '')); setEditing(true) }}>{t('portal.desk.changeGoal')}</button>
             )}
-          </Panel>
 
-          <Panel
-            title={t('portal.desk.hourlyTitle')}
-            extra={(
-              <MetricSwitch
-                value={hourMetric}
-                onChange={setHourMetric}
-                options={[
-                  { id: 'sales', label: t('portal.desk.salesKpi') },
-                  { id: 'orders', label: t('portal.desk.ordersKpi') },
-                  { id: 'ticket', label: t('portal.desk.ticketKpi') },
-                ]}
-              />
-            )}
-          >
-            {!ranked.length && (
-              <ChartEmpty
-                title="Not enough data yet"
-                detail="Sales activity will appear here once transactions are recorded."
-              />
-            )}
-            {!!ranked.length && (
-              <div className="desk-hours">
-                {hourView.map(row => (
-                  <div key={row.hour} className="desk-hour">
-                    <span>{row.label}</span>
-                    <i><b style={{ width: `${Math.round(((+row.value || 0) / hourMax) * 100)}%` }} /></i>
-                    <em>{row.value ? (hourMetric === 'orders' ? row.orders : money(hourMetric === 'ticket' ? row.ticket : row.sales)) : '—'}</em>
-                  </div>
-                ))}
+            <div className="command-subsection">
+              <div className="panel-head">
+                <h3 className="section-title">{t('portal.desk.hourlyTitle')}</h3>
+                <MetricSwitch
+                  value={hourMetric}
+                  onChange={setHourMetric}
+                  options={[
+                    { id: 'sales', label: t('portal.desk.salesKpi') },
+                    { id: 'orders', label: t('portal.desk.ordersKpi') },
+                    { id: 'ticket', label: t('portal.desk.ticketKpi') },
+                  ]}
+                />
               </div>
-            )}
-            <div className="desk-insights">
-              <InsightCard kicker={t('portal.desk.bestHour')} title={hourText(bestHour)} />
-              <InsightCard kicker={t('portal.desk.quietHour')} title={hourText(quietHour)} />
+              {!ranked.length && (
+                <EmptyState
+                  title="No operational data yet"
+                  detail="Activity will appear here after transactions are recorded."
+                />
+              )}
+              {!!ranked.length && (
+                <div className="desk-hours">
+                  {hourView.map(row => (
+                    <div key={row.hour} className="desk-hour">
+                      <span>{row.label}</span>
+                      <i><b style={{ width: `${Math.round(((+row.value || 0) / hourMax) * 100)}%` }} /></i>
+                      <em>{row.value ? (hourMetric === 'orders' ? row.orders : money(hourMetric === 'ticket' ? row.ticket : row.sales)) : '—'}</em>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="desk-insights">
+                <InsightCard kicker={t('portal.desk.bestHour')} title={hourText(bestHour)} />
+                <InsightCard kicker={t('portal.desk.quietHour')} title={hourText(quietHour)} />
+              </div>
             </div>
-          </Panel>
+          </ChartPanel>
 
-          <Panel title="Product performance">
+          <Panel title="Top products">
             {!worked.topCast?.length && (
-              <ChartEmpty
-                title="Not enough data yet"
-                detail="Sales activity will appear here once transactions are recorded."
+              <EmptyState
+                title="No operational data yet"
+                detail="Activity will appear here after transactions are recorded."
               />
             )}
             {worked.topCast?.map(row => (
@@ -447,8 +438,8 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
           </Panel>
         </section>
 
-        <aside className="dashboard-secondary">
-          <Panel title="Shift">
+        <aside className="command-side">
+          <Panel title="Shift status">
             {!shiftKnown && <p className="metric-detail">Shift status is unavailable without the live register.</p>}
             {shiftKnown && !onClock.length && <p className="metric-detail">{t('portal.desk.emptyClock')}</p>}
             {onClock.map(r => (
@@ -468,15 +459,29 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
                 ))}
               </div>
             )}
-          </Panel>
-
-          <Panel title="Floor">
-            {!floorKnown && <p className="metric-detail">Floor status is unavailable.</p>}
+            <OperationalStatus
+              label="Cash register"
+              status={cashKnown ? METRIC_STATUS.AVAILABLE : METRIC_STATUS.INSUFFICIENT}
+              value={cashKnown ? money(inHand) : '—'}
+              detail={cashKnown ? t('portal.desk.inHand') : 'Needs completed till tickets'}
+            />
+            <OperationalStatus
+              label="Orders pending"
+              status={METRIC_STATUS.AVAILABLE}
+              value={String(openOrders || 0)}
+              detail={openOrders > 0 ? 'Open drink orders' : 'No open orders'}
+            />
+            <div className="ops-status-row">
+              <div>
+                <div className="ops-status-label">Floor occupancy</div>
+                {!floorKnown && <div className="metric-detail">Floor status is unavailable.</div>}
+              </div>
+            </div>
             {floorKnown && (
               <ul className="floor-snapshot">
-                <li><span className="status-occupied">Occupied</span><strong>{floor.seated || 0}</strong></li>
-                <li><span className="status-warning">Reserved</span><strong>{floor.reserved || 0}</strong></li>
-                <li><span className="status-available">Available</span><strong>{floor.free || 0}</strong></li>
+                <li><StatusBadge tone="occupied">Occupied</StatusBadge><strong>{floor.seated || 0}</strong></li>
+                <li><StatusBadge tone="reserved">Reserved</StatusBadge><strong>{floor.reserved || 0}</strong></li>
+                <li><StatusBadge tone="available">Available</StatusBadge><strong>{floor.free || 0}</strong></li>
               </ul>
             )}
             {openOrders > 0 && (
@@ -486,9 +491,18 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
             )}
           </Panel>
 
-          <Panel title="Alerts">
+          <Panel title="Operational alerts">
+            {stockKnown && (
+              <OperationalStatus
+                label="Low stock"
+                status={stockLow > 0 ? METRIC_STATUS.AVAILABLE : METRIC_STATUS.EMPTY}
+                value={String(stockLow)}
+                detail={stockLow > 0 ? 'Items at or below minimum' : 'No items below minimum'}
+              />
+            )}
+            {!stockKnown && <p className="metric-detail">Low stock is unavailable without the inventory ledger.</p>}
             {!lateBills.length && !nextBills.length && !incoming.length && (
-              <p className="metric-detail">No alerts from the current books.</p>
+              <p className="metric-detail">No payment alerts from the current books.</p>
             )}
             {lateBills.map(a => (
               <button key={a.id} type="button" className="desk-alert is-bad" onClick={() => onTab?.(a.tab)}>
@@ -509,10 +523,12 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
               </button>
             ))}
             {cashKnown && (
-              <div className="desk-cash">
-                <div><span>{t('portal.desk.inHand')}</span><strong>{money(inHand)}</strong></div>
-                <div><span>{t('portal.desk.toPay7')}</span><strong>{money(toPay)}</strong></div>
-              </div>
+              <OperationalStatus
+                label={t('portal.desk.toPay7')}
+                status={METRIC_STATUS.AVAILABLE}
+                value={money(toPay)}
+                detail="Due within 7 days"
+              />
             )}
             <button type="button" className="house-text" onClick={() => onTab?.('pagamentos')}>{t('portal.desk.seeAll')}</button>
           </Panel>
