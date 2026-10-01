@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './index.css'
 import Layout from './components/Layout'
+import { supabaseBlockedRef } from './lib/supabase'
 import POS from './pages/POS'
 import Estoque from './pages/Estoque'
 import Equipe from './pages/Equipe'
@@ -10,6 +11,11 @@ import Relatorio from './pages/Relatorio'
 export default function App() {
   return (
     <BrowserRouter>
+      {supabaseBlockedRef ? (
+        <p style={{ margin: 0, padding: '8px 12px', background: '#fff4d6', color: '#3a2a00' }}>
+          Refusing protected Supabase project {supabaseBlockedRef}. This screen is using local data only.
+        </p>
+      ) : null}
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Navigate to="/pos" replace />} />

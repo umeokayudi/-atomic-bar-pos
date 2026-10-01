@@ -1,7 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
+import { classifySupabaseTarget } from './supabaseGuard.js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const target = classifySupabaseTarget(import.meta.env)
+export const supabaseTarget = target.mode
+export const supabaseBlockedRef = target.blockedRef || ''
 export const BAR_ID = import.meta.env.VITE_BAR_ID || 'local-bar'
 
 const LS_KEY = 'atomic-bar-local-db'
@@ -107,6 +109,6 @@ function createLocalClient() {
   }
 }
 
-export const supabase = (supabaseUrl && supabaseAnonKey)
-  ? createClient(supabaseUrl, supabaseAnonKey, { realtime: { params: { eventsPerSecond: 10 } } })
+export const supabase = target.mode === 'remote'
+  ? createClient(target.url, target.key, { realtime: { params: { eventsPerSecond: 10 } } })
   : createLocalClient()
