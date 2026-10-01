@@ -1,9 +1,16 @@
 import { createClient } from '@supabase/supabase-js'
+import { classifySupabaseTarget } from './supabaseGuard.js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const target = classifySupabaseTarget(import.meta.env)
 export const BAR_ID = import.meta.env.VITE_BAR_ID
+export const supabaseBlockedRef = target.blockedRef || ''
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  realtime: { params: { eventsPerSecond: 10 } }
-})
+if (target.mode === 'blocked') {
+  throw new Error(`Refusing protected Supabase project ${target.blockedRef}`)
+}
+
+export const supabase = createClient(
+  target.mode === 'remote' ? target.url : '',
+  target.mode === 'remote' ? target.key : '',
+  { realtime: { params: { eventsPerSecond: 10 } } },
+)
