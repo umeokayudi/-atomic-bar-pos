@@ -72,11 +72,11 @@ const GERENTE_NAV = [
 ]
 
 const NAV_GROUPS = [
-  { id: 'tonight', labelKey: 'nav.groupTonight', ids: ['inicio', 'pos', 'pedidos', 'entregas', 'faturas', 'espacos', 'clientes', 'ponto', 'fechamento'] },
-  { id: 'numbers', labelKey: 'nav.groupNumbers', ids: ['metas', 'pagamentos', 'salarios', 'eventos', 'ia'] },
-  { id: 'house', labelKey: 'nav.groupHouse', ids: ['staff', 'fornecedor', 'parceiro', 'drinkback', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'] },
-  { id: 'supply', labelKey: 'nav.groupSupply', ids: ['estoque'] },
-  { id: 'office', labelKey: 'nav.groupOffice', ids: ['custos', 'precos', 'recibos'] },
+  { id: 'workspace', labelKey: 'nav.groupWorkspace', ids: ['inicio', 'pos', 'espacos', 'pedidos'] },
+  { id: 'operations', labelKey: 'nav.groupOperations', ids: ['estoque', 'entregas', 'fornecedor'] },
+  { id: 'management', labelKey: 'nav.groupManagement', ids: ['clientes', 'staff', 'ponto', 'salarios'] },
+  { id: 'finance', labelKey: 'nav.groupFinance', ids: ['fechamento', 'pagamentos', 'faturas', 'custos', 'metas'] },
+  { id: 'house', labelKey: 'nav.groupHouse', ids: ['eventos', 'ia', 'parceiro', 'drinkback', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto', 'precos', 'recibos'] },
 ]
 
 const CAIXA_NAV = [

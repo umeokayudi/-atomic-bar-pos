@@ -21,6 +21,7 @@ import StaffPayCards from './StaffPayCards'
 import DayStaffBoard from './DayStaffBoard'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
+import { isLocalDemo } from '../lib/supabase'
 
 function money(n) {
   return fmtYen(Math.round(+n || 0))
@@ -199,7 +200,13 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
     let cancelled = false
     if (!peekBarTeam() || !peekHqSnapshot()) setLoading(true)
     load()
-      .catch(e => { if (!cancelled) setErr(errText(e)) })
+      .catch(e => {
+        if (!cancelled) {
+          setErr(isLocalDemo
+            ? 'This book is unavailable in demo mode. No live register is connected.'
+            : errText(e))
+        }
+      })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [bar?.id])
@@ -225,7 +232,19 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
   }
 
   if (loading) return <Spinner text={t('portal.close.loading')} />
-  if (!pack) return <div className="house-page"><p>{asReactText(err)}</p></div>
+  if (!pack) {
+    const title = section === 'pagamentos'
+      ? t('nav.portalPay')
+      : section === 'salarios'
+        ? t('nav.portalSalary')
+        : t('nav.portalClose')
+    return (
+      <div className="house-page panel">
+        <h1 className="section-title">{title}</h1>
+        <p className="metric-detail">{asReactText(err || t('common.loading'))}</p>
+      </div>
+    )
+  }
 
   const night = tokyoNightKey()
   const goals = pack.goals || {}

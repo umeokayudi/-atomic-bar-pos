@@ -12,7 +12,9 @@ import { lastDayOfMonth, tokyoHour, tokyoNightKey } from '../lib/tokyo'
 import { useI18n } from '../lib/i18n'
 import { errText } from '../lib/errText'
 import BarOwnerAi from './BarOwnerAi'
-import { GoalProgress, InsightCard, KpiCard, MetricSwitch } from './ui/ops'
+import { InsightCard, MetricSwitch } from './ui/ops'
+import { ChartEmpty, MetricCard, Panel } from './ui/executive'
+import NavIcon from './ui/NavIcon'
 
 const SPANS = ['turno', 'noite', 'semana', 'mes']
 const DAY_KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
@@ -268,316 +270,257 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
     return json.error ? errText(json.error) : ''
   }
 
+  const salesStatus = tonightCount > 0 ? 'available' : 'insufficient'
+  const profitStatus = lucro.sales ? 'available' : 'insufficient'
+  const ticketStatus = tonightAvg == null ? 'insufficient' : 'available'
+  const guestStatus = tonightCount > 0 ? 'available' : 'insufficient'
+  const chartHasSales = chart.some(row => row.sales > 0)
+  const priorWeek = span === 'noite' && cmp.before > 0
+  const shiftKnown = Array.isArray(hq?.payroll)
+  const floorKnown = floor && (floor.seated != null || floor.free != null)
+  const cashKnown = monthTickets.length > 0
+
   return (
-    <div className="desk">
-      <header className="desk-head">
-        <h2>{t('portal.desk.title')}</h2>
-        <p>{t('portal.desk.lead')}</p>
-      </header>
-
-      <section className="desk-kpis" aria-label={t('portal.desk.title')}>
-        <KpiCard
-          label={t('portal.desk.salesKpi')}
-          value={tonightCount ? money(tonightSum) : t('portal.desk.insufficient')}
-          detail={progress.noite.goal > 0 ? `${t('portal.desk.target')} ${money(progress.noite.goal)}` : t('portal.goals.noGoal')}
-          meter={progress.noite.goal > 0 ? progress.noite.pct : null}
-        />
-        <KpiCard
-          label={`${t('portal.desk.profitKpi')} · ${t('portal.desk.monthProfit')}`}
-          value={lucro.sales ? money(lucro.profit) : t('portal.desk.insufficient')}
-          detail={lucro.sales ? `${t('portal.desk.costKpi')} ${money(lucro.cost)}` : t('portal.desk.cogsNote')}
-          meter={lucro.goal > 0 ? lucro.pct : null}
-        />
-        <KpiCard
-          label={t('portal.desk.ticketKpi')}
-          value={tonightAvg == null ? t('portal.desk.insufficient') : money(tonightAvg)}
-          detail={tonightCount ? t('portal.desk.tickets', { count: tonightCount }) : t('portal.desk.ordersKpi')}
-        />
-        <KpiCard
-          label={t('portal.desk.guestsKpi')}
-          value={guestCount ? guestCount : t('portal.desk.insufficient')}
-          detail={`${t('portal.desk.ordersKpi')} ${tonightCount || '—'}`}
-        />
-      </section>
-
-      <section className="desk-goals">
-        <GoalProgress
-          label={t('portal.desk.span.noite')}
-          current={money(progress.noite.sales || 0)}
-          target={progress.noite.goal > 0 ? money(progress.noite.goal) : ''}
-          pct={progress.noite.goal > 0 ? progress.noite.pct : null}
-          remaining={nightLeft == null ? t('portal.goals.noGoal') : t('portal.desk.remaining', { amount: money(nightLeft) })}
-          extra={currentPace == null ? t('portal.desk.insufficient') : t('portal.desk.paceNow', { amount: money(currentPace), need: requiredPace == null ? t('portal.desk.insufficient') : money(requiredPace) })}
-        />
-        <GoalProgress
-          label={t('portal.desk.span.semana')}
-          current={money(progress.semana.sales || 0)}
-          target={progress.semana.goal > 0 ? money(progress.semana.goal) : ''}
-          pct={progress.semana.goal > 0 ? progress.semana.pct : null}
-          remaining={progress.semana.goal > 0 ? t('portal.desk.remaining', { amount: money(stillToSell(progress.semana.sales, progress.semana.goal)) }) : t('portal.goals.noGoal')}
-        />
-        <GoalProgress
-          label={t('portal.desk.span.mes')}
-          current={money(progress.mes.sales || 0)}
-          target={progress.mes.goal > 0 ? money(progress.mes.goal) : ''}
-          pct={progress.mes.goal > 0 ? progress.mes.pct : null}
-          remaining={progress.mes.goal > 0 ? t('portal.desk.remaining', { amount: money(stillToSell(progress.mes.sales, progress.mes.goal)) }) : t('portal.goals.noGoal')}
-          extra={projected == null ? t('portal.desk.insufficient') : t('portal.desk.projected', { amount: money(projected) })}
-        />
-      </section>
-
-      <section className="desk-card desk-profit">
-        <h3>{t('portal.desk.profitKpi')}</h3>
-        <div className="desk-cash">
-          <div><span>{t('portal.desk.salesKpi')}</span><strong>{lucro.sales ? money(lucro.sales) : t('portal.desk.insufficient')}</strong></div>
-          <div><span>{t('portal.desk.costKpi')}</span><strong>{lucro.sales ? money(lucro.cost) : t('portal.desk.insufficient')}</strong></div>
-          <div><span>{t('portal.desk.profitKpi')}</span><strong>{lucro.sales ? money(lucro.profit) : t('portal.desk.insufficient')}</strong></div>
+    <div className="executive-dashboard">
+      <header className="dashboard-header">
+        <div>
+          <div className="eyebrow">Bar operations</div>
+          <h1 className="page-title">Overview</h1>
+          <p className="page-subtitle">{t('portal.desk.lead')}</p>
         </div>
-        <p className="desk-note">{t('portal.desk.cogsNote')}</p>
-        <p className="desk-note">{t('portal.desk.marginMissing')}</p>
-        {lucro.goal > 0 ? (
-          <p className="desk-note">
-            {t('portal.desk.paceLabel')}: {money(lucro.profit)} · {money(lucro.pace)}
-            {lucro.gap > 0 ? ` · ${t('portal.desk.remaining', { amount: money(lucro.gap) })}` : ''}
-          </p>
-        ) : (
-          <p className="desk-note">{t('portal.goals.noGoal')}</p>
-        )}
-      </section>
-
-      <section className="desk-card">
-        <h3>{t('portal.desk.hourlyTitle')}</h3>
-        <MetricSwitch
-          value={hourMetric}
-          onChange={setHourMetric}
-          options={[
-            { id: 'sales', label: t('portal.desk.salesKpi') },
-            { id: 'orders', label: t('portal.desk.ordersKpi') },
-            { id: 'ticket', label: t('portal.desk.ticketKpi') },
-          ]}
-        />
-        {!ranked.length && <div className="desk-empty">{t('portal.desk.insufficient')}</div>}
-        {!!ranked.length && (
-          <div className="desk-hours">
-            {hourView.map(row => (
-              <div key={row.hour} className="desk-hour">
-                <span>{row.label}</span>
-                <i><b style={{ width: `${Math.round(((+row.value || 0) / hourMax) * 100)}%` }} /></i>
-                <em>{row.value ? (hourMetric === 'orders' ? row.orders : money(hourMetric === 'ticket' ? row.ticket : row.sales)) : '—'}</em>
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="desk-insights">
-          <InsightCard kicker={t('portal.desk.bestHour')} title={hourText(bestHour)} />
-          <InsightCard kicker={t('portal.desk.quietHour')} title={hourText(quietHour)} />
-        </div>
-      </section>
-
-      <section className="goal-hero desk-goal">
-        <div className="goal-modes">
+        <div className="dashboard-header-actions goal-modes">
           {SPANS.map(id => (
             <button key={id} type="button" className={span === id ? 'is-on' : ''} onClick={() => { setSpan(id); setEditing(false) }}>
               {t(`portal.desk.span.${id}`)}
             </button>
           ))}
         </div>
-        <div className="goal-hero-kicker">{t(`portal.desk.span.${span}`)} · {pct == null ? t('portal.goals.noGoal') : t('portal.goals.hit', { pct })}</div>
-        <div className="goal-hero-value">
-          {gap == null ? t('portal.goals.noGoal') : gap === 0 ? t('portal.desk.goalHit') : t('portal.desk.stillPeriod', { amount: money(gap) })}
-        </div>
-        <div className="goal-hero-goal">
-          {t('portal.desk.sold', { amount: money(view.sales) })}
-          {view.goal > 0 ? ` · ${t('portal.desk.goalOf', { amount: money(view.goal) })}` : ''}
-        </div>
-        {view.goal > 0 && (
-          <div className="goal-meter desk-goal-meter">
-            <i><b style={{ width: `${Math.max(0, Math.min(pct || 0, 100))}%` }} className={pct >= 100 ? 'is-hit' : ''} /></i>
-          </div>
-        )}
-        {editing ? (
-          <div className="desk-goal-edit">
-            <input type="number" min="0" value={draft} onChange={e => setDraft(e.target.value)} />
-            <button type="button" className="btn-primary" disabled={busy} onClick={saveSpanGoal}>{t('portal.goals.save')}</button>
-            <button type="button" className="house-text" onClick={() => setEditing(false)}>{t('house.cancel')}</button>
-          </div>
-        ) : (
-          <button type="button" className="house-text" onClick={() => { setDraft(String(view.goal || '')); setEditing(true) }}>{t('portal.desk.changeGoal')}</button>
-        )}
-        {span === 'turno' ? (
-          <div className="goal-modes">
-            {['noite', 'dia'].map(id => {
-              const row = progress.bands?.[id]
-              return (
-                <button key={id} type="button" className={band === id ? 'is-on' : ''} onClick={() => setBand(id)}>
-                  {t(id === 'noite' ? 'portal.desk.nightShift' : 'portal.desk.dayShift')}
-                  {row ? ` · ${money(row.sales)}` : ''}
-                </button>
-              )
-            })}
-          </div>
-        ) : (
-          <GoalChart rows={chart} goal={chartGoal} />
-        )}
-        {span === 'noite' && (
-          <p className="desk-note">
-            {t('portal.desk.vsWeek', {
-              day: t(`portal.close.days.${weekdayOf(night)}`),
-              now: money(cmp.now),
-              before: money(cmp.before),
-              delta: `${cmp.delta >= 0 ? '+' : '−'}${money(Math.abs(cmp.delta))}`,
-            })}
-          </p>
-        )}
-        {span === 'mes' && progress.lucro.goal > 0 && (
-          <p className="desk-note">
-            {t('portal.desk.netLine', {
-              profit: money(monthNet.net),
-              goal: money(progress.lucro.goal),
-              left: profitGap == null ? '' : money(profitGap),
-            })}
-          </p>
-        )}
-        {span === 'turno' && (
-          <p className="desk-note">
-            {activeBand?.count
-              ? t('portal.desk.tillSource', {
-                count: activeBand.count,
-                detail: (activeBand.hours || []).map(h => `${h.label} ${money(h.sales)}`).join(' · ') || money(activeBand.sales),
-              })
-              : t('portal.desk.tillEmpty')}
-            {' '}
-            {t('portal.desk.tillNote')}
-          </p>
-        )}
-        {span !== 'turno' && peak && (
-          <p className="desk-ai-line">
-            {t('portal.desk.aiLine', { hour: peak.label || String(peak.hour || ''), amount: money(peak.total) })}
-          </p>
-        )}
-        <button type="button" className="house-text" onClick={() => setAsk(v => !v)}>{t('portal.desk.ask')}</button>
-      </section>
+      </header>
 
-      {ask && <BarOwnerAi bar={bar} hq={hq} />}
-
-      {(hq?.jbm?.billCheck?.status === 'off' || hq?.jbm?.billCheck?.status === 'paid-gap') && (
-        <button type="button" className="desk-alarm" onClick={() => onTab?.('faturas')}>
-          <strong>{t(hq.jbm.billCheck.status === 'paid-gap' ? 'notifications.paidGapTitle' : 'notifications.mismatchTitle')}</strong>
-          <em>{t(hq.jbm.billCheck.status === 'paid-gap' ? 'notifications.paidGapBody' : 'notifications.mismatchBody', {
-            from: hq.jbm.billCheck.start || '—',
-            to: hq.jbm.billCheck.end || '—',
-            orders: money(hq.jbm.billCheck.orders || 0),
-            invoice: money(hq.jbm.billCheck.invoice || 0),
-            amount: money(hq.jbm.billCheck.gapPaid || Math.abs(hq.jbm.billCheck.delta || 0)),
-          })}</em>
+      <div className="quick-actions">
+        <button type="button" className="action-primary" onClick={() => onTab?.('pos')}>
+          <NavIcon name="pos" />
+          Open POS
         </button>
-      )}
+        <button type="button" className="action-secondary" onClick={() => onTab?.('espacos')}>
+          <NavIcon name="espacos" />
+          View Floor
+        </button>
+        <button type="button" className="action-secondary" onClick={() => onTab?.('pedidos')}>
+          <NavIcon name="pedidos" />
+          Orders
+        </button>
+        <button type="button" className="action-secondary" onClick={() => onTab?.('fechamento')}>
+          <NavIcon name="fechamento" />
+          Cash Register
+        </button>
+      </div>
 
-      <section className="desk-card">
-        <h3>{t('portal.desk.alerts')}</h3>
-        {!!lateBills.length && (
-          <div className="pay-late">
-            <strong>{t('portal.desk.lateAlert', { count: lateBills.length })}</strong>
-            <b>{money(lateTotal)}</b>
-          </div>
+      <div className="kpi-grid">
+        <MetricCard
+          label="Net Sales"
+          status={salesStatus}
+          value={money(tonightSum)}
+          detail={salesStatus === 'available'
+            ? (progress.noite.goal > 0 ? `${t('portal.desk.target')} ${money(progress.noite.goal)}` : t('portal.goals.noGoal'))
+            : 'No completed sales for this period'}
+          trend={priorWeek ? `${cmp.delta >= 0 ? '+' : '−'}${money(Math.abs(cmp.delta))}` : ''}
+        />
+        {profitStatus === 'available' && (
+          <MetricCard
+            label="Gross Profit"
+            status="available"
+            value={money(lucro.profit)}
+            detail={`${t('portal.desk.costKpi')} ${money(lucro.cost)}`}
+          />
         )}
-        {!lateBills.length && !nextBills.length && !incoming.length && <div className="desk-empty">{t('portal.desk.noAlerts')}</div>}
-        {lateBills.map(a => (
-          <button key={a.id} type="button" className="desk-alert is-bad" onClick={() => onTab?.(a.tab)}>
-            <span>
-              <strong>{a.title || t(`portal.pay.kind.${a.kind}`)}</strong>
-              <em>{whenLabel(a.date)} · {t('portal.desk.overdue', { days: Math.abs(a.days) })}</em>
-            </span>
-            <b>{money(a.amount)}</b>
-          </button>
-        ))}
-        {nextBills.map(a => (
-          <button key={a.id} type="button" className={`desk-alert ${a.days === 0 || a.days <= 7 ? 'is-soon' : ''}`} onClick={() => onTab?.(a.tab)}>
-            <span>
-              <strong>{a.title || t(`portal.pay.kind.${a.kind}`)}</strong>
-              <em>{whenLabel(a.date)}</em>
-            </span>
-            <b>{money(a.amount)}</b>
-          </button>
-        ))}
-        {!!incoming.length && (
-          <div>
-            <div className="desk-pay-label">{t('portal.desk.pay.in')}</div>
-            {incoming.map(a => (
-              <button key={a.id} type="button" className="desk-alert is-in" onClick={() => onTab?.(a.tab)}>
+        <MetricCard
+          label="Average Ticket"
+          status={ticketStatus}
+          value={money(tonightAvg)}
+          detail={ticketStatus === 'available' ? t('portal.desk.tickets', { count: tonightCount }) : 'No completed sales for this period'}
+        />
+        <MetricCard
+          label="Orders"
+          status={salesStatus}
+          value={String(tonightCount)}
+          detail={salesStatus === 'available' ? t('portal.desk.ordersKpi') : 'No completed sales for this period'}
+        />
+        <MetricCard
+          label="Guests"
+          status={guestStatus}
+          value={String(guestCount)}
+          detail={guestStatus === 'available' ? t('portal.desk.ordersKpi') : 'No completed sales for this period'}
+        />
+      </div>
+
+      <div className="dashboard-main-grid">
+        <section className="dashboard-primary">
+          <Panel
+            title="Sales"
+            extra={priorWeek ? <span className="eyebrow">Vs last {t(`portal.close.days.${weekdayOf(night)}`)}</span> : null}
+          >
+            {!chartHasSales && (
+              <ChartEmpty
+                title="Not enough data yet"
+                detail="Sales activity will appear here once transactions are recorded."
+              />
+            )}
+            {chartHasSales && <GoalChart rows={chart} goal={chartGoal} />}
+            {priorWeek && (
+              <p className="metric-detail">
+                {t('portal.desk.vsWeek', {
+                  day: t(`portal.close.days.${weekdayOf(night)}`),
+                  now: money(cmp.now),
+                  before: money(cmp.before),
+                  delta: `${cmp.delta >= 0 ? '+' : '−'}${money(Math.abs(cmp.delta))}`,
+                })}
+              </p>
+            )}
+            <div className="goal-hero-goal">
+              {salesStatus === 'available'
+                ? t('portal.desk.sold', { amount: money(view.sales) })
+                : 'No completed sales for this period'}
+              {view.goal > 0 && salesStatus === 'available' ? ` · ${t('portal.desk.goalOf', { amount: money(view.goal) })}` : ''}
+            </div>
+            {editing ? (
+              <div className="desk-goal-edit">
+                <input type="number" min="0" value={draft} onChange={e => setDraft(e.target.value)} />
+                <button type="button" className="btn-primary" disabled={busy} onClick={saveSpanGoal}>{t('portal.goals.save')}</button>
+                <button type="button" className="house-text" onClick={() => setEditing(false)}>{t('house.cancel')}</button>
+              </div>
+            ) : (
+              <button type="button" className="house-text" onClick={() => { setDraft(String(view.goal || '')); setEditing(true) }}>{t('portal.desk.changeGoal')}</button>
+            )}
+          </Panel>
+
+          <Panel
+            title={t('portal.desk.hourlyTitle')}
+            extra={(
+              <MetricSwitch
+                value={hourMetric}
+                onChange={setHourMetric}
+                options={[
+                  { id: 'sales', label: t('portal.desk.salesKpi') },
+                  { id: 'orders', label: t('portal.desk.ordersKpi') },
+                  { id: 'ticket', label: t('portal.desk.ticketKpi') },
+                ]}
+              />
+            )}
+          >
+            {!ranked.length && (
+              <ChartEmpty
+                title="Not enough data yet"
+                detail="Sales activity will appear here once transactions are recorded."
+              />
+            )}
+            {!!ranked.length && (
+              <div className="desk-hours">
+                {hourView.map(row => (
+                  <div key={row.hour} className="desk-hour">
+                    <span>{row.label}</span>
+                    <i><b style={{ width: `${Math.round(((+row.value || 0) / hourMax) * 100)}%` }} /></i>
+                    <em>{row.value ? (hourMetric === 'orders' ? row.orders : money(hourMetric === 'ticket' ? row.ticket : row.sales)) : '—'}</em>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="desk-insights">
+              <InsightCard kicker={t('portal.desk.bestHour')} title={hourText(bestHour)} />
+              <InsightCard kicker={t('portal.desk.quietHour')} title={hourText(quietHour)} />
+            </div>
+          </Panel>
+
+          <Panel title="Product performance">
+            {!worked.topCast?.length && (
+              <ChartEmpty
+                title="Not enough data yet"
+                detail="Sales activity will appear here once transactions are recorded."
+              />
+            )}
+            {worked.topCast?.map(row => (
+              <div key={row.nome} className="desk-row">
+                <strong>{row.nome}</strong>
+                <b>{money(row.sales)}</b>
+              </div>
+            ))}
+          </Panel>
+        </section>
+
+        <aside className="dashboard-secondary">
+          <Panel title="Shift">
+            {!shiftKnown && <p className="metric-detail">Shift status is unavailable without the live register.</p>}
+            {shiftKnown && !onClock.length && <p className="metric-detail">{t('portal.desk.emptyClock')}</p>}
+            {onClock.map(r => (
+              <div key={r.staff_id} className="desk-row">
+                <div>
+                  <strong>{r.nome}</strong>
+                  <em>{t('portal.desk.onClock')}</em>
+                </div>
+              </div>
+            ))}
+            {span === 'turno' && (
+              <div className="goal-modes">
+                {['noite', 'dia'].map(id => (
+                  <button key={id} type="button" className={band === id ? 'is-on' : ''} onClick={() => setBand(id)}>
+                    {t(id === 'noite' ? 'portal.desk.nightShift' : 'portal.desk.dayShift')}
+                  </button>
+                ))}
+              </div>
+            )}
+          </Panel>
+
+          <Panel title="Floor">
+            {!floorKnown && <p className="metric-detail">Floor status is unavailable.</p>}
+            {floorKnown && (
+              <ul className="floor-snapshot">
+                <li><span className="status-occupied">Occupied</span><strong>{floor.seated || 0}</strong></li>
+                <li><span className="status-warning">Reserved</span><strong>{floor.reserved || 0}</strong></li>
+                <li><span className="status-available">Available</span><strong>{floor.free || 0}</strong></li>
+              </ul>
+            )}
+            {openOrders > 0 && (
+              <button type="button" className="house-text" onClick={() => onTab?.('pedidos')}>
+                {openOrders} open {openOrders === 1 ? 'order' : 'orders'}
+              </button>
+            )}
+          </Panel>
+
+          <Panel title="Alerts">
+            {!lateBills.length && !nextBills.length && !incoming.length && (
+              <p className="metric-detail">No alerts from the current books.</p>
+            )}
+            {lateBills.map(a => (
+              <button key={a.id} type="button" className="desk-alert is-bad" onClick={() => onTab?.(a.tab)}>
                 <span>
                   <strong>{a.title || t(`portal.pay.kind.${a.kind}`)}</strong>
                   <em>{whenLabel(a.date)}</em>
                 </span>
-                <b>+{money(a.amount)}</b>
+                <b>{money(a.amount)}</b>
               </button>
             ))}
-          </div>
-        )}
-        <button type="button" className="house-text" onClick={() => onTab?.('pagamentos')}>{t('portal.desk.seeAll')}</button>
-      </section>
+            {nextBills.slice(0, 3).map(a => (
+              <button key={a.id} type="button" className="desk-alert" onClick={() => onTab?.(a.tab)}>
+                <span>
+                  <strong>{a.title || t(`portal.pay.kind.${a.kind}`)}</strong>
+                  <em>{whenLabel(a.date)}</em>
+                </span>
+                <b>{money(a.amount)}</b>
+              </button>
+            ))}
+            {cashKnown && (
+              <div className="desk-cash">
+                <div><span>{t('portal.desk.inHand')}</span><strong>{money(inHand)}</strong></div>
+                <div><span>{t('portal.desk.toPay7')}</span><strong>{money(toPay)}</strong></div>
+              </div>
+            )}
+            <button type="button" className="house-text" onClick={() => onTab?.('pagamentos')}>{t('portal.desk.seeAll')}</button>
+          </Panel>
+        </aside>
+      </div>
 
-      <section className="desk-card">
-        <h3>{t('portal.desk.cash')}</h3>
-        <div className="desk-cash">
-          <div><span>{t('portal.desk.inHand')}</span><strong>{money(inHand)}</strong></div>
-          <div><span>{t('portal.desk.toReceive')}</span><strong>{money(card.waiting)}</strong></div>
-          <div><span>{t('portal.desk.toPay7')}</span><strong>{money(toPay)}</strong></div>
-        </div>
-      </section>
-
-      <section className="desk-card">
-        <h3>{t('portal.desk.cast')}</h3>
-        {!castRows.length && <div className="desk-empty">{t('portal.desk.emptyCast')}</div>}
-        {castRows.map(c => (
-          <div key={c.id} className="desk-row">
-            <div>
-              <strong>
-                {c.name}
-                {c.birthday && <span className="desk-bday">{t('portal.desk.bday')}</span>}
-              </strong>
-              {c.pct != null && (
-                <div className="goal-meter">
-                  <span>{c.pct}%</span>
-                  <i><b style={{ width: `${Math.max(0, Math.min(c.pct, 100))}%` }} className={c.pct >= 100 ? 'is-hit' : ''} /></i>
-                </div>
-              )}
-            </div>
-            <div className="desk-row-money">
-              <b>{money(c.sales)}</b>
-              <em>{t('portal.desk.commission')} {money(c.commission)}</em>
-            </div>
-          </div>
-        ))}
-      </section>
-
-      <section className="desk-card">
-        <h3>{t('portal.desk.labor')}</h3>
-        {!onClock.length && <div className="desk-empty">{t('portal.desk.emptyClock')}</div>}
-        {onClock.map(r => (
-          <div key={r.staff_id} className="desk-row">
-            <div>
-              <strong>{r.nome}</strong>
-              <em>{t('portal.desk.perHour', { amount: money(r.salario_hora || 0) })}</em>
-            </div>
-            <b>{t('portal.desk.onClock')}</b>
-          </div>
-        ))}
-      </section>
-
-      <section className="desk-card">
-        <h3>{t('portal.desk.more')}</h3>
-        <div className="desk-more">
-          <button type="button" onClick={() => onTab?.('pedidos')}>{t('portal.desk.orders')} · {openOrders}</button>
-          <button type="button" onClick={() => onTab?.('espacos')}>{t('portal.desk.floor')} · {floor?.seated || 0}</button>
-          <button type="button" onClick={() => onTab?.('custos')}>{t('portal.desk.books')}</button>
-          <button type="button" onClick={() => onTab?.('pos')}>{t('portal.desk.till')}</button>
-          <button type="button" onClick={() => onTab?.('metas')}>{t('nav.portalGoals')}</button>
-          <button type="button" onClick={() => onTab?.('fechamento')}>{t('nav.portalClose')}</button>
-          <button type="button" onClick={() => onTab?.('pagamentos')}>{t('nav.portalPay')}</button>
-          <button type="button" onClick={() => onTab?.('salarios')}>{t('nav.portalSalary')}</button>
-        </div>
-      </section>
+      {ask && <BarOwnerAi bar={bar} hq={hq} />}
+      <button type="button" className="house-text" onClick={() => setAsk(v => !v)}>{t('portal.desk.ask')}</button>
     </div>
   )
 }

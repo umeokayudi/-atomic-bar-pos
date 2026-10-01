@@ -57,6 +57,7 @@ import { booksAreSeparate } from '../lib/costBooks'
 import { asReactText } from '../lib/errText'
 import { NotificationBell, useBarOverdueAlerts } from './Notifications'
 import DemoModeBanner from './DemoModeBanner'
+import NavIcon from './ui/NavIcon'
 const BarOrdersTab = lazy(() => import('./BarOrdersTab'))
 const DashboardCalendar = lazy(() => import('./DashboardCalendar'))
 
@@ -234,6 +235,21 @@ function HomeTab({ bar, onTab }) {
   const topMargin = periodProjection.products.slice(0, 6)
 
   const ativos  = pedidos.filter(p=>p.status==='pendente'||p.status==='confirmado')
+  const opsGlance = buildBarOpsGlance({
+    hq,
+    floor: floorGlance,
+    openOrders: ativos.length,
+    posTickets,
+    posMonthFallback: posMonthTotal,
+    account,
+    invoices: faturas,
+  })
+  const glanceHasOps = Boolean(
+    opsGlance.posToday || opsGlance.posMonth || opsGlance.posLastNight || opsGlance.lastSession
+    || opsGlance.jbmBill || opsGlance.openAr || opsGlance.wages || opsGlance.rent
+    || opsGlance.openOrders || opsGlance.lowStock || opsGlance.hours
+  )
+  const booksHaveFigures = Boolean(costBooks || vendas.length || faturas.length || (posTickets && posTickets.length))
 
   const maxMonth = Math.max(...monthlyData, 1)
 
@@ -269,19 +285,7 @@ function HomeTab({ bar, onTab }) {
   }
 
   return (
-    <div className="fade-in portal-page easy-dash hq-dash">
-      <div className="hq-top">
-        <div>
-          <div className="hq-title">{bar.nome}</div>
-          <div className="hq-sub">{t('portal.home.atAGlance')}</div>
-        </div>
-      </div>
-
-      <section className="home-band">
-        <div className="hq-actions-label">{t('portal.home.doTonight')}</div>
-        <BarCommandActions onTab={onTab} ids={['pos', 'pedidos', 'espacos', 'clientes', 'ponto', 'fechamento']} />
-      </section>
-
+    <div className="fade-in portal-page executive-home">
       <BarDesk
         bar={bar}
         hq={hq}
@@ -303,20 +307,15 @@ function HomeTab({ bar, onTab }) {
       </Suspense>
 
       <section className="home-band">
+      {glanceHasOps && (
       <BarOpsGlance
-        glance={buildBarOpsGlance({
-          hq,
-          floor: floorGlance,
-          openOrders: ativos.length,
-          posTickets,
-          posMonthFallback: posMonthTotal,
-          account,
-          invoices: faturas,
-        })}
+        glance={opsGlance}
         onTab={onTab}
       />
+      )}
       </section>
 
+      {booksHaveFigures && (
       <section className="home-band home-band-books">
           {costBooks ? (
             <CostBooksHero books={costBooks} access={access} onSelect={() => onTab('custos')} />
@@ -367,7 +366,7 @@ function HomeTab({ bar, onTab }) {
       </div>
       )}
 
-      {attentionItems.length > 0 ? (
+      {attentionItems.length > 0 && (
         <div className="easy-dash-alert">
           <div style={{ fontSize:11, fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:8 }}>{t('portal.home.needsAttention')}</div>
           {attentionItems.map(item => (
@@ -376,10 +375,9 @@ function HomeTab({ bar, onTab }) {
             </button>
           ))}
         </div>
-      ) : (
-        <div className="easy-dash-ok">{t('portal.home.allClear')}</div>
       )}
       </section>
+      )}
 
       <button type="button" className="easy-dash-more" onClick={() => setShowMore(v => !v)}>
         {showMore ? t('portal.home.hideDetails') : t('portal.home.showDetails')}
@@ -2183,7 +2181,6 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
 
   return (
     <div className={`app-shell${DOCK.length ? ' has-easy-dock' : ''}`}>
-      <DemoModeBanner />
       <ShellOverlay open={menuOpen} onClose={() => setMenuOpen(false)} />
       <MobileTopBar
         open={menuOpen}
@@ -2202,8 +2199,14 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
             <div key={g.id} className="nav-group">
               {g.labelKey && <div className="nav-group-label">{t(g.labelKey)}</div>}
               {g.items.map(n => (
-                <button key={n.id} onClick={() => selectTab(n.id)} className={`nav-item ${tab===n.id?'active':''}`}>
-                  <span>{n.icon}</span>
+                <button
+                  key={n.id}
+                  type="button"
+                  onClick={() => selectTab(n.id)}
+                  className={`nav-item sidebar-link${tab===n.id ? ' active' : ''}`}
+                  aria-current={tab===n.id ? 'page' : undefined}
+                >
+                  <NavIcon name={n.id} />
                   <span>{t(n.labelKey)}</span>
                 </button>
               ))}
@@ -2221,7 +2224,8 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
           <button onClick={signOut} className="sidebar-signout">{t('common.signOut')}</button>
         </div>
       </aside>
-      <main className="app-main app-main-wide">
+      <div className="app-main app-main-wide">
+        <DemoModeBanner />
         <AutoClose bar={bar} />
         <WorkspaceChrome>
           <UiPrefsPanel compact />
@@ -2232,6 +2236,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
           )}
           <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
         </WorkspaceChrome>
+        <main className="app-content">
         {tab==='custos'    && isGerente(perfil?.role) && <BarCostsTab bar={bar} onTab={selectTab} />}
         {tab==='metas' && canManageBarTeam(perfil?.role) && <TabHold><BarGoalsTab bar={bar} /></TabHold>}
         {tab==='eventos' && canManageBarTeam(perfil?.role) && <TabHold><BarEventsTab bar={bar} /></TabHold>}
@@ -2263,17 +2268,18 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         {tab==='faturas'   && canManageBarTeam(perfil?.role) && <FaturasTab bar={bar} />}
         {tab==='recibos'  && canManageBarTeam(perfil?.role) && <TabHold><PortalRecibosTab bar={bar} /></TabHold>}
         {tab==='ia'       && canManageBarTeam(perfil?.role) && <TabHold><PortalClienteAI bar={bar} /></TabHold>}
-      </main>
+        </main>
+      </div>
       {DOCK.length > 0 && (
         <nav className="easy-dock" aria-label={t('nav.portalHome')}>
           {DOCK.map(d => (
             <button key={d.id} type="button" className={tab===d.id ? 'is-on' : ''} onClick={() => selectTab(d.id)}>
-              <span className="easy-dock-icon">{d.icon}</span>
+              <span className="easy-dock-icon"><NavIcon name={d.id} /></span>
               <span>{t(d.labelKey)}</span>
             </button>
           ))}
           <button type="button" className={!dockOn || menuOpen ? 'is-on' : ''} onClick={() => setMenuOpen(o => !o)}>
-            <span className="easy-dock-icon">☰</span>
+            <span className="easy-dock-icon"><NavIcon name="more" /></span>
             <span>{t('nav.more')}</span>
           </button>
         </nav>
