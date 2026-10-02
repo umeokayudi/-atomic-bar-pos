@@ -6,6 +6,7 @@ import { payrollFromPunches, monthRange } from '../lib/timeClock'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 import { postClockMark } from './TimeClock'
+import { isLocalDemo } from '../lib/supabase'
 
 export default function BarTeamTab({ bar, embedded = false }) {
   const { perfil } = useAuth()
@@ -226,7 +227,7 @@ export default function BarTeamTab({ bar, embedded = false }) {
                   <button
                     type="button"
                     className={open ? 'people-out' : 'people-in'}
-                    disabled={busyId === s.id}
+                    disabled={busyId === s.id || isLocalDemo}
                     onClick={() => mark(s.id, open ? 'out' : 'in')}
                   >
                     {busyId === s.id ? t('common.wait') : (open ? t('clock.bigOut') : t('clock.bigIn'))}

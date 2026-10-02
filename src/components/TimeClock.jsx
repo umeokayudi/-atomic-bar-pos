@@ -12,6 +12,7 @@ import { asReactText, errText } from '../lib/errText'
 import { SectionHeader } from './ui/ops'
 
 export async function postClockMark({ barId, staffId, tipo, managerMark }) {
+  if (isLocalDemo) throw new Error('Time clock is unavailable in local demo. No punch was saved.')
   const res = await staffFetch('/api/time-clock', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

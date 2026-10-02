@@ -225,6 +225,10 @@ button:disabled, button[aria-disabled="true"] {
   letter-spacing: 0.02em;
 }
 .btn-primary:hover { background: var(--accent-hover) !important; opacity: 1; }
+.btn-primary:disabled, .btn-primary[aria-disabled="true"] {
+  opacity: 0.45 !important;
+  cursor: not-allowed;
+}
 
 .btn-gold {
   background: var(--blue) !important;
@@ -2201,6 +2205,13 @@ html[data-device="phone"] .easy-dock button {
   cursor: pointer;
 }
 html[data-device="phone"] .easy-dock button.is-on { color: var(--gold); }
+html[data-device="phone"] .pos-m-dock {
+  bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+  z-index: 180;
+}
+html[data-device="phone"] .pos-mode-mobile {
+  padding-bottom: calc(210px + env(safe-area-inset-bottom, 0px));
+}
 html[data-device="phone"] .house-editor,
 html[data-device="phone"] .house-split,
 html[data-device="phone"] .house-form,
@@ -5979,8 +5990,14 @@ html[data-layout="desktop"] .app-main {
 @media (max-width: 1024px) {
   .ab-dialog { width: min(440px, calc(100vw - 24px)); }
 }
-@media (max-width: 390px) {
+@media (max-width: 430px) {
   .app-content { padding-left: 12px; padding-right: 12px; }
+  .pos-cart-row { flex-wrap: wrap; align-items: flex-start; }
+  .pos-cart-qty { flex-wrap: wrap; }
+  .ord-sendbar { flex-wrap: wrap; }
+  .ord-send-end { margin-left: 0; width: 100%; justify-content: space-between; }
+  .pos-pay { white-space: normal; }
+  .login-wrap { padding: 16px; }
 }
 
 

@@ -13,7 +13,7 @@ export default function PosMobile({ t, floor }) {
       <header className="pos-m-top">
         <div>
           <strong>{space?.nome || t('posFloor.pickSpace')}</strong>
-          <span>{fmtYen(preview?.subtotal || 0)}</span>
+          <span>{lines.length ? fmtYen(preview?.subtotal || 0) : '—'}</span>
         </div>
         <button type="button" onClick={floor.openSettings}>{t('posFloor.layout')}</button>
       </header>
@@ -71,9 +71,10 @@ export default function PosMobile({ t, floor }) {
         <section className="pos-m-panel pos-m-pay-panel">
           <div className="pos-m-total">
             <span>{t('posFloor.total')}</span>
-            <strong>{fmtYen(preview?.subtotal || 0)}</strong>
+            <strong>{lines.length ? fmtYen(preview?.subtotal || 0) : '—'}</strong>
           </div>
-          {preview && (
+          {!lines.length && <p className="pos-floor-meta">{t('posFloor.noOpenTicket')}</p>}
+          {lines.length > 0 && preview && (
             <p className="pos-floor-meta">
               {t('posFloor.fee')} {fmtYen(preview.fee)} · {t('posFloor.net')} {fmtYen(preview.net)} · {t('posFloor.commission')} {fmtYen(preview.commission)}
             </p>
@@ -98,7 +99,7 @@ export default function PosMobile({ t, floor }) {
 
       <div className="pos-m-dock">
         <button type="button" className="pos-m-charge" disabled={busy || !lines.length || !!blocked} onClick={floor.charge}>
-          {busy ? t('posFloor.saving') : `${t('posFloor.charge')} ${fmtYen(preview?.subtotal || 0)}`}
+          {busy ? t('posFloor.saving') : lines.length ? `${t('posFloor.charge')} ${fmtYen(preview?.subtotal || 0)}` : t('posFloor.chargeEmpty')}
         </button>
         <nav className="pos-m-nav" aria-label={t('posFloor.layout')}>
           {[
