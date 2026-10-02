@@ -4,6 +4,7 @@ import { useAuth } from './Auth'
 import { useI18n } from '../lib/i18n'
 import { schemaMissing } from '../lib/fulfillment'
 import { AlertCard, AssignmentActions, IssueModal, OrderTimeline, StatusBadge } from './fulfillment/FulfillmentWidgets'
+import { WorkLanes } from './experience/Stage'
 import DemoModeBanner from './DemoModeBanner'
 import { LogoSidebar } from './Logo'
 
@@ -112,10 +113,18 @@ export default function SupplierPortal({ onSignOut }) {
           </div>
           <span className="status-badge is-approved">{isLocalDemo ? 'Demo' : `${rows.length} assignments`}</span>
         </header>
-        {missing && <p className="ff-miss">{isLocalDemo ? t('common.demoBlocked') : t('fulfillment.schemaMissing')}</p>}
-        {isLocalDemo && !missing && <p className="ff-miss">{t('common.demoBlocked')}</p>}
-        {err && <p className="ff-miss">{err}</p>}
-        {!linked && <p>{t('fulfillment.notLinked')}</p>}
+        {missing && !isLocalDemo && <p className="ff-miss">{t('fulfillment.schemaMissing')}</p>}
+        {err && !isLocalDemo && <p className="ff-miss">{err}</p>}
+        {!linked && !isLocalDemo && <p>{t('fulfillment.notLinked')}</p>}
+        {isLocalDemo && (
+          <WorkLanes lanes={[
+            { title: 'Orders', state: 'Not connected' },
+            { title: 'Fulfillment', state: 'Not connected' },
+            { title: 'Delivery', state: 'Not connected' },
+            { title: 'Catalog', state: 'Not connected' },
+            { title: 'Purchase history', state: 'Not connected' },
+          ]} />
+        )}
         {alerts.map(a => <AlertCard key={a.id} alert={a} />)}
         <div className="ff-list">
           {rows.length === 0 && linked && !missing && !isLocalDemo ? <p className="ab-empty">{t('fulfillment.supplierEmpty')}</p> : rows.map(r => (

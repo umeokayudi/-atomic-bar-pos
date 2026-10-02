@@ -145,7 +145,7 @@ export default function AiAssistantWorkspace({ demo = false }) {
   const providerLine = statusError
     ? statusError
     : provider
-      ? `Model: ${provider.configured ? provider.provider : 'not configured'}. Business data: not connected. Drafts: unavailable.`
+      ? 'Ask in your own words. This bar’s books and the model are not connected, so figures are not invented.'
       : 'Checking the assistant configuration…'
 
   return (
@@ -169,7 +169,7 @@ export default function AiAssistantWorkspace({ demo = false }) {
           {!active?.messages?.length && (
             <div className="ai-chat-empty">
               <strong>Ask Atomic</strong>
-              <p>Ask in your own words about sales, profit, products, stock, suppliers, cash, labor, or reports. Missing data stays missing.</p>
+              <p>Sales, profit, stock, suppliers, cash, labor, or reports.</p>
             </div>
           )}
           {(active?.messages || []).map(message => (

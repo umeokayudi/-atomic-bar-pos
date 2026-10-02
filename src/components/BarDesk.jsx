@@ -321,6 +321,7 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
           goals={goals}
           registry={registry}
           payroll={hq?.payroll}
+          onTab={onTab}
           onManage={() => { setMode('manager'); try { sessionStorage.setItem('atomic-bar-desk-mode', 'manager') } catch { /* ignore */ } }}
         />
       )}
@@ -352,14 +353,7 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
         </>
       )}
 
-      <div className="quick-actions">
-        <QuickAction primary icon="pos" onClick={() => onTab?.('pos')}>Open POS</QuickAction>
-        <QuickAction icon="espacos" onClick={() => onTab?.('espacos')}>Floor</QuickAction>
-        <QuickAction icon="pedidos" onClick={() => onTab?.('pedidos')}>Orders</QuickAction>
-        <QuickAction icon="fechamento" onClick={() => onTab?.('fechamento')}>Cash Register</QuickAction>
-      </div>
-
-      <div className="command-grid">
+      {(onClock.length > 0 || cashKnown || lateBills.length > 0 || nextBills.length > 0 || (stockKnown && stockLow > 0)) && <div className="command-grid">
         <aside className="command-side">
           <Panel title="Shift overview">
             {!shiftKnown && <p className="metric-detail">Shift status is unavailable without the live register.</p>}
@@ -459,10 +453,7 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
             <button type="button" className="house-text" onClick={() => onTab?.('pagamentos')}>{t('portal.desk.seeAll')}</button>
           </Panel>
         </aside>
-      </div>
-
-      {ask && <BarOwnerAi bar={bar} hq={hq} />}
-      <button type="button" className="house-text" onClick={() => setAsk(v => !v)}>{t('portal.desk.ask')}</button>
+      </div>}
     </div>
   )
 }

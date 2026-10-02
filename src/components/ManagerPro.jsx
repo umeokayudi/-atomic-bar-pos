@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { fmtYen } from './utils'
+import { TrendStage } from './experience/Stage'
 import { isLocalDemo, supabase } from '../lib/supabase'
 import { COMPARE_MODES, PRESETS, analyze } from '../lib/managerAnalytics'
 import { addDays } from '../lib/barClose'
@@ -46,26 +47,22 @@ function changeLine(change) {
   return `${signedYen(change.abs)}${pct}`
 }
 
-function Kpi({ label, value, previous, change, detail, status }) {
+function Kpi({ label, value, change, status }) {
+  const ready = status === 'available' || status === 'empty'
   return (
     <article className={`mp-kpi is-${status || 'unavailable'}`}>
       <header>
         <span>{label}</span>
-        <em>{status === 'available' || status === 'empty' ? 'Recorded' : 'Insufficient data'}</em>
+        <em>{ready ? change : 'Not connected'}</em>
       </header>
       <strong>{value}</strong>
-      <p>Previous {previous}</p>
-      <p>{change}</p>
-      <p className="mp-note">{detail}</p>
     </article>
   )
 }
 
 function SalesChart({ points, onPick, active }) {
   const known = points.filter(point => point.sales != null)
-  if (!known.length) {
-    return <p className="mp-note">No sales series for this range. Missing nights are left blank.</p>
-  }
+  if (!known.length) return null
   const width = 720
   const height = 220
   const pad = 36
@@ -259,10 +256,12 @@ export default function ManagerPro({ bar, tickets = [], people = [], goals, regi
           </select>
         </label>
       </div>
-      <p className="mp-note">
-        {report.range.start} → {report.range.end} · {report.timezone} · operational day {report.operationalDay}.
-        {' '}Compared with {report.compareTo.start} → {report.compareTo.end}. The bar does not change with the dates.
-      </p>
+      <p className="work-quiet">{report.range.start} → {report.range.end} · compared with {report.compareTo.start} → {report.compareTo.end}</p>
+      <TrendStage
+        title="Sales"
+        points={(report.timeline || []).map(point => ({ label: point.label, value: point.sales }))}
+        caption="Sales are not connected"
+      />
 
       <div className="mp-kpis">
         <Kpi
@@ -331,30 +330,29 @@ export default function ManagerPro({ bar, tickets = [], people = [], goals, regi
         />
       </div>
 
+      {report.timeline.some(point => point.sales != null) && (
       <section className="panel">
         <header className="panel-head">
-          <h2 className="section-title">Sales</h2>
+          <h2 className="section-title">Detail</h2>
           <div className="goal-modes">
             {['auto', 'hour', 'day', 'week', 'month'].map(id => (
               <button key={id} type="button" className={grain === id ? 'is-on' : ''} onClick={() => setGrain(id)}>{id}</button>
             ))}
           </div>
         </header>
-        <p className="mp-note">Net sales in yen. Profit is omitted while unit cost is missing. Gaps are not connected.</p>
         <SalesChart points={report.timeline} onPick={pickPoint} active={drill?.title} />
-        {!!report.targetPerNight && <p className="mp-note">Night target on file: {yen(report.targetPerNight)}. It is a goal, not a forecast.</p>}
       </section>
+      )}
 
-      <section className="panel">
+      {!!report.insights.length && <section className="panel">
         <h2 className="section-title">Observations</h2>
-        {!report.insights.length && <p className="mp-note">No comparison is available for this range. Nothing is inferred.</p>}
         {report.insights.map(note => (
           <article key={note.id} className="mp-insight">
             <p>{note.text}</p>
             <p className="mp-note">{note.period} · {note.source} · {note.completeness}</p>
           </article>
         ))}
-      </section>
+      </section>}
 
       <section className="panel">
         <header className="panel-head">
@@ -365,7 +363,7 @@ export default function ManagerPro({ bar, tickets = [], people = [], goals, regi
           </div>
         </header>
         <p className="mp-note">{lineNote}</p>
-        {!productRows.length && <p className="mp-note">No product ranking. Revenue is not relabeled as profit.</p>}
+        {!productRows.length && <p className="work-quiet">Product ranking is not connected.</p>}
         {!!productRows.length && (
           <div className="mp-table">
             {productRows.slice(0, 8).map(row => (

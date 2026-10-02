@@ -1,5 +1,6 @@
 import { useState, useEffect, Component } from 'react'
-import { supabase } from '../lib/supabase'
+import { isLocalDemo, supabase } from '../lib/supabase'
+import { BooksClosed } from './experience/Stage'
 import { fmtYen, Spinner, Empty } from './utils'
 import PurchaseCashflowAdvisor from './PurchaseCashflowAdvisor'
 import { fromZeikomi, parseSupplierPriceNotas, formatPriceChange } from '../lib/consumptionTax'
@@ -331,5 +332,9 @@ function SmartPurchase() {
 
 
 export default function Fornecedores() {
+  const { t } = useI18n()
+  if (isLocalDemo) {
+    return <BooksClosed title={t('nav.suppliers')} lanes={['Registry', 'Pricing', 'Orders', 'History']} />
+  }
   return <ErrorBoundary><FornecedoresInner /></ErrorBoundary>
 }

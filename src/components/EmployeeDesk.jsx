@@ -4,6 +4,7 @@ import { useAuth } from './Auth'
 import { useI18n } from '../lib/i18n'
 import { fmtYen, Empty } from './utils'
 import { AdminPage, PortalKpi, PortalSurface } from './ui/PageLayout'
+import { MetricTile, WorkLanes } from './experience/Stage'
 import { schemaMissing } from '../lib/fulfillment'
 import {
   comparePlan,
@@ -70,15 +71,29 @@ export default function EmployeeDesk({ section = 'salary' }) {
         <input type="month" value={competence} onChange={e => setCompetence(e.target.value)} />
       }
     >
-      {missing && <PortalSurface><Empty text={isLocalDemo ? t('common.demoBlocked') : t('employee.schemaMissing')} /></PortalSurface>}
+      {(missing || isLocalDemo) && (
+        <div className="work">
+          <div className="work-metrics">
+            <MetricTile label="Next shift" value="—" />
+            <MetricTile label="Clock" value="—" />
+            <MetricTile label="Hours" value="—" />
+            <MetricTile label="Earnings" value="—" />
+          </div>
+          <WorkLanes lanes={[
+            { title: 'Tasks', state: 'Not connected' },
+            { title: 'Announcements', state: 'Not connected' },
+          ]} />
+          <p className="work-quiet">Personal books are not connected. Nothing is shown as zero.</p>
+        </div>
+      )}
       {err && <PortalSurface><Empty text={err} /></PortalSurface>}
-      {!missing && section === 'profile' && (
+      {!missing && !isLocalDemo && section === 'profile' && (
         <PortalSurface title={perfil?.nome || t('employee.profile')}>
           <p>{t(`shell.roles.${perfil?.role}`) || perfil?.role}</p>
           <p>{t('employee.barsWorked')}: {clock.byBar.length ? clock.byBar.map(b => b.barId || '—').join(', ') : t('employee.none')}</p>
         </PortalSurface>
       )}
-      {!missing && section === 'shifts' && (
+      {!missing && !isLocalDemo && section === 'shifts' && (
         <PortalSurface title={t('employee.shifts')}>
           <div className="admin-kpi-grid">
             <PortalKpi label={t('employee.plannedHours')} value={`${plan.plannedHours}h`} />
@@ -90,7 +105,7 @@ export default function EmployeeDesk({ section = 'salary' }) {
           <p>{t('employee.lateNotDeducted')}</p>
         </PortalSurface>
       )}
-      {!missing && section === 'clock' && (
+      {!missing && !isLocalDemo && section === 'clock' && (
         <PortalSurface title={t('employee.clock')}>
           <PortalKpi label={t('employee.workedHours')} value={`${clock.workedHours}h`} />
           <PortalKpi label={t('employee.nightHours')} value={`${clock.nightHours}h`} />
@@ -101,7 +116,7 @@ export default function EmployeeDesk({ section = 'salary' }) {
             ))}
         </PortalSurface>
       )}
-      {!missing && section === 'goals' && (
+      {!missing && !isLocalDemo && section === 'goals' && (
         <PortalSurface title={t('employee.goals')}>
           {(pack?.goals || []).length === 0 && <Empty text={t('employee.none')} />}
           {(pack?.goals || []).map(g => (
@@ -109,7 +124,7 @@ export default function EmployeeDesk({ section = 'salary' }) {
           ))}
         </PortalSurface>
       )}
-      {!missing && section === 'result' && (
+      {!missing && !isLocalDemo && section === 'result' && (
         <PortalSurface title={t('employee.result')}>
           <div className="admin-kpi-grid">
             <PortalKpi label={t('employee.workedHours')} value={`${clock.workedHours}h`} />
@@ -121,7 +136,7 @@ export default function EmployeeDesk({ section = 'salary' }) {
           ))}
         </PortalSurface>
       )}
-      {!missing && section === 'points' && (
+      {!missing && !isLocalDemo && section === 'points' && (
         <PortalSurface title={t('employee.points')}>
           {(pack?.points || []).length === 0 && <Empty text={t('employee.none')} />}
           {(pack?.points || []).map(p => (
@@ -129,14 +144,14 @@ export default function EmployeeDesk({ section = 'salary' }) {
           ))}
         </PortalSurface>
       )}
-      {!missing && section === 'occurrences' && (
+      {!missing && !isLocalDemo && section === 'occurrences' && (
         <PortalSurface title={t('employee.occurrences')}>
           <p>{t('employee.occurrenceNotPay')}</p>
           {(pack?.occurrences || []).length === 0 && <Empty text={t('employee.none')} />}
           {(pack?.occurrences || []).map(o => <div key={o.id}>{o.note}</div>)}
         </PortalSurface>
       )}
-      {!missing && section === 'rewards' && (
+      {!missing && !isLocalDemo && section === 'rewards' && (
         <PortalSurface title={t('employee.rewards')}>
           {(pack?.rewards || []).length === 0 && <Empty text={t('employee.none')} />}
           {(pack?.rewards || []).map(r => (
@@ -144,7 +159,7 @@ export default function EmployeeDesk({ section = 'salary' }) {
           ))}
         </PortalSurface>
       )}
-      {!missing && section === 'salary' && (
+      {!missing && !isLocalDemo && section === 'salary' && (
         <>
           <div className="admin-kpi-grid">
             <PortalKpi label={t('employee.competence')} value={competence} />

@@ -4,6 +4,7 @@ import { useAuth } from './Auth'
 import { useI18n } from '../lib/i18n'
 import { schemaMissing } from '../lib/fulfillment'
 import { SOURCE_TYPES } from '../lib/procurementCore'
+import { BooksClosed } from './experience/Stage'
 
 const LANES = [
   ['late', 'late'],
@@ -87,6 +88,9 @@ function MyTasks() {
   }
 
   const tasks = pack.tasks || []
+  if (isLocalDemo) {
+    return <BooksClosed title={t('procurement.myTasks')} lanes={['Assigned', 'Purchased', 'Receipt', 'Problems']} />
+  }
   return (
     <div className="ff-portal">
       <h2>{t('procurement.myTasks')}</h2>
@@ -267,6 +271,10 @@ function HqBoard() {
     const { error } = await supabase.rpc(name, args)
     if (error) setErr(error.message)
     else load()
+  }
+
+  if (isLocalDemo) {
+    return <BooksClosed title={t('procurement.title')} lanes={['Late', 'Waiting', 'In transit', 'Delivered']} />
   }
 
   return (

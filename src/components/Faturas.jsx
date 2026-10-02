@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
+import { isLocalDemo, supabase } from '../lib/supabase'
+import { BooksClosed } from './experience/Stage'
 import { fmtYen, fmtDate, Spinner, Empty, filterSupplierVendas } from './utils'
 import { PageHeader, PortalKpi, PortalSurface, PortalPills, PortalAlert } from './ui/PageLayout'
 import { pagamentoStatus, pagamentosPendentes, totalPagamentosPendentes, pagamentoEmAnalise } from '../lib/faturaPagamentos'
@@ -17,6 +18,9 @@ function getBillingPeriod(date) {
 export default function Faturas() {
   const { t } = useI18n()
   const [tab, setTab] = useState('overview')
+  if (isLocalDemo) {
+    return <BooksClosed title={t('invoices.title')} lanes={['Open', 'Overdue', 'Payments', 'Venues']} />
+  }
   return (
     <div className="fade-in" style={{ maxWidth: 1000 }}>
       <PageHeader
