@@ -3,7 +3,7 @@ import { wrapBarLive } from './barLiveClient'
 import { createLocalDemoClient } from './localDemoClient'
 import { resolveDataTarget } from './supabaseTarget'
 
-const channel = import.meta.env.VITE_DEPLOY_CHANNEL || (import.meta.env.DEV ? 'development' : 'production')
+const channel = import.meta.env.VITE_DEPLOY_CHANNEL || 'development'
 
 // The live drinks key stays inside the production branch so a Preview bundle can drop it.
 const drinksAnon = import.meta.env.VITE_DEPLOY_CHANNEL === 'production'
@@ -15,6 +15,7 @@ const target = resolveDataTarget({
   url: import.meta.env.VITE_SUPABASE_URL,
   anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
   drinksAnon,
+  stagingAuthorized: import.meta.env.VITE_ATOMIC_STAGING_AUTHORIZED === '1',
 })
 
 export const dataMode = target.mode

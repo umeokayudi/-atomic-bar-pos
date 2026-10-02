@@ -1,6 +1,10 @@
 # Implementation status
 
-Date of this note: 2026-10-02. Branch `cursor/staging-foundation-9d4b`.
+Date of this note: 2026-10-02. The connection checklist is `staging-readiness-checklist.md`.
+
+Modes are `LOCAL_DEMO`, `STAGING`, and `PRODUCTION`. A preview URL and key are not enough: `ATOMIC_STAGING_AUTHORIZED=1` is required on the server and `VITE_ATOMIC_STAGING_AUTHORIZED=1` is required in the browser. A production channel on a preview server stays in `LOCAL_DEMO`. Development never receives the drinks URL. No writer is attached, so a ready checklist still throws `STAGING_NOT_CONNECTED`.
+
+The staging command contract is `src/lib/stagingOperations.js`. It ignores the browser's role, bar, and total. It does not open a database client. The demo ledger is unchanged.
 
 ## Done
 

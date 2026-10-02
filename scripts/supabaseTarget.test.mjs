@@ -48,11 +48,43 @@ const previewSafe = resolveDataTarget({
   channel: 'preview',
   url: `https://${safeRef}.supabase.co`,
   anonKey: safeAnon.padEnd(80, 'x'),
+  stagingAuthorized: true,
 })
 assert.equal(previewSafe.mode, 'remote')
+assert.equal(previewSafe.runtime, 'STAGING')
 assert.equal(previewSafe.url, `https://${safeRef}.supabase.co`)
 assert.doesNotMatch(previewSafe.url, new RegExp(DRINKS))
 assert.doesNotMatch(previewSafe.url, new RegExp(HOLDING))
+
+const previewUnauthorized = resolveDataTarget({
+  channel: 'preview',
+  url: `https://${safeRef}.supabase.co`,
+  anonKey: safeAnon.padEnd(80, 'x'),
+})
+assert.equal(previewUnauthorized.mode, 'local')
+assert.equal(previewUnauthorized.runtime, 'LOCAL_DEMO')
+assert.equal(previewUnauthorized.url, '')
+
+const devWithDrinks = resolveDataTarget({
+  channel: 'development',
+  url: DRINKS_URL,
+  anonKey: drinksAnon,
+  stagingAuthorized: true,
+})
+assert.equal(devWithDrinks.mode, 'local')
+assert.equal(devWithDrinks.url, '')
+assert.equal(devWithDrinks.runtime, 'LOCAL_DEMO')
+
+const previewLabeledProduction = resolveDataTarget({
+  channel: 'production',
+  serverEnv: 'preview',
+  url: '',
+  anonKey: '',
+  drinksAnon,
+})
+assert.equal(previewLabeledProduction.mode, 'local')
+assert.equal(previewLabeledProduction.url, '')
+assert.doesNotMatch(previewLabeledProduction.url, new RegExp(DRINKS))
 
 const previous = process.env.VERCEL_ENV
 delete process.env.VERCEL_ENV
@@ -62,7 +94,10 @@ process.env.VERCEL_ENV = 'preview'
 assert.throws(() => assertServerMayConnect(DRINKS_URL), /Preview refuses protected Supabase projects/)
 assert.throws(() => assertServerMayConnect(`https://${HOLDING}.supabase.co`), /Preview refuses/)
 assert.throws(() => assertServerMayConnect(''), /Preview refuses/)
+assert.throws(() => assertServerMayConnect(`https://${safeRef}.supabase.co`), /ATOMIC_STAGING_AUTHORIZED/)
+process.env.ATOMIC_STAGING_AUTHORIZED = '1'
 assert.doesNotThrow(() => assertServerMayConnect(`https://${safeRef}.supabase.co`))
+delete process.env.ATOMIC_STAGING_AUTHORIZED
 process.env.VERCEL_ENV = 'production'
 assert.doesNotThrow(() => assertServerMayConnect(DRINKS_URL))
 if (previous == null) delete process.env.VERCEL_ENV

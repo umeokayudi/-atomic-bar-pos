@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describeRuntime, assertMayWrite } from '../src/lib/stagingGate.js'
 import { commit, createStore } from '../src/lib/operationalTransactions.js'
+import { acceptStagingCommand } from '../src/lib/stagingOperations.js'
 import { approveProposal, createProposal, executeProposal, groundNumbers } from '../src/lib/aiActionProposal.js'
 import { PROTECTED_REFS } from '../src/lib/supabaseTarget.js'
 
@@ -10,14 +11,18 @@ assert.equal(runtime.writes, false)
 assert.ok(runtime.blockers.some(item => /unidentified/i.test(item)))
 assert.throws(() => assertMayWrite({}), /environment is unidentified|Operational writes are refused/)
 
+const stagingRef = 'isolatedstagingproj'
+const stagingJwt = `header.${Buffer.from(JSON.stringify({ ref: stagingRef, role: 'anon' })).toString('base64url')}.sig`.padEnd(80, 'x')
 const stagingEnv = {
   VERCEL_ENV: 'preview',
   VITE_DEPLOY_CHANNEL: 'preview',
-  VITE_SUPABASE_URL: 'https://isolatedstagingproj.supabase.co',
-  VITE_SUPABASE_ANON_KEY: 'x'.repeat(80),
+  VITE_SUPABASE_URL: `https://${stagingRef}.supabase.co`,
+  VITE_SUPABASE_ANON_KEY: stagingJwt,
   ATOMIC_STAGING_AUTHORIZED: '1',
 }
-assert.equal(describeRuntime(stagingEnv).operational, true)
+const ready = describeRuntime(stagingEnv)
+assert.equal(ready.runtime, 'STAGING')
+assert.equal(ready.operational, true)
 assert.throws(() => assertMayWrite(stagingEnv), err => err.code === 'STAGING_NOT_CONNECTED')
 
 for (const ref of PROTECTED_REFS) {
@@ -260,5 +265,54 @@ const inventedProposal = createProposal({
   figures: [4],
 })
 assert.equal(inventedProposal.ok, false)
+
+const opStore = createStore({
+  catalog: { highball: { price: 800, stock: { 'bar-a': 3, 'bar-b': 3 } } },
+  cash: { 'bar-a': { status: 'open', float: 0, in: 0, out: 0 } },
+})
+const demoCall = acceptStagingCommand({
+  type: 'pos-sale',
+  role: 'admin',
+  barId: 'bar-b',
+  clientTotal: 1,
+  idempotencyKey: 'demo-key',
+  lines: [{ sku: 'highball', qty: 1 }],
+  method: 'card',
+}, { runtime: { runtime: 'LOCAL_DEMO' } }, opStore)
+assert.equal(demoCall.status, 503)
+assert.equal(opStore.catalog.highball.stock['bar-a'], 3)
+
+const stagingCtx = {
+  runtime: { runtime: 'STAGING' },
+  user: { id: 'user-1' },
+  perfil: { role: 'gerente', bar_id: 'bar-a' },
+}
+const forged = acceptStagingCommand({
+  type: 'pos-sale',
+  role: 'admin',
+  barId: 'bar-b',
+  clientTotal: 1,
+  idempotencyKey: 'forged',
+  lines: [{ sku: 'highball', qty: 1 }],
+  method: 'card',
+}, stagingCtx, opStore)
+assert.equal(forged.status, 403)
+assert.equal(opStore.catalog.highball.stock['bar-a'], 3)
+
+const sold = acceptStagingCommand({
+  type: 'pos-sale',
+  idempotencyKey: 'sale-ok',
+  lines: [{ sku: 'highball', qty: 1 }],
+  method: 'card',
+  clientTotal: 1,
+}, stagingCtx, opStore)
+assert.equal(sold.status, 200)
+assert.equal(sold.body.sale.total, 800)
+assert.equal(sold.body.sale.barId, 'bar-a')
+assert.equal(opStore.catalog.highball.stock['bar-a'], 2)
+
+const unconnected = acceptStagingCommand({ type: 'clock', idempotencyKey: 'c' }, stagingCtx)
+assert.equal(unconnected.status, 503)
+assert.equal(unconnected.body.code, 'STAGING_NOT_CONNECTED')
 
 console.log('readiness tests passed')
