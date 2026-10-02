@@ -60,7 +60,9 @@ export default function SupplierPortal({ onSignOut }) {
     setTaskCodes(map)
   }
 
-  useEffect(() => { if (user?.id) load() }, [user?.id])
+  useEffect(() => {
+    if (user?.id && !isLocalDemo) load()
+  }, [user?.id])
 
   async function openRow(row) {
     setOpen(row)
@@ -108,14 +110,15 @@ export default function SupplierPortal({ onSignOut }) {
             <span className="eyebrow">Partner workspace</span>
             <h1>{t('fulfillment.supplierTitle')}</h1>
           </div>
-          <span className="status-badge is-approved">{rows.length} assignments</span>
+          <span className="status-badge is-approved">{isLocalDemo ? 'Demo' : `${rows.length} assignments`}</span>
         </header>
         {missing && <p className="ff-miss">{isLocalDemo ? t('common.demoBlocked') : t('fulfillment.schemaMissing')}</p>}
+        {isLocalDemo && !missing && <p className="ff-miss">{t('common.demoBlocked')}</p>}
         {err && <p className="ff-miss">{err}</p>}
         {!linked && <p>{t('fulfillment.notLinked')}</p>}
         {alerts.map(a => <AlertCard key={a.id} alert={a} />)}
         <div className="ff-list">
-          {rows.length === 0 && linked && !missing ? <p className="ab-empty">{t('fulfillment.supplierEmpty')}</p> : rows.map(r => (
+          {rows.length === 0 && linked && !missing && !isLocalDemo ? <p className="ab-empty">{t('fulfillment.supplierEmpty')}</p> : rows.map(r => (
             <button key={r.id} type="button" className="ff-card" onClick={() => openRow(r)}>
               <strong>{taskCodes[r.id] || `#${String(r.order_id).slice(0, 8)}`}</strong>
               <StatusBadge status={r.status} />

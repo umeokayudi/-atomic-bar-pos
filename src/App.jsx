@@ -14,7 +14,7 @@ import { MobileTopBar, ShellOverlay, WorkspaceChrome, useMobileMenuLock } from '
 import { useNotifications, NotificationBell, useOverdueAlerts } from './components/Notifications'
 import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { AuthProvider, useAuth, LoginPage } from './components/Auth'
-import { supabase } from './lib/supabase'
+import { isLocalDemo, supabase } from './lib/supabase'
 import { isBarRole, isSupplierRole } from './lib/access'
 import { shellTabIds } from './lib/legacyScope'
 import { fmtYen, fmtDate, roleLabel } from './components/utils'
@@ -166,7 +166,7 @@ function Dashboard({ onNav }) {
   const [detailModal, setDetailModal] = useState(null)
   const [payItem, setPayItem] = useState(null)
 
-  useEffect(() => { if (user) loadStats() }, [user])
+  useEffect(() => { if (user && !isLocalDemo) loadStats() }, [user])
 
   async function loadStats() {
     setLoadErr('')
@@ -202,6 +202,16 @@ function Dashboard({ onNav }) {
     }),
   }))
 
+  if (isLocalDemo) {
+    return (
+      <div className="admin-page fade-in">
+        <PageHeader title={t('dashboard.title')} subtitle={t('dashboard.currentMonth')} />
+        <PortalSurface>
+          <div className="ab-empty">{t('common.demoBlocked')}</div>
+        </PortalSurface>
+      </div>
+    )
+  }
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, color: 'var(--text2)' }}><span className="spinner" />{t('common.loading')}</div>
   if (loadErr) {
     return (

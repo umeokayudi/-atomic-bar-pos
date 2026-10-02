@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '../lib/supabase'
+import { isLocalDemo, supabase } from '../lib/supabase'
 import { staffFetch } from '../lib/apiAuth'
 import { useAuth } from './Auth'
 import { fmtYen, fmtDate, Spinner, Empty } from './utils'
@@ -16,7 +16,7 @@ export default function ReportsBilling({ onNav }) {
   const { perfil } = useAuth()
   const isAdmin = perfil?.role === 'admin'
   const [tab, setTab] = useState('summary')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !isLocalDemo)
   const [hub, setHub] = useState(null)
   const [faturas, setFaturas] = useState([])
   const [pagamentos, setPagamentos] = useState([])
@@ -42,7 +42,9 @@ export default function ReportsBilling({ onNav }) {
     setLoading(false)
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    if (!isLocalDemo) load()
+  }, [load])
 
   const today = new Date().toISOString().slice(0, 10)
   const pending = faturas.filter(f => f.status !== 'pago')
@@ -52,7 +54,7 @@ export default function ReportsBilling({ onNav }) {
   const fin = hub?.financeiro
 
   async function triggerEmail(action) {
-    if (!isAdmin) return
+    if (!isAdmin || isLocalDemo) return
     setSending(action)
     setMsg('')
     setErr('')
@@ -70,6 +72,16 @@ export default function ReportsBilling({ onNav }) {
       setErr(errText(e))
     }
     setSending('')
+  }
+
+  if (isLocalDemo) {
+    return (
+      <AdminPage title={t('billingHub.title')} subtitle={t('billingHub.subtitle')}>
+        <PortalSurface>
+          <div className="ab-empty">{t('common.demoBlocked')}</div>
+        </PortalSurface>
+      </AdminPage>
+    )
   }
 
   if (loading) return <Spinner text={t('billingHub.loading')} />
