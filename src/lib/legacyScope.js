@@ -43,7 +43,7 @@ export function shellTabIds(role) {
   }
   if (role === 'jbm') return ['procurement', 'fulfillment', 'payroll']
   if (role === 'funcionario') {
-    return ['profile', 'shifts', 'clock', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary', 'procurement']
+    return ['clock', 'shifts', 'profile', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary', 'procurement']
   }
   if (role === 'staff') return ['purchases', 'sales', 'relatorio', 'ryoshusho', 'products']
   return []

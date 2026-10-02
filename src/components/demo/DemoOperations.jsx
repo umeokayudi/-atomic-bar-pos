@@ -59,7 +59,7 @@ function openAtomicBar() {
   window.location.reload()
 }
 
-export function DemoToday({ onTab, onNav, venue = 'Atomic Bar' }) {
+export function DemoToday({ onTab, onNav, venue = 'Atomic Bar', embedded = false }) {
   const snap = useLedger()
   const [preset, setPreset] = useState('today')
   const [custom, setCustom] = useState({ from: snap.night, to: snap.night })
@@ -81,7 +81,7 @@ export function DemoToday({ onTab, onNav, venue = 'Atomic Bar' }) {
       <header className="work-head">
         <div>
           <p className="eyebrow">DEMO · {venue}</p>
-          <h1 className="page-title">{preset === 'today' ? 'Today' : 'Performance'}</h1>
+          {!embedded && <h1 className="page-title">{preset === 'today' ? 'Today' : 'Performance'}</h1>}
         </div>
         <div className="work-actions">
           {onTab && <button type="button" className="action-primary" onClick={() => go('pos')}>Point of Sale</button>}
@@ -316,7 +316,7 @@ export function DemoStaff({ section = 'clock' }) {
       )}
       {section === 'clock' && (
         <div className="demo-panel">
-          <p>{me?.onBreak ? 'On break' : me?.clockedIn ? 'Clocked in' : 'Clocked out'}</p>
+          <p>{me?.onBreak ? 'On break. End the break before clocking out.' : me?.clockedIn ? 'Clocked in. Start a break or clock out.' : 'Clock in to start this shift.'}</p>
           <div className="demo-actions">
             <button type="button" className="action-primary" disabled={me?.clockedIn} onClick={() => punch('in')}>Clock in</button>
             <button type="button" className="action-secondary" disabled={!me?.clockedIn || me?.onBreak} onClick={() => punch('break_start')}>Start break</button>
@@ -371,10 +371,14 @@ export function DemoSupplier() {
         </div>
       </header>
       <p className="work-quiet">Status changes stay in the DEMO ledger. Nothing is sent to a supplier.</p>
-      {snap.orders.map(order => (
+      <h2>Pending</h2>
+      {snap.orders.every(order => order.status === 'delivered' || order.status === 'rejected') && (
+        <p className="work-quiet">No orders are waiting.</p>
+      )}
+      {snap.orders.filter(order => order.status !== 'delivered' && order.status !== 'rejected').map(order => (
         <article key={order.id} className="demo-panel">
           <h2>{order.id} · {order.status}</h2>
-          <p className="work-quiet">{order.supplier}</p>
+          <p className="work-quiet">{order.supplier}. {order.status === 'pending' ? 'Accept or reject this order.' : order.status === 'confirmed' ? 'Start preparation when the goods are being picked.' : order.status === 'preparing' ? 'Dispatch when the goods leave.' : 'Confirm delivery to receive stock.'}</p>
           {order.lines.map(line => (
             <label key={line.drinkId} className="demo-actions">
               <span>{line.nome} · ordered {line.ordered}</span>
@@ -402,6 +406,10 @@ export function DemoSupplier() {
             {order.status === 'in_transit' && <button type="button" className="action-primary" onClick={() => advanceOrder(order.id)}>Confirm delivery</button>}
           </div>
         </article>
+      ))}
+      <h2>History</h2>
+      {snap.orders.filter(order => order.status === 'delivered' || order.status === 'rejected').map(order => (
+        <p key={order.id} className="work-quiet">{order.id} · {order.status}. {order.status === 'delivered' ? 'Stock receipt is already recorded.' : 'Rejected. Stock was not changed.'}</p>
       ))}
       <div className="demo-panel">
         <h2>Audit</h2>

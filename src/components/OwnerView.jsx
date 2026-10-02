@@ -36,7 +36,7 @@ export default function OwnerView({ bar, tickets = [], people = [], goals, regis
     { label: 'Stock', value: 'Not connected' },
   ]
 
-  if (isLocalDemo) return <DemoToday onTab={onTab} venue={bar?.nome || 'Atomic Bar'} />
+  if (isLocalDemo) return <DemoToday onTab={onTab} venue={bar?.nome || 'Atomic Bar'} embedded />
 
   return (
     <div className="work">
