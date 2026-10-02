@@ -17,6 +17,7 @@ import { InsightCard, MetricSwitch } from './ui/ops'
 import { DashboardHeader, METRIC_STATUS, OperationalStatus, Panel, QuickAction, StatusBadge } from './ui/executive'
 import ManagerPro from './ManagerPro'
 import OwnerView from './OwnerView'
+import { DemoToday } from './demo/DemoOperations'
 import ReportsStudio from './ReportsStudio'
 import ApprovalCenter from './ApprovalCenter'
 
@@ -336,7 +337,8 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
             <button type="button" onClick={() => onTab?.('estoque')}>Inventory</button>
             <button type="button" onClick={() => onTab?.('staff')}>Employees</button>
           </div>
-          {section === 'analytics' && (
+          {section === 'analytics' && isLocalDemo && <DemoToday onTab={onTab} venue={bar?.nome} />}
+          {section === 'analytics' && !isLocalDemo && (
             <ManagerPro
               bar={bar}
               tickets={tickets}

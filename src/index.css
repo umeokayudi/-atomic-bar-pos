@@ -6945,4 +6945,19 @@ tbody tr:hover td { background: #faf9f6; }
   .work-metrics, .work-lanes { grid-template-columns: 1fr 1fr; }
 }
 
+.demo-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+.demo-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px; }
+.demo-panel h2 { font-size: 15px; font-weight: 650; margin-bottom: 8px; }
+.demo-panel ul { padding-left: 18px; }
+.demo-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 12px 0; }
+.demo-table th, .demo-table td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
+.demo-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+.demo-actions input { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; background: var(--surface); color: inherit; min-width: 0; }
+.demo-receipt { position: fixed; inset: 0; z-index: 90; background: rgba(28, 36, 48, 0.45); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.demo-receipt article { width: min(420px, 100%); background: #fff; color: #1c2430; border-radius: 18px; padding: 20px; display: grid; gap: 8px; }
+.demo-receipt ul { padding-left: 18px; }
+@media (max-width: 800px) {
+  .demo-charts { grid-template-columns: 1fr; }
+}
+
 

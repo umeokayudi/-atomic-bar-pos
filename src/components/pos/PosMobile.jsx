@@ -85,6 +85,16 @@ export default function PosMobile({ t, floor }) {
               <option key={row.id} value={row.id}>{row.nome}</option>
             ))}
           </select>
+          {floor.applyDiscount && (
+            <div className="pos-m-pays" aria-label="Discount">
+              <button type="button" disabled={!lines.length} onClick={() => floor.applyDiscount(0)}>No discount</button>
+              <button type="button" disabled={!lines.length} onClick={() => floor.applyDiscount(0.1)}>10%</button>
+              <button type="button" disabled={!lines.length} onClick={() => floor.applyDiscount(0.2)}>20%</button>
+            </div>
+          )}
+          {lines.length > 0 && preview?.discount > 0 && (
+            <p className="pos-floor-meta">Subtotal {fmtYen(preview.listSubtotal)} · Discount {fmtYen(preview.discount)}</p>
+          )}
           <div className="pos-m-pays">
             {payments.map(id => (
               <button key={id} type="button" className={pay === id ? 'is-on' : ''} onClick={() => floor.changePay(id)}>{t(`posFloor.pay_${id}`)}</button>

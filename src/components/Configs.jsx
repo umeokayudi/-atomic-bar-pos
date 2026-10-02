@@ -8,6 +8,7 @@ import { SupplierCostHint } from './SupplierPriceCheck'
 import { staffFetch } from '../lib/apiAuth'
 import { AdminPage, PortalSurface } from './ui/PageLayout'
 import { BooksClosed } from './experience/Stage'
+import { DemoVenue } from './demo/DemoOperations'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 import { canReadProductCost } from '../lib/legacyScope'
@@ -148,7 +149,16 @@ export function BarsTab() {
 
   useEffect(() => { if (!isLocalDemo) load() }, [])
   if (isLocalDemo) {
-    return <BooksClosed title={t('nav.bars')} lanes={['Venues', 'Sales', 'Revenue', 'Comparison']} />
+    return (
+      <DemoVenue onOpen={() => {
+        try {
+          const raw = JSON.parse(localStorage.getItem('atomic-bar-local-demo') || '{}')
+          if (raw.perfis?.[0]) raw.perfis[0].role = 'gerente'
+          localStorage.setItem('atomic-bar-local-demo', JSON.stringify(raw))
+        } catch { /* role switch is local only */ }
+        window.location.reload()
+      }} />
+    )
   }
   async function load() {
     setLoading(true)

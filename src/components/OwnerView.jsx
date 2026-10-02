@@ -6,6 +6,7 @@ import { isLocalDemo } from '../lib/supabase'
 import { analyze } from '../lib/managerAnalytics'
 import { tokyoNightKey } from '../lib/tokyo'
 import { MetricTile, SignalBoard, TrendStage } from './experience/Stage'
+import { DemoToday } from './demo/DemoOperations'
 
 function yen(value) {
   if (value == null) return '—'
@@ -34,6 +35,8 @@ export default function OwnerView({ bar, tickets = [], people = [], goals, regis
     { label: 'Cash', value: 'Close not connected' },
     { label: 'Stock', value: 'Not connected' },
   ]
+
+  if (isLocalDemo) return <DemoToday onTab={onTab} venue={bar?.nome || 'Atomic Bar'} />
 
   return (
     <div className="work">

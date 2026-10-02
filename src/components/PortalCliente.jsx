@@ -23,6 +23,7 @@ import {
   projectItemRevenue,
 } from '../lib/clientAnalytics'
 import BarDesk from './BarDesk'
+import { DemoInventory } from './demo/DemoOperations'
 import AiOperationsCenter from './AiOperationsCenter'
 import AutoReorder from './AutoReorder'
 import BillMatch from './BillMatch'
@@ -819,6 +820,8 @@ function InventoryTab({ bar, onOrder }) {
   const critical = filtered.filter(p => p.crit)
   const low      = filtered.filter(p => p.low)
   const selectedProd = list.find(p => p.id === selected)
+
+  if (isLocalDemo) return <DemoInventory />
 
   if (loading) return <Spinner text={t('portal.inventory.loading')} />
 

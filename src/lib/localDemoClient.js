@@ -1,7 +1,17 @@
 /**
  * Browser-only store for Preview when no safe database is configured.
- * Seeds a floor plan and a demo manager. Does not seed sales, cash, or stock.
+ * Floor plan and profile live here. Sales, stock, and cash live in the DEMO ledger.
  */
+
+import {
+  applyDiscount,
+  closeTicket,
+  loadTicket,
+  menuRows,
+  previewTicket,
+  salesRows,
+  ticketItem,
+} from './demoLedger.js'
 
 const STORAGE_KEY = 'atomic-bar-local-demo'
 export const DEMO_BAR_ID = 'demo-bar'
@@ -175,7 +185,13 @@ class DemoQuery {
   async run() {
     const store = readStore()
     const table = this.table
-    const rows = Array.isArray(store[table]) ? store[table] : []
+    const ledgerTable = table === 'drink_menu' || table === 'pos_vendas'
+    if (ledgerTable && this.mode !== 'select') {
+      return { data: null, error: { message: 'DEMO books change only through the simulated register' }, count: 0 }
+    }
+    const rows = ledgerTable
+      ? (table === 'drink_menu' ? menuRows() : salesRows())
+      : (Array.isArray(store[table]) ? store[table] : [])
     const filtered = () => rows.filter(row => this.filters.every(filter => match(row, filter)))
 
     if (this.mode === 'insert' || this.mode === 'upsert') {
@@ -244,10 +260,13 @@ export function createLocalDemoClient() {
     from(table) {
       return new DemoQuery(table)
     },
-    async rpc(name) {
+    async rpc(name, args = {}) {
       if (name === 'pos_bottle_board') return { data: [], error: null }
-      if (name === 'pos_load_ticket') return { data: { id: null, items: [], total: 0 }, error: null }
-      if (name === 'pos_preview_ticket') return { data: { total: 0, lines: [] }, error: null }
+      if (name === 'pos_load_ticket') return loadTicket(args)
+      if (name === 'pos_preview_ticket') return previewTicket(args)
+      if (name === 'pos_ticket_item') return ticketItem(args)
+      if (name === 'pos_apply_discount') return applyDiscount(args)
+      if (name === 'pos_close_ticket') return closeTicket(args)
       return { data: null, error: { code: 'PGRST202', message: 'Could not find the function' } }
     },
     auth: {

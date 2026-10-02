@@ -10,6 +10,7 @@ import StaffPayCards from './StaffPayCards'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 import { SectionHeader } from './ui/ops'
+import { DemoStaff } from './demo/DemoOperations'
 
 export async function postClockMark({ barId, staffId, tipo, managerMark }) {
   if (isLocalDemo) throw new Error('Time clock is unavailable in local demo. No punch was saved.')
@@ -40,9 +41,6 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
   async function load() {
     setLoading(true)
     if (isLocalDemo) {
-      setPunches([])
-      setStaff([])
-      setErr('Time clock is unavailable in local mode. No punches were loaded.')
       setLoading(false)
       return
     }
@@ -82,6 +80,8 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
     }
     setBusy(false)
   }
+
+  if (isLocalDemo) return <DemoStaff />
 
   return (
     <div className="fade-in clock-page">
