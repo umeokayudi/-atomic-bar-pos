@@ -5,6 +5,7 @@ import { useI18n } from '../lib/i18n'
 import { fmtYen, Empty } from './utils'
 import { AdminPage, PortalKpi, PortalSurface } from './ui/PageLayout'
 import { MetricTile, WorkLanes } from './experience/Stage'
+import { DemoStaff } from './demo/DemoOperations'
 import { schemaMissing } from '../lib/fulfillment'
 import {
   comparePlan,
@@ -42,6 +43,7 @@ export default function EmployeeDesk({ section = 'salary' }) {
   useEffect(() => {
     let cancelled = false
     setErr('')
+    if (isLocalDemo) return undefined
     supabase.rpc('payroll_my_pack', { p_competence: competence }).then(({ data, error }) => {
       if (cancelled) return
       if (error && schemaMissing(error)) {
@@ -71,7 +73,8 @@ export default function EmployeeDesk({ section = 'salary' }) {
         <input type="month" value={competence} onChange={e => setCompetence(e.target.value)} />
       }
     >
-      {(missing || isLocalDemo) && (
+      {isLocalDemo && <DemoStaff />}
+      {missing && !isLocalDemo && (
         <div className="work">
           <div className="work-metrics">
             <MetricTile label="Next shift" value="—" />

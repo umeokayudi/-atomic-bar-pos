@@ -61,10 +61,11 @@ assert.equal(blocked.body.illustrative, true)
 assert.equal(blocked.body.draft.supported, false)
 assert.equal(blocked.body.draft.executed, false)
 assert.equal(blocked.body.draft.status, 'not_created')
-assert.match(blocked.body.text, /Sample studio/)
+assert.match(blocked.body.text, /DEMO/)
 assert.match(blocked.body.text, /was not created/)
+assert.equal(/Sample studio/.test(blocked.body.text), false)
 assert.equal(/PO-|created the|was created/.test(blocked.body.text), false)
-assert.equal(blocked.body.table.rows.length, SAMPLE_STUDIO.alerts.length)
+assert.equal(blocked.body.table.rows.length, 2)
 
 const unconfigured = await answerAssistantTurn({
   messages: [{ role: 'user', content: 'How much did we make this month?' }],

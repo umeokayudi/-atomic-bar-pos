@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { isLocalDemo, supabase } from '../lib/supabase'
 import { useI18n } from '../lib/i18n'
 import { schemaMissing } from '../lib/fulfillment'
 import { groupSpaces } from '../lib/posFloor'
 import { readPosDeviceMode, suggestPosDeviceMode, writePosDeviceMode } from '../lib/posDeviceMode'
+import { fmtYen } from './utils'
 import PosModePicker from './pos/PosModePicker'
 import PosMobile from './pos/PosMobile'
 import PosTablet from './pos/PosTablet'
@@ -48,6 +50,7 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [step, setStep] = useState('tables')
   const [pendingRemove, setPendingRemove] = useState(null)
+  const [receipt, setReceipt] = useState(null)
   const [lossAsk, setLossAsk] = useState(false)
   const [orientation, setOrientation] = useState(() => (
     typeof window !== 'undefined' && window.innerHeight >= window.innerWidth ? 'portrait' : 'landscape'
@@ -62,8 +65,10 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
       const id = data.session?.user?.id || ''
       setUserId(id)
       const saved = readPosDeviceMode(id)
-      setMode(saved)
-      setAsking(!saved)
+      const next = saved || suggestPosDeviceMode({ width: window.innerWidth, height: window.innerHeight })
+      if (!saved) writePosDeviceMode(id, next)
+      setMode(next)
+      setAsking(false)
       setModeReady(true)
     })
     return () => { cancelled = true }
@@ -257,15 +262,24 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
     await loadSpace(spaceId)
   }
 
-  async function charge() {
-    if (!ticket?.id || !lines.length || busy || blocked) return
-    if (isLocalDemo) {
-      setErr(t('atomicPos.demoSaleBlocked'))
-      return
-    }
+  async function applyDiscount(rate) {
+    if (!isLocalDemo || !ticket?.id || busy) return
     setBusy(true)
     setErr('')
-    const key = closeKey(ticket.id)
+    const saved = await supabase.rpc('pos_apply_discount', { p_ticket: ticket.id, p_rate: rate })
+    setBusy(false)
+    if (saved.error) {
+      setErr(saved.error.message)
+      return
+    }
+    await refreshPreview(ticket.id)
+  }
+
+  async function charge() {
+    if (!ticket?.id || !lines.length || busy || blocked) return
+    setBusy(true)
+    setErr('')
+    const key = isLocalDemo ? `demo-${ticket.id}` : closeKey(ticket.id)
     const closed = await supabase.rpc('pos_close_ticket', {
       p_bar: bar.id,
       p_ticket: ticket.id,
@@ -278,7 +292,8 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
       setErr(closed.error.message)
       return
     }
-    sessionStorage.removeItem(`pos-close:${ticket.id}`)
+    if (!isLocalDemo) sessionStorage.removeItem(`pos-close:${ticket.id}`)
+    if (closed.data?.receipt) setReceipt({ ...closed.data.receipt, space: space?.nome || '' })
     setTicket(null)
     setLines([])
     setPreview(null)
@@ -352,7 +367,8 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
     lossMl, setLossMl, lossReason, setLossReason, bottleMoves: BOTTLE_MOVES,
     step, setStep, sheet: step === 'ticket', pendingRemove, setPendingRemove, lossAsk, setLossAsk,
     selectedBottle, catalogError, catalog, orientation, setZone, chooseSpace, addProduct,
-    changeItem, requestQty, confirmRemove, charge, changePay, changeAgent, openBottle, askLoss,
+    changeItem, requestQty, confirmRemove, charge, applyDiscount: isLocalDemo ? applyDiscount : null,
+    changePay, changeAgent, openBottle, askLoss,
     confirmLoss, openSettings: () => setSettingsOpen(true),
   }
 
@@ -373,6 +389,26 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
         : mode === 'mobile'
           ? <PosMobile t={t} floor={floor} />
           : null}
+      {receipt && createPortal(
+        <div className="demo-receipt" role="dialog" aria-label="DEMO receipt">
+          <article>
+            <p className="eyebrow">DEMO</p>
+            <h2>{receipt.id}</h2>
+            <p>{receipt.space} · {receipt.method}</p>
+            <ul>
+              {receipt.lines.map(line => (
+                <li key={`${line.nome}-${line.qtd}`}>{line.nome} × {line.qtd} · {fmtYen(line.total)}</li>
+              ))}
+            </ul>
+            <p>Subtotal {fmtYen(receipt.listSubtotal)}</p>
+            <p>Discount {fmtYen(receipt.discount)}</p>
+            <p><strong>Total {fmtYen(receipt.total)}</strong></p>
+            <p className="work-quiet">{receipt.note}</p>
+            <button type="button" className="action-primary" onClick={() => setReceipt(null)}>Close receipt</button>
+          </article>
+        </div>,
+        document.body,
+      )}
     </>
   )
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { isLocalDemo, supabase } from '../lib/supabase'
-import { BooksClosed } from './experience/Stage'
+import { DemoCash } from './demo/DemoOperations'
 import { fmtYen, fmtDate, Spinner, Empty, compraDueDate, isCompraOverdue } from './utils'
 import { splitPendingCompras, splitPendingFaturas, buildCashflowEvents, pagamentoFor, pagamentoMap } from '../lib/compraPagamentos'
 import { uploadCobrancaDoc, buildCobrancaDocument, downloadTextFile } from '../lib/cobrancaDocs'
@@ -14,7 +14,7 @@ export default function Cashflow() {
   const { t } = useI18n()
   const [tab, setTab] = useState('overview')
   if (isLocalDemo) {
-    return <BooksClosed title={t('nav.cashflow')} lanes={['Received', 'Paid out', 'To collect', 'To pay']} />
+    return <DemoCash />
   }
   return (
     <AdminPage

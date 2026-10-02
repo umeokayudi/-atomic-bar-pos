@@ -1,15 +1,15 @@
 /** Conversational assistant policy. Sample figures are labeled and never treated as live books. */
 
 import { composeSampleAnswer } from './aiSampleStudio.js'
+import { composeDemoAnswer } from './demoLedger.js'
 
 export const CHAT_STORAGE_KEY = 'atomic-bar-ai-chat'
 
 export const SUGGESTED_QUESTIONS = [
-  'How much did we make this month?',
-  'Which products have the highest margin?',
-  'Why did profit decrease?',
-  'Compare the venues.',
-  'Prepare a purchase order for low-stock items.',
+  'How much did we sell today?',
+  'Which drinks generated the most gross profit?',
+  'What should we reorder?',
+  'How much did labor cost this month?',
 ]
 
 const DISCONNECTED_TEXT = 'No operational database is connected to this request. Sales, profit, inventory, procurement, cash, labor, and venue comparisons were not read. No figure was calculated or saved.'
@@ -167,6 +167,35 @@ function responseBody({ state, configured, text, detail = '', fromModel = false,
   }
 }
 
+function demoReply({ configured, question, draft }) {
+  const sample = composeDemoAnswer(question)
+  const note = draft ? { ...draft, reason: 'DEMO only. Nothing was approved, paid, or sent.' } : draft
+  return responseBody({
+    state: 'demo',
+    configured,
+    text: sample.text,
+    detail: sample.detail,
+    draft: note,
+    illustrative: true,
+    kpis: sample.kpis,
+    table: sample.table,
+    chart: sample.chart,
+    bars: sample.bars,
+    comparison: sample.comparison,
+    evidence: sample.evidence,
+    followups: sample.followups,
+    sources: [...sample.sources, 'Model was not called'],
+  })
+}
+
+export function demoTurn(question) {
+  return demoReply({
+    configured: false,
+    question,
+    draft: finalizeDraft(classifyIntent(question)),
+  })
+}
+
 function sampleReply({ state, configured, question, draft, extraSources = [] }) {
   const sample = composeSampleAnswer(question)
   return responseBody({
@@ -214,16 +243,7 @@ export async function answerAssistantTurn({ messages, demo } = {}, { configured 
   const draft = finalizeDraft(intent)
   const question = list[list.length - 1].content
   if (demo) {
-    return {
-      status: 200,
-      body: sampleReply({
-        state: 'demo',
-        configured,
-        question,
-        draft,
-        extraSources: ['Model was not called'],
-      }),
-    }
+    return { status: 200, body: demoReply({ configured, question, draft }) }
   }
   if (!configured) {
     return {

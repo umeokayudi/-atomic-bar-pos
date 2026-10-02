@@ -9,6 +9,8 @@ import {
   saveChatStore,
 } from '../lib/aiAssistant'
 import { composeSampleAnswer, formatSampleYen } from '../lib/aiSampleStudio'
+import { composeDemoAnswer } from '../lib/demoLedger'
+import { demoTurn } from '../lib/aiAssistant'
 
 function browserStorage() {
   try { return window.sessionStorage } catch { return null }
@@ -90,6 +92,35 @@ export default function AiAssistantWorkspace({ demo = false }) {
     setDraft('')
     setSending(true)
     try {
+      if (demo) {
+        const body = demoTurn(content)
+        const reply = {
+          id: messageId(),
+          role: 'notice',
+          fromModel: false,
+          content: body.text,
+          detail: body.detail || '',
+          followups: body.followups || [],
+          sources: body.sources || [],
+          draft: body.draft || null,
+          kpis: body.kpis || [],
+          table: body.table || null,
+          chart: body.chart || null,
+          bars: body.bars || null,
+          comparison: body.comparison || null,
+          evidence: body.evidence || [],
+          illustrative: true,
+          live: false,
+          state: 'demo',
+        }
+        updateConversation(conversationId, item => ({
+          ...item,
+          updatedAt: new Date().toISOString(),
+          messages: [...item.messages, reply].slice(-40),
+        }))
+        setSending(false)
+        return
+      }
       const res = await fetch('/api/ai-assistant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -155,7 +186,9 @@ export default function AiAssistantWorkspace({ demo = false }) {
     ? statusError
     : provider?.configured && !demo
       ? 'The model can reply in words. Live books are not attached, so charts stay in the sample studio.'
-      : 'Sample studio. Figures in this thread are fictional until a live book is connected.'
+      : demo
+        ? 'DEMO ledger. Answers are fictional and use only the simulated Atomic Bar books.'
+        : 'Sample studio. Figures in this thread are fictional until a live book is connected.'
 
   return (
     <div className="ai-chat">
@@ -175,7 +208,9 @@ export default function AiAssistantWorkspace({ demo = false }) {
       <section className="ai-chat-thread" aria-label="AI assistant">
         <div className="ai-chat-status" role="status">{providerLine}</div>
         <div className="ai-chat-log" ref={logRef}>
-          {!active?.messages?.length && <SampleBriefing answer={composeSampleAnswer('How much did we make this month?')} />}
+          {!active?.messages?.length && (
+            <SampleBriefing demo={demo} answer={demo ? composeDemoAnswer('How much did we sell today?') : composeSampleAnswer('How much did we make this month?')} />
+          )}
           {(active?.messages || []).map(message => (
             <Message key={message.id} message={message} onFollowup={send} />
           ))}
@@ -205,10 +240,10 @@ export default function AiAssistantWorkspace({ demo = false }) {
   )
 }
 
-function SampleBriefing({ answer }) {
+function SampleBriefing({ answer, demo }) {
   return (
     <div className="ai-brief">
-      <span>Sample studio · not live books</span>
+      <span>{demo ? 'DEMO · fictional Atomic Bar ledger' : 'Sample studio · not live books'}</span>
       <AnswerBody answer={answer} />
     </div>
   )
@@ -217,11 +252,13 @@ function SampleBriefing({ answer }) {
 function Message({ message, onFollowup }) {
   const label = message.role === 'user'
     ? 'You'
-    : message.fromModel
-      ? 'Assistant'
-      : message.illustrative
-        ? 'Sample studio'
-        : 'Not a model response'
+    : message.state === 'demo'
+      ? 'DEMO'
+      : message.fromModel
+        ? 'Assistant'
+        : message.illustrative
+          ? 'Sample studio'
+          : 'Not a model response'
   return (
     <article className={`ai-chat-message is-${message.role}${message.illustrative ? ' is-sample' : ''}`}>
       <span>{label}</span>

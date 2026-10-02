@@ -22,6 +22,7 @@ import DayStaffBoard from './DayStaffBoard'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 import { isLocalDemo } from '../lib/supabase'
+import { DemoCash } from './demo/DemoOperations'
 
 function money(n) {
   return fmtYen(Math.round(+n || 0))
@@ -244,6 +245,8 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
       setBusy(false)
     }
   }
+
+  if (isLocalDemo && section === 'fechamento') return <DemoCash />
 
   if (loading) return <Spinner text={t('portal.close.loading')} />
   if (!pack || isLocalDemo) {
