@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { isLocalDemo, supabase } from '../lib/supabase'
 import { useI18n } from '../lib/i18n'
 import { schemaMissing } from '../lib/fulfillment'
@@ -388,7 +389,7 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
         : mode === 'mobile'
           ? <PosMobile t={t} floor={floor} />
           : null}
-      {receipt && (
+      {receipt && createPortal(
         <div className="demo-receipt" role="dialog" aria-label="DEMO receipt">
           <article>
             <p className="eyebrow">DEMO</p>
@@ -405,7 +406,8 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
             <p className="work-quiet">{receipt.note}</p>
             <button type="button" className="action-primary" onClick={() => setReceipt(null)}>Close receipt</button>
           </article>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   )
