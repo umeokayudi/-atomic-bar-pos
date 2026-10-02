@@ -7,6 +7,7 @@ import { fmtYen, Badge, Spinner, Empty, DelBtn, CATEGORIAS, filterSupplierVendas
 import { SupplierCostHint } from './SupplierPriceCheck'
 import { staffFetch } from '../lib/apiAuth'
 import { AdminPage, PortalSurface } from './ui/PageLayout'
+import { BooksClosed } from './experience/Stage'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 import { canReadProductCost } from '../lib/legacyScope'
@@ -22,7 +23,10 @@ export function ProductsTab() {
   const [editId,  setEditId]    = useState(null)
   const [form, setForm] = useState({ nome:'', categoria:'Cerveja', custo:0, preco_venda:0 })
 
-  useEffect(() => { load() }, [perfil?.role])
+  useEffect(() => { if (!isLocalDemo) load() }, [perfil?.role])
+  if (isLocalDemo) {
+    return <BooksClosed title={t('nav.products')} lanes={['Catalog', 'Cost', 'Sell price', 'Categories']} />
+  }
   async function load() {
     setLoading(true)
     if (!canReadProductCost(perfil?.role)) {
@@ -142,7 +146,10 @@ export function BarsTab() {
   const [nome, setName] = useState('')
   const [cor,  setColor]  = useState('#185FA5')
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { if (!isLocalDemo) load() }, [])
+  if (isLocalDemo) {
+    return <BooksClosed title={t('nav.bars')} lanes={['Venues', 'Sales', 'Revenue', 'Comparison']} />
+  }
   async function load() {
     setLoading(true)
     const [{ data: b }, { data: v }] = await Promise.all([
@@ -308,13 +315,7 @@ export function UsuariosTab() {
   const roleLabel = r => t(`shell.roles.${r === 'staff' ? 'staff' : r}`) || r
 
   if (isLocalDemo) {
-    return (
-      <AdminPage title={t('configs.usersTitle')} subtitle={t('configs.usersSubtitle')}>
-        <PortalSurface>
-          <div className="ab-empty">{t('common.demoBlocked')}</div>
-        </PortalSurface>
-      </AdminPage>
-    )
+    return <BooksClosed title={t('configs.usersTitle')} lanes={['People', 'Roles', 'Venues', 'Access']} />
   }
 
   if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:200,color:'var(--text2)'}}><span className="spinner"/>{t('configs.usersLoading')}</div>
@@ -476,8 +477,9 @@ export function PedidosAdminTab() {
 
   const PEDIDOS_SELECT = '*, pedidos_itens(*, produtos(nome,custo,preco_venda,categoria,volume_ml)), bars(nome)'
 
-  useEffect(()=>{ load() },[])
+  useEffect(()=>{ if (!isLocalDemo) load() },[])
   useEffect(()=>{
+    if (isLocalDemo) return
     supabase.from('fornecedor_precos').select('produto_id, preco, produtos(id,nome), fornecedores(nome)')
       .then(({ data }) => {
         const list = data || []
@@ -537,6 +539,10 @@ export function PedidosAdminTab() {
     if (!venda) throw new Error('Could not create the sale')
     try { await addStockFromDelivery(supabase, fresh) } catch (e) { console.warn('estoque entrega:', e.message) }
     return venda
+  }
+
+  if (isLocalDemo) {
+    return <BooksClosed title={t('nav.orders')} lanes={['Pending', 'Confirmed', 'Delivered', 'Cancelled']} />
   }
 
   async function repairVenda(pedido) {

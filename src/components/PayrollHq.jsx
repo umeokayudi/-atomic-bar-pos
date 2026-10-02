@@ -3,6 +3,7 @@ import { isLocalDemo, supabase } from '../lib/supabase'
 import { useI18n } from '../lib/i18n'
 import { fmtYen, Empty } from './utils'
 import { AdminPage, PortalKpi, PortalSurface } from './ui/PageLayout'
+import { BooksClosed } from './experience/Stage'
 import { schemaMissing } from '../lib/fulfillment'
 import { hqRows, statementTotals } from '../lib/payrollCore'
 
@@ -54,6 +55,10 @@ export default function PayrollHq() {
   const periodStatus = board?.period?.status || ''
   const rows = !status || status === periodStatus ? hqRows(lines) : []
   const totals = statementTotals(!status || status === periodStatus ? lines : [])
+
+  if (isLocalDemo) {
+    return <BooksClosed title={t('payroll.title')} lanes={['Periods', 'Employees', 'Approvals', 'Paid']} />
+  }
 
   return (
     <AdminPage title={t('payroll.title')}>

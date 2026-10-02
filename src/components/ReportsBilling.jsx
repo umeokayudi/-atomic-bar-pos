@@ -4,6 +4,7 @@ import { staffFetch } from '../lib/apiAuth'
 import { useAuth } from './Auth'
 import { fmtYen, fmtDate, Spinner, Empty } from './utils'
 import { AdminPage, PortalKpi, PortalSurface, PortalPills, PortalAlert } from './ui/PageLayout'
+import { BooksClosed } from './experience/Stage'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 
@@ -75,13 +76,7 @@ export default function ReportsBilling({ onNav }) {
   }
 
   if (isLocalDemo) {
-    return (
-      <AdminPage title={t('billingHub.title')} subtitle={t('billingHub.subtitle')}>
-        <PortalSurface>
-          <div className="ab-empty">{t('common.demoBlocked')}</div>
-        </PortalSurface>
-      </AdminPage>
-    )
+    return <BooksClosed title={t('billingHub.title')} lanes={['Summary', 'Overdue', 'Email', 'Collections']} />
   }
 
   if (loading) return <Spinner text={t('billingHub.loading')} />

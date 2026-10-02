@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
+import { isLocalDemo, supabase } from '../lib/supabase'
+import { BooksClosed } from './experience/Stage'
 import { useAuth } from './Auth'
 import { barBookScope, canReadProductCost } from '../lib/legacyScope'
 import { fmtYen, fmtDate, monthKey, monthLabel, Badge, Spinner, Empty, DelBtn, isSupplierProduct, filterSupplierVendas } from './utils'
@@ -99,6 +100,10 @@ export default function VendasTab() {
         <PortalSurface><Empty text={t('common.needBarLink')} /></PortalSurface>
       </AdminPage>
     )
+  }
+
+  if (isLocalDemo) {
+    return <BooksClosed title={t('nav.sales')} lanes={['Invoices', 'Venues', 'Products', 'Revenue']} />
   }
 
   return (

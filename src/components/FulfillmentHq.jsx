@@ -5,6 +5,7 @@ import { schemaMissing } from '../lib/fulfillment'
 import { tokyoDateKey } from '../lib/tokyo'
 import { routeItems } from '../lib/supplierRouting'
 import { AdminPage, PortalKpi, PortalSurface } from './ui/PageLayout'
+import { BooksClosed } from './experience/Stage'
 import {
   AlertCard, AssignmentActions, IssueModal, OrderTimeline, RoutingPreview, StatusBadge, SupplierSelector,
 } from './fulfillment/FulfillmentWidgets'
@@ -144,8 +145,12 @@ export default function FulfillmentHq() {
     rules, products: catalog, suppliers,
   }) : null
 
+  if (isLocalDemo) {
+    return <BooksClosed title={t('fulfillment.title')} lanes={['Today', 'In transit', 'Late', 'Delivered']} />
+  }
+
   if (missing) {
-    return <AdminPage title={t('fulfillment.title')} subtitle={t('fulfillment.subtitle')}><p className="ff-miss">{isLocalDemo ? t('common.demoBlocked') : t('fulfillment.schemaMissing')}</p></AdminPage>
+    return <AdminPage title={t('fulfillment.title')} subtitle={t('fulfillment.subtitle')}><p className="ff-miss">{t('fulfillment.schemaMissing')}</p></AdminPage>
   }
 
   return (

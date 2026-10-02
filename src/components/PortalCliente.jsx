@@ -251,6 +251,7 @@ function HomeTab({ bar, onTab }) {
     || opsGlance.openOrders || opsGlance.lowStock || opsGlance.hours
   )
   const booksHaveFigures = Boolean(costBooks || vendas.length || faturas.length || (posTickets && posTickets.length))
+  const calendarEvents = buildBarCalendarEvents({ invoices: faturas, orders: pedidos, notes: vendas, tickets: posTickets })
 
   const maxMonth = Math.max(...monthlyData, 1)
 
@@ -297,15 +298,17 @@ function HomeTab({ bar, onTab }) {
         onTab={onTab}
       />
 
+      {calendarEvents.length > 0 && (
       <Suspense fallback={null}>
         <DashboardCalendar
-          events={buildBarCalendarEvents({ invoices: faturas, orders: pedidos, notes: vendas, tickets: posTickets })}
+          events={calendarEvents}
           onNav={onTab}
           month={calMonth}
           onMonthChange={setCalMonth}
           sub={t('portal.home.calSub')}
         />
       </Suspense>
+      )}
 
       <section className="home-band">
       {glanceHasOps && (
@@ -380,11 +383,13 @@ function HomeTab({ bar, onTab }) {
       </section>
       )}
 
+      {booksHaveFigures && (
       <button type="button" className="easy-dash-more" onClick={() => setShowMore(v => !v)}>
         {showMore ? t('portal.home.hideDetails') : t('portal.home.showDetails')}
       </button>
+      )}
 
-      {showMore && (
+      {showMore && booksHaveFigures && (
         <div className="easy-dash-details">
       <div className="hq-filters">
         <div className="hq-filter-group">

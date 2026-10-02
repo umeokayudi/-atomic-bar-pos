@@ -12,7 +12,7 @@ class ErrorBoundary extends Component {
 import { LogoSidebar } from './components/Logo'
 import { MobileTopBar, ShellOverlay, WorkspaceChrome, useMobileMenuLock } from './components/MobileShell'
 import { useNotifications, NotificationBell, useOverdueAlerts } from './components/Notifications'
-import { useState, useEffect, useRef, lazy, Suspense } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { AuthProvider, useAuth, LoginPage } from './components/Auth'
 import { isLocalDemo, supabase } from './lib/supabase'
 import { isBarRole, isSupplierRole } from './lib/access'
@@ -23,6 +23,7 @@ import UiPrefsPanel from './components/UiPrefsPanel'
 import { UiPrefsProvider, useUiPrefs, LAYOUTS } from './lib/uiPrefs'
 import { loadDashboard, invalidateDashboard } from './lib/loadDashboard'
 import { PageHeader, PortalHero, PortalKpi, PortalSurface, PortalAlert } from './components/ui/PageLayout'
+import ExecutiveHome from './components/experience/ExecutiveHome'
 import NavIcon from './components/ui/NavIcon'
 import DemoModeBanner from './components/DemoModeBanner'
 const PortalCliente = lazy(() => import('./components/PortalCliente'))
@@ -202,16 +203,7 @@ function Dashboard({ onNav }) {
     }),
   }))
 
-  if (isLocalDemo) {
-    return (
-      <div className="admin-page fade-in">
-        <PageHeader title={t('dashboard.title')} subtitle={t('dashboard.currentMonth')} />
-        <PortalSurface>
-          <div className="ab-empty">{t('common.demoBlocked')}</div>
-        </PortalSurface>
-      </div>
-    )
-  }
+  if (isLocalDemo) return <ExecutiveHome onNav={onNav} />
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, color: 'var(--text2)' }}><span className="spinner" />{t('common.loading')}</div>
   if (loadErr) {
     return (
@@ -436,16 +428,7 @@ function Shell() {
   const [pedidosPendentes, setPedidosPendentes] = useState(0)
   const { notifs, unread, markRead, markAllRead, deleteNotif, deleteAll } = useNotifications()
   const overdueAlerts = useOverdueAlerts()
-  const landedUsers = useRef(false)
-
   useMobileMenuLock(menuOpen)
-
-  useEffect(() => {
-    if (!landedUsers.current && perfil?.role === 'admin') {
-      landedUsers.current = true
-      setTab('usuarios')
-    }
-  }, [perfil])
 
   useEffect(() => {
     if (layout === LAYOUTS.desktop || layout === LAYOUTS.tablet) setMenuOpen(false)

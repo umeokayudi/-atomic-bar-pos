@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
+import { isLocalDemo, supabase } from '../lib/supabase'
+import { BooksClosed } from './experience/Stage'
 import { fmtYen, monthKey, monthLabel, fmtDate, Spinner, Empty, filterSupplierVendas, saleMonthKey, compraMonthKey, RowActions } from './utils'
 import { aggregateComprasItens } from '../lib/marginCost'
 import { barCreditsForMonth, barCreditsList } from '../lib/barCredits'
@@ -127,6 +128,10 @@ export default function RelatorioTab() {
         <PortalSurface><Empty text={t('common.needBarLink')} /></PortalSurface>
       </AdminPage>
     )
+  }
+
+  if (isLocalDemo) {
+    return <BooksClosed title={t('nav.report')} lanes={['Revenue', 'Purchases', 'Margin', 'Receipts']} />
   }
 
   if (loading) return <Spinner text={t('report.loading')} />

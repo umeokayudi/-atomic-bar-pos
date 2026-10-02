@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
+import { isLocalDemo, supabase } from '../lib/supabase'
+import { BooksClosed } from './experience/Stage'
 import { useAuth } from './Auth'
 import {
   fmtYen, fmtDate, monthKey, monthLabel, compraDate,
@@ -168,6 +169,10 @@ export default function ComprasTab() {
         </PortalSurface>
       </AdminPage>
     )
+  }
+
+  if (isLocalDemo) {
+    return <BooksClosed title={t('nav.purchases')} lanes={['Receipts', 'Suppliers', 'Cost', 'Payments']} />
   }
 
   return (

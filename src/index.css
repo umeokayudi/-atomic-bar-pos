@@ -6568,6 +6568,45 @@ tbody tr:hover td { background: #faf9f6; }
   .ff-portal-bar h1 { font-size: 24px; }
 }
 
+.work { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.work-head, .work-toolbar { display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
+.work-actions, .work-periods { display: flex; flex-wrap: wrap; gap: 8px; }
+.work-stage { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(220px, .7fr); gap: 16px; align-items: stretch; }
+.work-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.work-lanes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.work-quiet { margin: 0; color: var(--text-muted); font-size: 12px; }
+.work-secondary { align-self: flex-start; }
+.metric-tile, .trend-stage, .signal-board, .lane {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+}
+.metric-tile span, .signal-board li span, .lane p { color: var(--text-secondary); font-size: 12px; }
+.metric-tile strong { display: block; margin-top: 10px; font-size: 28px; font-weight: 500; letter-spacing: -.04em; }
+.trend-stage, .signal-board { min-height: 240px; }
+.trend-stage h2, .signal-board h2, .lane h2 { margin: 0 0 12px; font-size: 14px; font-weight: 600; }
+.trend-empty { position: relative; }
+.trend-empty svg, .trend-line { width: 100%; height: auto; }
+.trend-empty line, .trend-line line { stroke: var(--border-strong); stroke-width: 1; }
+.trend-line path { fill: none; stroke: var(--accent); stroke-width: 2; }
+.trend-line circle { fill: var(--accent); }
+.trend-empty p {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.signal-board ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
+.signal-board li { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); font-size: 13px; }
+.signal-board b { font-weight: 500; color: var(--text-secondary); }
+.lane p { margin: 0; }
+.mp-kpi strong { font-size: 26px; font-weight: 500; }
+.mp-kpi header em { font-weight: 500; }
+
 .ai-ops-nav {
   display: flex;
   flex-wrap: wrap;
@@ -6798,9 +6837,12 @@ tbody tr:hover td { background: #faf9f6; }
   .portal-kpi-value { font-size: 20px; }
   .ai-query-panel { padding: 16px; }
   .ai-action dl { grid-template-columns: 1fr; }
+  .metric-tile strong { font-size: 24px; }
 }
 
 @media (max-width: 900px) {
+  .work-stage, .work-metrics, .work-lanes { grid-template-columns: 1fr 1fr; }
+  .trend-stage, .signal-board { min-height: 180px; }
   .ai-chat { grid-template-columns: 1fr; height: auto; min-height: 0; }
   .ai-chat-history { flex-direction: row; overflow-x: auto; }
   .ai-chat-history button { flex: 0 0 auto; max-width: 180px; }
@@ -6808,6 +6850,11 @@ tbody tr:hover td { background: #faf9f6; }
   .ai-chat-log { min-height: 180px; padding: 14px; }
   .ai-chat-composer { grid-template-columns: 1fr; }
   .ai-chat-composer .action-primary { width: 100%; }
+}
+
+@media (max-width: 700px) {
+  .work-stage { grid-template-columns: 1fr; }
+  .work-metrics, .work-lanes { grid-template-columns: 1fr 1fr; }
 }
 
 
