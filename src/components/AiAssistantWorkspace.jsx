@@ -8,6 +8,7 @@ import {
   loadChatStore,
   saveChatStore,
 } from '../lib/aiAssistant'
+import { composeSampleAnswer, formatSampleYen } from '../lib/aiSampleStudio'
 
 function browserStorage() {
   try { return window.sessionStorage } catch { return null }
@@ -45,7 +46,11 @@ export default function AiAssistantWorkspace({ demo = false }) {
   }, [])
 
   useEffect(() => {
-    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
+    const log = logRef.current
+    if (!log) return
+    const last = log.querySelector('article:last-of-type')
+    if (!last) return
+    log.scrollTop = Math.max(0, last.offsetTop - 8)
   }, [active?.messages, sending])
 
   function newConversation() {
@@ -110,7 +115,11 @@ export default function AiAssistantWorkspace({ demo = false }) {
         kpis: body.kpis || [],
         table: body.table || null,
         chart: body.chart || null,
+        bars: body.bars || null,
         comparison: body.comparison || null,
+        evidence: body.evidence || [],
+        illustrative: Boolean(body.illustrative),
+        live: body.live === true,
         state: body.state || 'error',
       }
       updateConversation(conversationId, item => ({
@@ -144,9 +153,9 @@ export default function AiAssistantWorkspace({ demo = false }) {
 
   const providerLine = statusError
     ? statusError
-    : provider
-      ? 'Ask in your own words. This bar’s books and the model are not connected, so figures are not invented.'
-      : 'Checking the assistant configuration…'
+    : provider?.configured && !demo
+      ? 'The model can reply in words. Live books are not attached, so charts stay in the sample studio.'
+      : 'Sample studio. Figures in this thread are fictional until a live book is connected.'
 
   return (
     <div className="ai-chat">
@@ -166,12 +175,7 @@ export default function AiAssistantWorkspace({ demo = false }) {
       <section className="ai-chat-thread" aria-label="AI assistant">
         <div className="ai-chat-status" role="status">{providerLine}</div>
         <div className="ai-chat-log" ref={logRef}>
-          {!active?.messages?.length && (
-            <div className="ai-chat-empty">
-              <strong>Ask Atomic</strong>
-              <p>Sales, profit, stock, suppliers, cash, labor, or reports.</p>
-            </div>
-          )}
+          {!active?.messages?.length && <SampleBriefing answer={composeSampleAnswer('How much did we make this month?')} />}
           {(active?.messages || []).map(message => (
             <Message key={message.id} message={message} onFollowup={send} />
           ))}
@@ -201,65 +205,153 @@ export default function AiAssistantWorkspace({ demo = false }) {
   )
 }
 
-function Message({ message, onFollowup }) {
-  const [open, setOpen] = useState(false)
-  const longDetail = String(message.detail || '').length > 180
+function SampleBriefing({ answer }) {
   return (
-    <article className={`ai-chat-message is-${message.role}`}>
-      <span>{message.role === 'user' ? 'You' : message.fromModel ? 'Assistant' : 'Not a model response'}</span>
+    <div className="ai-brief">
+      <span>Sample studio · not live books</span>
+      <AnswerBody answer={answer} />
+    </div>
+  )
+}
+
+function Message({ message, onFollowup }) {
+  const label = message.role === 'user'
+    ? 'You'
+    : message.fromModel
+      ? 'Assistant'
+      : message.illustrative
+        ? 'Sample studio'
+        : 'Not a model response'
+  return (
+    <article className={`ai-chat-message is-${message.role}${message.illustrative ? ' is-sample' : ''}`}>
+      <span>{label}</span>
       <p>{message.content}</p>
-      {message.detail && (
-        <div className="ai-chat-detail">
-          {longDetail && !open ? `${message.detail.slice(0, 180)}…` : message.detail}
-          {longDetail && (
-            <button type="button" onClick={() => setOpen(value => !value)}>{open ? 'Hide explanation' : 'Show explanation'}</button>
-          )}
-        </div>
-      )}
-      {!!message.kpis?.length && (
-        <div className="ai-chat-kpis">
-          {message.kpis.map(item => (
-            <div key={item.label}><em>{item.label}</em><strong>{item.value}</strong></div>
-          ))}
-        </div>
-      )}
-      {message.table?.rows?.length > 0 && (
-        <div className="ai-chat-table-wrap">
-          <table>
-            <thead><tr>{message.table.columns.map(column => <th key={column}>{column}</th>)}</tr></thead>
-            <tbody>
-              {message.table.rows.map((row, index) => (
-                <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {!!message.chart?.length && (
-        <div className="ai-chat-chart" aria-label="Chart">
-          {message.chart.map(point => (
-            <div key={point.label}><span>{point.label}</span><i style={{ width: `${Math.max(4, Math.min(100, Number(point.value) || 0))}%` }} /><b>{point.value}</b></div>
-          ))}
-        </div>
-      )}
-      {message.comparison && (
-        <p className="ai-chat-detail">{message.comparison.label}: {message.comparison.current} compared with {message.comparison.previous}. {message.comparison.note || ''}</p>
-      )}
+      {(message.illustrative || message.fromModel) && <AnswerBody answer={message} />}
       {message.draft && (
         <div className="ai-chat-draft">
-          <strong>{message.draft.title} · {message.draft.status === 'not_created' ? 'not created' : message.draft.status}</strong>
+          <strong>{message.draft.title} · {message.draft.status === 'not_created' ? 'Not created' : message.draft.status}</strong>
           <p>{message.draft.reason}</p>
         </div>
       )}
-      {!!message.sources?.length && <p className="ai-chat-sources">Sources: {message.sources.join(' · ')}</p>}
       {!!message.followups?.length && (
-        <div className="ai-chat-suggestions">
+        <div className="ai-chat-followups">
           {message.followups.map(question => (
             <button key={question} type="button" onClick={() => onFollowup(question)}>{question}</button>
           ))}
         </div>
       )}
     </article>
+  )
+}
+
+function AnswerBody({ answer }) {
+  const [open, setOpen] = useState(false)
+  const chart = normalizeSeries(answer.chart)
+  const bars = normalizeSeries(answer.bars)
+  return (
+    <div className="ai-answer">
+      {!!answer.kpis?.length && (
+        <div className="ai-kpis">
+          {answer.kpis.map(item => (
+            <article key={item.label}>
+              <em>{item.label}</em>
+              <strong>{item.value}</strong>
+              {item.note && <span>{item.note}</span>}
+            </article>
+          ))}
+        </div>
+      )}
+      {!!chart.points.length && <SeriesChart title={chart.title || 'Trend'} points={chart.points} kind="line" />}
+      {!!bars.points.length && <SeriesChart title={bars.title || 'Comparison'} points={bars.points} kind="bar" />}
+      {answer.comparison?.rows?.length > 0 && (
+        <div className="ai-chat-table-wrap">
+          <h3>{answer.comparison.title}</h3>
+          <table>
+            <thead><tr>{(answer.comparison.columns || []).map(column => <th key={column || 'blank'}>{column}</th>)}</tr></thead>
+            <tbody>
+              {answer.comparison.rows.map((row, index) => (
+                <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {answer.table?.rows?.length > 0 && (
+        <div className="ai-chat-table-wrap">
+          <table>
+            <thead><tr>{answer.table.columns.map(column => <th key={column}>{column}</th>)}</tr></thead>
+            <tbody>
+              {answer.table.rows.map((row, index) => (
+                <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {(answer.evidence?.length > 0 || answer.detail || answer.sources?.length > 0) && (
+        <div className="ai-evidence">
+          <button type="button" onClick={() => setOpen(value => !value)}>{open ? 'Hide evidence' : 'Evidence and calculation'}</button>
+          {open && (
+            <div>
+              {answer.detail && <p>{answer.detail}</p>}
+              {(answer.evidence || []).map(item => (
+                <p key={item.label}><b>{item.label}.</b> {item.formula}</p>
+              ))}
+              {!!answer.sources?.length && <p>{answer.sources.join(' · ')}</p>}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function normalizeSeries(series) {
+  if (Array.isArray(series)) return { title: '', points: series }
+  if (!series?.points) return { title: '', points: [] }
+  return series
+}
+
+function SeriesChart({ title, points, kind }) {
+  const values = points.map(point => Number(point.value)).filter(Number.isFinite)
+  const max = Math.max(...values, 1)
+  if (kind === 'line') {
+    const width = 640
+    const height = 168
+    const pad = 28
+    const step = points.length > 1 ? (width - pad * 2) / (points.length - 1) : 0
+    const x = index => pad + index * step
+    const y = value => height - 28 - (Number(value) / max) * (height - 48)
+    const path = points.map((point, index) => `${index === 0 ? 'M' : 'L'}${x(index)},${y(point.value)}`).join(' ')
+    return (
+      <figure className="ai-figure">
+        <figcaption>{title}</figcaption>
+        <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title}>
+          <line x1={pad} y1={height - 28} x2={width - pad} y2={height - 28} />
+          <path d={path} />
+          {points.map((point, index) => (
+            <g key={point.label}>
+              <circle cx={x(index)} cy={y(point.value)} r="3.5" />
+              <text x={x(index)} y={height - 8} textAnchor="middle">{point.label}</text>
+            </g>
+          ))}
+        </svg>
+      </figure>
+    )
+  }
+  return (
+    <figure className="ai-figure">
+      <figcaption>{title}</figcaption>
+      <ul className="ai-bars">
+        {points.map(point => (
+          <li key={point.label}>
+            <span>{point.label}</span>
+            <i><b style={{ width: `${Math.max(6, (Number(point.value) / max) * 100)}%` }} /></i>
+            <em>{point.marker != null ? `${point.value} / ${point.marker}` : (Number(point.value) > 999 ? formatSampleYen(point.value) : point.value)}</em>
+          </li>
+        ))}
+      </ul>
+    </figure>
   )
 }
 
