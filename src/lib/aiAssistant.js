@@ -144,7 +144,7 @@ function parseModelPayload(raw) {
   return { answer: text }
 }
 
-function responseBody({ state, configured, text, detail = '', fromModel = false, draft = null, sources = [], followups = [], illustrative = false, kpis = [], table = null, chart = null, bars = null, comparison = null, evidence = [] }) {
+function responseBody({ state, configured, text, detail = '', fromModel = false, draft = null, sources = [], followups = [], illustrative = false, kpis = [], table = null, chart = null, bars = null, comparison = null, evidence = [], review = null }) {
   return {
     ok: state === 'answer',
     state,
@@ -163,6 +163,7 @@ function responseBody({ state, configured, text, detail = '', fromModel = false,
     comparison,
     evidence,
     draft,
+    review,
     sources,
   }
 }
@@ -184,7 +185,8 @@ function demoReply({ configured, question, draft }) {
     comparison: sample.comparison,
     evidence: sample.evidence,
     followups: sample.followups,
-    sources: [...sample.sources, 'Model was not called'],
+    review: sample.review || null,
+    sources: [...sample.sources, 'Model was not called', 'Numbers calculated from the DEMO ledger'],
   })
 }
 

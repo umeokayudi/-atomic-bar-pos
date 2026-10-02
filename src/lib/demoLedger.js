@@ -4,11 +4,13 @@
  */
 
 import { tokyoNightKey } from './tokyo.js'
+import { includedTaxBreakdown } from './consumptionTax.js'
 
 export const LEDGER_KEY = 'atomic-bar-demo-ledger'
 export const LEDGER_EVENT = 'atomic-demo-ledger'
 export const DEMO_BAR_ID = 'demo-bar'
-const VERSION = 1
+export const ANNEX_BAR_ID = 'demo-annex'
+const VERSION = 2
 
 const PRODUCT_SEED = [
   { id: 'demo-highball', nome: 'ハイボール', categoria: 'Whisky', price: 800, cost: 180, stock: 40, min: 12 },
@@ -67,17 +69,33 @@ function lineMoney(book, drinkId, qty) {
 
 function seedSales(today) {
   const book = { products: PRODUCT_SEED.map(row => ({ ...row })) }
-  const sales = HISTORY.map((night, index) => {
+  const sales = []
+  for (let offset = -29; offset <= -7; offset += 1) {
+    const drink = offset % 2 === 0 ? 'demo-highball' : 'demo-beer'
+    const lines = [lineMoney(book, drink, 2)]
+    sales.push({
+      id: `demo-sale-d${Math.abs(offset)}`,
+      barId: DEMO_BAR_ID,
+      night: addDays(today, offset),
+      method: offset % 3 === 0 ? 'cash' : 'card',
+      lines,
+      total: lines[0].total,
+      cogs: lines[0].cogs,
+      demo: true,
+    })
+  }
+  HISTORY.forEach((night, index) => {
     const lines = night.lines.map(([id, qty]) => lineMoney(book, id, qty))
-    return {
+    sales.push({
       id: `demo-sale-h${index + 1}`,
+      barId: DEMO_BAR_ID,
       night: addDays(today, night.offset),
       method: night.method,
       lines,
       total: lines.reduce((sum, line) => sum + line.total, 0),
       cogs: lines.reduce((sum, line) => sum + line.cogs, 0),
       demo: true,
-    }
+    })
   })
   const todayLines = [
     lineMoney(book, 'demo-highball', 2),
@@ -86,6 +104,7 @@ function seedSales(today) {
   ]
   sales.push({
     id: 'demo-sale-today-cash',
+    barId: DEMO_BAR_ID,
     night: today,
     method: 'cash',
     lines: [todayLines[0]],
@@ -95,11 +114,23 @@ function seedSales(today) {
   })
   sales.push({
     id: 'demo-sale-today-card',
+    barId: DEMO_BAR_ID,
     night: today,
     method: 'card',
     lines: [todayLines[1], todayLines[2]],
     total: todayLines[1].total + todayLines[2].total,
     cogs: todayLines[1].cogs + todayLines[2].cogs,
+    demo: true,
+  })
+  const annex = [lineMoney(book, 'demo-beer', 2)]
+  sales.push({
+    id: 'demo-annex-today',
+    barId: ANNEX_BAR_ID,
+    night: today,
+    method: 'card',
+    lines: annex,
+    total: annex[0].total,
+    cogs: annex[0].cogs,
     demo: true,
   })
   return sales
@@ -114,6 +145,16 @@ function fresh(today = tokyoNightKey()) {
     demo: true,
     label: 'DEMO',
     venue: 'Atomic Bar',
+    bars: [
+      { id: DEMO_BAR_ID, nome: 'Atomic Bar', operable: true },
+      { id: ANNEX_BAR_ID, nome: '南青山デモ', operable: false },
+    ],
+    announcements: [
+      { id: 'demo-note-1', title: '金曜の仕込み', body: 'レモンサワーと赤ワインが発注点を下回っています。', demo: true },
+    ],
+    requests: [],
+    reviews: [],
+    audit: [],
     products: PRODUCT_SEED.map(row => ({ ...row })),
     sales,
     tickets: {},
@@ -174,6 +215,18 @@ function write(book) {
   return book
 }
 
+function previousMonthKey(night) {
+  const [year, month] = String(night || '').split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 2, 1))
+  return date.toISOString().slice(0, 7)
+}
+
+function monthTotals(monthKey, barId = DEMO_BAR_ID) {
+  const book = read()
+  const rows = book.sales.filter(sale => (sale.barId || DEMO_BAR_ID) === barId && sale.night.startsWith(monthKey))
+  return { sales: sumSales(rows), cogs: sumCogs(rows) }
+}
+
 function yen(value) {
   return `¥${Math.round(value || 0).toLocaleString('ja-JP')}`
 }
@@ -186,33 +239,57 @@ function sumCogs(sales, pred = () => true) {
   return sales.filter(pred).reduce((sum, sale) => sum + sale.cogs, 0)
 }
 
+function staffPunches(punches, staffId) {
+  return punches.filter(row => row.staffId === staffId).slice().sort((a, b) => a.at.localeCompare(b.at))
+}
+
 function sessionHours(punches, staffId, now = Date.now()) {
-  const rows = punches.filter(row => row.staffId === staffId).slice().sort((a, b) => a.at.localeCompare(b.at))
+  const rows = staffPunches(punches, staffId)
   let ms = 0
-  let open = null
+  let cursor = null
+  let paused = false
   for (const row of rows) {
-    if (row.tipo === 'in') open = row.at
-    if (row.tipo === 'out' && open) {
-      ms += new Date(row.at).getTime() - new Date(open).getTime()
-      open = null
+    const at = new Date(row.at).getTime()
+    if (row.tipo === 'in') {
+      cursor = at
+      paused = false
+    }
+    if (row.tipo === 'break_start' && cursor != null && !paused) {
+      ms += at - cursor
+      paused = true
+    }
+    if (row.tipo === 'break_end' && paused) {
+      paused = false
+      cursor = at
+    }
+    if (row.tipo === 'out' && cursor != null) {
+      if (!paused) ms += at - cursor
+      cursor = null
+      paused = false
     }
   }
-  if (open) ms += now - new Date(open).getTime()
+  if (cursor != null && !paused) ms += now - cursor
   return Math.max(0, ms / 3600000)
 }
 
-function openPunch(punches, staffId) {
-  const rows = punches.filter(row => row.staffId === staffId)
-  const last = rows[rows.length - 1]
-  return last?.tipo === 'in'
+function lastPunch(punches, staffId) {
+  const rows = staffPunches(punches, staffId)
+  return rows[rows.length - 1] || null
+}
+
+function shiftOpen(punches, staffId) {
+  const rows = staffPunches(punches, staffId)
+  if (!rows.some(row => row.tipo === 'in')) return false
+  return lastPunch(punches, staffId)?.tipo !== 'out'
 }
 
 export function snapshot(now = Date.now()) {
   const book = read()
   const today = book.night
   const month = today.slice(0, 7)
-  const todaySales = book.sales.filter(sale => sale.night === today)
-  const monthSales = book.sales.filter(sale => sale.night.startsWith(month))
+  const own = book.sales.filter(sale => (sale.barId || DEMO_BAR_ID) === DEMO_BAR_ID)
+  const todaySales = own.filter(sale => sale.night === today)
+  const monthSales = own.filter(sale => sale.night.startsWith(month))
   const sales = sumSales(todaySales)
   const cogs = sumCogs(todaySales)
   const gross = sales - cogs
@@ -226,7 +303,8 @@ export function snapshot(now = Date.now()) {
       sessionHours: extra,
       hours,
       earnings: Math.round(hours * person.rate),
-      clockedIn: openPunch(book.punches, person.id),
+      clockedIn: shiftOpen(book.punches, person.id),
+      onBreak: lastPunch(book.punches, person.id)?.tipo === 'break_start',
     }
   })
   const laborMonth = people.reduce((sum, person) => sum + person.earnings, 0)
@@ -234,10 +312,10 @@ export function snapshot(now = Date.now()) {
   const nights = []
   for (let offset = -6; offset <= 0; offset += 1) {
     const night = addDays(today, offset)
-    nights.push({ label: night.slice(5), night, value: sumSales(book.sales, sale => sale.night === night) })
+    nights.push({ label: night.slice(5), night, value: sumSales(own, sale => sale.night === night) })
   }
   const productMap = new Map()
-  for (const sale of book.sales) {
+  for (const sale of own) {
     for (const line of sale.lines) {
       const row = productMap.get(line.drinkId) || { nome: line.nome, sales: 0, cogs: 0, qty: 0 }
       row.sales += line.total
@@ -255,7 +333,7 @@ export function snapshot(now = Date.now()) {
     gross: row.sales - row.cogs,
   })).sort((a, b) => b.gross - a.gross)
   const methods = {}
-  for (const sale of book.sales) methods[sale.method] = (methods[sale.method] || 0) + sale.total
+  for (const sale of own) methods[sale.method] = (methods[sale.method] || 0) + sale.total
   const float = book.register.float
   const inn = book.register.movements.filter(row => row.direction === 'in').reduce((sum, row) => sum + row.amount, 0)
   const out = book.register.movements.filter(row => row.direction === 'out').reduce((sum, row) => sum + row.amount, 0)
@@ -263,11 +341,12 @@ export function snapshot(now = Date.now()) {
   const low = book.products.filter(row => row.stock < row.min)
   const attention = [
     ...low.map(row => ({ label: row.nome, value: `Low · ${row.stock} / reorder ${row.min}` })),
-    ...book.orders.filter(row => row.status !== 'delivered').map(row => ({ label: row.id, value: `${row.status} · ${row.supplier}` })),
+    ...book.orders.filter(row => !['delivered', 'rejected'].includes(row.status)).map(row => ({ label: row.id, value: `${row.status} · ${row.supplier}` })),
     { label: 'Register', value: book.register.status === 'open' ? `Open · expected ${yen(expected)}` : `Closed · variance ${yen(book.register.lastClose?.variance || 0)}` },
   ]
   return {
     demo: true,
+    night: today,
     venue: book.venue,
     today: { sales, cogs, gross, orders: todaySales.length, cmv: sales ? cogs / sales : null, ticket: todaySales.length ? Math.round(sales / todaySales.length) : null },
     month: { sales: monthRevenue, cogs: monthCogs, gross: monthRevenue - monthCogs, labor: laborMonth, laborToday },
@@ -280,6 +359,10 @@ export function snapshot(now = Date.now()) {
     orders: book.orders.map(row => ({ ...row, lines: row.lines.map(line => ({ ...line })) })),
     attention,
     lastReceipt: book.lastReceipt,
+    announcements: book.announcements || [],
+    requests: book.requests || [],
+    audit: (book.audit || []).slice(0, 12),
+    bars: book.bars || [],
   }
 }
 
@@ -301,7 +384,7 @@ export function menuRows() {
 
 export function salesRows() {
   const book = read()
-  return book.sales.map(sale => ({
+  return book.sales.filter(sale => (sale.barId || DEMO_BAR_ID) === DEMO_BAR_ID).map(sale => ({
     id: sale.id,
     bar_id: DEMO_BAR_ID,
     total: sale.total,
@@ -321,10 +404,19 @@ function ticketById(book, ticketId) {
   return Object.values(book.tickets).find(ticket => ticket.id === ticketId) || null
 }
 
+function lineCharge(line, ticketRate) {
+  const rate = line.discountRate != null ? line.discountRate : (ticketRate || 0)
+  const list = line.price * line.qtd
+  const discount = Math.round(list * rate)
+  return { list, discount, total: list - discount, rate }
+}
+
 function ticketPayload(ticket) {
-  const list = ticket.items.reduce((sum, line) => sum + line.price * line.qtd, 0)
-  const discount = Math.round(list * (ticket.discountRate || 0))
+  const priced = ticket.items.map(line => ({ line, money: lineCharge(line, ticket.discountRate) }))
+  const list = priced.reduce((sum, row) => sum + row.money.list, 0)
+  const discount = priced.reduce((sum, row) => sum + row.money.discount, 0)
   const total = list - discount
+  const tax = includedTaxBreakdown(total)
   const cogs = ticket.items.reduce((sum, line) => sum + line.cost * line.qtd, 0)
   return {
     id: ticket.id,
@@ -339,12 +431,20 @@ function ticketPayload(ticket) {
     discount,
     subtotal: total,
     total,
+    tax: tax.tax,
+    taxNote: 'Included 10% consumption tax. Not added on top.',
     cogs,
     fee: 0,
     net: total,
     commission: 0,
     blocked: '',
-    lines: ticket.items.map(line => ({ id: line.id, nome: line.nome, unit_price: line.price, mode: 'unit' })),
+    lines: ticket.items.map(line => ({
+      id: line.id,
+      nome: line.nome,
+      unit_price: line.price,
+      mode: 'unit',
+      discountRate: line.discountRate ?? null,
+    })),
     demo: true,
   }
 }
@@ -394,13 +494,25 @@ export function ticketItem({ p_ticket: ticketId, p_item: itemId, p_qtd: qty = 1,
   return { data: ticketPayload(ticket), error: null }
 }
 
-export function applyDiscount({ p_ticket: ticketId, p_rate: rate } = {}) {
+export function applyDiscount({ p_ticket: ticketId, p_rate: rate, p_item: itemId, p_role: role } = {}) {
   const book = read()
+  if (role && !['gerente', 'admin', 'cliente'].includes(role)) {
+    return { data: null, error: { message: 'DEMO discounts require a manager' } }
+  }
   const ticket = ticketById(book, ticketId)
   if (!ticket) return { data: null, error: { message: 'Open a DEMO table first' } }
   const allowed = [0, 0.1, 0.2]
   const next = allowed.includes(+rate) ? +rate : 0
-  ticket.discountRate = next
+  if (itemId) {
+    const line = ticket.items.find(row => row.id === itemId)
+    if (!line) return { data: null, error: { message: 'DEMO line was not found' } }
+    line.discountRate = next
+    ticket.discountRate = 0
+  } else {
+    ticket.discountRate = next
+    ticket.items.forEach(line => { line.discountRate = null })
+  }
+  audit(book, 'discount', itemId ? `line ${itemId} ${next}` : `ticket ${next}`)
   write(book)
   return { data: ticketPayload(ticket), error: null }
 }
@@ -448,6 +560,7 @@ export function closeTicket({ p_ticket: ticketId, p_payment: method = 'cash' } =
     lines: ticket.items.map(line => ({ nome: line.nome, qtd: line.qtd, total: line.price * line.qtd })),
     listSubtotal: view.listSubtotal,
     discount: view.discount,
+    tax: view.tax,
     total: view.total,
     note: 'Fictional DEMO receipt. No live charge was sent.',
   }
@@ -505,7 +618,7 @@ export function closeRegister(counted) {
 
 export function createPurchaseRequest() {
   const book = read()
-  const open = book.orders.find(order => order.status !== 'delivered')
+  const open = book.orders.find(order => !['delivered', 'rejected'].includes(order.status))
   if (open) return { ok: true, created: false, order: open }
   const lines = book.products.filter(row => row.stock < row.min).map(row => ({
     drinkId: row.id,
@@ -531,12 +644,13 @@ export function confirmOrder(id, quantities = {}) {
   const book = read()
   const order = book.orders.find(row => row.id === id)
   if (!order) return { ok: false, error: 'DEMO order was not found' }
-  if (order.status === 'delivered') return { ok: false, error: 'DEMO order is already delivered' }
+  if (order.status !== 'pending') return { ok: false, error: 'Confirm quantities only while the DEMO order is pending' }
   order.lines = order.lines.map(line => ({
     ...line,
     confirmed: quantities[line.drinkId] != null ? Math.round(+quantities[line.drinkId] || 0) : line.ordered,
   }))
   order.status = 'confirmed'
+  audit(book, 'supplier-accept', id)
   write(book)
   return { ok: true, order }
 }
@@ -553,6 +667,7 @@ export function advanceOrder(id) {
     order.lines = order.lines.map(line => ({ ...line, confirmed: line.confirmed ?? line.ordered }))
   }
   order.status = next
+  if (next !== 'delivered' && order.stockApplied) return { ok: false, error: 'DEMO stock was already received' }
   if (next === 'delivered' && !order.stockApplied) {
     for (const line of order.lines) {
       const product = productById(book, line.drinkId)
@@ -560,19 +675,113 @@ export function advanceOrder(id) {
     }
     order.stockApplied = true
   }
+  audit(book, 'supplier-status', `${id} ${next}`)
   write(book)
   return { ok: true, order }
 }
 
+export function periodReport({ from, to, barId = DEMO_BAR_ID } = {}) {
+  const book = read()
+  const start = from || book.night
+  const end = to || book.night
+  const rows = book.sales.filter(sale => (sale.barId || DEMO_BAR_ID) === barId && sale.night >= start && sale.night <= end)
+  if (!rows.length) {
+    return { demo: true, barId, from: start, to: end, sales: null, cogs: null, gross: null, cmv: null, reason: 'No DEMO sales in this range.' }
+  }
+  const sales = sumSales(rows)
+  const cogs = sumCogs(rows)
+  const nights = []
+  let cursor = start
+  while (cursor <= end && nights.length < 31) {
+    nights.push({ label: cursor.slice(5), value: sumSales(rows, sale => sale.night === cursor) })
+    cursor = addDays(cursor, 1)
+  }
+  return { demo: true, barId, from: start, to: end, sales, cogs, gross: sales - cogs, cmv: sales ? cogs / sales : null, orders: rows.length, trend: nights, reason: '' }
+}
+
+export function approveDemoAction(action) {
+  const book = read()
+  audit(book, 'review-approved', action)
+  if (action !== 'create-purchase') {
+    write(book)
+    return { ok: false, status: 'draft', executed: false, verified: false, error: 'This DEMO review cannot be executed.' }
+  }
+  const open = book.orders.find(order => !['delivered', 'rejected'].includes(order.status))
+  if (open) {
+    audit(book, 'review-verified', `${open.id} already open`)
+    write(book)
+    return { ok: true, status: 'verified', executed: false, verified: true, orderId: open.id, reason: 'An open DEMO request already exists. Nothing new was created.' }
+  }
+  const lines = book.products.filter(row => row.stock < row.min).map(row => ({
+    drinkId: row.id,
+    nome: row.nome,
+    ordered: Math.max(row.min - row.stock, 1),
+    confirmed: null,
+  }))
+  if (!lines.length) {
+    write(book)
+    return { ok: false, status: 'approved', executed: false, verified: false, error: 'Nothing is below the DEMO reorder point.' }
+  }
+  const order = {
+    id: `PO-${1043 + book.orders.length}`,
+    supplier: '東京酒販デモ',
+    status: 'pending',
+    stockApplied: false,
+    demo: true,
+    lines,
+  }
+  book.orders.unshift(order)
+  audit(book, 'review-executed', order.id)
+  const found = book.orders.find(row => row.id === order.id)
+  audit(book, 'review-verified', found ? found.id : 'missing')
+  write(book)
+  return { ok: true, status: found ? 'verified' : 'executed', executed: true, verified: Boolean(found), orderId: order.id, reason: 'DEMO purchase request created in this browser. Nothing was sent to a supplier.' }
+}
+
+function audit(book, action, detail) {
+  book.audit = book.audit || []
+  book.audit.unshift({ id: `audit-${book.audit.length + 1}`, action, detail, at: new Date().toISOString(), demo: true })
+}
+
 export function punch(tipo, at = new Date().toISOString(), staffId = 'demo-sato') {
   const book = read()
-  if (tipo !== 'in' && tipo !== 'out') return { ok: false, error: 'Choose clock in or clock out' }
-  const open = openPunch(book.punches, staffId)
+  const allowed = ['in', 'out', 'break_start', 'break_end']
+  if (!allowed.includes(tipo)) return { ok: false, error: 'Choose clock in, break, or clock out' }
+  const open = shiftOpen(book.punches, staffId)
+  const onBreak = lastPunch(book.punches, staffId)?.tipo === 'break_start'
   if (tipo === 'in' && open) return { ok: false, error: 'DEMO shift is already open' }
   if (tipo === 'out' && !open) return { ok: false, error: 'Clock in before clocking out' }
+  if (tipo === 'out' && onBreak) return { ok: false, error: 'End the break before clocking out' }
+  if (tipo === 'break_start' && (!open || onBreak)) return { ok: false, error: 'Start a break only during an open shift' }
+  if (tipo === 'break_end' && !onBreak) return { ok: false, error: 'There is no open break' }
   book.punches.push({ id: `demo-punch-${book.punches.length + 1}`, staffId, tipo, at, demo: true })
+  audit(book, 'clock', `${staffId} ${tipo}`)
   write(book)
   return { ok: true }
+}
+
+export function submitRequest({ kind = 'leave', note = '', date = '' } = {}) {
+  const book = read()
+  if (!['leave', 'shift'].includes(kind)) return { ok: false, error: 'Choose leave or a shift change' }
+  if (!String(note).trim()) return { ok: false, error: 'Add a short note' }
+  const request = { id: `req-${(book.requests || []).length + 1}`, kind, note: String(note).trim(), date, status: 'pending', demo: true }
+  book.requests = book.requests || []
+  book.requests.unshift(request)
+  audit(book, 'request', `${kind} pending`)
+  write(book)
+  return { ok: true, request }
+}
+
+export function rejectOrder(id, reason = 'DEMO supplier declined') {
+  const book = read()
+  const order = book.orders.find(row => row.id === id)
+  if (!order) return { ok: false, error: 'DEMO order was not found' }
+  if (order.status !== 'pending') return { ok: false, error: 'Only a pending DEMO order can be rejected' }
+  order.status = 'rejected'
+  order.rejectReason = reason
+  audit(book, 'supplier-reject', `${id} ${reason}`)
+  write(book)
+  return { ok: true, order }
 }
 
 export function composeDemoAnswer(question) {
@@ -586,7 +795,69 @@ export function composeDemoAnswer(question) {
     'What should we reorder?',
     'How much did labor cost this month?',
   ]
-  if (/reorder|purchase|stock|low|restock/.test(q)) {
+  if (/variance|cash clos|register/.test(q)) {
+    const close = snap.cash.lastClose
+    return {
+      text: close
+        ? `${fictional} The DEMO register closed with counted ${yen(close.counted)} against expected ${yen(close.expected)}. Variance is ${yen(close.variance)}.`
+        : `${fictional} The DEMO register is still open, so there is no close variance yet. Expected cash is ${yen(snap.cash.expected)}.`,
+      detail: 'Variance is counted cash minus expected cash. Expected cash is the float plus cash in minus cash out.',
+      kpis: [
+        { label: 'Expected', value: yen(snap.cash.expected), note: 'DEMO' },
+        { label: 'Variance', value: close ? yen(close.variance) : '—', note: close ? 'DEMO close' : 'Not closed' },
+      ],
+      chart: null,
+      bars: null,
+      comparison: null,
+      table: { columns: ['Movement', 'Amount'], rows: snap.cash.movements.map(row => [row.note, yen(row.direction === 'out' ? -row.amount : row.amount)]) },
+      evidence: [{ label: 'Expected cash', formula: 'Opening float + cash in − cash out' }],
+      followups,
+      sources: [...sources, `Period ${snap.today ? 'today' : 'DEMO'}`],
+      illustrative: true,
+      live: false,
+    }
+  }
+  if (/compare|last month|versus last|vs last/.test(q)) {
+    const month = snap.month
+    const previousKey = previousMonthKey(read().night)
+    const previous = monthTotals(previousKey)
+    return {
+      text: `${fictional} DEMO sales this month are ${yen(month.sales)}. DEMO sales in ${previousKey} are ${yen(previous.sales)}.`,
+      detail: 'Both figures are summed from the same fictional sales records. They are not live books.',
+      kpis: [
+        { label: 'This month', value: yen(month.sales), note: 'DEMO' },
+        { label: previousKey, value: yen(previous.sales), note: 'DEMO' },
+      ],
+      chart: null,
+      bars: { title: 'DEMO month comparison', points: [{ label: 'This month', value: month.sales }, { label: previousKey, value: previous.sales }] },
+      comparison: null,
+      table: null,
+      evidence: [{ label: 'Source', formula: 'Sum of DEMO sale totals whose night falls in the month' }],
+      followups,
+      sources,
+      illustrative: true,
+      live: false,
+    }
+  }
+  if (/lowest margin|low margin/.test(q)) {
+    const ranked = [...snap.products].map(row => ({ ...row, margin: row.price ? (row.price - row.cost) / row.price : 0 })).sort((a, b) => a.margin - b.margin)
+    const worst = ranked[0]
+    return {
+      text: `${fictional} The lowest menu margin is ${worst?.nome || '—'} at ${worst ? `${(worst.margin * 100).toFixed(1)}%` : '—'}.`,
+      detail: 'Margin is (menu price − cost) ÷ menu price on the DEMO drink list.',
+      kpis: ranked.slice(0, 3).map(row => ({ label: row.nome, value: `${(row.margin * 100).toFixed(1)}%`, note: 'DEMO margin' })),
+      chart: null,
+      bars: { title: 'DEMO margin by drink', points: ranked.map(row => ({ label: row.nome, value: Math.round(row.margin * 1000) })) },
+      comparison: null,
+      table: { columns: ['Drink', 'Price', 'Cost', 'Margin'], rows: ranked.map(row => [row.nome, yen(row.price), yen(row.cost), `${(row.margin * 100).toFixed(1)}%`]) },
+      evidence: [{ label: 'Margin', formula: '(price − cost) ÷ price' }],
+      followups,
+      sources,
+      illustrative: true,
+      live: false,
+    }
+  }
+  if (/reorder|purchase|stock|low|restock|replenish/.test(q)) {
     const rows = snap.products.filter(row => row.stock < row.min)
     return {
       text: `${fictional} A purchase order was not created. ${rows.length} drinks are below the reorder point in the DEMO stock book.`,
@@ -601,6 +872,7 @@ export function composeDemoAnswer(question) {
       sources,
       illustrative: true,
       live: false,
+      review: { action: 'create-purchase', status: 'draft', title: 'Purchase request', note: 'Approve to create the DEMO request in this browser. It is not sent.' },
     }
   }
   if (/labor|payroll|hours|shift|staff/.test(q)) {

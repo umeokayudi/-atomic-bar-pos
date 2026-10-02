@@ -73,7 +73,7 @@ export default function EmployeeDesk({ section = 'salary' }) {
         <input type="month" value={competence} onChange={e => setCompetence(e.target.value)} />
       }
     >
-      {isLocalDemo && <DemoStaff />}
+      {isLocalDemo && <DemoStaff section={section} />}
       {missing && !isLocalDemo && (
         <div className="work">
           <div className="work-metrics">

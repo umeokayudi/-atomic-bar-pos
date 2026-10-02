@@ -2,14 +2,19 @@ import { useEffect, useState } from 'react'
 import { fmtYen } from '../utils'
 import { MetricTile, SignalBoard, TrendStage } from '../experience/Stage'
 import {
+  ANNEX_BAR_ID,
+  DEMO_BAR_ID,
   advanceOrder,
   closeRegister,
   confirmOrder,
   createPurchaseRequest,
   openRegister,
+  periodReport,
   punch,
   recordMovement,
+  rejectOrder,
   snapshot,
+  submitRequest,
   subscribeLedger,
 } from '../../lib/demoLedger'
 
@@ -37,16 +42,46 @@ function Bars({ title, points }) {
   )
 }
 
+function shiftNight(night, days) {
+  const [year, month, day] = night.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10)
+}
+
+function openAtomicBar() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('atomic-bar-local-demo') || '{}')
+    if (raw.perfis?.[0]) {
+      raw.perfis[0].role = 'gerente'
+      raw.perfis[0].bar_id = DEMO_BAR_ID
+    }
+    localStorage.setItem('atomic-bar-local-demo', JSON.stringify(raw))
+  } catch { /* local role switch only */ }
+  window.location.reload()
+}
+
 export function DemoToday({ onTab, onNav, venue = 'Atomic Bar' }) {
   const snap = useLedger()
-  const cmv = snap.today.cmv == null ? '—' : `${(snap.today.cmv * 100).toFixed(1)}%`
+  const [preset, setPreset] = useState('today')
+  const [custom, setCustom] = useState({ from: snap.night, to: snap.night })
+  const range = preset === '7'
+    ? { from: shiftNight(snap.night, -6), to: snap.night }
+    : preset === '30'
+      ? { from: shiftNight(snap.night, -29), to: snap.night }
+      : preset === 'custom'
+        ? custom
+        : { from: snap.night, to: snap.night }
+  const report = periodReport({ ...range, barId: DEMO_BAR_ID })
+  const annex = periodReport({ ...range, barId: ANNEX_BAR_ID })
+  const cmv = report.cmv == null ? '—' : `${(report.cmv * 100).toFixed(1)}%`
+  const money = value => (value == null ? '—' : fmtYen(value))
   const go = id => (onTab || onNav)?.(id)
+  const cashLabel = snap.cash.status === 'open' ? fmtYen(snap.cash.expected) : (snap.cash.lastClose ? fmtYen(snap.cash.lastClose.variance) : '—')
   return (
     <div className="work">
       <header className="work-head">
         <div>
           <p className="eyebrow">DEMO · {venue}</p>
-          <h1 className="page-title">Today</h1>
+          <h1 className="page-title">{preset === 'today' ? 'Today' : 'Performance'}</h1>
         </div>
         <div className="work-actions">
           {onTab && <button type="button" className="action-primary" onClick={() => go('pos')}>Point of Sale</button>}
@@ -55,16 +90,46 @@ export function DemoToday({ onTab, onNav, venue = 'Atomic Bar' }) {
           {onNav && <button type="button" className="action-secondary" onClick={() => go('cashflow')}>Cash</button>}
         </div>
       </header>
-      <p className="work-quiet">Fictional DEMO books. Nothing here is a live sale, wage, or supplier order.</p>
+      <div className="demo-actions" role="tablist" aria-label="Period">
+        {[['today', 'Today'], ['7', '7 days'], ['30', '30 days'], ['custom', 'Custom']].map(([id, label]) => (
+          <button key={id} type="button" className={preset === id ? 'action-primary' : 'action-secondary'} onClick={() => setPreset(id)}>{label}</button>
+        ))}
+        {preset === 'custom' && (
+          <>
+            <input aria-label="From" type="date" value={custom.from} onChange={event => setCustom(current => ({ ...current, from: event.target.value }))} />
+            <input aria-label="To" type="date" value={custom.to} onChange={event => setCustom(current => ({ ...current, to: event.target.value }))} />
+          </>
+        )}
+      </div>
+      <p className="work-quiet">Fictional DEMO books. {report.reason || `${report.from} to ${report.to}.`}</p>
       <div className="work-metrics">
-        <MetricTile label="Sales today" value={fmtYen(snap.today.sales)} />
-        <MetricTile label="Gross profit" value={fmtYen(snap.today.gross)} />
+        <MetricTile label="Revenue" value={money(report.sales)} />
+        <MetricTile label="Gross profit" value={money(report.gross)} />
         <MetricTile label="CMV" value={cmv} />
         <MetricTile label="Labor this month" value={fmtYen(snap.month.labor)} />
+        <MetricTile label={snap.cash.status === 'open' ? 'Cash expected' : 'Cash variance'} value={cashLabel} />
       </div>
       <div className="work-stage">
-        <TrendStage title="Sales trend" points={snap.trend} caption="DEMO nights" />
+        <TrendStage title="Sales trend" points={report.trend || snap.trend} caption={report.reason || 'DEMO nights'} />
         <SignalBoard title="Attention" items={snap.attention} />
+      </div>
+      <div className="demo-panel">
+        <h2>Venues</h2>
+        <table className="demo-table">
+          <thead><tr><th>Bar</th><th>Revenue</th><th></th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Atomic Bar</td>
+              <td>{money(report.sales)}</td>
+              <td><button type="button" className="action-primary" onClick={openAtomicBar}>Open bar</button></td>
+            </tr>
+            <tr>
+              <td>南青山デモ</td>
+              <td>{money(annex.sales)}</td>
+              <td>Comparison only. The floor stays on Atomic Bar.</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
       <div className="demo-charts">
         <Bars
@@ -220,32 +285,76 @@ export function DemoInventory() {
   )
 }
 
-export function DemoStaff() {
+export function DemoStaff({ section = 'clock' }) {
   const snap = useLedger()
   const me = snap.staff[0]
+  const [note, setNote] = useState('')
+  const [message, setMessage] = useState('')
+  const title = {
+    shifts: 'My next shift',
+    clock: 'Clock',
+    goals: 'Requests',
+    result: 'Hours worked',
+    salary: 'Earnings',
+    profile: 'Announcements',
+    points: 'Assigned tasks',
+  }[section] || 'My shift'
   return (
     <div className="work">
       <header className="work-head">
         <div>
           <p className="eyebrow">DEMO · {me?.name}</p>
-          <h1 className="page-title">My shift</h1>
+          <h1 className="page-title">{title}</h1>
         </div>
       </header>
-      <p className="work-quiet">Clock actions stay in this browser. They do not post a live punch.</p>
-      <div className="work-metrics">
-        <MetricTile label="Next shift" value={me ? `${me.shiftDate} ${me.shiftStart}–${me.shiftEnd}` : '—'} />
-        <MetricTile label="Clock" value={me?.clockedIn ? 'In' : 'Out'} />
-        <MetricTile label="Hours" value={me ? me.hours.toFixed(1) : '—'} />
-        <MetricTile label="Earnings" value={me ? fmtYen(me.earnings) : '—'} />
-      </div>
-      <div className="demo-actions">
-        <button type="button" className="action-primary" disabled={me?.clockedIn} onClick={() => punch('in')}>Clock in</button>
-        <button type="button" className="action-secondary" disabled={!me?.clockedIn} onClick={() => punch('out')}>Clock out</button>
-      </div>
-      <div className="demo-panel">
-        <h2>Assigned tasks</h2>
+      <p className="work-quiet">These actions stay in this browser. They do not post a live punch or payroll run.</p>
+      {section === 'shifts' && (
+        <div className="demo-panel">
+          <h2>{me ? `${me.shiftDate} · ${me.shiftStart}–${me.shiftEnd}` : 'No shift'}</h2>
+          <p>Atomic Bar floor. Next scheduled DEMO shift.</p>
+        </div>
+      )}
+      {section === 'clock' && (
+        <div className="demo-panel">
+          <p>{me?.onBreak ? 'On break' : me?.clockedIn ? 'Clocked in' : 'Clocked out'}</p>
+          <div className="demo-actions">
+            <button type="button" className="action-primary" disabled={me?.clockedIn} onClick={() => punch('in')}>Clock in</button>
+            <button type="button" className="action-secondary" disabled={!me?.clockedIn || me?.onBreak} onClick={() => punch('break_start')}>Start break</button>
+            <button type="button" className="action-secondary" disabled={!me?.onBreak} onClick={() => punch('break_end')}>End break</button>
+            <button type="button" className="action-secondary" disabled={!me?.clockedIn || me?.onBreak} onClick={() => punch('out')}>Clock out</button>
+          </div>
+        </div>
+      )}
+      {section === 'result' && <MetricTile label="Hours" value={me ? me.hours.toFixed(1) : '—'} />}
+      {section === 'salary' && (
+        <div className="demo-panel">
+          <h2>{me ? fmtYen(me.earnings) : '—'}</h2>
+          <p>{me ? `${me.hours.toFixed(1)} h × ${fmtYen(me.rate)}` : 'No rate'}. Breaks are excluded from the session.</p>
+        </div>
+      )}
+      {(section === 'points' || section === 'profile') && section === 'points' && (
         <ul>{(me?.tasks || []).map(task => <li key={task}>{task}</li>)}</ul>
-      </div>
+      )}
+      {section === 'profile' && (
+        <ul>{(snap.announcements || []).map(item => <li key={item.id}><strong>{item.title}.</strong> {item.body}</li>)}</ul>
+      )}
+      {section === 'goals' && (
+        <div className="demo-panel">
+          <h2>Shift and leave requests</h2>
+          {message && <p>{message}</p>}
+          <div className="demo-actions">
+            <input aria-label="Request note" value={note} onChange={event => setNote(event.target.value)} placeholder="Note" />
+            <button type="button" className="action-primary" onClick={() => {
+              const result = submitRequest({ kind: 'leave', note, date: snap.night })
+              setMessage(result.ok ? 'DEMO request is pending' : result.error)
+            }}>Request leave</button>
+          </div>
+          <ul>{(snap.requests || []).map(item => <li key={item.id}>{item.kind} · {item.status} · {item.note}</li>)}</ul>
+        </div>
+      )}
+      {!['shifts', 'clock', 'result', 'salary', 'points', 'profile', 'goals'].includes(section) && (
+        <p className="work-quiet">This section has no DEMO book. Live payroll is not connected, so nothing is shown as zero.</p>
+      )}
     </div>
   )
 }
@@ -279,18 +388,29 @@ export function DemoSupplier() {
           ))}
           <div className="demo-actions">
             {order.status === 'pending' && (
-              <button type="button" className="action-primary" onClick={() => {
-                const quantities = {}
-                for (const line of order.lines) quantities[line.drinkId] = qty[`${order.id}:${line.drinkId}`] ?? line.ordered
-                confirmOrder(order.id, quantities)
-              }}>Confirm quantities</button>
+              <>
+                <button type="button" className="action-primary" onClick={() => {
+                  const quantities = {}
+                  for (const line of order.lines) quantities[line.drinkId] = qty[`${order.id}:${line.drinkId}`] ?? line.ordered
+                  confirmOrder(order.id, quantities)
+                }}>Accept</button>
+                <button type="button" className="action-secondary" onClick={() => rejectOrder(order.id)}>Reject</button>
+              </>
             )}
-            {order.status !== 'delivered' && order.status !== 'pending' && (
-              <button type="button" className="action-secondary" onClick={() => advanceOrder(order.id)}>Update delivery</button>
-            )}
+            {order.status === 'confirmed' && <button type="button" className="action-secondary" onClick={() => advanceOrder(order.id)}>Start preparation</button>}
+            {order.status === 'preparing' && <button type="button" className="action-secondary" onClick={() => advanceOrder(order.id)}>Dispatch</button>}
+            {order.status === 'in_transit' && <button type="button" className="action-primary" onClick={() => advanceOrder(order.id)}>Confirm delivery</button>}
           </div>
         </article>
       ))}
+      <div className="demo-panel">
+        <h2>Audit</h2>
+        <ul>
+          {(snap.audit || []).filter(row => String(row.action).startsWith('supplier')).map(row => (
+            <li key={row.id}>{row.action} · {row.detail}</li>
+          ))}
+        </ul>
+      </div>
     </div>
   )
 }
