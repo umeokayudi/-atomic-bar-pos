@@ -2,11 +2,11 @@
 
 Este documento é o mapa do schema que o código espera. Ele não foi aplicado em produção. Os projetos `ojirgkqtqvugqktyuhem` e `fxsakrshmldmkdmbevna` não foram consultados nem alterados.
 
-O editor SQL do Supabase não inclui outro arquivo. `sql/master_schema.sql` só funciona no `psql`, com `\ir`. No editor, cole cada arquivo abaixo, um por vez, nesta ordem.
+O editor SQL do Supabase não inclui outro arquivo. `sql/master_schema.sql` só funciona no `psql`, com `\ir`, e ainda pressupõe o catálogo antigo. Banco vazio usa `sql/install_fresh.sql`. O guia está em `docs/database/fresh-install-guide.md`.
 
 ## Ordem
 
-O banco já precisa ter o catálogo antigo (bares, produtos, pedidos, vendas, POS, caixa, perfis). Nenhum SQL deste repositório cria essas tabelas. Não foram inventadas aqui.
+Um banco vazio começa em `sql/foundation/`, que cria o catálogo que os arquivos seguintes alteram. Essa forma é proposta para instalação limpa. Não é uma leitura de produção.
 
 1. `migration.sql`  
    Cast, colunas em `vendas`, `caixa_movimentos` e `produtos`, e a primeira versão de `user_can_access_bar`, `deduct_stock` e `create_order`.

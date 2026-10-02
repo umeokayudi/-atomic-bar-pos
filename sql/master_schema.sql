@@ -11,6 +11,7 @@
 -- Do not point DATABASE_URL at ojirgkqtqvugqktyuhem or fxsakrshmldmkdmbevna.
 
 \set ON_ERROR_STOP on
+\echo A clean database must run sql/install_fresh.sql. This file still assumes the legacy catalog already exists.
 \ir ../migration.sql
 \ir pos_sale_security.sql
 \ir supplier_fulfillment.sql

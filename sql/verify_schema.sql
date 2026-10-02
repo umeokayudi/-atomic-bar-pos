@@ -300,7 +300,24 @@ WITH expected(object_name, object_kind, module, detail) AS (
   ('payroll_advances', 'rls', 'security', 'ENABLE ROW LEVEL SECURITY in an install script'),
   ('payroll_deductions', 'rls', 'security', 'ENABLE ROW LEVEL SECURITY in an install script'),
   ('deduct_stock(uuid, integer)', 'absent-function', 'pos-security', '2-argument overload must stay dropped'),
-  ('pos_void_sale(uuid, text, integer, text, uuid)', 'absent-function', 'pos-floor', '5-argument overload must stay dropped')
+  ('pos_void_sale(uuid, text, integer, text, uuid)', 'absent-function', 'pos-floor', '5-argument overload must stay dropped'),
+  ('bar_catalog', 'table', 'foundation', 'CREATE TABLE in sql/foundation/003_operational_catalog.sql'),
+  ('pos_sale_payments', 'table', 'foundation', 'CREATE TABLE in sql/foundation/003_operational_catalog.sql'),
+  ('cash_closings', 'table', 'foundation', 'CREATE TABLE in sql/foundation/003_operational_catalog.sql'),
+  ('pos_settings', 'table', 'foundation', 'CREATE TABLE in sql/foundation/003_operational_catalog.sql'),
+  ('schema_install', 'table', 'foundation', 'CREATE TABLE in sql/foundation/003_operational_catalog.sql'),
+  ('bar_memberships', 'table', 'foundation', 'explicit bar grant; role jbm is not enough'),
+  ('platform_access', 'table', 'foundation', 'explicit HQ grant'),
+  ('pos_apply_discount', 'function', 'foundation', 'sql/foundation/080_operations.sql'),
+  ('pos_take_payment', 'function', 'foundation', 'sql/foundation/080_operations.sql'),
+  ('stock_post', 'function', 'foundation', 'sql/foundation/080_operations.sql'),
+  ('staff_clock', 'function', 'foundation', 'sql/foundation/080_operations.sql'),
+  ('cash_close_night', 'function', 'foundation', 'sql/foundation/080_operations.sql'),
+  ('foundation-1', 'version', 'foundation', 'schema_install.version'),
+  ('vendas', 'rls', 'security', 'ENABLE ROW LEVEL SECURITY in sql/foundation/090_security.sql'),
+  ('produtos', 'rls', 'security', 'ENABLE ROW LEVEL SECURITY in sql/foundation/090_security.sql'),
+  ('pedidos', 'rls', 'security', 'ENABLE ROW LEVEL SECURITY in sql/foundation/090_security.sql'),
+  ('time_clock', 'rls', 'security', 'ENABLE ROW LEVEL SECURITY in sql/foundation/090_security.sql')
 ),
 checked AS (
   SELECT
@@ -311,68 +328,74 @@ checked AS (
       WHEN e.object_kind = 'table' AND EXISTS (
         SELECT 1 FROM information_schema.tables t
         WHERE t.table_schema = 'public' AND t.table_name = e.object_name AND t.table_type = 'BASE TABLE'
-      ) THEN 'OK'
+      ) THEN 'PASS'
       WHEN e.object_kind = 'legacy-table' AND EXISTS (
         SELECT 1 FROM information_schema.tables t
         WHERE t.table_schema = 'public' AND t.table_name = e.object_name AND t.table_type = 'BASE TABLE'
-      ) THEN 'OK'
+      ) THEN 'PASS'
       WHEN e.object_kind = 'legacy-view' AND EXISTS (
         SELECT 1 FROM information_schema.tables t
         WHERE t.table_schema = 'public' AND t.table_name = e.object_name AND t.table_type = 'VIEW'
-      ) THEN 'OK'
+      ) THEN 'PASS'
       WHEN e.object_kind = 'function' AND EXISTS (
         SELECT 1 FROM pg_proc p
         JOIN pg_namespace n ON n.oid = p.pronamespace
         WHERE n.nspname = 'public' AND p.proname = e.object_name
-      ) THEN 'OK'
+      ) THEN 'PASS'
       WHEN e.object_kind = 'policy' AND EXISTS (
         SELECT 1 FROM pg_policies p
         WHERE p.schemaname = 'public' AND p.policyname = e.object_name
-      ) THEN 'OK'
+      ) THEN 'PASS'
       WHEN e.object_kind = 'trigger' AND EXISTS (
         SELECT 1 FROM pg_trigger t
         JOIN pg_class c ON c.oid = t.tgrelid
         JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname = 'public' AND t.tgname = e.object_name AND NOT t.tgisinternal
-      ) THEN 'OK'
+      ) THEN 'PASS'
       WHEN e.object_kind = 'index' AND EXISTS (
         SELECT 1 FROM pg_indexes i
         WHERE i.schemaname = 'public' AND i.indexname = e.object_name
-      ) THEN 'OK'
+      ) THEN 'PASS'
       WHEN e.object_kind = 'column' AND EXISTS (
         SELECT 1 FROM information_schema.columns c
         WHERE c.table_schema = 'public'
           AND c.table_name = split_part(e.object_name, '.', 1)
           AND c.column_name = split_part(e.object_name, '.', 2)
-      ) THEN 'OK'
+      ) THEN 'PASS'
       WHEN e.object_kind = 'rls' AND EXISTS (
         SELECT 1 FROM pg_class c
         JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname = 'public' AND c.relname = e.object_name AND c.relrowsecurity
-      ) THEN 'OK'
+      ) THEN 'PASS'
       WHEN e.object_kind = 'absent-function' AND NOT EXISTS (
         SELECT 1 FROM pg_proc p
         JOIN pg_namespace n ON n.oid = p.pronamespace
         WHERE n.nspname = 'public'
           AND p.proname = split_part(e.object_name, '(', 1)
           AND pg_get_function_identity_arguments(p.oid) = substring(e.object_name from '\((.*)\)')
-      ) THEN 'OK'
-      WHEN e.object_kind = 'absent-function' THEN 'CONFLICT'
-      ELSE 'MISSING'
+      ) THEN 'PASS'
+      WHEN e.object_kind = 'version' AND EXISTS (
+        SELECT 1 FROM information_schema.tables t
+        WHERE t.table_schema = 'public' AND t.table_name = 'schema_install'
+      ) AND EXISTS (
+        SELECT 1 FROM public.schema_install s WHERE s.version = e.object_name
+      ) THEN 'PASS'
+      WHEN e.object_kind = 'absent-function' THEN 'FAIL'
+      ELSE 'FAIL'
     END AS status
   FROM expected e
 )
-SELECT object_name AS object, status, module, detail
-FROM checked
-UNION ALL
-SELECT
-  'SUMMARY',
-  CASE WHEN count(*) FILTER (WHERE status <> 'OK') = 0 THEN 'OK' ELSE 'MISSING' END,
-  'audit',
-  count(*) FILTER (WHERE status <> 'OK')::text || ' object(s) are not OK'
-FROM checked
-ORDER BY
-  CASE WHEN object = 'SUMMARY' THEN 1 ELSE 0 END,
-  status,
-  module,
-  object;
+SELECT object, status, module, detail
+FROM (
+  SELECT object_name AS object, status, module, detail, 0 AS sort_summary
+  FROM checked
+  UNION ALL
+  SELECT
+    'SUMMARY',
+    CASE WHEN count(*) FILTER (WHERE status <> 'PASS') = 0 THEN 'OK' ELSE 'FAIL' END,
+    'audit',
+    count(*) FILTER (WHERE status <> 'PASS')::text || ' object(s) are not PASS',
+    1
+  FROM checked
+) report
+ORDER BY sort_summary, status, module, object;

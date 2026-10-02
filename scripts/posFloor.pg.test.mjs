@@ -234,6 +234,17 @@ async function main() {
     [bar, space],
   ), /bar not allowed/)
 
+  await expectRaise(root, userJbm, () => root.query(
+    `SELECT public.pos_load_ticket($1, $2, '')`,
+    [other, space],
+  ), /bar not allowed/)
+
+  await root.query(
+    `INSERT INTO public.bar_memberships (user_id, bar_id, role, granted_by)
+     VALUES ($1, $2, 'jbm', $1)
+     ON CONFLICT (user_id, bar_id) DO UPDATE SET revoked_at = NULL`,
+    [userJbm, other],
+  )
   await tx(root, userJbm, () => root.query(
     `SELECT public.pos_load_ticket($1, $2, '')`,
     [other, space],
@@ -385,10 +396,16 @@ async function main() {
   assert.equal(spiritSaida.rows[0].n, 0)
   const night = await root.query(
     `SELECT data = operational_day AS same FROM public.caixa_movimentos
-     WHERE referencia_id = $1 AND referencia_tipo = 'pos_venda'`,
+     WHERE referencia_id = $1 AND referencia_tipo = 'taxa_cartao'`,
     [pour.venda_id],
   )
   assert.equal(night.rows.length, 1)
+  const cardCash = await root.query(
+    `SELECT count(*)::int AS n FROM public.caixa_movimentos
+     WHERE referencia_id = $1 AND referencia_tipo = 'pos_venda'`,
+    [pour.venda_id],
+  )
+  assert.equal(cardCash.rows[0].n, 0)
   const feeLines = await root.query(
     `SELECT count(*)::int AS n FROM public.caixa_movimentos
      WHERE referencia_id = $1 AND referencia_tipo = 'taxa_cartao'`,

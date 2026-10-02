@@ -1602,7 +1602,7 @@ DECLARE
   item record;
   task public.procurement_tasks%ROWTYPE;
   got integer;
-  obs text;
+  ship_note text;
   ped uuid;
 BEGIN
   IF auth.uid() IS NULL THEN
@@ -1633,7 +1633,7 @@ BEGIN
     RAISE EXCEPTION 'not allowed';
   END IF;
 
-  obs := 'JBM ship ' || left(ship.id::text, 8);
+  ship_note := 'JBM ship ' || left(ship.id::text, 8);
   FOR item IN
     SELECT si.procurement_task_id, si.quantity, t.product_id, t.order_id, t.quantity_allocated, t.quantity_at_bar
     FROM public.shipment_items si
@@ -1679,10 +1679,10 @@ BEGIN
       SELECT 1 FROM public.estoque_movimentos m
       WHERE m.bar_id = dest.bar_id
         AND m.produto_id = item.product_id
-        AND m.obs = obs || ' ' || left(item.procurement_task_id::text, 8)
+        AND m.obs = ship_note || ' ' || left(item.procurement_task_id::text, 8)
     ) THEN
       INSERT INTO public.estoque_movimentos (produto_id, bar_id, tipo, qtd, criado_por, obs)
-      VALUES (item.product_id, dest.bar_id, 'entrada', got, auth.uid(), obs || ' ' || left(item.procurement_task_id::text, 8));
+      VALUES (item.product_id, dest.bar_id, 'entrada', got, auth.uid(), ship_note || ' ' || left(item.procurement_task_id::text, 8));
     END IF;
   END LOOP;
 

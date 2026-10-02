@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS public.pos_sale_events (
 ALTER TABLE public.pos_tickets ADD COLUMN IF NOT EXISTS closed_by uuid;
 ALTER TABLE public.pos_tickets ADD COLUMN IF NOT EXISTS closed_at timestamptz;
 ALTER TABLE public.pos_tickets ADD COLUMN IF NOT EXISTS venda_id uuid;
+ALTER TABLE public.pos_tickets ADD COLUMN IF NOT EXISTS discount_total integer NOT NULL DEFAULT 0;
 ALTER TABLE public.pos_ticket_items ADD COLUMN IF NOT EXISTS added_by uuid;
 ALTER TABLE public.pos_ticket_items ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
 ALTER TABLE public.pos_sale_events ADD COLUMN IF NOT EXISTS ticket_id uuid;
@@ -177,29 +178,71 @@ AS $$
   END;
 $$;
 
+-- JBM is not a platform pass. A jbm profile reaches a bar only through
+-- bar_memberships, or through platform_access scope hq (audited below).
+CREATE TABLE IF NOT EXISTS public.bar_memberships (
+  user_id uuid NOT NULL,
+  bar_id uuid NOT NULL,
+  role text NOT NULL,
+  granted_by uuid,
+  granted_at timestamptz NOT NULL DEFAULT now(),
+  revoked_at timestamptz,
+  PRIMARY KEY (user_id, bar_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.platform_access (
+  user_id uuid PRIMARY KEY,
+  scope text NOT NULL CHECK (scope IN ('hq')),
+  granted_by uuid,
+  reason text,
+  granted_at timestamptz NOT NULL DEFAULT now(),
+  revoked_at timestamptz
+);
+
+CREATE TABLE IF NOT EXISTS public.platform_access_audit (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  bar_id uuid,
+  action text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE OR REPLACE FUNCTION public.pos_require_bar(p_bar uuid)
 RETURNS uuid
 LANGUAGE plpgsql
-STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
   actor uuid := auth.uid();
+  hq boolean;
 BEGIN
   IF actor IS NULL THEN
     RAISE EXCEPTION 'not authenticated';
   END IF;
-  IF NOT (
-    public.user_can_access_bar(p_bar)
-    OR EXISTS (
-      SELECT 1 FROM public.perfis p
-      WHERE p.id = actor AND p.role IN ('admin', 'jbm')
-    )
-  ) THEN
-    RAISE EXCEPTION 'bar not allowed';
+  IF public.user_can_access_bar(p_bar) THEN
+    RETURN actor;
   END IF;
-  RETURN actor;
+  IF EXISTS (
+    SELECT 1 FROM public.bar_memberships m
+    WHERE m.user_id = actor AND m.bar_id = p_bar AND m.revoked_at IS NULL
+  ) THEN
+    RETURN actor;
+  END IF;
+  SELECT EXISTS (
+    SELECT 1 FROM public.platform_access a
+    JOIN public.perfis p ON p.id = a.user_id
+    WHERE a.user_id = actor
+      AND a.scope = 'hq'
+      AND a.revoked_at IS NULL
+      AND p.role IN ('admin', 'jbm')
+  ) INTO hq;
+  IF hq THEN
+    INSERT INTO public.platform_access_audit (user_id, bar_id, action)
+    VALUES (actor, p_bar, 'pos_require_bar');
+    RETURN actor;
+  END IF;
+  RAISE EXCEPTION 'bar not allowed';
 END;
 $$;
 
@@ -763,6 +806,10 @@ DECLARE
   nome text;
   qty integer;
   subtotal integer := 0;
+  discount integer := 0;
+  net integer := 0;
+  paid integer := 0;
+  cash_in integer := 0;
   fee integer := 0;
   commission integer := 0;
   line_commission integer;
@@ -881,6 +928,24 @@ BEGIN
     RAISE EXCEPTION 'order is empty';
   END IF;
 
+  discount := LEAST(GREATEST(COALESCE(ticket.discount_total, 0), 0), subtotal);
+  net := subtotal - discount;
+  IF net <= 0 THEN
+    RAISE EXCEPTION 'order is empty';
+  END IF;
+
+  paid := 0;
+  BEGIN
+    SELECT COALESCE(SUM(amount), 0)::integer INTO paid
+    FROM public.pos_sale_payments
+    WHERE ticket_id = p_ticket AND pos_venda_id IS NULL;
+  EXCEPTION WHEN undefined_table THEN
+    paid := 0;
+  END;
+  IF paid > 0 AND paid <> net THEN
+    RAISE EXCEPTION 'payment does not reconcile';
+  END IF;
+
   BEGIN
     INSERT INTO public.pos_idempotency (bar_id, key) VALUES (p_bar, p_key);
   EXCEPTION WHEN unique_violation THEN
@@ -891,15 +956,25 @@ BEGIN
     RETURN jsonb_build_object('venda_id', existing, 'duplicate', true);
   END;
 
-  IF p_payment IN ('card', 'credit') THEN
-    fee := round(subtotal * 0.0378);
+  IF paid > 0 THEN
+    BEGIN
+      SELECT COALESCE(SUM(p.fee), 0)::integer INTO fee
+      FROM public.pos_sale_payments p
+      WHERE p.ticket_id = p_ticket AND p.pos_venda_id IS NULL;
+    EXCEPTION WHEN undefined_table THEN
+      fee := 0;
+    END;
+  ELSIF p_payment IN ('card', 'credit') THEN
+    fee := round(net * 0.0378);
   END IF;
 
   INSERT INTO public.pos_vendas (
     bar_id, data, subtotal, desconto_total, total, metodo_pagamento, tipo, criado_por,
     comissao_valor, drink_back_agent_id, card_fee
   ) VALUES (
-    p_bar, night, subtotal, 0, subtotal, COALESCE(p_payment, 'cash'), 'balcao', actor,
+    p_bar, night, subtotal, discount, net,
+    CASE WHEN paid > 0 THEN 'split' ELSE COALESCE(p_payment, 'cash') END,
+    'balcao', actor,
     commission, p_agent, fee
   ) RETURNING id INTO venda;
 
@@ -973,8 +1048,38 @@ BEGIN
     END IF;
   END LOOP;
 
-  INSERT INTO public.caixa_movimentos (bar_id, tipo, valor, descricao, referencia_id, referencia_tipo, data, operational_day)
-  VALUES (p_bar, 'entrada', subtotal, 'POS ' || COALESCE(p_payment, 'cash'), venda, 'pos_venda', now(), night);
+  cash_in := 0;
+  IF paid > 0 THEN
+    SELECT COALESCE(SUM(amount), 0)::integer INTO cash_in
+    FROM public.pos_sale_payments
+    WHERE ticket_id = p_ticket AND pos_venda_id IS NULL AND method IN ('cash', 'dinheiro');
+  ELSIF COALESCE(p_payment, 'cash') IN ('cash', 'dinheiro') THEN
+    cash_in := net;
+  END IF;
+  IF cash_in > 0 THEN
+    INSERT INTO public.caixa_movimentos (bar_id, tipo, valor, descricao, referencia_id, referencia_tipo, data, operational_day)
+    VALUES (
+      p_bar, 'entrada', cash_in,
+      'POS ' || CASE WHEN paid > 0 THEN 'cash' ELSE COALESCE(p_payment, 'cash') END,
+      venda, 'pos_venda', now(), night
+    );
+  END IF;
+
+  BEGIN
+    IF paid = 0 THEN
+      INSERT INTO public.pos_sale_payments (bar_id, ticket_id, pos_venda_id, method, amount, fee)
+      VALUES (
+        p_bar, p_ticket, venda, COALESCE(p_payment, 'cash'), net,
+        CASE WHEN COALESCE(p_payment, 'cash') IN ('card', 'credit') THEN fee ELSE 0 END
+      );
+    ELSE
+      UPDATE public.pos_sale_payments
+        SET pos_venda_id = venda
+        WHERE ticket_id = p_ticket AND pos_venda_id IS NULL;
+    END IF;
+  EXCEPTION WHEN undefined_table THEN
+    NULL;
+  END;
 
   IF fee > 0 THEN
     INSERT INTO public.caixa_movimentos (bar_id, tipo, valor, descricao, referencia_id, referencia_tipo, data, operational_day)
@@ -989,9 +1094,10 @@ BEGIN
 
   RETURN jsonb_build_object(
     'venda_id', venda,
-    'total', subtotal,
+    'total', net,
+    'discount', discount,
     'fee', fee,
-    'net', subtotal - fee,
+    'net', net - fee,
     'commission', commission,
     'duplicate', false,
     'night', night
@@ -1119,8 +1225,18 @@ BEGIN
   );
 
   void_night := public.pos_tokyo_night(now());
-  INSERT INTO public.caixa_movimentos (bar_id, tipo, valor, descricao, referencia_id, referencia_tipo, data, operational_day)
-  VALUES (sale.bar_id, 'saida', value, 'POS ' || p_kind, sale.id, 'pos_void', now(), void_night);
+  IF sale.metodo_pagamento IN ('cash', 'dinheiro') THEN
+    INSERT INTO public.caixa_movimentos (bar_id, tipo, valor, descricao, referencia_id, referencia_tipo, data, operational_day)
+    VALUES (sale.bar_id, 'saida', value, 'POS ' || p_kind, sale.id, 'pos_void', now(), void_night);
+  ELSIF sale.metodo_pagamento = 'split' THEN
+    INSERT INTO public.caixa_movimentos (bar_id, tipo, valor, descricao, referencia_id, referencia_tipo, data, operational_day)
+    SELECT sale.bar_id, 'saida',
+      LEAST(value, COALESCE(SUM(amount), 0)::integer),
+      'POS ' || p_kind, sale.id, 'pos_void', now(), void_night
+    FROM public.pos_sale_payments
+    WHERE pos_venda_id = sale.id AND method IN ('cash', 'dinheiro')
+    HAVING COALESCE(SUM(amount), 0) > 0;
+  END IF;
 
   IF fee_part > 0 THEN
     INSERT INTO public.caixa_movimentos (bar_id, tipo, valor, descricao, referencia_id, referencia_tipo, data, operational_day)

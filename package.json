@@ -21,7 +21,8 @@
     "test:ai": "node scripts/aiAssistant.test.mjs",
     "test:demo": "node scripts/demoLedger.test.mjs",
     "test:readiness": "node scripts/readiness.test.mjs",
-    "test:pos:pg": "node scripts/posFloor.pg.test.mjs"
+    "test:pos:pg": "node scripts/posFloor.pg.test.mjs",
+    "test:foundation": "node scripts/foundation.pg.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
