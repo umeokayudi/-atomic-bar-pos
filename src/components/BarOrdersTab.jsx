@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { isLocalDemo, supabase } from '../lib/supabase'
 import { fmtYen, fmtDate, Spinner, Empty, SectionTitle, isSupplierProduct, PedidoItemChip } from './utils'
 import { isRestockPedido } from '../lib/posSupply'
 import { useI18n } from '../lib/i18n'
@@ -140,7 +140,7 @@ export default function BarOrdersTab({ bar }) {
       p_idempotency_key: idempotencyKey.current,
     })
     if (submitted.error) {
-      setOrderErr(schemaMissing(submitted.error) ? t('procurement.notConfigured') : submitted.error.message)
+      setOrderErr(schemaMissing(submitted.error) ? (isLocalDemo ? t('common.demoBlocked') : t('procurement.notConfigured')) : submitted.error.message)
       setSaving(false)
       return
     }
@@ -369,7 +369,7 @@ export default function BarOrdersTab({ bar }) {
                   if (res.error && schemaMissing(res.error)) {
                     res = await supabase.rpc('get_order_tracking', { p_order_id: p.id })
                   }
-                  if (res.error) setTrackErr(schemaMissing(res.error) ? t('fulfillment.schemaMissing') : res.error.message)
+                  if (res.error) setTrackErr(schemaMissing(res.error) ? (isLocalDemo ? t('common.demoBlocked') : t('fulfillment.schemaMissing')) : res.error.message)
                   else setTrack(res.data)
                 }}>{t('fulfillment.track')}</button>
                 {p.status === 'pendente' && (

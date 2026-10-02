@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { isLocalDemo, supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import { useI18n } from '../lib/i18n'
 import { schemaMissing } from '../lib/fulfillment'
@@ -94,7 +94,7 @@ export default function SupplierPortal({ onSignOut }) {
         <strong>{t('fulfillment.supplierTitle')}</strong>
         <button type="button" onClick={onSignOut}>{t('common.signOut')}</button>
       </header>
-      {missing && <p className="ff-miss">{t('fulfillment.schemaMissing')}</p>}
+      {missing && <p className="ff-miss">{isLocalDemo ? t('common.demoBlocked') : t('fulfillment.schemaMissing')}</p>}
       {err && <p className="ff-miss">{err}</p>}
       {!linked && <p>{t('fulfillment.notLinked')}</p>}
       {alerts.map(a => <AlertCard key={a.id} alert={a} />)}

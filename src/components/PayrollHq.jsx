@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { isLocalDemo, supabase } from '../lib/supabase'
 import { useI18n } from '../lib/i18n'
 import { fmtYen, Empty } from './utils'
 import { AdminPage, PortalKpi, PortalSurface } from './ui/PageLayout'
@@ -57,7 +57,7 @@ export default function PayrollHq() {
 
   return (
     <AdminPage title={t('payroll.title')}>
-      {missing && <PortalSurface><Empty text={t('employee.schemaMissing')} /></PortalSurface>}
+      {missing && <PortalSurface><Empty text={isLocalDemo ? t('common.demoBlocked') : t('employee.schemaMissing')} /></PortalSurface>}
       {err && <p>{err}</p>}
       <PortalSurface>
         <div className="bar-add-row">

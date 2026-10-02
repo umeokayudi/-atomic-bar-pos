@@ -11,6 +11,7 @@ export default {
     close: 'Close',
     retry: 'Try again',
     signOut: 'Sign out',
+    demoBlocked: 'This preview is in local demo mode and is not connected to a database. This module cannot be tested against live data here. Nothing was saved.',
     search: 'Search',
     clear: 'Clear',
     confirm: 'Confirm',

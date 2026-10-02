@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { isLocalDemo, supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import { useI18n } from '../lib/i18n'
 import { fmtYen, Empty } from './utils'
@@ -70,7 +70,7 @@ export default function EmployeeDesk({ section = 'salary' }) {
         <input type="month" value={competence} onChange={e => setCompetence(e.target.value)} />
       }
     >
-      {missing && <PortalSurface><Empty text={t('employee.schemaMissing')} /></PortalSurface>}
+      {missing && <PortalSurface><Empty text={isLocalDemo ? t('common.demoBlocked') : t('employee.schemaMissing')} /></PortalSurface>}
       {err && <PortalSurface><Empty text={err} /></PortalSurface>}
       {!missing && section === 'profile' && (
         <PortalSurface title={perfil?.nome || t('employee.profile')}>

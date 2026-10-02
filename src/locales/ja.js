@@ -11,6 +11,7 @@ export default {
     close: '閉じる',
     retry: '再試行',
     signOut: 'ログアウト',
+    demoBlocked: 'このプレビューはローカルデモで、データベースには接続していません。ここでは本番データを操作できません。何も保存されていません。',
     search: '検索',
     clear: 'クリア',
     confirm: '確認',

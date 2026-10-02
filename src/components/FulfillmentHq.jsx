@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { isLocalDemo, supabase } from '../lib/supabase'
 import { useI18n } from '../lib/i18n'
 import { schemaMissing } from '../lib/fulfillment'
 import { tokyoDateKey } from '../lib/tokyo'
@@ -82,7 +82,7 @@ export default function FulfillmentHq() {
     setOpenId(id)
     setTrack(null)
     const { data, error } = await supabase.rpc('get_order_tracking', { p_order_id: id })
-    if (error) setErr(schemaMissing(error) ? t('fulfillment.schemaMissing') : error.message)
+    if (error) setErr(schemaMissing(error) ? (isLocalDemo ? t('common.demoBlocked') : t('fulfillment.schemaMissing')) : error.message)
     else setTrack(data)
   }
 
@@ -90,7 +90,7 @@ export default function FulfillmentHq() {
     setBusy(true)
     const { error } = await supabase.rpc('route_pedido', { p_order_id: id })
     setBusy(false)
-    if (error) setErr(schemaMissing(error) ? t('fulfillment.schemaMissing') : error.message)
+    if (error) setErr(schemaMissing(error) ? (isLocalDemo ? t('common.demoBlocked') : t('fulfillment.schemaMissing')) : error.message)
     else { await load(); if (openId === id) open(id) }
   }
 
@@ -98,7 +98,7 @@ export default function FulfillmentHq() {
     setBusy(true)
     const { error } = await supabase.rpc('scan_fulfillment_alerts')
     setBusy(false)
-    if (error) setErr(schemaMissing(error) ? t('fulfillment.schemaMissing') : error.message)
+    if (error) setErr(schemaMissing(error) ? (isLocalDemo ? t('common.demoBlocked') : t('fulfillment.schemaMissing')) : error.message)
     else load()
   }
 
@@ -145,7 +145,7 @@ export default function FulfillmentHq() {
   }) : null
 
   if (missing) {
-    return <AdminPage title={t('fulfillment.title')} subtitle={t('fulfillment.subtitle')}><p className="ff-miss">{t('fulfillment.schemaMissing')}</p></AdminPage>
+    return <AdminPage title={t('fulfillment.title')} subtitle={t('fulfillment.subtitle')}><p className="ff-miss">{isLocalDemo ? t('common.demoBlocked') : t('fulfillment.schemaMissing')}</p></AdminPage>
   }
 
   return (
