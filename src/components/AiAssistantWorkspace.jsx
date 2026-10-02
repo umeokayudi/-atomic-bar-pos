@@ -185,6 +185,7 @@ export default function AiAssistantWorkspace({ demo = false }) {
       ...item,
       messages: item.messages.map(row => row.id === message.id ? {
         ...row,
+        draft: row.draft ? { ...row.draft, reason: result.reason || result.error || row.draft.reason } : row.draft,
         review: {
           ...row.review,
           status: result.status,
