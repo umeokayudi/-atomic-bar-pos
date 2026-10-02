@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { isLocalDemo, supabase } from '../lib/supabase'
 import { fmtYen, fmtDate, Spinner, Empty, SectionTitle, isSupplierProduct, PedidoItemChip } from './utils'
 import { isRestockPedido } from '../lib/posSupply'
 import { useI18n } from '../lib/i18n'
@@ -119,6 +119,10 @@ export default function BarOrdersTab({ bar }) {
   const idempotencyKey = useRef('')
 
   async function enviarOrder() {
+    if (isLocalDemo) {
+      setOrderErr(t('portal.orders.demoRole'))
+      return
+    }
     if (items.length === 0) {
       setOrderErr(t('portal.orders.addOneItem'))
       return
@@ -140,7 +144,7 @@ export default function BarOrdersTab({ bar }) {
       p_idempotency_key: idempotencyKey.current,
     })
     if (submitted.error) {
-      setOrderErr(schemaMissing(submitted.error) ? t('procurement.notConfigured') : submitted.error.message)
+      setOrderErr(schemaMissing(submitted.error) ? (isLocalDemo ? t('common.demoBlocked') : t('procurement.notConfigured')) : submitted.error.message)
       setSaving(false)
       return
     }
@@ -185,6 +189,7 @@ export default function BarOrdersTab({ bar }) {
 
   return (
     <div className="fade-in ord-page">
+      {isLocalDemo && <p className="ff-miss">{t('portal.orders.demoRole')}</p>}
       <div className="ord-head">
         <SectionTitle sub={t('portal.orders.onlyHint')}>{t('portal.orders.title')}</SectionTitle>
         <div className="ord-head-actions">
@@ -322,8 +327,8 @@ export default function BarOrdersTab({ bar }) {
           <div className="ord-sendbar">
             <div className="ord-send-kicker">{bottleCount} {t('portal.orders.items')}</div>
             <div className="ord-send-end">
-              <div className="ord-send-total">{fmtYen(totalOrder)}</div>
-              <button type="button" className="btn-primary ord-send-btn" onClick={enviarOrder} disabled={saving || items.length === 0}>
+              <div className="ord-send-total">{items.length ? fmtYen(totalOrder) : '—'}</div>
+              <button type="button" className="btn-primary ord-send-btn" onClick={enviarOrder} disabled={saving || items.length === 0 || isLocalDemo}>
                 {saving ? t('portal.orders.sending') : t('portal.orders.sendOrder')}
               </button>
             </div>
@@ -369,7 +374,7 @@ export default function BarOrdersTab({ bar }) {
                   if (res.error && schemaMissing(res.error)) {
                     res = await supabase.rpc('get_order_tracking', { p_order_id: p.id })
                   }
-                  if (res.error) setTrackErr(schemaMissing(res.error) ? t('fulfillment.schemaMissing') : res.error.message)
+                  if (res.error) setTrackErr(schemaMissing(res.error) ? (isLocalDemo ? t('common.demoBlocked') : t('fulfillment.schemaMissing')) : res.error.message)
                   else setTrack(res.data)
                 }}>{t('fulfillment.track')}</button>
                 {p.status === 'pendente' && (

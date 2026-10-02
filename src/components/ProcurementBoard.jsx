@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { isLocalDemo, supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import { useI18n } from '../lib/i18n'
 import { schemaMissing } from '../lib/fulfillment'
@@ -90,7 +90,7 @@ function MyTasks() {
   return (
     <div className="ff-portal">
       <h2>{t('procurement.myTasks')}</h2>
-      {missing && <p className="ff-miss">{t('procurement.schemaMissing')}</p>}
+      {missing && <p className="ff-miss">{isLocalDemo ? t('common.demoBlocked') : t('procurement.schemaMissing')}</p>}
       {err && <p className="ff-miss">{err}</p>}
       {tasks.length === 0 && !missing ? <p>{t('procurement.noTasks')}</p> : null}
       {tasks.map(task => (
@@ -273,7 +273,7 @@ function HqBoard() {
     <div className="ff-portal">
       <h2>{t('procurement.title')}</h2>
       <p>{t('procurement.subtitle')}</p>
-      {missing && <p className="ff-miss">{t('procurement.schemaMissing')}</p>}
+      {missing && <p className="ff-miss">{isLocalDemo ? t('common.demoBlocked') : t('procurement.schemaMissing')}</p>}
       {err && <p className="ff-miss">{err}</p>}
       {board?.economics && (
         <p>

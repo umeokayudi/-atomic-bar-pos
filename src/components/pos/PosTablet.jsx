@@ -81,9 +81,10 @@ export default function PosTablet({ t, floor }) {
           <div className="pos-t-pay">
             <div className="pos-m-total">
               <span>{t('posFloor.total')}</span>
-              <strong>{fmtYen(preview?.subtotal || 0)}</strong>
+              <strong>{lines.length ? fmtYen(preview?.subtotal || 0) : '—'}</strong>
             </div>
-            {preview && (
+            {!lines.length && <p className="pos-floor-meta">{t('posFloor.noOpenTicket')}</p>}
+            {lines.length > 0 && preview && (
               <p className="pos-floor-meta">
                 {t('posFloor.fee')} {fmtYen(preview.fee)} · {t('posFloor.net')} {fmtYen(preview.net)} · {t('posFloor.commission')} {fmtYen(preview.commission)}
               </p>
@@ -101,7 +102,7 @@ export default function PosTablet({ t, floor }) {
             </div>
             {blocked && <div className="pos-sale-err">{blocked}</div>}
             <button type="button" className="pos-t-charge" disabled={busy || !lines.length || !!blocked} onClick={floor.charge}>
-              {busy ? t('posFloor.saving') : t('posFloor.charge')}
+              {busy ? t('posFloor.saving') : lines.length ? t('posFloor.charge') : t('posFloor.chargeEmpty')}
             </button>
             <button type="button" onClick={() => floor.setOpenForm(v => !v)}>{t('posFloor.openBottle')}</button>
             {openForm && (

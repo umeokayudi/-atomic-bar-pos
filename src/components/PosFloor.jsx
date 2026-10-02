@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { isLocalDemo, supabase } from '../lib/supabase'
 import { useI18n } from '../lib/i18n'
 import { schemaMissing } from '../lib/fulfillment'
 import { groupSpaces } from '../lib/posFloor'
@@ -259,6 +259,10 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
 
   async function charge() {
     if (!ticket?.id || !lines.length || busy || blocked) return
+    if (isLocalDemo) {
+      setErr(t('atomicPos.demoSaleBlocked'))
+      return
+    }
     setBusy(true)
     setErr('')
     const key = closeKey(ticket.id)

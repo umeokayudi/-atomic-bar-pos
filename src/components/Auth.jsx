@@ -12,6 +12,7 @@ import {
 import { setHashForRole } from '../lib/barDoors'
 import { asReactText, errText } from '../lib/errText'
 import DemoModeBanner from './DemoModeBanner'
+import { isLocalDemo } from '../lib/supabase'
 
 const AuthContext = createContext(null)
 export const useAuth = () => useContext(AuthContext)
@@ -227,7 +228,7 @@ export function LoginPage() {
             {t('auth.enter')}
           </div>
           <div className="login-door-hint">
-            {t('auth.oneLoginHint')}
+            {isLocalDemo ? t('auth.demoOnly') : t('auth.oneLoginHint')}
           </div>
 
           <div style={{ marginBottom: 14, marginTop: 18 }}>

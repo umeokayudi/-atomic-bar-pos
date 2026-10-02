@@ -124,6 +124,10 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
   }
 
   async function closeNight() {
+    if (isLocalDemo) {
+      setMsg(t('atomicPos.demoCloseBlocked'))
+      return
+    }
     setBusy(true)
     setMsg('')
     let salesRes = await supabase.from('pos_vendas')
@@ -175,7 +179,9 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
       <div>
         <div className="pos-ticket-label">{t('atomicPos.nightClose')}</div>
         <div className="pos-close-meta">
-          {t('atomicPos.nightOpen', { date: nightKey })} · {summary.ticketCount} · {fmtYen(summary.drinksTotal)}
+          {t('atomicPos.nightOpen', { date: nightKey })} · {isLocalDemo && summary.ticketCount === 0 ? '—' : `${summary.ticketCount} · ${fmtYen(summary.drinksTotal)}`}
+          {!(isLocalDemo && summary.ticketCount === 0) && (
+          <>
           <div className="pos-close-split">
             {t('atomicPos.paySplit', {
               cash: fmtYen(summary.cashTotal),
@@ -192,6 +198,8 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
               cash: fmtYen(summary.cashNet || 0),
             })}
           </div>
+          </>
+          )}
           {summary.ticketCount === 0 && prior && (
             <div className="pos-close-last">
               {t('atomicPos.lastNight', {
@@ -210,7 +218,9 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
           )}
         </div>
       </div>
-      {closed ? (
+      {isLocalDemo ? (
+        <p className="pos-close-meta">{t('atomicPos.demoCloseBlocked')}</p>
+      ) : closed ? (
         <div className="pos-close-done">{t('atomicPos.alreadyClosed')} · {fmtYen(shift.drinks_total || summary.drinksTotal)}</div>
       ) : (
         <div className="pos-close-actions">
@@ -374,6 +384,7 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
     spaceType: space?.tipo || '',
   })
   const ticketTotal = charges.total
+  const ticketOpen = cart.length > 0 || charges.lines.length > 0
   const checkoutCart = [...cart, ...charges.lines]
   const cash = isCashMethod(payMethod) ? cashSettle(ticketTotal, cashTendered, restMethod) : null
   const cashShort = !!(cash && cash.short)
@@ -773,9 +784,11 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
           </div>
         )}
         <div className="pos-cart-pay">
-          <div className="pos-cart-total">{fmtYen(ticketTotal)}</div>
+          <div className="pos-cart-total">{ticketOpen ? fmtYen(ticketTotal) : '—'}</div>
           <div className="pos-tax-line">
-            {t('atomicPos.taxIncluded')} · {t('atomicPos.consumptionTaxIncluded')} {fmtYen(includedTaxBreakdown(ticketTotal).tax)}
+            {ticketOpen
+              ? `${t('atomicPos.taxIncluded')} · ${t('atomicPos.consumptionTaxIncluded')} ${fmtYen(includedTaxBreakdown(ticketTotal).tax)}`
+              : t('atomicPos.noOpenTicket')}
           </div>
           <div className="pos-pay-methods">
             {PAY_METHODS.map(m => (
@@ -783,11 +796,12 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
                 key={m.id}
                 type="button"
                 className={`pos-pay-method${payMethod === m.id ? ' is-on' : ''}`}
+                disabled={!ticketOpen}
                 onClick={() => { setPayMethod(m.id); setRestMethod('') }}
               >{t(`atomicPos.${m.key}`)}</button>
             ))}
           </div>
-          {isCashMethod(payMethod) ? (
+          {ticketOpen && isCashMethod(payMethod) ? (
             <div className="pos-cash-box">
               <div className="pos-pay-hint">{t('atomicPos.payCashHint')}</div>
               <div className="pos-cash-chips">
@@ -848,8 +862,8 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
           ) : (
             <div className="pos-pay-hint">{t('atomicPos.payRecordHint')}</div>
           )}
-          <button className="btn-gold pos-pay" onClick={completeSale} disabled={saving || cashShort || (!cart.length && !charges.lines.length) || (priceType === 'vip' && !vipId)}>
-            {saving ? t('common.saving') : t('atomicPos.chargeNow', { amount: fmtYen(ticketTotal) })}
+          <button className="btn-gold pos-pay" onClick={completeSale} disabled={saving || !ticketOpen || cashShort || (priceType === 'vip' && !vipId)}>
+            {saving ? t('common.saving') : ticketOpen ? t('atomicPos.chargeNow', { amount: fmtYen(ticketTotal) }) : t('atomicPos.chargeEmpty')}
           </button>
           <NightCloseBar bar={bar} compact />
         </div>
@@ -1298,21 +1312,32 @@ function PosDashboardTab({ bar, todaySales, salesList, onOrder }) {
     load()
   }, [bar, todaySales])
 
+  const quietCounter = metrics.count === 0
+
   return (
     <div className="easy-dash pos-easy-dash">
       <div className="easy-dash-hero">
         <div className="easy-dash-kicker">{t('atomicPos.todayAtCounter')}</div>
-        <div className="easy-dash-value" style={{ color: 'var(--green)' }}>{fmtYen(metrics.total)}</div>
+        <div className="easy-dash-value" style={{ color: quietCounter ? 'var(--text3)' : 'var(--green)' }}>{quietCounter ? '—' : fmtYen(metrics.total)}</div>
         <div className="easy-dash-hint">
-          {t('atomicPos.ticketsToday', { count: metrics.count })}
-          {' · '}
-          {t('atomicPos.avgTicketShort', { amount: fmtYen(metrics.ticketMedio) })}
-          {metrics.peakHour?.total > 0 ? ` · ${t('atomicPos.busiestHour')} ${metrics.peakHour.label}` : ''}
+          {quietCounter
+            ? t('atomicPos.noCounterSales')
+            : (
+              <>
+                {t('atomicPos.ticketsToday', { count: metrics.count })}
+                {' · '}
+                {t('atomicPos.avgTicketShort', { amount: fmtYen(metrics.ticketMedio) })}
+                {metrics.peakHour?.total > 0 ? ` · ${t('atomicPos.busiestHour')} ${metrics.peakHour.label}` : ''}
+              </>
+            )}
         </div>
       </div>
       <NightCloseBar bar={bar} salesHint={salesList} />
 
-      {openRestock.length === 0 && lowStock.length === 0 && (
+      {isLocalDemo && !loading && (
+        <p className="metric-detail" style={{ marginBottom: 16 }}>{t('atomicPos.stockUnknown')}</p>
+      )}
+      {!isLocalDemo && !loading && openRestock.length === 0 && lowStock.length === 0 && (
         <div className="easy-dash-ok" style={{ marginBottom: 16 }}>{t('atomicPos.stockOk')}</div>
       )}
 

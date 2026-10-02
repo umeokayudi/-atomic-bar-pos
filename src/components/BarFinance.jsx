@@ -246,7 +246,7 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
   }
 
   if (loading) return <Spinner text={t('portal.close.loading')} />
-  if (!pack) {
+  if (!pack || isLocalDemo) {
     const title = section === 'pagamentos'
       ? t('nav.portalPay')
       : section === 'salarios'
@@ -256,7 +256,8 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
       <div className="house-page panel">
         <h1 className="section-title">{title}</h1>
         <p className="metric-detail">{asReactText(err || t('common.loading'))}</p>
-        {section === 'fechamento' && <CloseGuide />}
+        {section === 'fechamento' && isLocalDemo && <p className="metric-detail">{t('portal.close.demoNoClose')}</p>}
+        {section === 'fechamento' && !isLocalDemo && <CloseGuide />}
       </div>
     )
   }

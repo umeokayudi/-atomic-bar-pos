@@ -214,6 +214,7 @@ export async function commitPosSale(supabase, {
   shots = [],
   syncStock,
 }) {
+  if (supabase?.__localDemo) return { ok: false, errorKey: 'atomicPos.demoSaleBlocked' }
   if (!cart?.length) return { ok: false, errorKey: 'atomicPos.cartEmpty' }
   if (priceType === 'vip' && !vipId) return { ok: false, errorKey: 'atomicPos.vipMemberRequired' }
 
