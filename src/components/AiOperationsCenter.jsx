@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { isLocalDemo, supabase } from '../lib/supabase'
 import { tokyoNightKey } from '../lib/tokyo'
-import PortalClienteAI from './PortalClienteAI'
+import AiAssistantWorkspace from './AiAssistantWorkspace'
 
 const LIFECYCLE = ['draft', 'calculating', 'ready', 'approved', 'executing', 'completed', 'failed', 'cancelled']
 
@@ -23,6 +23,7 @@ const COMMANDS = [
 export default function AiOperationsCenter({ bar, onTab }) {
   const [actions, setActions] = useState([])
   const [note, setNote] = useState('')
+  const [section, setSection] = useState('assistant')
   const night = tokyoNightKey()
 
   const scope = useMemo(() => ({
@@ -126,84 +127,110 @@ export default function AiOperationsCenter({ bar, onTab }) {
     upsert({ ...row, status: 'cancelled' })
   }
 
+  const approvals = actions.filter(row => row.status === 'ready' || row.status === 'approved')
+
   return (
     <div className="ai-ops">
       <header className="dashboard-header">
         <div>
           <div className="eyebrow">{scope.bar}</div>
           <h1 className="page-title">AI Operations</h1>
-          <p className="page-subtitle">Night {scope.night} · {scope.mode}. Proposals stay here until you use the existing screens.</p>
+          <p className="page-subtitle">Night {scope.night} · {scope.mode}. The assistant is separate from approvals, and neither one executes a financial action.</p>
         </div>
       </header>
-      <div className="ai-query-panel">
-        <div className="ai-query-kicker">Ask Atomic</div>
-        <p className="ai-ops-status">
-          {isLocalDemo
-            ? 'Model chat is not called in local demo. Answers below are calculations from the local store.'
-            : 'The existing model chat remains available under this workspace.'}
-        </p>
-        <div className="ai-ops-commands">
-          {COMMANDS.map(command => (
-            <button key={command.id} type="button" className="action-secondary" onClick={() => prepare(command)}>
-              {command.label}
-            </button>
+      <nav className="ai-ops-nav" aria-label="AI workspace">
+        {[
+          ['assistant', 'Assistant'],
+          ['approvals', `Approvals${approvals.length ? ` ${approvals.length}` : ''}`],
+          ['history', 'Action history'],
+        ].map(([id, label]) => (
+          <button key={id} type="button" aria-pressed={section === id} onClick={() => setSection(id)}>{label}</button>
+        ))}
+      </nav>
+      {section === 'assistant' && <AiAssistantWorkspace demo={isLocalDemo} />}
+      {section === 'approvals' && (
+        <section className="ai-ops-thread">
+          <div className="ai-query-panel">
+            <div className="ai-query-kicker">Prepare a review</div>
+            <p className="ai-ops-status">These notes use the existing local calculations. They do not replace the assistant and do not close cash, payroll, or purchasing.</p>
+            <div className="ai-ops-commands">
+              {COMMANDS.map(command => (
+                <button key={command.id} type="button" className="action-secondary" onClick={() => prepare(command)}>
+                  {command.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {note && <p className="metric-detail">{note}</p>}
+          {!approvals.length && (
+            <div className="empty-state">
+              <strong>Nothing is waiting for approval</strong>
+              <p>A prepared note stays here until someone reviews it. Approval still does not execute the operation.</p>
+            </div>
+          )}
+          {approvals.map(row => (
+            <ActionCard key={row.id} row={row} onApprove={approve} onCancel={cancel} onTab={onTab} />
           ))}
-        </div>
-      </div>
-      {note && <p className="metric-detail">{note}</p>}
-      <div className="ai-ops-layout">
+        </section>
+      )}
+      {section === 'history' && (
         <section className="panel ai-ops-thread">
           <h2 className="section-title">Action history</h2>
           {!actions.length && (
             <div className="empty-state">
               <strong>No proposal yet</strong>
-              <p>Choose a command. A calculation is not a completed closing, purchase, or payroll run.</p>
+              <p>Prepare a note from Approvals. A calculation is not a completed closing, purchase, or payroll run.</p>
             </div>
           )}
           {actions.map(row => (
-            <article key={row.id} className={`ai-action is-${row.status}`}>
-              <header>
-                <strong>{row.title}</strong>
-                <span className={`status-badge is-${row.status === 'failed' ? 'danger' : row.status === 'approved' ? 'occupied' : 'available'}`}>{row.status}</span>
-              </header>
-              <ol className="ai-stages">
-                {['Draft', 'Calculation', 'Human review', 'Approval recorded', 'Execution', 'Verification'].map(stage => {
-                  const reached = (row.status === 'calculating' && stage === 'Calculation')
-                    || (row.status === 'ready' && ['Draft', 'Calculation', 'Human review'].includes(stage))
-                    || (row.status === 'approved' && ['Draft', 'Calculation', 'Human review', 'Approval recorded'].includes(stage))
-                    || (row.status === 'failed' && stage === 'Calculation')
-                  return <li key={stage} className={reached ? 'is-on' : ''}>{stage}</li>
-                })}
-              </ol>
-              <p className="metric-detail">Execution and verification stay off until a backend confirms the existing operation. Approval here does not close cash, payroll, or a month.</p>
-              <p>{row.body}</p>
-              <dl>
-                <div><dt>Action</dt><dd>{row.id}</dd></div>
-                <div><dt>Kind</dt><dd>{row.kind}</dd></div>
-                <div><dt>Period</dt><dd>{row.period}</dd></div>
-                <div><dt>Formula</dt><dd>{row.formula}</dd></div>
-                <div><dt>Effect</dt><dd>{row.reversible}</dd></div>
-              </dl>
-              {row.result && <p className="metric-detail">{row.result}</p>}
-              <div className="ai-action-buttons">
-                <button type="button" className="action-primary" disabled={row.status !== 'ready'} onClick={() => approve(row)}>Approve note</button>
-                <button type="button" className="action-secondary" disabled={row.status === 'cancelled'} onClick={() => cancel(row)}>Cancel</button>
-                {row.command === 'close' && (
-                  <button type="button" className="action-secondary" onClick={() => onTab?.('fechamento')}>Open cash register</button>
-                )}
-                {row.command === 'stock' && (
-                  <button type="button" className="action-secondary" onClick={() => onTab?.('estoque')}>Open inventory</button>
-                )}
-                {row.command === 'labor' && (
-                  <button type="button" className="action-secondary" onClick={() => onTab?.('ponto')}>Open time clock</button>
-                )}
-              </div>
-            </article>
+            <ActionCard key={row.id} row={row} onApprove={approve} onCancel={cancel} onTab={onTab} />
           ))}
           <p className="metric-detail">States used: {LIFECYCLE.join(', ')}. Completed is reserved for a backend confirmation this screen does not issue.</p>
         </section>
-      </div>
-      {!isLocalDemo && <PortalClienteAI bar={bar} />}
+      )}
     </div>
+  )
+}
+
+function ActionCard({ row, onApprove, onCancel, onTab }) {
+  return (
+    <article className={`ai-action is-${row.status}`}>
+      <header>
+        <strong>{row.title}</strong>
+        <span className={`status-badge is-${row.status === 'failed' ? 'danger' : row.status === 'approved' ? 'occupied' : 'available'}`}>{row.status}</span>
+      </header>
+      <ol className="ai-stages">
+        {['Draft', 'Calculation', 'Human review', 'Approval recorded', 'Execution', 'Verification'].map(stage => {
+          const reached = (row.status === 'calculating' && stage === 'Calculation')
+            || (row.status === 'ready' && ['Draft', 'Calculation', 'Human review'].includes(stage))
+            || (row.status === 'approved' && ['Draft', 'Calculation', 'Human review', 'Approval recorded'].includes(stage))
+            || (row.status === 'failed' && stage === 'Calculation')
+          return <li key={stage} className={reached ? 'is-on' : ''}>{stage}</li>
+        })}
+      </ol>
+      <p className="metric-detail">Execution and verification stay off until a backend confirms the existing operation. Approval here does not close cash, payroll, or a month.</p>
+      <p>{row.body}</p>
+      <dl>
+        <div><dt>Action</dt><dd>{row.id}</dd></div>
+        <div><dt>Kind</dt><dd>{row.kind}</dd></div>
+        <div><dt>Period</dt><dd>{row.period}</dd></div>
+        <div><dt>Formula</dt><dd>{row.formula}</dd></div>
+        <div><dt>Effect</dt><dd>{row.reversible}</dd></div>
+      </dl>
+      {row.result && <p className="metric-detail">{row.result}</p>}
+      <div className="ai-action-buttons">
+        <button type="button" className="action-primary" disabled={row.status !== 'ready'} onClick={() => onApprove(row)}>Approve note</button>
+        <button type="button" className="action-secondary" disabled={row.status === 'cancelled'} onClick={() => onCancel(row)}>Cancel</button>
+        {row.command === 'close' && (
+          <button type="button" className="action-secondary" onClick={() => onTab?.('fechamento')}>Open cash register</button>
+        )}
+        {row.command === 'stock' && (
+          <button type="button" className="action-secondary" onClick={() => onTab?.('estoque')}>Open inventory</button>
+        )}
+        {row.command === 'labor' && (
+          <button type="button" className="action-secondary" onClick={() => onTab?.('ponto')}>Open time clock</button>
+        )}
+      </div>
+    </article>
   )
 }

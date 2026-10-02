@@ -5,6 +5,7 @@ import barStaff from './api/_routeBarStaff.js'
 import posStatus from './api/_routePosStatus.js'
 import liveDb from './api/_routeBarLive.js'
 import hqSync from './api/_routeHqSync.js'
+import aiAssistant from './api/ai-assistant.js'
 
 const LOCAL_API = {
   '/api/time-clock': timeClock,
@@ -12,6 +13,7 @@ const LOCAL_API = {
   '/api/pos-status': posStatus,
   '/api/bar/live-db': liveDb,
   '/api/bar/hq-sync': hqSync,
+  '/api/ai-assistant': aiAssistant,
 }
 
 function localApi() {
