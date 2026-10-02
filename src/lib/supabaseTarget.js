@@ -35,12 +35,13 @@ function productionKey(rawKey, drinksAnon) {
 /**
  * @returns {{ mode: 'remote' | 'local', url: string, key: string }}
  * production keeps the existing drinks fallback for the live deployment.
- * preview and development refuse both protected projects and use local demo storage.
+ * Every other channel, including an unidentified one, refuses both protected
+ * projects and uses local demo storage unless an isolated URL and key are complete.
  */
 export function resolveDataTarget({ channel, url, anonKey, drinksAnon = '' }) {
   const rawUrl = String(url || '').trim().replace(/\/$/, '')
   const rawKey = String(anonKey || '').trim()
-  const locked = channel === 'preview' || channel === 'development'
+  const locked = channel !== 'production'
   if (locked) {
     const urlOk = /^https:\/\/[a-z0-9]+\.supabase\.co$/i.test(rawUrl) && !protectedRefIn(rawUrl)
     const keyRef = jwtRef(rawKey)
@@ -61,10 +62,16 @@ export function resolveDataTarget({ channel, url, anonKey, drinksAnon = '' }) {
   return { mode: 'remote', url: DRINKS_URL, key: productionKey(rawKey, drinksAnon) }
 }
 
-/** Server-side gate. Preview may not open either protected project. */
+/** Server-side gate. Only an explicit production process may open a protected project. */
 export function assertServerMayConnect(url) {
-  if (process.env.VERCEL_ENV !== 'preview') return
+  const env = process.env.VERCEL_ENV
+  if (env === 'production') return
   const value = String(url || '')
+  if (env !== 'preview') {
+    const err = new Error('Operational database access is refused. The server environment is not an authorized isolated staging project.')
+    err.code = 'STAGING_REQUIRED'
+    throw err
+  }
   if (!value || protectedRefIn(value)) {
     const err = new Error('Preview refuses protected Supabase projects')
     err.code = 'PREVIEW_PROTECTED'

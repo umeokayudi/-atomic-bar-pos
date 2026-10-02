@@ -18,6 +18,11 @@ assert.equal(production.mode, 'remote')
 assert.equal(production.url, DRINKS_URL)
 assert.equal(production.key, drinksAnon)
 
+const unidentified = resolveDataTarget({ channel: '', url: '', anonKey: '' })
+assert.equal(unidentified.mode, 'local')
+assert.equal(unidentified.url, '')
+assert.doesNotMatch(unidentified.url, new RegExp(DRINKS))
+
 const previewMissing = resolveDataTarget({ channel: 'preview', url: '', anonKey: '' })
 assert.equal(previewMissing.mode, 'local')
 assert.equal(previewMissing.url, '')
@@ -50,6 +55,9 @@ assert.doesNotMatch(previewSafe.url, new RegExp(DRINKS))
 assert.doesNotMatch(previewSafe.url, new RegExp(HOLDING))
 
 const previous = process.env.VERCEL_ENV
+delete process.env.VERCEL_ENV
+assert.throws(() => assertServerMayConnect(`https://${safeRef}.supabase.co`), /not an authorized isolated staging project/)
+assert.throws(() => assertServerMayConnect(DRINKS_URL), /not an authorized isolated staging project/)
 process.env.VERCEL_ENV = 'preview'
 assert.throws(() => assertServerMayConnect(DRINKS_URL), /Preview refuses protected Supabase projects/)
 assert.throws(() => assertServerMayConnect(`https://${HOLDING}.supabase.co`), /Preview refuses/)

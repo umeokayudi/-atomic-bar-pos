@@ -20,6 +20,7 @@
     "test:reports": "node scripts/managementReport.test.mjs",
     "test:ai": "node scripts/aiAssistant.test.mjs",
     "test:demo": "node scripts/demoLedger.test.mjs",
+    "test:readiness": "node scripts/readiness.test.mjs",
     "test:pos:pg": "node scripts/posFloor.pg.test.mjs"
   },
   "dependencies": {

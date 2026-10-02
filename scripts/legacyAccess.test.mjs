@@ -33,7 +33,7 @@ assert.equal(seesHqProcurement('staff'), false)
 assert.equal(seesHqProcurement('jbm'), true)
 assert.equal(seesHqProcurement('admin'), true)
 
-assert.deepEqual(shellTabIds('funcionario'), ['profile', 'shifts', 'clock', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary', 'procurement'])
+assert.deepEqual(shellTabIds('funcionario'), ['clock', 'shifts', 'profile', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary', 'procurement'])
 assert.ok(!shellTabIds('funcionario').includes('purchases'))
 assert.ok(!shellTabIds('funcionario').includes('relatorio'))
 assert.ok(!shellTabIds('funcionario').includes('faturas'))
