@@ -4,6 +4,8 @@ import { useAuth } from './Auth'
 import { useI18n } from '../lib/i18n'
 import { schemaMissing } from '../lib/fulfillment'
 import { AlertCard, AssignmentActions, IssueModal, OrderTimeline, StatusBadge } from './fulfillment/FulfillmentWidgets'
+import DemoModeBanner from './DemoModeBanner'
+import { LogoSidebar } from './Logo'
 
 export default function SupplierPortal({ onSignOut }) {
   const { t } = useI18n()
@@ -58,7 +60,9 @@ export default function SupplierPortal({ onSignOut }) {
     setTaskCodes(map)
   }
 
-  useEffect(() => { if (user?.id) load() }, [user?.id])
+  useEffect(() => {
+    if (user?.id && !isLocalDemo) load()
+  }, [user?.id])
 
   async function openRow(row) {
     setOpen(row)
@@ -89,41 +93,57 @@ export default function SupplierPortal({ onSignOut }) {
   const mine = (track?.assignments || []).find(a => a.id === open?.id)
 
   return (
-    <div className="ff-portal">
-      <header className="ff-portal-bar">
-        <strong>{t('fulfillment.supplierTitle')}</strong>
-        <button type="button" onClick={onSignOut}>{t('common.signOut')}</button>
-      </header>
-      {missing && <p className="ff-miss">{isLocalDemo ? t('common.demoBlocked') : t('fulfillment.schemaMissing')}</p>}
-      {err && <p className="ff-miss">{err}</p>}
-      {!linked && <p>{t('fulfillment.notLinked')}</p>}
-      {alerts.map(a => <AlertCard key={a.id} alert={a} />)}
-      <div className="ff-list">
-        {rows.length === 0 && linked && !missing ? <p>{t('fulfillment.supplierEmpty')}</p> : rows.map(r => (
-          <button key={r.id} type="button" className="ff-card" onClick={() => openRow(r)}>
-            <strong>{taskCodes[r.id] || `#${String(r.order_id).slice(0, 8)}`}</strong>
-            <StatusBadge status={r.status} />
-            <em>{r.expected_delivery_at ? new Date(r.expected_delivery_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) : ''}</em>
-          </button>
-        ))}
-      </div>
-      {open && track && (
-        <section className="ff-detail">
-          <StatusBadge status={mine?.status || open.status} />
-          {['delivered', 'in_transit', 'partial'].includes(mine?.status || open.status) && (
-            <p className="ff-note">{t('procurement.supplierMarkedNotStock')}</p>
-          )}
-          <OrderTimeline events={track.events} audience="supplier" />
-          <ul>{(mine?.items || []).map(it => (
-            <li key={it.order_item_id}>{it.product} · {it.quantity_requested}{it.quantity_confirmed != null ? ` → ${it.quantity_confirmed}` : ''}</li>
-          ))}</ul>
-          <AssignmentActions status={mine?.status || open.status} busy={busy} onAction={id => act(id)} />
-          <button type="button" className="ord-ghost" onClick={() => setIssue(true)}>{t('fulfillment.issue')}</button>
-          {(mine?.status || open.status) === 'pending' && (
-            <button type="button" className="ord-ghost" onClick={() => act('reject')}>{t('fulfillment.reject')}</button>
-          )}
-        </section>
-      )}
+    <div className="supplier-shell">
+      <aside className="supplier-sidebar">
+        <LogoSidebar />
+        <div className="supplier-sidebar-label">{t('fulfillment.supplierTitle')}</div>
+        <div className="supplier-sidebar-status">
+          <span aria-hidden="true" />
+          {linked ? t('fulfillment.supplierTitle') : t('fulfillment.notLinked')}
+        </div>
+        <button type="button" className="sidebar-signout" onClick={onSignOut}>{t('common.signOut')}</button>
+      </aside>
+      <main className="ff-portal">
+        <DemoModeBanner />
+        <header className="ff-portal-bar">
+          <div>
+            <span className="eyebrow">Partner workspace</span>
+            <h1>{t('fulfillment.supplierTitle')}</h1>
+          </div>
+          <span className="status-badge is-approved">{isLocalDemo ? 'Demo' : `${rows.length} assignments`}</span>
+        </header>
+        {missing && <p className="ff-miss">{isLocalDemo ? t('common.demoBlocked') : t('fulfillment.schemaMissing')}</p>}
+        {isLocalDemo && !missing && <p className="ff-miss">{t('common.demoBlocked')}</p>}
+        {err && <p className="ff-miss">{err}</p>}
+        {!linked && <p>{t('fulfillment.notLinked')}</p>}
+        {alerts.map(a => <AlertCard key={a.id} alert={a} />)}
+        <div className="ff-list">
+          {rows.length === 0 && linked && !missing && !isLocalDemo ? <p className="ab-empty">{t('fulfillment.supplierEmpty')}</p> : rows.map(r => (
+            <button key={r.id} type="button" className="ff-card" onClick={() => openRow(r)}>
+              <strong>{taskCodes[r.id] || `#${String(r.order_id).slice(0, 8)}`}</strong>
+              <StatusBadge status={r.status} />
+              <em>{r.expected_delivery_at ? new Date(r.expected_delivery_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) : ''}</em>
+            </button>
+          ))}
+        </div>
+        {open && track && (
+          <section className="ff-detail">
+            <StatusBadge status={mine?.status || open.status} />
+            {['delivered', 'in_transit', 'partial'].includes(mine?.status || open.status) && (
+              <p className="ff-note">{t('procurement.supplierMarkedNotStock')}</p>
+            )}
+            <OrderTimeline events={track.events} audience="supplier" />
+            <ul>{(mine?.items || []).map(it => (
+              <li key={it.order_item_id}>{it.product} · {it.quantity_requested}{it.quantity_confirmed != null ? ` → ${it.quantity_confirmed}` : ''}</li>
+            ))}</ul>
+            <AssignmentActions status={mine?.status || open.status} busy={busy} onAction={id => act(id)} />
+            <button type="button" className="ord-ghost" onClick={() => setIssue(true)}>{t('fulfillment.issue')}</button>
+            {(mine?.status || open.status) === 'pending' && (
+              <button type="button" className="ord-ghost" onClick={() => act('reject')}>{t('fulfillment.reject')}</button>
+            )}
+          </section>
+        )}
+      </main>
       {issue && mine && (
         <IssueModal
           items={mine.items || []}

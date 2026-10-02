@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
+import { isLocalDemo, supabase } from '../lib/supabase'
 import { ensureVendaFromPedido, findVendaForPedido, findVendaKeysForPedidos, pedidoSaleDate, mergeOrInsertPeriodFatura } from '../lib/pedidoVenda'
 import { addStockFromDelivery } from '../lib/posSupply'
 import { useAuth } from './Auth'
@@ -207,7 +207,7 @@ export function UsuariosTab() {
   const { t } = useI18n()
   const [users, setUsers] = useState([])
   const [bars, setBars] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !isLocalDemo)
   const [saving, setSaving] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState({ nome:'', email:'', role:'cliente', bar_id:'' })
@@ -219,7 +219,9 @@ export function UsuariosTab() {
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    if (!isLocalDemo) load()
+  }, [])
 
   async function loadUsers() {
     const res = await staffFetch('/api/admin-user')
@@ -248,6 +250,7 @@ export function UsuariosTab() {
   }
 
   async function saveEdit(id) {
+    if (isLocalDemo) return
     if (form.role === 'cliente' || form.role === 'caixa' || form.role === 'bar_staff') {
       if (!form.bar_id) {
         setErr('Select a bar for this login')
@@ -283,12 +286,14 @@ export function UsuariosTab() {
   }
 
   async function deleteUser(id) {
+    if (isLocalDemo) return
     if (!confirm(t('configs.confirmDeleteUser'))) return
     await supabase.from('perfis').delete().eq('id', id)
     load()
   }
 
   function startEdit(u) {
+    if (isLocalDemo) return
     setEditId(u.id)
     setEditPw('')
     setForm({
@@ -301,6 +306,16 @@ export function UsuariosTab() {
 
   const roleColor = { admin:'var(--gold)', staff:'var(--navy)', funcionario:'var(--navy)', cliente:'var(--green)', caixa:'#7c3aed', bar_staff:'#0f766e' }
   const roleLabel = r => t(`shell.roles.${r === 'staff' ? 'staff' : r}`) || r
+
+  if (isLocalDemo) {
+    return (
+      <AdminPage title={t('configs.usersTitle')} subtitle={t('configs.usersSubtitle')}>
+        <PortalSurface>
+          <div className="ab-empty">{t('common.demoBlocked')}</div>
+        </PortalSurface>
+      </AdminPage>
+    )
+  }
 
   if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:200,color:'var(--text2)'}}><span className="spinner"/>{t('configs.usersLoading')}</div>
 
@@ -345,6 +360,7 @@ export function UsuariosTab() {
           <div style={{display:'flex',gap:8}}>
             <button className="btn-primary" style={{fontSize:12,padding:'8px 16px'}} disabled={creating||!newEmail||!newPw||!form.nome||((form.role==='cliente'||form.role==='caixa'||form.role==='bar_staff')&&!form.bar_id)}
               onClick={async()=>{
+                if (isLocalDemo) return
                 setCreating(true)
                 setErr('')
                 try {

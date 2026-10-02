@@ -1,7 +1,7 @@
 function LogoMark({ size = 40, stroke = 'white', fill = 'white', style }) {
   return (
     <svg viewBox="258 173 1484 1484" xmlns="http://www.w3.org/2000/svg" style={{ width: size, height: size, flexShrink: 0, ...style }}>
-      <polygon fill="#c19c56" points="1598.7,273.1 1642,273.1 1642,316.5 1742,416.5 1742,173.1 1498.7,173.1 1598.7,273.1"/>
+      <polygon fill="#2563eb" points="1598.7,273.1 1642,273.1 1642,316.5 1742,416.5 1742,173.1 1498.7,173.1 1598.7,273.1"/>
       <polygon fill="none" stroke={stroke} strokeWidth="42" points="1642,457.9 1642,1557.2 358,1557.2 358,273.1 1457.3,273.1 1357.3,173.1 258,173.1 258,1657.2 1742,1657.2 1742,557.9 1642,457.9"/>
       <path fill={fill} d="M841.5,447v283.6c0,48.2-13.1,85-39.2,110.5-26.1,25.5-62.1,38.3-107.8,38.3s-87.4-13.6-116.3-40.7c-29-27.1-43.4-66.2-43.4-117.2h117.8c.4,33.6,12.8,50.4,37,50.4s32.8-13.8,32.8-41.3v-283.6h119Z"/>
       <path fill={fill} d="M891,1194c14.8,19.2,22.2,41.2,22.2,65.9,0,36.4-12.6,65-37.7,85.6-25.1,20.6-60.3,31-105.7,31h-212v-428.2h205.3c43.7,0,78,9.7,102.9,29.2,24.9,19.4,37.4,46.8,37.4,82s-6.6,46.1-19.7,62.9c-13.2,16.8-30.7,28.2-52.5,34.3,25.1,5.7,45,18.1,59.8,37.4ZM676.9,1118.4h60.1c30,0,44.9-12.3,44.9-37s-15-38.3-44.9-38.3h-60.1v75.3ZM791.1,1242.9c0-13-3.9-22.9-11.8-29.8-7.9-6.9-19.1-10.3-33.7-10.3h-68.6v77.7h69.2c30,0,44.9-12.5,44.9-37.7Z"/>
@@ -35,7 +35,7 @@ export function LogoLogin() {
   return (
     <div style={{ textAlign: 'center' }}>
       <LogoMark size={140} stroke="white" fill="white" style={{ display: 'block', margin: '0 auto' }} />
-      <div style={{ marginTop: 12, fontSize: 11, color: 'rgba(193,156,86,0.7)', letterSpacing: 6, textTransform: 'uppercase' }}>Japan Business Management</div>
+      <div style={{ marginTop: 12, fontSize: 11, color: 'rgba(247,246,242,0.56)', letterSpacing: 6, textTransform: 'uppercase' }}>Japan Business Management</div>
     </div>
   )
 }

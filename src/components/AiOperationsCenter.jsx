@@ -135,17 +135,20 @@ export default function AiOperationsCenter({ bar, onTab }) {
           <p className="page-subtitle">Night {scope.night} · {scope.mode}. Proposals stay here until you use the existing screens.</p>
         </div>
       </header>
-      <p className="ai-ops-status">
-        {isLocalDemo
-          ? 'Model chat is not called in local demo. Answers below are calculations from the local store.'
-          : 'The existing model chat remains available under this workspace.'}
-      </p>
-      <div className="ai-ops-commands">
-        {COMMANDS.map(command => (
-          <button key={command.id} type="button" className="action-secondary" onClick={() => prepare(command)}>
-            {command.label}
-          </button>
-        ))}
+      <div className="ai-query-panel">
+        <div className="ai-query-kicker">Ask Atomic</div>
+        <p className="ai-ops-status">
+          {isLocalDemo
+            ? 'Model chat is not called in local demo. Answers below are calculations from the local store.'
+            : 'The existing model chat remains available under this workspace.'}
+        </p>
+        <div className="ai-ops-commands">
+          {COMMANDS.map(command => (
+            <button key={command.id} type="button" className="action-secondary" onClick={() => prepare(command)}>
+              {command.label}
+            </button>
+          ))}
+        </div>
       </div>
       {note && <p className="metric-detail">{note}</p>}
       <div className="ai-ops-layout">

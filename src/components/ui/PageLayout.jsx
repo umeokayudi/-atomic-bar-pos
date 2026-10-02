@@ -3,11 +3,12 @@
 export function PageHeader({ title, subtitle, actions }) {
   return (
     <div className="ab-page-header">
-      <div>
+      <div className="ab-page-heading">
+        <div className="eyebrow">Atomic Bar</div>
         <div className="portal-page-title">{title}</div>
         {subtitle && <div className="portal-page-sub">{subtitle}</div>}
       </div>
-      {actions && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>{actions}</div>}
+      {actions && <div className="ab-page-actions">{actions}</div>}
     </div>
   )
 }
@@ -51,7 +52,7 @@ export function PortalSurface({ title, sub, children, style, headerRight }) {
   return (
     <div className="portal-surface-card" style={style}>
       {(title || headerRight) && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: sub || children ? 16 : 0, gap: 12, flexWrap: 'wrap' }}>
+        <div className="portal-surface-head">
           <div>
             {title && <div className="portal-section-title">{title}</div>}
             {sub && <div className="portal-section-sub">{sub}</div>}
@@ -83,7 +84,7 @@ export function PortalPills({ options, value, onChange, scrollable }) {
 
 export function AdminPage({ title, subtitle, actions, children, wide = false }) {
   return (
-    <div className="fade-in" style={{ maxWidth: wide ? 1100 : 1000 }}>
+    <div className={`fade-in admin-page${wide ? ' is-wide' : ''}`}>
       {(title || subtitle || actions) && (
         <PageHeader title={title} subtitle={subtitle} actions={actions} />
       )}
@@ -103,7 +104,7 @@ export function PortalAlert({ variant = 'amber', children, onClick }) {
   return (
     <div
       className="portal-alert"
-      style={{ ...s, borderRadius: 16, padding: '14px 18px', marginBottom: 16, cursor: onClick ? 'pointer' : undefined }}
+      style={{ ...s, cursor: onClick ? 'pointer' : undefined }}
       onClick={onClick}
       role={onClick ? 'button' : undefined}
     >
