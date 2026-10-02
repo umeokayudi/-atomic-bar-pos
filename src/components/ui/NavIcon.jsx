@@ -13,7 +13,6 @@ const PATHS = {
   products: 'M4 8l8-4 8 4-8 4-8-4z M4 8v8l8 4 8-4V8',
   bars: 'M4 20V9l8-5 8 5v11 M8 20v-6h8v6',
   usuarios: 'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M16 11a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z M4 19c.5-2.5 2.4-4 5-4s4.5 1.5 5 4 M15 15c1.8 0 3.4.8 4 3',
-  faturas: 'M7 3h7l5 5v13H7z M14 3v5h5 M9 13h6 M9 17h6',
   suppliers: 'M4 20V8l8-4 8 4v12 M9 20v-6h6v6',
   cashflow: 'M4 12h16 M14 6l6 6-6 6 M10 8H6a2 2 0 0 0-2 2v8',
   payroll: 'M4 8h16v10H4z M4 11h16 M8 15h3',

@@ -107,7 +107,6 @@ export default function SupplierPortal({ onSignOut }) {
           <div>
             <span className="eyebrow">Partner workspace</span>
             <h1>{t('fulfillment.supplierTitle')}</h1>
-            <p>{t('fulfillment.supplierEmpty')}</p>
           </div>
           <span className="status-badge is-approved">{rows.length} assignments</span>
         </header>

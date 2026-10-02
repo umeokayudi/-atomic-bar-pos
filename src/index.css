@@ -6514,12 +6514,7 @@ tbody tr:hover td { background: #faf9f6; }
 @media (max-width: 760px) {
   .app-main > .fade-in,
   .app-content {
-    padding: calc(80px + env(safe-area-inset-top, 0px)) 14px calc(92px + env(safe-area-inset-bottom, 0px));
-  }
-
-  .app-shell:has(.demo-mode-banner) .app-content,
-  .app-shell:has(.demo-mode-banner) > .app-main > .fade-in {
-    padding-top: calc(122px + env(safe-area-inset-top, 0px));
+    padding: 18px 14px calc(92px + env(safe-area-inset-bottom, 0px));
   }
 
   .mobile-topbar {
