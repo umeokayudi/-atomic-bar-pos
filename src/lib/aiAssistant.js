@@ -1,20 +1,17 @@
-/** Conversational assistant policy. Never invents business figures or executes operations. */
+/** Conversational assistant policy. Sample figures are labeled and never treated as live books. */
+
+import { composeSampleAnswer } from './aiSampleStudio.js'
 
 export const CHAT_STORAGE_KEY = 'atomic-bar-ai-chat'
 
 export const SUGGESTED_QUESTIONS = [
-  'How did recorded sales look for this bar?',
-  'Explain gross profit and CMV using only connected figures.',
-  'Which products are running low?',
-  'Prepare a purchase order for the products running low.',
-  'What is open with suppliers and purchase orders?',
-  'Is the cash register ready to close?',
-  'How do labor and shift costs look?',
-  'Compare this venue with the others.',
+  'How much did we make this month?',
+  'Which products have the highest margin?',
+  'Why did profit decrease?',
+  'Compare the venues.',
+  'Prepare a purchase order for low-stock items.',
 ]
 
-const DEMO_TEXT = 'Local demo did not call a model and did not read sales, profit, inventory, procurement, cash, labor, or reports. Nothing was calculated or saved.'
-const UNCONFIGURED_TEXT = 'No model provider is configured. GEMINI_API_KEY is not set on the server, so no response was generated. Operational data is not connected either.'
 const DISCONNECTED_TEXT = 'No operational database is connected to this request. Sales, profit, inventory, procurement, cash, labor, and venue comparisons were not read. No figure was calculated or saved.'
 const PROVIDER_ERROR_TEXT = 'The model provider failed before a reply was accepted. No business result was calculated or saved.'
 
@@ -147,23 +144,47 @@ function parseModelPayload(raw) {
   return { answer: text }
 }
 
-function responseBody({ state, configured, text, detail = '', fromModel = false, draft = null, sources = [], followups = [] }) {
+function responseBody({ state, configured, text, detail = '', fromModel = false, draft = null, sources = [], followups = [], illustrative = false, kpis = [], table = null, chart = null, bars = null, comparison = null, evidence = [] }) {
   return {
     ok: state === 'answer',
     state,
     configured,
     connected: false,
     fromModel,
+    live: false,
+    illustrative,
     text,
     detail,
     followups,
-    kpis: [],
-    table: null,
-    chart: null,
-    comparison: null,
+    kpis,
+    table,
+    chart,
+    bars,
+    comparison,
+    evidence,
     draft,
     sources,
   }
+}
+
+function sampleReply({ state, configured, question, draft, extraSources = [] }) {
+  const sample = composeSampleAnswer(question)
+  return responseBody({
+    state,
+    configured,
+    text: sample.text,
+    detail: sample.detail,
+    draft,
+    illustrative: true,
+    kpis: sample.kpis,
+    table: sample.table,
+    chart: sample.chart,
+    bars: sample.bars,
+    comparison: sample.comparison,
+    evidence: sample.evidence,
+    followups: sample.followups,
+    sources: [...sample.sources, ...extraSources],
+  })
 }
 
 export function sanitizeMessages(messages) {
@@ -191,40 +212,57 @@ export async function answerAssistantTurn({ messages, demo } = {}, { configured 
   }
   const intent = classifyIntent(list[list.length - 1].content)
   const draft = finalizeDraft(intent)
+  const question = list[list.length - 1].content
   if (demo) {
     return {
       status: 200,
-      body: responseBody({
+      body: sampleReply({
         state: 'demo',
         configured,
-        text: DEMO_TEXT,
+        question,
         draft,
-        sources: ['Local demo policy', 'Model was not called', 'No operational database attached'],
+        extraSources: ['Model was not called'],
       }),
     }
   }
   if (!configured) {
     return {
       status: 200,
-      body: responseBody({
+      body: sampleReply({
         state: 'unconfigured',
         configured: false,
-        text: UNCONFIGURED_TEXT,
+        question,
         draft,
-        sources: ['GEMINI_API_KEY is not set', 'No operational database attached'],
+        extraSources: ['Model is not configured'],
       }),
     }
   }
   try {
     const raw = await generate({ system: assistantSystemPrompt(), messages: list })
     const presented = presentModelAnswer(raw, { intent })
+    if (presented.state !== 'answer') {
+      return {
+        status: 200,
+        body: sampleReply({
+          state: 'sample',
+          configured: true,
+          question,
+          draft,
+          extraSources: ['Model reply withheld'],
+        }),
+      }
+    }
     return {
       status: 200,
       body: {
         ...presented,
-        ok: presented.state === 'answer',
+        ok: true,
         configured: true,
         connected: false,
+        live: false,
+        illustrative: false,
+        bars: null,
+        evidence: [],
       },
     }
   } catch (error) {

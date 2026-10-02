@@ -135,7 +135,7 @@ export default function AiOperationsCenter({ bar, onTab }) {
         <div>
           <div className="eyebrow">{scope.bar}</div>
           <h1 className="page-title">AI Operations</h1>
-          <p className="page-subtitle">Night {scope.night} · {scope.mode}. The assistant is separate from approvals, and neither one executes a financial action.</p>
+          <p className="page-subtitle">Ask in the assistant. Approvals and history stay separate, and neither one posts a financial action.</p>
         </div>
       </header>
       <nav className="ai-ops-nav" aria-label="AI workspace">
