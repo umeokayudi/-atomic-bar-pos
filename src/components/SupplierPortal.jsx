@@ -92,7 +92,6 @@ export default function SupplierPortal({ onSignOut }) {
 
   return (
     <div className="supplier-shell">
-      <DemoModeBanner />
       <aside className="supplier-sidebar">
         <LogoSidebar />
         <div className="supplier-sidebar-label">{t('fulfillment.supplierTitle')}</div>
@@ -103,6 +102,7 @@ export default function SupplierPortal({ onSignOut }) {
         <button type="button" className="sidebar-signout" onClick={onSignOut}>{t('common.signOut')}</button>
       </aside>
       <main className="ff-portal">
+        <DemoModeBanner />
         <header className="ff-portal-bar">
           <div>
             <span className="eyebrow">Partner workspace</span>

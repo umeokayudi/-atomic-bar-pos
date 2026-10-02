@@ -509,7 +509,6 @@ function Shell() {
 
   return (
     <div className="app-shell">
-      <DemoModeBanner />
       <ShellOverlay open={menuOpen} onClose={() => setMenuOpen(false)} />
       <MobileTopBar
         open={menuOpen}
@@ -567,6 +566,7 @@ function Shell() {
       </aside>
 
       <main className="app-main app-main-wide">
+        <DemoModeBanner />
         <WorkspaceChrome>
           <UiPrefsPanel compact />
           <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
