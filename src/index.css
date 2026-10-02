@@ -6952,7 +6952,8 @@ tbody tr:hover td { background: #faf9f6; }
 .demo-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 12px 0; }
 .demo-table th, .demo-table td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
 .demo-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
-.demo-actions input { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; background: var(--surface); color: inherit; min-width: 0; }
+.demo-actions input, .demo-search { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; background: var(--surface); color: inherit; min-width: 0; }
+.demo-search { width: 100%; margin-bottom: 8px; }
 .demo-receipt { position: fixed; inset: 0; z-index: 1200; background: rgba(28, 36, 48, 0.45); display: flex; align-items: flex-start; justify-content: center; padding: 24px 16px; overflow: auto; }
 .demo-receipt article { width: min(420px, 100%); background: #fff; color: #1c2430; border-radius: 18px; padding: 20px; display: grid; gap: 8px; margin: auto; }
 .demo-receipt ul { padding-left: 18px; }

@@ -42,6 +42,7 @@ export default function PosMobile({ t, floor }) {
 
       {step === 'products' && (
         <section className="pos-m-panel">
+          <input aria-label="Search drinks" className="demo-search" placeholder="Search drinks" value={floor.query || ''} onChange={event => floor.setQuery?.(event.target.value)} />
           <div className="pos-m-cats">
             {cats.map(id => (
               <button key={id} type="button" className={cat === id ? 'is-on' : ''} onClick={() => floor.setCat(id)}>{id}</button>
@@ -92,8 +93,14 @@ export default function PosMobile({ t, floor }) {
               <button type="button" disabled={!lines.length} onClick={() => floor.applyDiscount(0.2)}>20%</button>
             </div>
           )}
-          {lines.length > 0 && preview?.discount > 0 && (
-            <p className="pos-floor-meta">Subtotal {fmtYen(preview.listSubtotal)} · Discount {fmtYen(preview.discount)}</p>
+          {lines.length > 0 && preview && (
+            <p className="pos-floor-meta">Subtotal {fmtYen(preview.listSubtotal)} · Discount {fmtYen(preview.discount || 0)} · Tax included {fmtYen(preview.tax || 0)}</p>
+          )}
+          {floor.drawer && (
+            <p className="pos-floor-meta">
+              Register {floor.drawer.status}{floor.drawer.status === 'open' ? ` · ${fmtYen(floor.drawer.expected)}` : ''}
+              {floor.openRegister && <button type="button" onClick={floor.openRegister}>Register</button>}
+            </p>
           )}
           <div className="pos-m-pays">
             {payments.map(id => (
@@ -170,6 +177,11 @@ function TicketLines({ t, floor, lines, preview }) {
               <button type="button" onClick={() => floor.requestQty(line, line.qtd - 1)}>-</button>
               <span>{line.qtd}</span>
               <button type="button" onClick={() => floor.requestQty(line, line.qtd + 1)}>+</button>
+              {floor.applyDiscount && (
+                <button type="button" onClick={() => floor.applyDiscount(shown?.discountRate === 0.1 ? 0 : 0.1, line.id)}>
+                  {shown?.discountRate === 0.1 ? 'Line off' : 'Line 10%'}
+                </button>
+              )}
             </div>
             <span>{fmtYen(shown?.unit_price || 0)}</span>
           </div>

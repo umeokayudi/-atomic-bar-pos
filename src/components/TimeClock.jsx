@@ -81,7 +81,7 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
     setBusy(false)
   }
 
-  if (isLocalDemo) return <DemoStaff />
+  if (isLocalDemo) return <DemoStaff section="clock" />
 
   return (
     <div className="fade-in clock-page">

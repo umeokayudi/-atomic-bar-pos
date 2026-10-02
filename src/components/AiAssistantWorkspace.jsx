@@ -11,6 +11,7 @@ import {
 import { composeSampleAnswer, formatSampleYen } from '../lib/aiSampleStudio'
 import { composeDemoAnswer } from '../lib/demoLedger'
 import { demoTurn } from '../lib/aiAssistant'
+import { approveDemoAction } from '../lib/demoLedger'
 
 function browserStorage() {
   try { return window.sessionStorage } catch { return null }
@@ -109,10 +110,11 @@ export default function AiAssistantWorkspace({ demo = false }) {
           bars: body.bars || null,
           comparison: body.comparison || null,
           evidence: body.evidence || [],
-          illustrative: true,
-          live: false,
-          state: 'demo',
-        }
+        illustrative: true,
+        live: false,
+        state: 'demo',
+        review: body.review || null,
+      }
         updateConversation(conversationId, item => ({
           ...item,
           updatedAt: new Date().toISOString(),
@@ -176,6 +178,24 @@ export default function AiAssistantWorkspace({ demo = false }) {
     }
   }
 
+  function approveReview(message) {
+    if (!message?.review?.action || !active) return
+    const result = approveDemoAction(message.review.action)
+    updateConversation(active.id, item => ({
+      ...item,
+      messages: item.messages.map(row => row.id === message.id ? {
+        ...row,
+        review: {
+          ...row.review,
+          status: result.status,
+          executed: result.executed,
+          verified: result.verified,
+          note: result.reason || result.error || row.review.note,
+        },
+      } : row),
+    }))
+  }
+
   function onComposerKeyDown(event) {
     if (composerAction(event) !== 'send') return
     event.preventDefault()
@@ -212,7 +232,7 @@ export default function AiAssistantWorkspace({ demo = false }) {
             <SampleBriefing demo={demo} answer={demo ? composeDemoAnswer('How much did we sell today?') : composeSampleAnswer('How much did we make this month?')} />
           )}
           {(active?.messages || []).map(message => (
-            <Message key={message.id} message={message} onFollowup={send} />
+            <Message key={message.id} message={message} onFollowup={send} onApprove={approveReview} />
           ))}
           {sending && <div className="ai-chat-pending" role="status">Waiting for the assistant…</div>}
         </div>
@@ -249,7 +269,7 @@ function SampleBriefing({ answer, demo }) {
   )
 }
 
-function Message({ message, onFollowup }) {
+function Message({ message, onFollowup, onApprove }) {
   const label = message.role === 'user'
     ? 'You'
     : message.state === 'demo'
@@ -268,6 +288,15 @@ function Message({ message, onFollowup }) {
         <div className="ai-chat-draft">
           <strong>{message.draft.title} · {message.draft.status === 'not_created' ? 'Not created' : message.draft.status}</strong>
           <p>{message.draft.reason}</p>
+        </div>
+      )}
+      {message.review && (
+        <div className="ai-chat-draft">
+          <strong>{message.review.title} · {message.review.status}</strong>
+          <p>{message.review.note || message.review.reason}</p>
+          {message.review.status === 'draft' && message.review.action && (
+            <button type="button" className="action-primary" onClick={() => onApprove?.(message)}>Approve DEMO request</button>
+          )}
         </div>
       )}
       {!!message.followups?.length && (

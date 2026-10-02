@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useAuth } from './Auth'
 import { isLocalDemo, supabase } from '../lib/supabase'
 import { useI18n } from '../lib/i18n'
 import { schemaMissing } from '../lib/fulfillment'
 import { groupSpaces } from '../lib/posFloor'
 import { readPosDeviceMode, suggestPosDeviceMode, writePosDeviceMode } from '../lib/posDeviceMode'
+import { snapshot, subscribeLedger } from '../lib/demoLedger'
 import { fmtYen } from './utils'
 import PosModePicker from './pos/PosModePicker'
 import PosMobile from './pos/PosMobile'
@@ -24,10 +26,14 @@ function closeKey(ticketId) {
 
 export default function PosFloor({ bar, drinks = [], shots = [], agents = [], catalogError = '', onSale }) {
   const { t } = useI18n()
+  const { perfil } = useAuth()
+  const allowDiscount = ['gerente', 'admin', 'cliente'].includes(perfil?.role)
   const [spaces, setSpaces] = useState([])
   const [spaceId, setSpaceId] = useState('')
   const [zone, setZone] = useState('table')
   const [cat, setCat] = useState('all')
+  const [query, setQuery] = useState('')
+  const [drawer, setDrawer] = useState(() => (isLocalDemo ? snapshot().cash : null))
   const [ticket, setTicket] = useState(null)
   const [lines, setLines] = useState([])
   const [preview, setPreview] = useState(null)
@@ -57,6 +63,10 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
   ))
 
   useEffect(() => { setErr(catalogError || '') }, [catalogError])
+  useEffect(() => {
+    if (!isLocalDemo) return undefined
+    return subscribeLedger(next => setDrawer(next.cash))
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -131,7 +141,7 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
     })),
   ]), [drinks, shots])
   const cats = ['all', ...new Set(catalog.map(row => row.categoria).filter(Boolean))]
-  const visible = catalog.filter(row => cat === 'all' || row.categoria === cat)
+  const visible = catalog.filter(row => (cat === 'all' || row.categoria === cat) && (!query || String(row.nome || '').toLowerCase().includes(query.toLowerCase())))
   const space = spaces.find(row => row.id === spaceId)
   const blocked = preview?.blocked || ''
 
@@ -262,11 +272,15 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
     await loadSpace(spaceId)
   }
 
-  async function applyDiscount(rate) {
+  async function applyDiscount(rate, itemId = null) {
     if (!isLocalDemo || !ticket?.id || busy) return
+    if (!allowDiscount) {
+      setErr('Discounts require a manager in this demo.')
+      return
+    }
     setBusy(true)
     setErr('')
-    const saved = await supabase.rpc('pos_apply_discount', { p_ticket: ticket.id, p_rate: rate })
+    const saved = await supabase.rpc('pos_apply_discount', { p_ticket: ticket.id, p_rate: rate, p_item: itemId, p_role: perfil?.role })
     setBusy(false)
     if (saved.error) {
       setErr(saved.error.message)
@@ -368,8 +382,11 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
     step, setStep, sheet: step === 'ticket', pendingRemove, setPendingRemove, lossAsk, setLossAsk,
     selectedBottle, catalogError, catalog, orientation, setZone, chooseSpace, addProduct,
     changeItem, requestQty, confirmRemove, charge, applyDiscount: isLocalDemo ? applyDiscount : null,
+    allowDiscount, query, setQuery,
     changePay, changeAgent, openBottle, askLoss,
     confirmLoss, openSettings: () => setSettingsOpen(true),
+    drawer,
+    openRegister: isLocalDemo ? () => window.dispatchEvent(new CustomEvent('atomic-demo-nav', { detail: 'fechamento' })) : null,
   }
 
   if (!modeReady) return null
@@ -402,6 +419,7 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
             </ul>
             <p>Subtotal {fmtYen(receipt.listSubtotal)}</p>
             <p>Discount {fmtYen(receipt.discount)}</p>
+            <p>Tax included {fmtYen(receipt.tax || 0)}</p>
             <p><strong>Total {fmtYen(receipt.total)}</strong></p>
             <p className="work-quiet">{receipt.note}</p>
             <button type="button" className="action-primary" onClick={() => setReceipt(null)}>Close receipt</button>

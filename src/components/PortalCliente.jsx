@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import { isLocalDemo, supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import { callGeminiChat, imageDataUrlToParts, parseJsonFromAI } from '../lib/ai'
@@ -2144,6 +2144,17 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
     })
     setMenuOpen(false)
   }
+
+  const selectRef = useRef(selectTab)
+  selectRef.current = selectTab
+  useEffect(() => {
+    if (!isLocalDemo) return undefined
+    const onNav = event => {
+      if (typeof event.detail === 'string') selectRef.current(event.detail)
+    }
+    window.addEventListener('atomic-demo-nav', onNav)
+    return () => window.removeEventListener('atomic-demo-nav', onNav)
+  }, [])
 
   const posAccess = posAccessForRole(perfil?.role)
   const tillKiosk = isTillKiosk(perfil?.role, door)

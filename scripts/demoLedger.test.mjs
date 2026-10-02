@@ -1,12 +1,20 @@
 import assert from 'node:assert/strict'
 import {
+  ANNEX_BAR_ID,
+  DEMO_BAR_ID,
   advanceOrder,
+  applyDiscount,
+  approveDemoAction,
   closeRegister,
+  closeTicket,
   composeDemoAnswer,
   confirmOrder,
   createPurchaseRequest,
+  loadTicket,
+  periodReport,
   punch,
   recordMovement,
+  rejectOrder,
   resetLedger,
   sellDrink,
   snapshot,
@@ -55,10 +63,14 @@ assert.equal(request.created, false)
 assert.equal(request.order.id, 'PO-1042')
 const confirmed = confirmOrder('PO-1042', { 'demo-sour': 12, 'demo-wine': 6 })
 assert.equal(confirmed.order.status, 'confirmed')
+const preparingStock = snapshot().products.find(row => row.id === 'demo-sour').stock
 assert.equal(advanceOrder('PO-1042').order.status, 'preparing')
+assert.equal(snapshot().products.find(row => row.id === 'demo-sour').stock, preparingStock)
 assert.equal(advanceOrder('PO-1042').order.status, 'in_transit')
+assert.equal(snapshot().products.find(row => row.id === 'demo-sour').stock, preparingStock)
 const delivered = advanceOrder('PO-1042')
 assert.equal(delivered.order.status, 'delivered')
+assert.equal(rejectOrder('PO-1042').ok, false)
 assert.equal(snapshot().products.find(row => row.id === 'demo-sour').stock, 16)
 assert.equal(snapshot().products.find(row => row.id === 'demo-wine').stock, 9)
 
@@ -80,5 +92,33 @@ assert.equal(reorder.fromModel, false)
 assert.match(reorder.text, /was not created/)
 assert.equal(/PO-|was created/.test(reorder.text), false)
 assert.equal(reorder.draft.status, 'not_created')
+
+assert.equal(periodReport({ from: snapshot().night, to: snapshot().night, barId: DEMO_BAR_ID }).sales, snapshot().today.sales)
+assert.equal(periodReport({ from: snapshot().night, to: snapshot().night, barId: ANNEX_BAR_ID }).sales, 1400)
+assert.notEqual(periodReport({ from: snapshot().night, to: snapshot().night, barId: ANNEX_BAR_ID }).sales, snapshot().today.sales)
+const opened = loadTicket({ p_space: 'demo-space-empty' })
+const emptyClose = closeTicket({ p_ticket: opened.data.id })
+assert.match(emptyClose.error.message, /empty/)
+
+const denied = applyDiscount({ p_ticket: 'none', p_rate: 0.1, p_role: 'caixa' })
+assert.match(denied.error.message, /manager/)
+
+resetLedger()
+assert.equal(punch('in', '2026-10-02T09:00:00.000Z', 'demo-tanaka').ok, true)
+assert.equal(punch('break_start', '2026-10-02T10:00:00.000Z', 'demo-tanaka').ok, true)
+assert.equal(punch('break_end', '2026-10-02T10:30:00.000Z', 'demo-tanaka').ok, true)
+assert.equal(punch('out', '2026-10-02T13:00:00.000Z', 'demo-tanaka').ok, true)
+const tanaka = snapshot(Date.parse('2026-10-02T13:00:00.000Z')).staff.find(row => row.id === 'demo-tanaka')
+assert.ok(Math.abs(tanaka.sessionHours - 3.5) < 0.02)
+
+resetLedger()
+const pending = snapshot().orders.filter(row => !['delivered', 'rejected'].includes(row.status)).length
+const approved = approveDemoAction('create-purchase')
+assert.equal(approved.executed, false)
+assert.equal(approved.verified, true)
+assert.equal(snapshot().orders.filter(row => !['delivered', 'rejected'].includes(row.status)).length, pending)
+const question = composeDemoAnswer('Prepare a purchase request for low stock.')
+assert.match(question.text, /was not created/)
+assert.equal(question.review.status, 'draft')
 
 console.log('demo ledger tests passed')
