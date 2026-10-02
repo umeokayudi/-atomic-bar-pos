@@ -23,6 +23,7 @@ import UiPrefsPanel from './components/UiPrefsPanel'
 import { UiPrefsProvider, useUiPrefs, LAYOUTS } from './lib/uiPrefs'
 import { loadDashboard, invalidateDashboard } from './lib/loadDashboard'
 import { PageHeader, PortalHero, PortalKpi, PortalSurface, PortalAlert } from './components/ui/PageLayout'
+import NavIcon from './components/ui/NavIcon'
 import DemoModeBanner from './components/DemoModeBanner'
 const PortalCliente = lazy(() => import('./components/PortalCliente'))
 const ComprasTab = lazy(() => import('./components/Compras'))
@@ -539,9 +540,9 @@ function Shell() {
         </div>
         <nav className="sidebar-nav">
           {tabs.map(nav => (
-            <button key={nav.id} onClick={()=>selectTab(nav.id)} className={`nav-item ${activeTab===nav.id?'active':''}`}>
-              <span>{nav.icon}</span>
-              <span style={{fontSize:13}}>{t(nav.labelKey)}</span>
+            <button key={nav.id} onClick={()=>selectTab(nav.id)} className={`nav-item sidebar-link ${activeTab===nav.id?'active':''}`} aria-current={activeTab === nav.id ? 'page' : undefined}>
+              <NavIcon name={nav.id} />
+              <span>{t(nav.labelKey)}</span>
               {nav.id==='pedidos'&&pedidosPendentes>0&&(
                 <span style={{marginLeft:'auto',background:'var(--gold)',color:'var(--navy)',fontSize:10,fontWeight:800,padding:'1px 6px',borderRadius:10}}>{pedidosPendentes}</span>
               )}
@@ -553,12 +554,12 @@ function Shell() {
         </nav>
         <div className="sidebar-footer">
           <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
-            <div style={{width:34,height:34,borderRadius:10,background:'rgba(193,156,86,0.2)',border:'1px solid rgba(193,156,86,0.3)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:700,color:'var(--gold)',flexShrink:0}}>
+            <div className="sidebar-avatar">
               {(perfil?.nome||user?.email||'U')[0].toUpperCase()}
             </div>
             <div style={{minWidth:0}}>
-              <div style={{fontSize:12,fontWeight:700,color:'rgba(255,255,255,0.85)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{perfil?.nome||user?.email}</div>
-              <div style={{fontSize:10,color:'rgba(193,156,86,0.7)'}}>{roleLabel(perfil?.role)}</div>
+              <div className="sidebar-user-name">{perfil?.nome||user?.email}</div>
+              <div className="sidebar-user-role">{roleLabel(perfil?.role)}</div>
             </div>
           </div>
           <button onClick={signOut} className="sidebar-signout">{t('common.signOut')}</button>
