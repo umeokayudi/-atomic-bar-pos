@@ -270,7 +270,7 @@ export default function ManagerPro({ bar, tickets = [], people = [], goals, regi
           value={yen(report.current.sales)}
           previous={yen(report.previous.sales)}
           change={changeLine(report.salesChange)}
-          detail="Sum of pos_vendas.total on operational nights in the range."
+          detail="Valid till sales: original total minus one capped refund. A voided ticket stays on record and adds zero."
         />
         <Kpi
           label="Gross Profit"

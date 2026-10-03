@@ -14,7 +14,7 @@ New and replaced `SECURITY DEFINER` functions set `search_path = public`, revoke
 
 `pos_apply_discount` allows `admin`, `gerente`, `cliente`, or an HQ grant. A cashier cannot discount.
 
-`pos_void_sale` checks authorization inside the function. The caller must be the approver, and must be a `gerente` of that bar (profile or live membership) or an `admin`/`jbm` profile with live `platform_access` scope `hq`. A cashier who belongs to the bar cannot void. A successful void inserts `pos_void_audit`. A denied call raises and does not keep an audit row.
+`pos_void_sale` checks authorization inside the function. The caller must be the approver, and must be a `gerente` of that bar (profile or live membership) or an `admin`/`jbm` profile with live `platform_access` scope `hq`. A cashier who belongs to the bar cannot void. A successful void inserts `pos_void_audit` with `result = applied` in the same transaction. A denied call writes `result = denied` through `dblink` and then raises. Callers cannot update that row.
 
 ## RLS covered by the foundation test
 
@@ -42,4 +42,4 @@ Till and payroll writes go through functions. Direct `UPDATE` on `pos_vendas` is
 
 `task_economics` and other procurement functions are `SECURITY DEFINER` and can return cost to a caller who already passed their own checks. A supplier who is not a buyer and not HQ does not receive a table grant on `purchase_lines` from this install. Column-level hiding inside a JSON payload was not rewritten in this phase.
 
-`pos_void_sale` no longer treats bar membership as void authority. `caixa` fails inside the function. The open gap is that a denied attempt is not durable in `pos_void_audit`, because the exception rolls the statement back.
+`pos_void_sale` no longer treats bar membership as void authority. `caixa` fails inside the function. The denial row depends on `dblink` being able to connect without a stored password. That is proven locally and not yet proven on Supabase.

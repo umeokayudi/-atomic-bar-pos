@@ -272,6 +272,7 @@ export function shipmentQty(shipments = [], { toType = null, statuses = ['delive
 }
 
 export function resolveSalePrice({ prices = [], catalogPrice = null, at = new Date(), qty = 1 } = {}) {
+  void catalogPrice
   const when = new Date(at).getTime()
   const matches = prices.filter(row => {
     if (row.active === false) return false
@@ -281,8 +282,14 @@ export function resolveSalePrice({ prices = [], catalogPrice = null, at = new Da
     return row.salePrice != null
   })
   matches.sort((a, b) => (b.minimumQuantity ?? 1) - (a.minimumQuantity ?? 1) || String(b.validFrom || '').localeCompare(String(a.validFrom || '')))
-  if (matches.length) return +matches[0].salePrice
-  return catalogPrice == null ? null : +catalogPrice
+  if (!matches.length) return null
+  const topQty = matches[0].minimumQuantity ?? 1
+  const tier = matches.filter(row => (row.minimumQuantity ?? 1) === topQty)
+  const distinct = new Set(tier.map(row => +row.salePrice))
+  if (distinct.size > 1) throw new Error('ambiguous sale price')
+  const price = +matches[0].salePrice
+  if (!(price > 0)) throw new Error('sale price not configured')
+  return price
 }
 
 export function economics({ unitCost = 0, qty = 0, freight = 0, fees = 0, salePrice = 0 } = {}) {

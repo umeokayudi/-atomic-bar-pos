@@ -4,7 +4,7 @@
  */
 
 import { addDays, tenderOf, weekdayOf } from './barClose.js'
-import { nightKeyOfSale, hourOfSale } from './nightClose.js'
+import { hourOfSale, nightKeyOfSale, saleNet } from './nightClose.js'
 import { orderCastFromObs, orderCastIdFromObs } from './orderMeta.js'
 import { lastDayOfMonth } from './tokyo.js'
 
@@ -130,8 +130,14 @@ function rangeCovered(coverage, start, end) {
   return start >= coverage.from && end <= coverage.to
 }
 
+export function validSaleAmount(sale) {
+  const status = String(sale?.void_status || '')
+  if (status === 'void' || status === 'cancelada' || status === 'cancelado') return 0
+  return saleNet(sale)
+}
+
 export function salesOf(rows) {
-  return (rows || []).reduce((sum, sale) => sum + (+sale.total || 0), 0)
+  return (rows || []).reduce((sum, sale) => sum + validSaleAmount(sale), 0)
 }
 
 export function guestCount(rows) {
@@ -151,7 +157,7 @@ export function measureSales(rows, { covered, demo }) {
   if (!covered && !(rows || []).length) {
     return { status: 'unavailable', sales: null, orders: null, ticket: null, guests: null }
   }
-  const orders = (rows || []).length
+  const orders = (rows || []).filter(sale => validSaleAmount(sale) > 0).length
   const sales = roundYen(salesOf(rows))
   return {
     status: orders ? 'available' : 'empty',
@@ -186,14 +192,17 @@ export function employeeSales(rows, people) {
   let unassignedSales = 0
   for (const sale of rows || []) {
     const person = personKey(sale, people)
+    const part = validSaleAmount(sale)
     if (!person) {
-      unassigned += 1
-      unassignedSales += +sale.total || 0
+      if (part > 0) {
+        unassigned += 1
+        unassignedSales += part
+      }
       continue
     }
     const prev = buckets.get(person.id) || { id: person.id, nome: person.nome, sales: 0, orders: 0 }
-    prev.sales += +sale.total || 0
-    prev.orders += 1
+    prev.sales += part
+    if (part > 0) prev.orders += 1
     buckets.set(person.id, prev)
   }
   const ranked = [...buckets.values()]
@@ -303,8 +312,8 @@ export function timeline({ tickets, start, end, grain = 'day', profitByNight = n
       const hour = hourOfSale(sale)
       if (hour == null) continue
       const point = points[hour]
-      point.sales = (point.sales || 0) + (+sale.total || 0)
-      point.orders = (point.orders || 0) + 1
+      point.sales = (point.sales || 0) + validSaleAmount(sale)
+      point.orders = (point.orders || 0) + (validSaleAmount(sale) > 0 ? 1 : 0)
     }
     return points.map(point => ({
       ...point,
@@ -317,8 +326,8 @@ export function timeline({ tickets, start, end, grain = 'day', profitByNight = n
     const key = ticketNight(sale)
     const bucket = byNight.get(key)
     if (!bucket) continue
-    bucket.sales += +sale.total || 0
-    bucket.orders += 1
+    bucket.sales += validSaleAmount(sale)
+    bucket.orders += validSaleAmount(sale) > 0 ? 1 : 0
     bucket.seen = true
   }
   if (grain === 'month' || grain === 'week') {
@@ -369,8 +378,8 @@ export function weekdayRollup(rows) {
     const key = ticketNight(sale)
     if (!key) continue
     const day = days[weekdayOf(key)]
-    day.sales += +sale.total || 0
-    day.orders += 1
+    day.sales += validSaleAmount(sale)
+    day.orders += validSaleAmount(sale) > 0 ? 1 : 0
   }
   return days.map(day => ({
     ...day,
@@ -395,8 +404,8 @@ export function heatmap(rows) {
       continue
     }
     const cell = cells[weekdayOf(key) * 24 + hour]
-    cell.sales += +sale.total || 0
-    cell.orders += 1
+    cell.sales += validSaleAmount(sale)
+    cell.orders += validSaleAmount(sale) > 0 ? 1 : 0
     cell.timed += 1
   }
   return {
@@ -442,7 +451,7 @@ export function buildInsights({ current, previous, products, employees, heatmap:
         ? `Net sales moved ${change.abs >= 0 ? 'up' : 'down'} ${Math.abs(change.abs)} yen versus the comparison window.`
         : `Net sales moved ${change.pct >= 0 ? 'up' : 'down'} ${Math.abs(change.pct)}% versus the comparison window. Average ticket moved ${ticketChange.pct >= 0 ? 'up' : 'down'} ${Math.abs(ticketChange.pct)}%.`,
       period: `${range.start} → ${range.end}`,
-      source: 'pos_vendas.total on the operational night',
+      source: 'pos_vendas net: original total minus one capped refund; void status contributes zero',
       completeness: current.status,
     })
   }

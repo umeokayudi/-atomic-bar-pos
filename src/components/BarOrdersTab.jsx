@@ -81,25 +81,29 @@ export default function BarOrdersTab({ bar }) {
   const summaryTotal = summaryList.reduce((a, p) => a + p.total, 0)
 
   function salePriceOf(product, qty) {
-    if (!product) return 0
-    const price = resolveSalePrice({
-      prices: barPrices.filter(row => row.product_id === product.id).map(row => ({
-        salePrice: +row.sale_price,
-        minimumQuantity: row.minimum_quantity,
-        validFrom: row.valid_from,
-        validUntil: row.valid_until,
-        active: row.active,
-      })),
-      catalogPrice: product.preco_venda,
-      qty,
-    })
-    return price || 0
+    if (!product) return null
+    try {
+      return resolveSalePrice({
+        prices: barPrices.filter(row => row.product_id === product.id).map(row => ({
+          salePrice: +row.sale_price,
+          minimumQuantity: row.minimum_quantity,
+          validFrom: row.valid_from,
+          validUntil: row.valid_until,
+          active: row.active,
+        })),
+        qty,
+      })
+    } catch {
+      return null
+    }
   }
 
-  const totalOrder = items.reduce((a, it) => {
-    const p = produtos.find(x => x.id === it.produto_id)
-    return a + salePriceOf(p, it.qtd) * it.qtd
-  }, 0)
+  const orderPrices = items.map(it => {
+    const product = produtos.find(x => x.id === it.produto_id)
+    const price = salePriceOf(product, it.qtd)
+    return price == null ? null : price * it.qtd
+  })
+  const totalOrder = orderPrices.some(amount => amount == null) ? null : orderPrices.reduce((sum, amount) => sum + amount, 0)
   const bottleCount = items.reduce((a, it) => a + it.qtd, 0)
 
   const cats = useMemo(() => [...new Set(produtos.map(p => p.categoria).filter(Boolean))], [produtos])
@@ -155,7 +159,7 @@ export default function BarOrdersTab({ bar }) {
         admins.map(adm => ({
           user_id: adm.id, tipo: 'pedido_novo',
           titulo: t('portal.orders.newOrderFrom', { bar: bar.nome }),
-          mensagem: t('portal.orders.productsCount', { count: items.length, amount: '¥' + Math.round(totalOrder).toLocaleString('ja-JP') }),
+          mensagem: t('portal.orders.productsCount', { count: items.length, amount: totalOrder == null ? '—' : '¥' + Math.round(totalOrder).toLocaleString('ja-JP') }),
         }))
       )
     }
@@ -327,7 +331,7 @@ export default function BarOrdersTab({ bar }) {
           <div className="ord-sendbar">
             <div className="ord-send-kicker">{bottleCount} {t('portal.orders.items')}</div>
             <div className="ord-send-end">
-              <div className="ord-send-total">{items.length ? fmtYen(totalOrder) : '—'}</div>
+              <div className="ord-send-total">{items.length && totalOrder != null ? fmtYen(totalOrder) : '—'}</div>
               <button type="button" className="btn-primary ord-send-btn" onClick={enviarOrder} disabled={saving || items.length === 0 || isLocalDemo}>
                 {saving ? t('portal.orders.sending') : t('portal.orders.sendOrder')}
               </button>

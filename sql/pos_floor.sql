@@ -1108,9 +1108,10 @@ $$;
 REVOKE ALL ON FUNCTION public.pos_close_ticket(uuid, uuid, text, text, uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.pos_close_ticket(uuid, uuid, text, text, uuid) TO authenticated;
 
--- Successful voids only. A denied call raises inside the caller's transaction,
--- so the denial row would roll back with the exception. Do not claim a denial
--- is stored. Columns: user, bar, sale, reason, result, created_at.
+-- applied rows commit with the void. denied rows are written through dblink
+-- so they survive the statement that raises. Callers cannot set result.
+CREATE EXTENSION IF NOT EXISTS dblink;
+
 CREATE TABLE IF NOT EXISTS public.pos_void_audit (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
@@ -1120,6 +1121,54 @@ CREATE TABLE IF NOT EXISTS public.pos_void_audit (
   result text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.pos_void_audit DROP CONSTRAINT IF EXISTS pos_void_audit_result_chk;
+ALTER TABLE public.pos_void_audit
+  ADD CONSTRAINT pos_void_audit_result_chk CHECK (result IN ('applied', 'denied'));
+
+CREATE OR REPLACE FUNCTION public.pos_record_void_denial(
+  p_user uuid,
+  p_bar uuid,
+  p_venda uuid,
+  p_reason text
+) RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF p_user IS NULL OR p_bar IS NULL THEN
+    RAISE EXCEPTION 'void audit failed';
+  END IF;
+  PERFORM public.dblink_exec(
+    format('dbname=%s', current_database()),
+    format(
+      'INSERT INTO public.pos_void_audit (user_id, bar_id, venda_id, reason, result) VALUES (%L, %L, %L, %L, %L)',
+      p_user,
+      p_bar,
+      p_venda,
+      left(COALESCE(p_reason, ''), 500),
+      'denied'
+    )
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.pos_record_void_denial(uuid, uuid, uuid, text) FROM PUBLIC;
+
+DO $$
+DECLARE
+  sig regprocedure;
+BEGIN
+  FOR sig IN
+    SELECT p.oid::regprocedure
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname LIKE 'dblink%'
+  LOOP
+    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', sig);
+  END LOOP;
+END $$;
 
 DROP FUNCTION IF EXISTS public.pos_void_sale(uuid, text, integer, text, uuid);
 
@@ -1173,31 +1222,39 @@ BEGIN
   IF sale.id IS NULL THEN
     RAISE EXCEPTION 'sale missing';
   END IF;
-  actor := public.pos_require_bar(sale.bar_id);
-  IF p_approver IS DISTINCT FROM actor THEN
-    RAISE EXCEPTION 'void not allowed';
-  END IF;
-  IF NOT (
-    EXISTS (
-      SELECT 1 FROM public.perfis p
-      WHERE p.id = actor AND p.role = 'gerente' AND p.bar_id = sale.bar_id
+  BEGIN
+    actor := public.pos_require_bar(sale.bar_id);
+  EXCEPTION
+    WHEN OTHERS THEN
+      IF SQLERRM = 'bar not allowed' AND auth.uid() IS NOT NULL THEN
+        PERFORM public.pos_record_void_denial(auth.uid(), sale.bar_id, sale.id, p_reason);
+      END IF;
+      RAISE;
+  END;
+  IF p_approver IS DISTINCT FROM actor
+    OR NOT (
+      EXISTS (
+        SELECT 1 FROM public.perfis p
+        WHERE p.id = actor AND p.role = 'gerente' AND p.bar_id = sale.bar_id
+      )
+      OR EXISTS (
+        SELECT 1 FROM public.bar_memberships m
+        WHERE m.user_id = actor
+          AND m.bar_id = sale.bar_id
+          AND m.role = 'gerente'
+          AND m.revoked_at IS NULL
+      )
+      OR EXISTS (
+        SELECT 1 FROM public.platform_access a
+        JOIN public.perfis p ON p.id = a.user_id
+        WHERE a.user_id = actor
+          AND a.scope = 'hq'
+          AND a.revoked_at IS NULL
+          AND p.role IN ('admin', 'jbm')
+      )
     )
-    OR EXISTS (
-      SELECT 1 FROM public.bar_memberships m
-      WHERE m.user_id = actor
-        AND m.bar_id = sale.bar_id
-        AND m.role = 'gerente'
-        AND m.revoked_at IS NULL
-    )
-    OR EXISTS (
-      SELECT 1 FROM public.platform_access a
-      JOIN public.perfis p ON p.id = a.user_id
-      WHERE a.user_id = actor
-        AND a.scope = 'hq'
-        AND a.revoked_at IS NULL
-        AND p.role IN ('admin', 'jbm')
-    )
-  ) THEN
+  THEN
+    PERFORM public.pos_record_void_denial(actor, sale.bar_id, sale.id, p_reason);
     RAISE EXCEPTION 'void not allowed';
   END IF;
   IF sale.void_status = 'void' THEN

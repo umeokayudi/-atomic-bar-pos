@@ -6,7 +6,9 @@ import {
   employeeSales,
   periodRange,
   productPerformance,
+  salesOf,
   ticketNight,
+  validSaleAmount,
 } from '../src/lib/managerAnalytics.js'
 
 const night = '2026-10-01'
@@ -68,6 +70,29 @@ assert.equal(report.employees.ranked.find(row => row.nome === 'Ren').sales, 2000
 assert.equal(report.employees.unassigned, 1)
 assert.equal(report.employees.ranked.some(row => row.id === 'unassigned'), false)
 assert.equal(report.employees.ranked[0].profit, null)
+
+const voided = sale({ id: 'voided', total: 9000, at: at('2026-10-01', 23), pay: 'Cash' })
+voided.void_status = 'void'
+voided.refunded = 9000
+const partialRefund = sale({ id: 'partial', total: 4000, at: at('2026-10-01', 23), pay: 'Cash' })
+partialRefund.void_status = 'partial_refund'
+partialRefund.refunded = 1000
+const overRefund = sale({ id: 'over', total: 2000, at: at('2026-10-01', 23), pay: 'Cash' })
+overRefund.refunded = 9000
+assert.equal(validSaleAmount(voided), 0)
+assert.equal(validSaleAmount(partialRefund), 3000)
+assert.equal(validSaleAmount(overRefund), 0)
+assert.equal(salesOf([voided, partialRefund, overRefund, voided]), 3000)
+const withVoid = analyze({
+  tickets: [...tickets, voided],
+  people: [{ id: 'e1', nome: 'Aki' }, { id: 'e2', nome: 'Ren' }],
+  preset: 'today',
+  nightKey: night,
+  compare: 'weekday',
+  demo: false,
+})
+assert.equal(withVoid.current.sales, 16000)
+assert.equal(withVoid.current.orders, 3)
 
 const products = productPerformance([
   { pos_venda_id: 'a', nome: 'Highball', qtd: 4, preco_unitario: 800, custo_unitario: 200 },
