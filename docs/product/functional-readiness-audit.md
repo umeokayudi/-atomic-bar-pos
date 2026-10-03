@@ -57,7 +57,7 @@ A screen filled from the browser demo ledger is simulated. A function that exist
   - A row in `cash_closings` for that bar and day raises `already closed`.
   - Sales and stock tables are not updated.
 - POS night close calls `cash_close_night` before it writes the screen shift. The demo path still writes nothing.
-- The night-close bar records a drawer movement only when the session is not the local demo. Success and error text stay on the bar.
+- The night-close bar and the floor till (`PosFloor`, tablet and phone pay step) record a drawer movement only when the session is not the local demo. In the demo, the till says nothing is written and does not show a save button for sangria.
 - `compareBarIndicators` in `src/lib/saleBooks.js`.
 - `explainCashClose` in `src/lib/cashCloseExplain.js`. `executed` is false and `requiresApproval` is true. Missing integers leave variance null.
 - `sql/verify_schema.sql` expects `cash_drawer_move`.
@@ -82,7 +82,20 @@ Additional checks for this pass:
 - `npm run test:books`
 - `npm run test:ai`
 
-Results are filled in the revision that runs them. A failure is recorded here and is not removed by editing the assertion to match a wrong result.
+Results on this machine, commit after `3432269`:
+
+| Command | Result |
+| --- | --- |
+| `npm run test:foundation` | Passed. Includes suprimento, duplicate key, sangria back to 1400, drawer short, employee and supplier denial, other-bar denial, unchanged sales and stock, and a move rejected after close. |
+| `npm run test:pos` | Passed. |
+| `npm run test:procurement` | Passed. 36 checks. |
+| `npm run test:supabase` | Passed. |
+| `npm run test:readiness` | Passed. |
+| `npm run test:books` | Passed. Includes mixed-book and missing-indicator totals staying null. |
+| `npm run test:ai` | Passed. Includes the deterministic close explanation and the missing-figure case. |
+| `npm run build` | Passed. Existing Vite CJS `import.meta` warnings and the chunk-size warning remain. |
+
+No required command failed. The Node module-type warning is pre-existing. `package.json` was not given `"type": "module"`.
 
 ## Limitations
 
