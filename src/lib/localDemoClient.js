@@ -254,6 +254,20 @@ function demoSession() {
   }
 }
 
+const DEMO_PORTALS = new Set(['gerente', 'caixa', 'funcionario', 'fornecedor', 'admin'])
+
+/** Local preview only. Changes the fictional profile in this browser. */
+export function writeDemoRole(role) {
+  if (!DEMO_PORTALS.has(role)) return false
+  const store = readStore()
+  const perfil = store.perfis?.[0]
+  if (!perfil) return false
+  perfil.role = role
+  perfil.bar_id = DEMO_BAR_ID
+  writeStore(store)
+  return true
+}
+
 export function createLocalDemoClient() {
   const client = {
     __localDemo: true,

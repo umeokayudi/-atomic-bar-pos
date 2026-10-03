@@ -66,6 +66,79 @@ A screen filled from the browser demo ledger is simulated. A function that exist
 
 The local chain remains BAR order, central procurement task, purchase record, shipment, transport advance, bar receipt, stock `entrada`, indicator read, and audit rows. This pass does not add a fake carrier, a fake bank, or a fake model call. Indicator reads keep using `sales_indicator` for one book.
 
+## Files in this pass
+
+- `sql/foundation/080_operations.sql` — `cash_drawer_move`
+- `sql/verify_schema.sql` — expected function row
+- `scripts/foundation.pg.test.mjs` — known amounts for sale, stock, drawer, close variance, receipt
+- `src/components/AtomicPos.jsx`, `src/components/PosFloor.jsx`, `src/components/pos/FloorDrawerControls.jsx`, `src/components/pos/PosTablet.jsx`, `src/components/pos/PosMobile.jsx`
+- `src/lib/saleBooks.js`, `src/lib/cashCloseExplain.js`
+- `src/components/DemoModeBanner.jsx`, `src/lib/localDemoClient.js` — local demo portal switch
+- `src/index.css`, `src/locales/en.js`, `src/locales/ja.js`
+
+## Known amounts from `npm run test:foundation`
+
+The disposable database is `atomic_bar_foundation_test` on `127.0.0.1`. Users are fictional.
+
+| Step | Input | Expected | Obtained |
+| --- | --- | --- | --- |
+| Stock arithmetic | entrada 1, entrada 4, perda 1, estorno 1 | on hand 5 | 5 |
+| Concurrent saida of 5 | two callers, on hand 5 | one commit, on hand 0 | one success, the other `insufficient stock`, on hand 0 |
+| Restock then unit sale | entrada 3, then 1 unit at `preco_drink` 2500 | on hand 2 | 2 |
+| Sale math | qty 1 × 2500, discount 100, cash 1400, card 1000 | total 2400, discount 100, fee round(1000 × 0.0378) = 38 | 2400, 100, 38 |
+| Drawer | suprimento 200, same key again, sangria 200 | expected 1600, still 1600, then 1400 | those three values; two movement rows |
+| Night close | counted 1400 | expected 1400, counted 1400, difference 0 | 1400, 1400, 0 |
+| Variance night `2020-01-15` | suprimento 500, counted 450 | expected 500, counted 450, difference −50 | 500, 450, −50 |
+| Receipt | shipment quantity 2 | stock `entrada` with note `JBM ship` equals 2 | 2 |
+| Payroll | employee A line 200000 | A sees 1 row, B sees 0 | 1 and 0 |
+
+Unauthorized void returns NULL and leaves `refunded` 0. A later authorized void sets `void_status` void and `refunded` 2400, with one `applied` audit row. A second void raises `already void` and the applied audit count stays 1. Cashier update of `pos_vendas.total` is denied. Cashier insert into `pos_void_audit` is denied. Supplier B cannot read supplier A's link or tracking. Manager B cannot read bar A sales. An explicit rollback of a denied void is the session behavior already recorded in `docs/database/known-limitations.md`: the denial insert shares the statement transaction.
+
+`explainCashClose({ expected: 1400, counted: 1300 })` returns variance −100 and `executed: false`. A missing counted value leaves variance null.
+
+## Local run
+
+`docs/database/fresh-install-guide.md` is the installer. Automated coverage uses `npm run test:foundation`, which creates the disposable database and refuses a `supabase.co` host. The browser preview is `npm run dev`. The banner switch labeled DEMO portal changes only the fictional profile in this browser.
+
+## Browser passes on 3 October 2026
+
+Local Vite at `http://127.0.0.1:5175/`. No page error was recorded. Horizontal overflow was 0 at 1280, 768, and 390 for Bar, POS, Employee, Supplier, and HQ. The banner states the books are fictional.
+
+| Surface | What was exercised |
+| --- | --- |
+| Bar, gerente, `#/hq` | Home opened. Orders navigation shows the demo sentence that this sign-in does not submit an order. |
+| POS, caixa, `#/pos` | Till opened. Demo copy says sangria is not written. At 390, after clearing `POS_DEVICE_MODE`, the floor mode was `mobile`. |
+| Employee, funcionario, `#/jbm` | Clock opened. Clock in changed the text to clocked in. My goals with an empty note returned `Add a short note`. The page says the punch is not a live payroll run. |
+| Supplier, fornecedor | Purchase orders opened with the sentence that nothing is sent to a supplier. |
+| HQ, admin, `#/jbm` | Dashboard opened with the sentence `Fictional DEMO books` above the figures. |
+
+Screens not clicked in this pass include rent, tax, accountant, and every house-cost form. Those remain classified from the code, not from a click.
+
+## Definition of done
+
+Classification of this branch: **partially complete locally**. Integrity checks below passed. The product is not cleared for production. Hosted homologation stays blocked.
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Four portals opened in the local demo | Recorded | Browser table above. 0 page errors. |
+| Module inventory classified | Recorded | Classification table in this file. Unclicked house-cost screens are not described as exercised. |
+| Sale, discount, payment, drawer, stock, void, close, variance, purchase, receipt | Recorded on local Postgres | Known-amounts table. `npm run test:foundation` exit 0 after those assertions. |
+| Duplicate financial operation | Recorded | Same payment key returns the same id. Same order key sets `replayed` true. Same drawer key sets `duplicate` true. |
+| Invalid data and rollback | Recorded | `drawer short`, `insufficient stock`, `sale price not configured`, empty leave note. Stock race rolls the loser back. |
+| Two bars, employee pay, supplier orders, cashier admin denial | Recorded | Foundation assertions for bar B, employee B, supplier B, cashier SQL denial. |
+| Secret strings absent from the repo | Not approved | This pass added none. Pre-existing credential-shaped strings remain in `src/lib/supabase.js` and `api/_supabaseAdmin.js`. They were not printed. |
+| Tests used protected Supabase data | Not observed | Foundation URL is local. `npm run test:supabase` checks the target guard. |
+| `npm run build` | Passed | Vite build exit 0. Existing `import.meta` CJS warning and chunk-size warning remain. |
+| `npm run test:pos` | Passed | `pos floor tests passed` |
+| `npm run test:procurement` | Passed | 36 checks |
+| `npm run test:supabase` | Passed | |
+| `npm run test:readiness` | Passed | |
+| `npm run test:books` and `npm run test:ai` | Passed | Extra commands, present in `package.json`. |
+| Remote SQL, remote table change, production data change | Not performed in this workspace | No command targeted the protected refs. |
+| Vercel Production variables | Not verified in the Vercel dashboard | This diff does not change an env file or call the Vercel API. |
+| Deploy | Not performed | `npm run deploy` was not run. |
+| PR merged | Not merged | PR 79 is open, draft, `mergedAt` null, base `cursor/existing-supabase-audit-9d4b`. |
+
 ## Tests
 
 Commands required by the task, run on this machine against local PostgreSQL or pure unit checks:
@@ -82,11 +155,11 @@ Additional checks for this pass:
 - `npm run test:books`
 - `npm run test:ai`
 
-Results on this machine, commit after `3432269`:
+Results on this machine after the variance, stock, receipt, and demo-portal changes:
 
 | Command | Result |
 | --- | --- |
-| `npm run test:foundation` | Passed. Includes suprimento, duplicate key, sangria back to 1400, drawer short, employee and supplier denial, other-bar denial, unchanged sales and stock, and a move rejected after close. |
+| `npm run test:foundation` | Passed. Includes the known-amounts table: on hand 2 after the unit sale, drawer back to 1400, close difference 0, odd-night difference −50, receipt quantity 2. |
 | `npm run test:pos` | Passed. |
 | `npm run test:procurement` | Passed. 36 checks. |
 | `npm run test:supabase` | Passed. |
