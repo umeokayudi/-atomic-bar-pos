@@ -30,6 +30,7 @@ Order inside `sql/install_fresh.sql`:
 9. `sql/payroll.sql`
 10. `sql/foundation/080_operations.sql`
 11. `sql/foundation/090_security.sql`
+12. `sql/foundation/095_review.sql`
 
 Running the file again is supported. Do not run `sql/supplier_fulfillment.sql` alone after `sql/procurement.sql`.
 
@@ -55,7 +56,11 @@ Create an empty Supabase project that is not one of the two protected refs. Past
 
 ## Rollback
 
-There is no down migration. Drop the disposable database. Do not drop a database that already holds bar data.
+There is no down migration and no script that undoes `095_review.sql` by itself.
+
+`sql/install_fresh.sql` sets `ON_ERROR_STOP`. `psql` commits each statement as it succeeds. A failure stops the script and leaves the earlier statements in place. A failed statement inside an explicit transaction rolls back only that transaction. The installer does not wrap the whole chain in one transaction.
+
+Rollback of a disposable database is `DROP DATABASE`. Do not drop a database that already holds bar data. `sql/verify_schema.sql` only reads.
 
 ## Install version
 

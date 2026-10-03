@@ -312,6 +312,21 @@ async function main() {
     [body.venda_id],
   )
   assert.equal(feeRows.rows[0].n, 1)
+  await expectRaise(root, cashierA, () => root.query(
+    `SELECT public.pos_void_sale($1, 'refund', NULL, 'cashier', $2)`,
+    [body.venda_id, managerA],
+  ), /void not allowed/)
+  await expectRaise(root, cashierA, () => root.query(
+    `SELECT public.pos_void_sale($1, 'refund', NULL, 'cashier', $2)`,
+    [body.venda_id, cashierA],
+  ), /void not allowed/)
+  const untouched = await root.query(`SELECT refunded FROM public.pos_vendas WHERE id = $1`, [body.venda_id])
+  assert.equal(untouched.rows[0].refunded, 0)
+  const deniedAudit = await root.query(
+    `SELECT count(*)::int AS n FROM public.pos_void_audit WHERE venda_id = $1`,
+    [body.venda_id],
+  )
+  assert.equal(deniedAudit.rows[0].n, 0)
   await asUser(root, managerA, () => root.query(
     `SELECT public.pos_void_sale($1, 'refund', NULL, 'guest left', $2)`,
     [body.venda_id, managerA],
@@ -319,6 +334,42 @@ async function main() {
   const afterVoid = await root.query(`SELECT void_status, refunded FROM public.pos_vendas WHERE id = $1`, [body.venda_id])
   assert.equal(afterVoid.rows[0].void_status, 'void')
   assert.equal(afterVoid.rows[0].refunded, 2400)
+  const voidAudit = await asUser(root, managerA, () => root.query(
+    `SELECT user_id, bar_id, venda_id, reason, result, created_at
+     FROM public.pos_void_audit WHERE venda_id = $1`,
+    [body.venda_id],
+  ))
+  assert.equal(voidAudit.rows.length, 1)
+  assert.equal(voidAudit.rows[0].user_id, managerA)
+  assert.equal(voidAudit.rows[0].bar_id, barA)
+  assert.equal(voidAudit.rows[0].reason, 'guest left')
+  assert.equal(voidAudit.rows[0].result, 'applied')
+  assert.ok(voidAudit.rows[0].created_at)
+  await expectRaise(root, employeeA, () => root.query(
+    `SELECT public.pos_void_sale($1, 'refund', NULL, 'staff', $2)`,
+    [body.venda_id, employeeA],
+  ), /void not allowed/)
+  await expectRaise(root, managerB, () => root.query(
+    `SELECT public.pos_void_sale($1, 'refund', NULL, 'other bar', $2)`,
+    [body.venda_id, managerB],
+  ), /bar not allowed/)
+  await expectRaise(root, supplierA, () => root.query(
+    `SELECT public.pos_void_sale($1, 'refund', NULL, 'supplier', $2)`,
+    [body.venda_id, supplierA],
+  ), /bar not allowed/)
+  await expectRaise(root, jbmPlain, () => root.query(
+    `SELECT public.pos_void_sale($1, 'refund', NULL, 'jbm without hq', $2)`,
+    [body.venda_id, jbmPlain],
+  ), /bar not allowed/)
+  await expectRaise(root, admin, () => root.query(
+    `SELECT public.pos_void_sale($1, 'refund', NULL, 'hq repeat', $2)`,
+    [body.venda_id, admin],
+  ), /already void/)
+  const stillOneAudit = await root.query(
+    `SELECT count(*)::int AS n FROM public.pos_void_audit WHERE venda_id = $1 AND result = 'applied'`,
+    [body.venda_id],
+  )
+  assert.equal(stillOneAudit.rows[0].n, 1)
 
   const hiddenSales = await asUser(root, managerB, () => root.query(`SELECT id FROM public.vendas WHERE bar_id = $1`, [barA]))
   assert.equal(hiddenSales.rows.length, 0)
@@ -460,9 +511,149 @@ async function main() {
   const done = await root.query(`SELECT status FROM public.pedidos WHERE id = $1`, [orderId])
   assert.equal(done.rows[0].status, 'entregue')
 
+  const priced = randomUUID()
+  const drinkId = randomUUID()
+  await root.query(
+    `INSERT INTO public.produtos (id, nome, preco_venda) VALUES ($1, 'Priced', 999)`,
+    [priced],
+  )
+  await root.query(
+    `INSERT INTO public.drink_menu (id, bar_id, nome, preco_venda) VALUES ($1, $2, 'Highball', 3000)`,
+    [drinkId, barA],
+  )
+  await root.query(
+    `INSERT INTO public.bar_pricing (bar_id, produto_id, preco_drink) VALUES ($1, $2, 2500)`,
+    [barA, priced],
+  )
+  await root.query(
+    `INSERT INTO public.bar_product_prices (bar_id, product_id, sale_price) VALUES ($1, $2, 1800)`,
+    [barA, priced],
+  )
+  const drinkPrice = await asUser(root, cashierA, () => root.query(
+    `SELECT public.operation_price($1, NULL, $2, 'pos_drink') AS price`,
+    [barA, drinkId],
+  ))
+  const unitPrice = await asUser(root, cashierA, () => root.query(
+    `SELECT public.operation_price($1, $2, NULL, 'pos_unit') AS price`,
+    [barA, priced],
+  ))
+  const buyPrice = await asUser(root, managerA, () => root.query(
+    `SELECT public.operation_price($1, $2, NULL, 'procurement') AS price`,
+    [barA, priced],
+  ))
+  assert.equal(Number(drinkPrice.rows[0].price), 3000)
+  assert.equal(Number(unitPrice.rows[0].price), 2500)
+  assert.equal(Number(buyPrice.rows[0].price), 1800)
+  const conflict = await asUser(root, managerA, () => root.query(
+    `SELECT public.price_conflict($1, $2) AS body`,
+    [barA, priced],
+  ))
+  assert.equal(conflict.rows[0].body.diverges, true)
+  const legacy = await asUser(root, managerA, () => root.query(
+    `SELECT public.resolve_bar_price($1, $2, now(), 1) AS price`,
+    [barA, priced],
+  ))
+  assert.equal(Number(legacy.rows[0].price), 1800)
+  await expectRaise(root, managerB, () => root.query(
+    `SELECT public.operation_price($1, $2, NULL, 'pos_unit')`,
+    [barA, priced],
+  ), /not allowed/)
+
+  await root.query(
+    `INSERT INTO public.vendas (bar_id, total, obs) VALUES ($1, 1000, 'jbm book only')`,
+    [barA],
+  )
+  const till = await asUser(root, managerA, () => root.query(
+    `SELECT public.sales_indicator('till', $1) AS total`,
+    [barA],
+  ))
+  const jbmBook = await asUser(root, managerA, () => root.query(
+    `SELECT public.sales_indicator('jbm', $1) AS total`,
+    [barA],
+  ))
+  assert.equal(Number(till.rows[0].total), 2400)
+  assert.equal(Number(jbmBook.rows[0].total), 1000)
+  assert.equal(Number(till.rows[0].total) + Number(jbmBook.rows[0].total), 3400)
+  assert.notEqual(Number(till.rows[0].total), 3400)
+  assert.notEqual(Number(jbmBook.rows[0].total), 3400)
+  await expectRaise(root, managerA, () => root.query(
+    `SELECT public.sales_indicator('both', $1)`,
+    [barA],
+  ), /unknown sales book/)
+  const shared = await root.query(
+    `SELECT count(*)::int AS n FROM public.pos_vendas p
+     JOIN public.vendas v ON v.id = p.id WHERE p.bar_id = $1`,
+    [barA],
+  )
+  assert.equal(shared.rows[0].n, 0)
+
+  await root.query(
+    `INSERT INTO public.supplier_routing_rules (product_id, supplier_id, active)
+     SELECT $1, $2, true
+     WHERE NOT EXISTS (
+       SELECT 1 FROM public.supplier_routing_rules r WHERE r.product_id = $1
+     )`,
+    [priced, supplierId],
+  )
+  await root.query(
+    `INSERT INTO public.fulfillment_alerts (audience, bar_id, event_type, title)
+     VALUES ('bar', $1, 'review', 'Bar A only')`,
+    [barA],
+  )
+  const rulesForStaff = await asUser(root, employeeA, () => root.query(
+    `SELECT id FROM public.supplier_routing_rules`,
+  ))
+  assert.equal(rulesForStaff.rows.length, 0)
+  const rulesForJbm = await asUser(root, jbm, () => root.query(
+    `SELECT id FROM public.supplier_routing_rules`,
+  ))
+  assert.ok(rulesForJbm.rows.length >= 1)
+  const alertsA = await asUser(root, managerA, () => root.query(
+    `SELECT id FROM public.fulfillment_alerts WHERE bar_id = $1`,
+    [barA],
+  ))
+  const alertsB = await asUser(root, managerB, () => root.query(
+    `SELECT id FROM public.fulfillment_alerts WHERE bar_id = $1`,
+    [barA],
+  ))
+  assert.ok(alertsA.rows.length >= 1)
+  assert.equal(alertsB.rows.length, 0)
+  const ownSupplier = await asUser(root, supplierA, () => root.query(
+    `SELECT supplier_id FROM public.supplier_users WHERE user_id = $1`,
+    [supplierA],
+  ))
+  assert.equal(ownSupplier.rows.length, 1)
+  await expectRaise(root, cashierA, () => root.query(`SELECT id FROM public.audit_logs`), /permission denied/)
+  await expectRaise(root, managerA, () => root.query(
+    `INSERT INTO public.supplier_users (supplier_id, user_id) VALUES ($1, $2)`,
+    [supplierId, managerA],
+  ), /row-level security|permission denied/)
+  const hqPortal = await asUser(root, admin, () => root.query(`SELECT pedido_id FROM public.pedido_fulfillment`))
+  assert.ok(Array.isArray(hqPortal.rows))
+  await expectRaise(root, admin, () => root.query(`SELECT id FROM public.order_supplier_items`), /permission denied/)
+  await expectRaise(root, admin, () => root.query(`SELECT id FROM public.fulfillment_events`), /permission denied/)
+  await expectRaise(root, admin, () => root.query(`SELECT id FROM public.delivery_confirmations`), /permission denied/)
+  await expectRaise(root, admin, () => root.query(`SELECT id FROM public.supplier_purchase_requests`), /permission denied/)
+  await expectRaise(root, cashierA, () => root.query(
+    `INSERT INTO public.supplier_routing_rules (product_id, supplier_id) VALUES ($1, $2)`,
+    [priced, supplierId],
+  ), /row-level security|permission denied/)
+  const otherSupplier = await asUser(root, supplierOther, () => root.query(
+    `SELECT supplier_id FROM public.supplier_users WHERE user_id = $1`,
+    [supplierA],
+  ))
+  assert.equal(otherSupplier.rows.length, 0)
+
   await a.end()
   await b.end()
   await root.end()
+
+  execFileSync('psql', [url, '-v', 'ON_ERROR_STOP=1', '-f', 'sql/install_fresh.sql'], { stdio: 'inherit' })
+  const summary = execFileSync('psql', [url, '-v', 'ON_ERROR_STOP=1', '-A', '-F', '|', '-f', 'sql/verify_schema.sql'], { encoding: 'utf8' })
+  const summaryLine = summary.split('\n').find(line => line.startsWith('SUMMARY|'))
+  if (!summaryLine || !summaryLine.startsWith('SUMMARY|OK|')) {
+    throw new Error(summary)
+  }
   console.log('foundation postgres tests passed')
 }
 

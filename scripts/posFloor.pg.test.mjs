@@ -417,6 +417,14 @@ async function main() {
     `SELECT id, qtd, comissao_valor FROM public.pos_vendas_itens WHERE pos_venda_id = $1`,
     [pour.venda_id],
   )
+  await expectRaise(root, userA, () => root.query(
+    `SELECT public.pos_void_sale($1, 'partial_refund', NULL, 'cashier void', $2, $3, 1)`,
+    [pour.venda_id, userB, saleItem.rows[0].id],
+  ), /void not allowed/)
+  await expectRaise(root, userA, () => root.query(
+    `SELECT public.pos_void_sale($1, 'partial_refund', NULL, 'cashier void', $2, $3, 1)`,
+    [pour.venda_id, userA, saleItem.rows[0].id],
+  ), /void not allowed/)
   await tx(root, userB, () => root.query(
     `SELECT public.pos_void_sale($1, 'partial_refund', NULL, 'wrong pour', $2, $3, 1)`,
     [pour.venda_id, userB, saleItem.rows[0].id],
