@@ -2,15 +2,15 @@
 
 import { tokyoDateKey, tokyoNightKey } from './tokyo.js'
 import { faturaRemaining } from './barPortal.js'
-import { lastBusyNight, prevTokyoDateKey, saleOnNight } from './nightClose.js'
+import { lastBusyNight, prevTokyoDateKey, saleOnNight, saleValid } from './nightClose.js'
 
 /** POS tonight uses nightlife 06:00–05:59, not civil midnight. */
 export function posTodayFromTickets(tickets = [], nightKey = tokyoNightKey()) {
-  return (tickets || []).filter(s => saleOnNight(s, nightKey)).reduce((a, s) => a + (+s.total || 0), 0)
+  return (tickets || []).filter(s => saleOnNight(s, nightKey)).reduce((a, s) => a + saleValid(s), 0)
 }
 
 export function posTodayCount(tickets = [], nightKey = tokyoNightKey()) {
-  return (tickets || []).filter(s => saleOnNight(s, nightKey)).length
+  return (tickets || []).filter(s => saleOnNight(s, nightKey) && saleValid(s) > 0).length
 }
 
 export function posLastNightFromTickets(tickets = [], nightKey = tokyoNightKey()) {

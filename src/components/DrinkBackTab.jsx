@@ -4,6 +4,7 @@ import { fmtYen, Spinner, SectionTitle } from './utils'
 import { useI18n } from '../lib/i18n'
 import { tokyoMonthKey } from '../lib/tokyo'
 import { readTicketMeta } from '../lib/nightTicket'
+import { saleValid } from '../lib/nightClose'
 
 export default function DrinkBackTab({ bar }) {
   const { t } = useI18n()
@@ -22,7 +23,7 @@ export default function DrinkBackTab({ bar }) {
     setErr('')
     const [aR, sR] = await Promise.all([
       supabase.from('drink_back_agents').select('*').eq('bar_id', bar.id).order('nome'),
-      supabase.from('pos_vendas').select('id,total,obs,drink_back_agent_id,data').eq('bar_id', bar.id).gte('data', `${month}-01`).not('drink_back_agent_id', 'is', null),
+      supabase.from('pos_vendas').select('id,total,refunded,void_status,obs,drink_back_agent_id,data').eq('bar_id', bar.id).gte('data', `${month}-01`).not('drink_back_agent_id', 'is', null),
     ])
     if (aR.error) setErr(aR.error.message)
     setAgents(aR.data || [])
@@ -62,7 +63,7 @@ export default function DrinkBackTab({ bar }) {
 
   const rows = agents.map(agent => {
     const mine = sales.filter(s => s.drink_back_agent_id === agent.id)
-    const revenue = mine.reduce((sum, s) => sum + (+s.total || 0), 0)
+    const revenue = mine.reduce((sum, s) => sum + saleValid(s), 0)
     const commission = mine.reduce((sum, s) => sum + (readTicketMeta(s.obs).commission || 0), 0)
     return { ...agent, tickets: mine.length, revenue, commission }
   })

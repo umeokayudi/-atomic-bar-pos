@@ -1108,10 +1108,10 @@ $$;
 REVOKE ALL ON FUNCTION public.pos_close_ticket(uuid, uuid, text, text, uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.pos_close_ticket(uuid, uuid, text, text, uuid) TO authenticated;
 
--- applied rows commit with the void. denied rows are written through dblink
--- so they survive the statement that raises. Callers cannot set result.
-CREATE EXTENSION IF NOT EXISTS dblink;
-
+-- applied rows commit with the money movement. A denied attempt inserts
+-- result = denied in the same statement and returns NULL. It does not
+-- change the sale. A caller that rolls the session back also drops that
+-- denial. Supabase RPC autocommit keeps it. No extension and no password.
 CREATE TABLE IF NOT EXISTS public.pos_void_audit (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
@@ -1140,35 +1140,12 @@ BEGIN
   IF p_user IS NULL OR p_bar IS NULL THEN
     RAISE EXCEPTION 'void audit failed';
   END IF;
-  PERFORM public.dblink_exec(
-    format('dbname=%s', current_database()),
-    format(
-      'INSERT INTO public.pos_void_audit (user_id, bar_id, venda_id, reason, result) VALUES (%L, %L, %L, %L, %L)',
-      p_user,
-      p_bar,
-      p_venda,
-      left(COALESCE(p_reason, ''), 500),
-      'denied'
-    )
-  );
+  INSERT INTO public.pos_void_audit (user_id, bar_id, venda_id, reason, result)
+  VALUES (p_user, p_bar, p_venda, left(COALESCE(p_reason, ''), 500), 'denied');
 END;
 $$;
 
 REVOKE ALL ON FUNCTION public.pos_record_void_denial(uuid, uuid, uuid, text) FROM PUBLIC;
-
-DO $$
-DECLARE
-  sig regprocedure;
-BEGIN
-  FOR sig IN
-    SELECT p.oid::regprocedure
-    FROM pg_proc p
-    JOIN pg_namespace n ON n.oid = p.pronamespace
-    WHERE n.nspname = 'public' AND p.proname LIKE 'dblink%'
-  LOOP
-    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', sig);
-  END LOOP;
-END $$;
 
 DROP FUNCTION IF EXISTS public.pos_void_sale(uuid, text, integer, text, uuid);
 
@@ -1228,6 +1205,7 @@ BEGIN
     WHEN OTHERS THEN
       IF SQLERRM = 'bar not allowed' AND auth.uid() IS NOT NULL THEN
         PERFORM public.pos_record_void_denial(auth.uid(), sale.bar_id, sale.id, p_reason);
+        RETURN NULL;
       END IF;
       RAISE;
   END;
@@ -1255,7 +1233,7 @@ BEGIN
     )
   THEN
     PERFORM public.pos_record_void_denial(actor, sale.bar_id, sale.id, p_reason);
-    RAISE EXCEPTION 'void not allowed';
+    RETURN NULL;
   END IF;
   IF sale.void_status = 'void' THEN
     RAISE EXCEPTION 'already void';

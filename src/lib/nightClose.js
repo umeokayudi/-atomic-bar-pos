@@ -78,10 +78,10 @@ export function lastBusyNight(sales = [], nightKey = tokyoNightKey()) {
   for (const s of sales || []) {
     const key = nightKeyOfSale(s)
     if (!key || key >= nightKey) continue
-    sums[key] = (sums[key] || 0) + saleNet(s)
+    sums[key] = (sums[key] || 0) + saleValid(s)
   }
   const date = Object.keys(sums).filter(k => sums[k] > 0).sort().pop() || ''
-  return { date, total: date ? sums[date] : 0, ticketCount: date ? (sales || []).filter(s => nightKeyOfSale(s) === date).length : 0 }
+  return { date, total: date ? sums[date] : 0, ticketCount: date ? (sales || []).filter(s => nightKeyOfSale(s) === date && saleValid(s) > 0).length : 0 }
 }
 
 export function saleOnNight(sale, nightKey) {
@@ -99,6 +99,13 @@ export function saleRefund(sale) {
 
 export function saleNet(sale) {
   return saleGross(sale) - saleRefund(sale)
+}
+
+/** Till indicator. Void status contributes zero. Refunds are capped at the original total. */
+export function saleValid(sale) {
+  const status = String(sale?.void_status || '')
+  if (status === 'void' || status === 'cancelada' || status === 'cancelado') return 0
+  return saleNet(sale)
 }
 
 /** Fee still on the books after reversals. Cash and other pay no fee. */

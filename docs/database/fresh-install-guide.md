@@ -52,7 +52,7 @@ POS_PG_TEST_URL=postgres://.../atomic_bar_pos_test npm run test:pos:pg
 
 ## Staging
 
-Create an empty Supabase project that is not one of the two protected refs. Paste each file from the order above into the SQL editor, one file at a time. Then run `sql/verify_schema.sql`. The summary row must be `SUMMARY` / `OK`. This repository has not been applied to a Supabase project.
+The checklist for a new isolated Supabase project is `docs/database/staging-homologation.md`. This repository has not been applied to a Supabase project. Homologation is not complete. The installer does not require `dblink`.
 
 ## Rollback
 

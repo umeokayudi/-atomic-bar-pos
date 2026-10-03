@@ -1,7 +1,7 @@
 /** VIP room rentals. POS money inside the room only — never a JBM invoice. */
 
 import { tokyoNightKey, tokyoWallToUtcMs } from './tokyo.js'
-import { nextTokyoDateKey } from './nightClose.js'
+import { nextTokyoDateKey, saleValid } from './nightClose.js'
 
 function pad2(n) {
   return String(n).padStart(2, '0')
@@ -125,7 +125,7 @@ export function summarizeVipRooms({
     const capacityPct = available > 0 ? Math.round((usedSeatMinutes / available) * 100) : 0
     const partyAvg = rentedMinutes > 0 ? Math.round((usedSeatMinutes / rentedMinutes) * 10) / 10 : 0
     const roomSales = salesByRoom.get(room.id) || []
-    const revenue = roomSales.reduce((sum, s) => sum + (+s.total || 0), 0)
+    const revenue = roomSales.reduce((sum, s) => sum + saleValid(s), 0)
     return {
       id: room.id,
       nome: room.nome,
@@ -214,7 +214,8 @@ export function placeRevenue({
     if (!sale?.id || seen.has(sale.id)) continue
     if (!inSpan(saleNight(sale), from, to)) continue
     seen.add(sale.id)
-    const amount = +sale.total || 0
+    const amount = saleValid(sale)
+    if (amount <= 0) continue
     const spaceId = spaceOfSale(sale, spaceById, visitById, visitBySale)
     let lane = 'open'
     if (spaceId && vipIds.has(spaceId)) lane = 'vip'

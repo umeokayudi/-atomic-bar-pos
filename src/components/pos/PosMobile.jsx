@@ -52,7 +52,7 @@ export default function PosMobile({ t, floor }) {
             {visible.map(product => (
               <button key={product.id} type="button" className="pos-m-product" onClick={() => floor.addProduct(product)}>
                 <span>{product.nome}</span>
-                <strong>{fmtYen(product.preco_venda || product.preco_drink || 0)}</strong>
+                <strong>{+product.preco_venda > 0 ? fmtYen(product.preco_venda) : '—'}</strong>
               </button>
             ))}
             {visible.length === 0 && <p className="pos-floor-empty">{catalogError || t('posFloor.noProducts')}</p>}

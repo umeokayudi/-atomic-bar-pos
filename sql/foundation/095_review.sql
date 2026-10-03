@@ -200,20 +200,6 @@ CREATE POLICY pos_void_audit_read ON public.pos_void_audit
 REVOKE INSERT, UPDATE, DELETE ON public.pos_void_audit FROM authenticated;
 GRANT SELECT ON public.pos_void_audit TO authenticated;
 
-DO $$
-DECLARE
-  sig regprocedure;
-BEGIN
-  FOR sig IN
-    SELECT p.oid::regprocedure
-    FROM pg_proc p
-    JOIN pg_namespace n ON n.oid = p.pronamespace
-    WHERE n.nspname = 'public' AND p.proname LIKE 'dblink%'
-  LOOP
-    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', sig);
-  END LOOP;
-END $$;
-
 -- Fulfillment policies already exist. Grants match the app queries only.
 -- SupplierPortal: SELECT supplier_users, order_supplier_assignments, fulfillment_alerts.
 -- FulfillmentHq: SELECT pedido_fulfillment, fulfillment_alerts, supplier_routing_rules,

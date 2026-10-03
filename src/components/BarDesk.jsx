@@ -6,8 +6,7 @@ import { buildBarDesk } from '../lib/barDesk'
 import { addDays, cardCash, monthBounds, paymentAgenda, periodReport, sameWeekdaySales, stillToSell, tenderOf, weekdayOf } from '../lib/barClose'
 import { buildGoalProgress, openHours, shiftBand } from '../lib/barGoals'
 import { whatWorked } from '../lib/barStrategy'
-import { nightKeyOfSale } from '../lib/nightClose'
-import { hourOfSale } from '../lib/nightClose'
+import { hourOfSale, nightKeyOfSale, saleValid } from '../lib/nightClose'
 import { lastDayOfMonth, tokyoHour, tokyoNightKey } from '../lib/tokyo'
 import { useI18n } from '../lib/i18n'
 import { isLocalDemo } from '../lib/supabase'
@@ -133,7 +132,7 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
   for (const s of tickets || []) {
     const key = nightKeyOfSale(s)
     if (!key || !key.startsWith(monthKey) || key > night) continue
-    monthSales.set(key, (monthSales.get(key) || 0) + (+s.total || 0))
+    monthSales.set(key, (monthSales.get(key) || 0) + saleValid(s))
   }
   const chart = span === 'semana'
     ? progress.semana.days.map(d => ({ key: d.date, label: t(`house.day.${DAY_KEY[weekdayOf(d.date)]}`), sales: d.sales }))
@@ -170,8 +169,8 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
   const worked = whatWorked(tickets)
   const peak = worked.peakHours?.[0]
   const tonightRows = (tickets || []).filter(s => nightKeyOfSale(s) === night)
-  const tonightCount = tonightRows.length
-  const tonightSum = tonightRows.reduce((sum, s) => sum + (+s.total || 0), 0)
+  const tonightCount = tonightRows.filter(s => saleValid(s) > 0).length
+  const tonightSum = tonightRows.reduce((sum, s) => sum + saleValid(s), 0)
   const tonightAvg = tonightCount ? Math.round(tonightSum / tonightCount) : null
   const guestCount = new Set(tonightRows.map(s => s.guest_id).filter(Boolean)).size
   const hourSeries = progress.hora?.series || []
@@ -180,7 +179,9 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
     const hour = hourOfSale(sale)
     if (hour == null) continue
     const prev = buckets.get(hour) || { sales: 0, orders: 0 }
-    prev.sales += +sale.total || 0
+    const net = saleValid(sale)
+    if (net <= 0) continue
+    prev.sales += net
     prev.orders += 1
     buckets.set(hour, prev)
   }
@@ -209,7 +210,7 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
   const currentPace = elapsedHours > 0 && tonightSum > 0 ? Math.round(tonightSum / elapsedHours) : null
   const nightLeft = stillToSell(tonightSum, progress.noite.goal)
   const requiredPace = nightLeft != null && hoursLeft > 0 ? Math.round(nightLeft / hoursLeft) : null
-  const monthSum = monthTickets.reduce((sum, sale) => sum + (+sale.total || 0), 0)
+  const monthSum = monthTickets.reduce((sum, sale) => sum + saleValid(sale), 0)
   const dayNum = +night.slice(8, 10) || 0
   const projected = dayNum > 0 && monthSum > 0 ? Math.round((monthSum / dayNum) * dim) : null
   function hourText(row) {

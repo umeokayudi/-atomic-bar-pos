@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { isLocalDemo, supabase } from '../lib/supabase'
 import { tokyoNightKey } from '../lib/tokyo'
+import { saleValid } from '../lib/nightClose'
 import AiAssistantWorkspace from './AiAssistantWorkspace'
 
 const LIFECYCLE = ['draft', 'calculating', 'ready', 'approved', 'executing', 'completed', 'failed', 'cancelled']
@@ -12,11 +13,7 @@ function newId() {
 }
 
 function validTillAmount(row) {
-  const status = String(row?.void_status || '')
-  if (status === 'void' || status === 'cancelada' || status === 'cancelado') return 0
-  const gross = Math.round(+row?.total || 0)
-  const refund = Math.min(Math.max(gross, 0), Math.max(0, Math.round(+row?.refunded || 0)))
-  return Math.max(0, gross - refund)
+  return saleValid(row)
 }
 
 const COMMANDS = [

@@ -66,9 +66,9 @@ There is one login role, `authenticated`. Bar and supplier separation is RLS, no
 
 `pos_void_audit.result` is only `applied` or `denied`. Callers have `SELECT`. They do not have `INSERT`, `UPDATE`, or `DELETE`. The void function writes `applied` in the same transaction as the money movement. A rollback removes both.
 
-`denied` is written by `pos_record_void_denial` through `dblink`, then the void raises. The denial survives the aborted statement. The reason is truncated text. No token or secret is stored. The caller cannot choose `result`.
+`denied` is written by `pos_record_void_denial` as a normal insert. Authorization failure then returns NULL. The sale row is unchanged. The reason is truncated text. No token or secret is stored. The caller cannot choose `result`.
 
-`dblink` is revoked from `PUBLIC`. Only the security-definer function uses it. The connection string is `dbname=<current database>` and contains no password. On this local cluster the server user connects by peer authentication.
+`dblink` is not used. Managed Supabase does not provide the local peer loopback that made a passwordless self-connection work on this cluster. Putting a database password in SQL would be the wrong fix. A normal Supabase RPC autocommits, so the denial remains. A caller that rolls the session back also rolls the denial back. Business errors after authorization still raise, so an accepted void and its `applied` row commit or disappear together.
 
 ## Installer
 
@@ -76,9 +76,10 @@ There is one login role, `authenticated`. Bar and supplier separation is RLS, no
 
 ## Open risks
 
-- Denied-void audit depends on `dblink` and a passwordless local connection as the database server user. An isolated Supabase project must enable the extension and prove one denied void leaves a `denied` row. If that connection fails, the void is still rejected, but the error may be the connection failure and the denial row will be missing.
+- A denied void commits only when the caller commits. Supabase RPC autocommit does that. An explicit rollback drops the denial. This has not been executed on Supabase.
 - `get_procurement_board` and `task_economics` call `resolve_bar_price`. A task without `bar_product_prices` fails those reads instead of inventing a catalog price.
-- `create_order` still uses `produtos.preco_venda` for a product whose `bar_id` is that bar. That is the legacy JBM sale, not the procurement price.
-- Screens that still sum `pos_vendas.total` (`computeDayMetrics`, `barClose.periodReport`, goals, HQ filters, bar cost till total) show gross, including voided tickets. They are not `sales_indicator.net`.
+- `create_order` still prices a bar-scoped `produtos.preco_venda`. A missing row raises `product not in this bar`. A price of zero or less raises `sale price not configured`. That is the legacy JBM book, not the till price and not the procurement price. Existing `vendas` rows are not rewritten.
+- HQ, manager, reports, and the operations assistant now use the same net rule as `sales_indicator`: a voided till ticket contributes 0, a partial refund keeps the original total and subtracts one capped refund, and `vendas` excludes cancelled statuses. Gross stays on the stored row and on `posGross` / `jbmGross`. The two books are not added.
+- The client portal purchase projection can still estimate a till price as 2.8 times the JBM unit when `bar_pricing` is missing. That figure is labeled as an estimate. It is not a sale price.
 - `get_my_procurement_tasks` can still return locations without a bar filter.
-- This install has not been executed on Supabase. Protected projects were not contacted.
+- This install has not been executed on Supabase. Protected projects were not contacted. Homologation is not complete.

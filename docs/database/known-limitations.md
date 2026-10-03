@@ -6,7 +6,7 @@
 - `pos_settings.tax_rate` defaults to 0. The demo ledger's 10 percent is browser-only.
 - Card processor fee stays a `caixa_movimentos` row with `referencia_tipo = taxa_cartao`. Drawer math excludes that type. A report that sums every cash row will still see the fee.
 - `confirm_bar_shipment` had a variable named `obs` that collided with `estoque_movimentos.obs`. The variable is now `ship_note`. The written text is unchanged.
-- A denied void is stored only when `dblink` can open a passwordless local connection. That works on this PostgreSQL 16 cluster. It is not yet proven on Supabase.
+- A denied void is an insert in the same statement as the NULL return. It commits when the RPC autocommits. An explicit `ROLLBACK` drops it. The function does not use `dblink` and does not store a database password. That path has not been executed on Supabase.
 - Fulfillment tables with RLS and no table `GRANT` to `authenticated`: `order_supplier_items`, `fulfillment_events`, `delivery_confirmations`, `supplier_purchase_requests`, `audit_logs`. `fulfillment_alerts` has an `UPDATE` policy and only `SELECT` is granted.
 - `get_my_procurement_tasks` still returns active locations of types warehouse, store, supplier, and other without a bar filter. That behavior was not rewritten.
 - Holding tables `jbm_financeiro` and `hr_placements` are not created.

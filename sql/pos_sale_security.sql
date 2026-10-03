@@ -126,6 +126,8 @@ BEGIN
       RAISE EXCEPTION 'invalid item';
     END IF;
 
+    -- Legacy JBM list price for a bar-scoped product. Not the till price
+    -- and not the procurement price. No fallback to another book.
     SELECT p.preco_venda INTO price
     FROM public.produtos p
     WHERE p.id = produto_id
@@ -134,6 +136,9 @@ BEGIN
 
     IF price IS NULL THEN
       RAISE EXCEPTION 'product not in this bar';
+    END IF;
+    IF price <= 0 THEN
+      RAISE EXCEPTION 'sale price not configured';
     END IF;
     IF COALESCE((SELECT estoque_atual FROM public.produtos WHERE id = produto_id AND bar_id = p_bar_id), 0) < qty THEN
       RAISE EXCEPTION 'insufficient stock';

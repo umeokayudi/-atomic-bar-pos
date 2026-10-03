@@ -11,11 +11,17 @@ export function pedidoVendaObs(pedidoId) {
 }
 
 export function pedidoTotal(pedido) {
-  const fromItems = (pedido?.pedidos_itens || []).reduce(
-    (a, it) => a + (+it.preco_unitario || 0) * (+it.qtd || 0),
-    0
-  )
-  return +pedido?.total_estimado || fromItems || 0
+  if (+pedido?.total_estimado > 0) return +pedido.total_estimado
+  const items = pedido?.pedidos_itens || []
+  if (!items.length) return null
+  let sum = 0
+  for (const it of items) {
+    const price = +it.preco_unitario
+    const qty = +it.qtd
+    if (!(price > 0) || !(qty > 0)) return null
+    sum += price * qty
+  }
+  return sum > 0 ? sum : null
 }
 
 export async function findVendaForPedido(supabase, pedidoId) {
@@ -82,7 +88,8 @@ export async function createVendaFromPedido(supabase, pedido) {
       existing.data = saleDate
     }
     const total = pedidoTotal(pedido)
-    if (total && +existing.total !== +total) {
+    if (!(total > 0)) throw new Error('sale price not configured')
+    if (+existing.total !== +total) {
       await supabase.from('vendas').update({ total }).eq('id', existing.id)
       existing.total = total
     }
@@ -92,6 +99,7 @@ export async function createVendaFromPedido(supabase, pedido) {
 
   const saleDate = pedidoSaleDate(pedido)
   const total = pedidoTotal(pedido)
+  if (!(total > 0)) throw new Error('sale price not configured')
   const payload = {
     data: saleDate,
     data_venda: saleDate,

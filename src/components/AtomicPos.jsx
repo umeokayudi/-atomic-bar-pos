@@ -24,7 +24,7 @@ import { tokyoMonthKey, tokyoNightKey } from '../lib/tokyo'
 import { useI18n } from '../lib/i18n'
 import { matchCheckoutVisit, spacesByZone, activeKeeps } from '../lib/barCrm'
 import { packTicketObs, ticketChargeLines, settingsFromRow, DEFAULT_POS_SETTINGS, effectiveServicePct } from '../lib/nightTicket'
-import { summarizeNight, reconcileNight, nightWindow, closeVariance, saleOnNight, prevTokyoDateKey, lastBusyNight } from '../lib/nightClose'
+import { summarizeNight, reconcileNight, nightWindow, closeVariance, saleOnNight, saleValid, prevTokyoDateKey, lastBusyNight } from '../lib/nightClose'
 import { CASH_CHIPS, cashSettle, isCashMethod, payRecordNote } from '../lib/posPay'
 import { printGuestReceipt } from '../lib/guestReceipt'
 import { drinkBackCommission } from '../lib/drinkBackPay'
@@ -76,7 +76,7 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
 
   useEffect(() => {
     const bounds = nightWindow(nightKey)
-    const salesRich = 'id,total,refunded,card_fee,card_fee_reversed,data,criado_em,metodo_pagamento,obs'
+    const salesRich = 'id,total,refunded,void_status,card_fee,card_fee_reversed,data,criado_em,metodo_pagamento,obs'
     const cashRich = 'tipo,valor,referencia_tipo,data,operational_day'
     Promise.all([
       supabase.from('pos_shifts').select('*').eq('bar_id', bar.id).eq('night_key', nightKey).maybeSingle(),
@@ -84,7 +84,7 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
       supabase.from('caixa_movimentos').select(cashRich).eq('bar_id', bar.id).gte('data', bounds.from).lte('data', bounds.to),
     ]).then(async ([sh, sl, cash]) => {
       setShift(sh.data || null)
-      if (sl.error && /refunded|card_fee/.test(sl.error.message || '')) {
+      if (sl.error && /refunded|void_status|card_fee/.test(sl.error.message || '')) {
         const plain = await supabase.from('pos_vendas').select('id,total,data,criado_em,metodo_pagamento,obs').eq('bar_id', bar.id).gte('data', `${tokyoMonthKey()}-01`)
         setNightSales(plain.data || salesHint || [])
       } else {
@@ -1278,7 +1278,7 @@ function PosDashboardTab({ bar, todaySales, salesList, onOrder }) {
         supabase.from('estoque_regras').select('produto_id,minimo').eq('bar_id', bar.id),
         supabase.from('produtos_public').select('id,nome,categoria').eq('ativo', true),
         supabase.from('drink_back_agents').select('id,nome,comissao_pct').eq('bar_id', bar.id).eq('ativo', true),
-        supabase.from('pos_vendas').select('total,obs,drink_back_agent_id').eq('bar_id', bar.id).eq('data', todayKey()).not('drink_back_agent_id', 'is', null),
+        supabase.from('pos_vendas').select('total,refunded,void_status,obs,drink_back_agent_id').eq('bar_id', bar.id).eq('data', todayKey()).not('drink_back_agent_id', 'is', null),
         supabase.from('pedidos').select('id,status,obs,total_estimado,pedidos_itens(produto_id,qtd,produtos(nome))').eq('bar_id', bar.id).in('status', ['pendente', 'confirmado']),
       ])
 
@@ -1293,7 +1293,9 @@ function PosDashboardTab({ bar, todaySales, salesList, onOrder }) {
       for (const s of sales) {
         if (!s.drink_back_agent_id) continue
         if (!agentMap[s.drink_back_agent_id]) agentMap[s.drink_back_agent_id] = { total: 0, count: 0, comissao: 0 }
-        agentMap[s.drink_back_agent_id].total += +s.total || 0
+        const net = saleValid(s)
+        if (net <= 0) continue
+        agentMap[s.drink_back_agent_id].total += net
         agentMap[s.drink_back_agent_id].count += 1
         const posted = String(s.obs || '').match(/^Comm:\s*([\d.]+)/m)
         agentMap[s.drink_back_agent_id].comissao += posted ? Math.round(+posted[1]) : 0
@@ -1540,7 +1542,7 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
     ])
     let pR = salesFirst
     if (pR.error && /refunded|card_fee/.test(pR.error.message || '')) {
-      pR = await supabase.from('pos_vendas').select('total,criado_em,data,metodo_pagamento,obs,drink_back_agent_id').eq('bar_id', bar.id).gte('data', from).order('criado_em')
+      pR = await supabase.from('pos_vendas').select('total,refunded,void_status,criado_em,data,metodo_pagamento,obs,drink_back_agent_id').eq('bar_id', bar.id).gte('data', from).order('criado_em')
     }
     setReady(schema.ready)
     if (dR.error) setPosErr(dR.error.message || t('atomicPos.tillLoadError'))

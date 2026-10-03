@@ -41,7 +41,7 @@ export default function RelatorioTab() {
       return
     }
     let barsQ = supabase.from('bars').select('id, nome, cor')
-    let vendasQ = supabase.from('vendas').select('id, data, data_venda, total, bar_id, obs, origem, cast_id')
+    let vendasQ = supabase.from('vendas').select('id, data, data_venda, total, status, bar_id, obs, origem, cast_id')
     let ryoQ = supabase.from('ryoshusho').select('*')
     let fatQ = supabase.from('faturas').select('*, bars(nome)').order('data_vencimento', { ascending: false })
     if (scope.kind === 'bar') {
@@ -98,7 +98,12 @@ export default function RelatorioTab() {
   const creditoBar = barCreditsForMonth(selMonth)
   const creditosBar = barCreditsList(selMonth)
 
-  const receitaTotal = dash.receita ?? vendasMes.reduce((a, v) => a + (+v.total || 0), 0)
+  const receitaRows = vendasMes.reduce((a, v) => {
+    const status = String(v.status || '')
+    if (status === 'cancelada' || status === 'cancelado' || status === 'void' || status === 'estornada') return a
+    return a + (Math.round(+v.total || 0) > 0 ? Math.round(+v.total || 0) : 0)
+  }, 0)
+  const receitaTotal = dash.receita ?? receitaRows
   const faturamento = dash.faturamento ?? receitaTotal
   const lucroTotal = dash.lucroProjetado ?? dash.lucro ?? (receitaTotal - custoCompras)
   const margemGeral = dash.margem ?? (faturamento > 0 ? Math.round(lucroTotal / faturamento * 100) : 0)

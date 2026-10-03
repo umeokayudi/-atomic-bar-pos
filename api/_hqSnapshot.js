@@ -3,7 +3,8 @@
 import { filterSupplierVendas } from './_supplierVenda.js'
 import { filterJbmDrinksFaturas, faturaRemaining, faturaValor, faturaPago } from '../src/lib/barPortal.js'
 import { payrollFromPunches } from '../src/lib/timeClock.js'
-import { isDemoTill, nightKeyOfSale } from '../src/lib/nightClose.js'
+import { isDemoTill, nightKeyOfSale, saleValid } from '../src/lib/nightClose.js'
+import { countJbmValid, sumJbmNet } from '../src/lib/saleBooks.js'
 import { tokyoMonthKey, tokyoNightKey, monthRange, recentMonthKeys } from '../src/lib/tokyo.js'
 import { splitCostBooks, rentForMonth, lastKnownRent, splitOverhead } from '../src/lib/costBooks.js'
 import { monthKeyOf, explainJbmGap, buildMonthSeries, invoiceOverlapsMonth, lowStockFromLedger } from '../src/lib/hqFilters.js'
@@ -64,7 +65,7 @@ async function pgOrLive(admin, table, filters, columns = '*') {
 function monthBill(vendas, faturas, mes) {
   const supplier = filterSupplierVendas(vendas || [])
   const mesVendas = supplier.filter(v => String(v.data || '').startsWith(mes))
-  const contaMes = mesVendas.reduce((a, v) => a + (+v.total || 0), 0)
+  const contaMes = sumJbmNet(mesVendas)
   const drinksFaturas = filterJbmDrinksFaturas(faturas || [])
   const pending = drinksFaturas.filter(f => f.status !== 'pago')
   const overdue = pending.filter(f => {
@@ -73,7 +74,7 @@ function monthBill(vendas, faturas, mes) {
   })
   return {
     contaMes,
-    deliveries: mesVendas.length,
+    deliveries: countJbmValid(mesVendas),
     faturasPendentes: pending.length,
     faturasAtraso: overdue.length,
     totalPendente: pending.reduce((a, f) => a + faturaRemaining(f), 0),
@@ -137,13 +138,13 @@ async function computeHqSnapshot(admin, barId, barNome = '', mes, { lite = false
   const emptyPg = Promise.resolve({ data: [], error: null })
 
   const [vendasR, pedR, fatR, posR, clockR, rentR, staff, regrasR, movR, prodR, itemR, posItemR, priceR, goalsLive] = await Promise.all([
-    admin.from('vendas').select('id,data,data_venda,total,obs,bar_id,cast_id,criado_em').eq('bar_id', barId).order('data', { ascending: false }).limit(400),
+    admin.from('vendas').select('id,data,data_venda,total,status,obs,bar_id,cast_id,criado_em').eq('bar_id', barId).order('data', { ascending: false }).limit(400),
     admin.from('pedidos').select('id,status,total_estimado,data_pedido,criado_em,obs').eq('bar_id', barId).order('criado_em', { ascending: false }).limit(200),
     admin.from('faturas').select('*').eq('bar_id', barId).order('data_vencimento', { ascending: false }).limit(24),
     pgOrLive(admin, 'pos_vendas', [
       { op: 'eq', k: 'bar_id', v: barId },
       { op: 'gte', k: 'data', v: historyCut },
-    ], 'id,total,data,obs,criado_em,metodo_pagamento,drink_back_agent_id'),
+    ], 'id,total,refunded,void_status,data,obs,criado_em,metodo_pagamento,drink_back_agent_id'),
     pgOrLive(admin, 'time_clock', [
       { op: 'eq', k: 'bar_id', v: barId },
       { op: 'gte', k: 'punched_at', v: prevRange.from },
@@ -181,11 +182,14 @@ async function computeHqSnapshot(admin, barId, barNome = '', mes, { lite = false
     data: s.data,
     criado_em: s.criado_em || null,
     total: +s.total || 0,
+    refunded: Math.round(+s.refunded || 0),
+    void_status: s.void_status || null,
     obs: String(s.obs || '').slice(0, 400),
     metodo_pagamento: s.metodo_pagamento || null,
     drink_back_agent_id: s.drink_back_agent_id || null,
   })
-  const posMonthTotal = posMonthRows.reduce((a, s) => a + (+s.total || 0), 0)
+  const posMonthTotal = posMonthRows.reduce((a, s) => a + saleValid(s), 0)
+  const posMonthGross = posMonthRows.reduce((a, s) => a + (+s.total || 0), 0)
 
   const nightPremium = goalsLive?.data?.adicional_noturno !== false
   const payroll = payrollFromPunches(clockR.rows || [], staff || [], range, { nightPremium })
@@ -228,7 +232,7 @@ async function computeHqSnapshot(admin, barId, barNome = '', mes, { lite = false
     rentMonth: rentAmount,
   })
   const prevJbm = monthBill(vendasR.data || [], fatR.data || [], prevMes)
-  const prevPosTotal = posPrevRows.reduce((a, s) => a + (+s.total || 0), 0)
+  const prevPosTotal = posPrevRows.reduce((a, s) => a + saleValid(s), 0)
   const prevStaffPay = prevPayroll.reduce((a, r) => a + (+r.pay || 0), 0)
   const prevRentAmount = rentForMonth(rentR.rows || [], prevMes)
   const prevBooks = splitCostBooks({
@@ -351,8 +355,9 @@ async function computeHqSnapshot(admin, barId, barNome = '', mes, { lite = false
     },
     overhead: splitOverhead(rentR.rows || [], mes),
     pos: {
-      salesCount: posMonthRows.length,
+      salesCount: posMonthRows.filter(s => saleValid(s) > 0).length,
       till: books.pos.amount,
+      gross: posMonthGross,
       tickets: posMonthRows.map(mapPosTicket),
       history: posRows.filter(s => String(s.data || s.criado_em || '') >= historyCut).slice(0, 800).map(mapPosTicket),
     },

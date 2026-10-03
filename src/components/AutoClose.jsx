@@ -26,7 +26,7 @@ export default function AutoClose({ bar }) {
         if (!due.length || cancelled) return
         const from = addDays(tokyoDateKey(), -3)
         const [salesR, shiftsR] = await Promise.all([
-          supabase.from('pos_vendas').select('id,total,data,criado_em,metodo_pagamento,obs').eq('bar_id', bar.id).gte('data', from),
+          supabase.from('pos_vendas').select('id,total,refunded,void_status,data,criado_em,metodo_pagamento,obs').eq('bar_id', bar.id).gte('data', from),
           supabase.from('pos_shifts').select('id,night_key,status').eq('bar_id', bar.id).gte('night_key', from),
         ])
         const sales = salesR.data || []
