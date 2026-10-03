@@ -456,7 +456,7 @@ export function assertFirstConfirm(confirmedAt) {
 }
 
 export function canCallMyTasks(role) {
-  return role === 'admin' || role === 'jbm' || role === 'funcionario'
+  return role === 'funcionario'
 }
 
 export function canReadTasksDirect(role) {

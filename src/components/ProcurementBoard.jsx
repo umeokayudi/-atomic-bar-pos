@@ -285,9 +285,10 @@ function HqBoard() {
       {err && <p className="ff-miss">{err}</p>}
       {board?.economics && (
         <p>
-          {t('procurement.revenue')} {board.economics.revenue}
+          {board.economics.price_state === 'unavailable'
+            ? t('procurement.priceUnavailable')
+            : <>{t('procurement.revenue')} {board.economics.revenue}{' · '}{t('procurement.margin')} {board.economics.margin}</>}
           {' · '}{t('procurement.realCost')} {(+board.economics.purchase_cost || 0) + (+board.economics.freight || 0) + (+board.economics.fees || 0) + (+board.economics.logistics_cost || 0)}
-          {' · '}{t('procurement.margin')} {board.economics.margin}
         </p>
       )}
       {board && (
@@ -341,7 +342,11 @@ function HqBoard() {
             }}>{t('procurement.margin')}</button>
             {econ?.task_id === task.id && (
               <span>
-                {t('procurement.realCost')} {econ.real_cost} · {t('procurement.margin')} {econ.margin}
+                {t('procurement.realCost')} {econ.real_cost}
+                {' · '}
+                {econ.price_state === 'unavailable'
+                  ? t('procurement.priceUnavailable')
+                  : <>{t('procurement.margin')} {econ.margin}</>}
               </span>
             )}
             <button type="button" onClick={() => act('fallback_task', { p_task_id: task.id })}>{t('procurement.fallback')}</button>

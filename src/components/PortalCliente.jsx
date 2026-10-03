@@ -5,6 +5,10 @@ import { callGeminiChat, imageDataUrlToParts, parseJsonFromAI } from '../lib/ai'
 import { LogoSidebar } from './Logo'
 import { MobileTopBar, ShellOverlay, WorkspaceChrome, useMobileMenuLock } from './MobileShell'
 import { fmtYen, fmtDate, Spinner, Empty, SectionTitle, isSupplierProduct, filterSupplierVendas, roleLabel } from './utils'
+
+function moneyOrDash(n) {
+  return n == null || Number.isNaN(Number(n)) ? '—' : fmtYen(n)
+}
 import {
   filterJbmDrinksFaturas,
   faturaValor,
@@ -20,7 +24,6 @@ import {
   buildPricingMap,
   monthlyAccountSummary,
   monthlySpendSeries,
-  projectItemRevenue,
 } from '../lib/clientAnalytics'
 import BarDesk from './BarDesk'
 import { DemoInventory } from './demo/DemoOperations'
@@ -226,15 +229,20 @@ function HomeTab({ bar, onTab }) {
   const prodVol = {}
   itens.filter(it => it.vendas?.data >= cutoffStr).forEach(it => {
     const nome = it.produtos?.nome || '?'
-    const val  = (it.preco_unitario||0) * it.qtd
-    prodMap[nome] = (prodMap[nome]||0) + val
-    prodVol[nome] = (prodVol[nome]||0) + it.qtd
+    const captured = +it.preco_unitario
+    const qtd = +it.qtd || 0
+    if (!prodMap[nome]) prodMap[nome] = { total: 0, missing: false }
+    if (!(captured > 0) || qtd <= 0) prodMap[nome].missing = true
+    else prodMap[nome].total += captured * qtd
+    prodVol[nome] = (prodVol[nome] || 0) + qtd
   })
-  const topRevenue = Object.entries(prodMap).sort((a,b)=>b[1]-a[1]).slice(0,5)
+  const topRevenue = Object.entries(prodMap)
+    .map(([nome, row]) => [nome, row.missing ? null : row.total])
+    .sort((a, b) => (b[1] || 0) - (a[1] || 0))
+    .slice(0, 5)
   const topVolume  = Object.entries(prodVol).sort((a,b)=>b[1]-a[1]).slice(0,5)
 
-  // Top by projected margin (bar POS prices via bar_pricing)
-  const topMargin = periodProjection.products.slice(0, 6)
+  const topMargin = periodProjection.products.filter(p => p.margin != null).slice(0, 6)
 
   const ativos  = pedidos.filter(p=>p.status==='pendente'||p.status==='confirmado')
   const opsGlance = buildBarOpsGlance({
@@ -344,28 +352,24 @@ function HomeTab({ bar, onTab }) {
 
         <EasyMoneyCard
           kicker={t('portal.home.barSold')}
-          value={fmtYen(posMonthTotal != null ? posMonthTotal : monthProjection.posTotal)}
-          hint={posMonthTotal != null ? t('portal.home.barSoldHint') : t('portal.home.sellAtBarPrice', { pct: monthProjection.posCoveragePct })}
+          value={posMonthTotal != null ? fmtYen(posMonthTotal) : '—'}
+          hint={posMonthTotal != null ? t('portal.home.barSoldHint') : t('portal.home.priceUnavailable')}
           tone="light"
-        >
-          {monthProjection.estimatedSharePct > 0 && posMonthTotal == null && (
-            <div style={{ marginTop:12, fontSize:11, color:'var(--amber)', fontWeight:600 }}>
-              {t('portal.home.estimated', { pct: monthProjection.estimatedSharePct })}
-            </div>
-          )}
-        </EasyMoneyCard>
+        />
 
         <EasyMoneyCard
           kicker={t('portal.home.youKeep')}
-          value={fmtYen(monthProjection.margin)}
-          hint={t('portal.home.youKeepHint')}
+          value={moneyOrDash(monthProjection.margin)}
+          hint={monthProjection.margin == null ? t('portal.home.priceUnavailable') : t('portal.home.youKeepHint')}
           tone="green"
         >
           <div style={{ fontSize:12, color:'var(--text2)', marginTop:8 }}>
-            {t('portal.home.marginOnPos', { pct: monthProjection.marginPct })}
+            {monthProjection.marginPct == null
+              ? t('portal.home.priceUnavailable')
+              : t('portal.home.marginOnPos', { pct: monthProjection.marginPct })}
           </div>
           <div style={{ marginTop:12, height:6, background:'var(--bg3)', borderRadius:3, overflow:'hidden' }}>
-            <div style={{ height:'100%', width:Math.min(monthProjection.marginPct,100)+'%', background:'var(--green)', borderRadius:3 }}/>
+            <div style={{ height:'100%', width: monthProjection.marginPct == null ? '0%' : `${Math.min(monthProjection.marginPct, 100)}%`, background:'var(--green)', borderRadius:3 }}/>
           </div>
         </EasyMoneyCard>
       </div>
@@ -410,7 +414,7 @@ function HomeTab({ bar, onTab }) {
             <div style={{ fontSize:11, color:'var(--text2)', marginTop:4 }}>{t('portal.home.clickMonth', { month: chartMonthKey })}</div>
           </div>
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-            <div style={{ fontSize:13, fontWeight:800, color:'var(--navy)' }}>{fmtYen(chartMonthStats.jbmTotal)}</div>
+            <div style={{ fontSize:13, fontWeight:800, color:'var(--navy)' }}>{moneyOrDash(chartMonthStats.jbmTotal)}</div>
           </div>
         </div>
         <div style={{ display:'flex', alignItems:'flex-end', gap:8, height:100 }}>
@@ -439,11 +443,11 @@ function HomeTab({ bar, onTab }) {
             )
           })}
         </div>
-        {chartMonthStats.jbmTotal > 0 && (
+        {(chartMonthStats.jbmTotal != null || chartMonthStats.itemCount > 0) && (
           <div style={{ marginTop:16, padding:'12px 14px', background:'var(--bg3)', borderRadius:12, display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, fontSize:12 }}>
-            <div><span style={{ color:'var(--text2)', fontSize:10, display:'block' }}>{t('portal.home.posProjection')}</span><strong style={{ color:'var(--navy)' }}>{fmtYen(chartMonthStats.posTotal)}</strong></div>
-            <div><span style={{ color:'var(--text2)', fontSize:10, display:'block' }}>{t('portal.home.projProfit')}</span><strong style={{ color:'var(--green)' }}>{fmtYen(chartMonthStats.margin)}</strong></div>
-            <div><span style={{ color:'var(--text2)', fontSize:10, display:'block' }}>ROI</span><strong>{chartMonthStats.roiPct}%</strong></div>
+            <div><span style={{ color:'var(--text2)', fontSize:10, display:'block' }}>{t('portal.home.posProjection')}</span><strong style={{ color:'var(--navy)' }}>{moneyOrDash(chartMonthStats.posTotal)}</strong></div>
+            <div><span style={{ color:'var(--text2)', fontSize:10, display:'block' }}>{t('portal.home.projProfit')}</span><strong style={{ color:'var(--green)' }}>{moneyOrDash(chartMonthStats.margin)}</strong></div>
+            <div><span style={{ color:'var(--text2)', fontSize:10, display:'block' }}>ROI</span><strong>{chartMonthStats.roiPct == null ? '—' : `${chartMonthStats.roiPct}%`}</strong></div>
           </div>
         )}
       </div>
@@ -457,14 +461,14 @@ function HomeTab({ bar, onTab }) {
           {topRevenue.length === 0
             ? <Empty text={t('common.noData')} icon="📊" />
             : topRevenue.map(([nome,val], i) => {
-              const pct = val/topRevenue[0][1]*100
+              const pct = val == null || !topRevenue[0][1] ? 0 : val / topRevenue[0][1] * 100
               return (
                 <div key={nome} style={{ marginBottom:12 }}>
                   <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:4 }}>
                     <span style={{ fontWeight:i===0?700:500, color:i===0?'var(--navy)':'var(--text)' }}>
                       {i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} {nome}
                     </span>
-                    <span style={{ fontWeight:600 }}>{fmtYen(val)}</span>
+                    <span style={{ fontWeight:600 }}>{moneyOrDash(val)}</span>
                   </div>
                   <div style={{ height:4, background:'var(--bg3)', borderRadius:2, overflow:'hidden' }}>
                     <div style={{ height:'100%', width:pct+'%', background:'var(--navy)', borderRadius:2 }}/>
@@ -524,9 +528,9 @@ function HomeTab({ bar, onTab }) {
                 <div style={{ fontSize:11, fontWeight:600, color:i===0?'white':'var(--text)', marginBottom:6, lineHeight:1.3, minHeight:28 }}>
                   {p.nome.length > 22 ? p.nome.slice(0,20)+'…' : p.nome}
                 </div>
-                <div style={{ fontSize:17, fontWeight:800, color:i===0?'#34c759':'var(--green)' }}>{fmtYen(p.margin)}</div>
+                <div style={{ fontSize:17, fontWeight:800, color:i===0?'#34c759':'var(--green)' }}>{moneyOrDash(p.margin)}</div>
                 <div style={{ fontSize:10, color:i===0?'rgba(255,255,255,0.6)':'var(--text2)', marginTop:4 }}>
-                  {p.marginPct}% · ROI {p.roiPct}{p.source === 'estimate' ? ' · ~' : ''}
+                  {p.marginPct == null ? t('portal.home.priceUnavailable') : `${p.marginPct}% · ROI ${p.roiPct}%`}
                 </div>
               </div>
             ))}
@@ -536,26 +540,8 @@ function HomeTab({ bar, onTab }) {
 
       {/* Drink Economics — POS prices from bar_pricing */}
       {(() => {
-        const byName = {}
-        itens.filter(it => it.vendas?.data >= cutoffStr).forEach(it => {
-          const nome = it.produtos?.nome || '?'
-          if (!byName[nome]) byName[nome] = { nome, qtd: 0, jbmTotal: 0, posTotal: 0, margin: 0, source: 'pos' }
-          const r = projectItemRevenue(it, pricingMap)
-          byName[nome].qtd += +it.qtd || 0
-          byName[nome].jbmTotal += r.jbmTotal
-          byName[nome].posTotal += r.posTotal
-          byName[nome].margin += r.margin
-          if (r.source === 'estimate') byName[nome].source = 'estimate'
-        })
-        const rows = Object.values(byName)
-          .map(p => ({
-            ...p,
-            marginPct: p.posTotal > 0 ? Math.round(p.margin / p.posTotal * 100) : 0,
-            costPerUnit: p.qtd > 0 ? Math.round(p.jbmTotal / p.qtd) : 0,
-            posPerUnit: p.qtd > 0 ? Math.round(p.posTotal / p.qtd) : 0,
-          }))
-          .filter(p => p.posTotal > 0)
-          .sort((a, b) => b.margin - a.margin)
+        const rows = periodProjection.products
+          .filter(p => p.jbmTotal != null && p.posTotal != null && p.posTotal > 0 && p.margin != null)
           .slice(0, 12)
 
         if (rows.length === 0) return null
@@ -577,7 +563,7 @@ function HomeTab({ bar, onTab }) {
                 <tbody>
                   {rows.map((r,i) => (
                     <tr key={r.nome} style={{ borderBottom:'1px solid var(--border)', background:i===0?'rgba(193,156,86,0.04)':'transparent' }}>
-                      <td style={{ padding:'10px', fontWeight:i===0?700:500 }}>{r.source==='estimate'?'~ ':''}{r.nome}</td>
+                      <td style={{ padding:'10px', fontWeight:i===0?700:500 }}>{r.nome}</td>
                       <td style={{ padding:'10px', textAlign:'right' }}>{r.qtd}</td>
                       <td style={{ padding:'10px', textAlign:'right', color:'var(--red)' }}>{fmtYen(r.jbmTotal)}</td>
                       <td style={{ padding:'10px', textAlign:'right' }}>{fmtYen(r.posPerUnit)}</td>

@@ -62,24 +62,37 @@ No table grant, despite a policy:
 
 There is one login role, `authenticated`. Bar and supplier separation is RLS, not a second login role. A supplier sees only their `supplier_users` row and supplier-audience alerts. A bar user does not see another bar's alerts.
 
-## Denied void audit
-
-`pos_void_audit.result` is only `applied` or `denied`. Callers have `SELECT`. They do not have `INSERT`, `UPDATE`, or `DELETE`. The void function writes `applied` in the same transaction as the money movement. A rollback removes both.
-
-`denied` is written by `pos_record_void_denial` as a normal insert. Authorization failure then returns NULL. The sale row is unchanged. The reason is truncated text. No token or secret is stored. The caller cannot choose `result`.
-
-`dblink` is not used. Managed Supabase does not provide the local peer loopback that made a passwordless self-connection work on this cluster. Putting a database password in SQL would be the wrong fix. A normal Supabase RPC autocommits, so the denial remains. A caller that rolls the session back also rolls the denial back. Business errors after authorization still raise, so an accepted void and its `applied` row commit or disappear together.
-
 ## Installer
 
 `sql/install_fresh.sql` still stops on the first error, installs on an empty database, and can be run again. `sql/verify_schema.sql` only reads. There is no down migration. Rollback of a disposable database is `DROP DATABASE`. A failed statement rolls back only its own transaction; earlier statements in the script stay.
 
+## Procurement visibility
+
+`get_my_procurement_tasks` takes no bar id. The order bar is read from `pedidos`. The caller must be HQ or `funcionario`. A supplier, cashier, or manager is rejected. A task is returned only when `assigned_to` is the caller and, for an employee, `user_can_access_bar` matches that order. Locations of type warehouse, store, supplier, or other are returned to an employee only when they are linked to one of those visible tasks and a non-null `locations.bar_id` also passes `user_can_access_bar`. HQ still sees the location catalog through this function.
+
+`receive_procurement`, `record_purchase`, `fallback_task`, `release_open_quantity`, and `flag_deadline_exception` use the same server check. A supplier acts only through `my_supplier_ids`, and only on purchase and deadline flag. Tracking for a supplier stays on that supplier's tasks and hides `sale_price`. An employee tracking path also requires the order bar and the `funcionario` role.
+
+## Missing procurement price
+
+`try_resolve_bar_price` returns NULL for `sale price not configured` and `ambiguous sale price`. Other errors still raise. `task_economics` and `get_procurement_board` keep the task, the lane, and the recorded purchase, freight, fees, and logistics. `sale_price`, `revenue`, and `margin` are NULL and `price_state` is `unavailable` when any included price is missing, zero, or ambiguous. The functions do not substitute `produtos.preco_venda` and do not coerce the missing price to zero.
+
+## Client portal prices
+
+The 2.8 times JBM estimate is removed. A till figure in the client portal is confirmed only when `bar_pricing.preco_drink` and `drinks_por_garrafa` are both positive. The JBM side of that comparison uses the captured `preco_unitario` only. Otherwise the screen and the client AI text say price unavailable. The real counter total stays `posMonthTotal`. A missing projection is not substituted for it. No insert uses that projection as a sale, invoice, or cash amount.
+
+## Denied void audit
+
+`pos_void_audit.result` is only `applied` or `denied`. Callers have `SELECT`. They do not have `INSERT`, `UPDATE`, or `DELETE`. The void function writes `applied` in the same transaction as the money movement. A rollback removes both.
+
+`denied` is written by `pos_record_void_denial` as a normal insert. Authorization failure then returns NULL. The sale, the cash rows for that sale, and stock movements are unchanged. The reason is truncated text. No token or secret is stored. The caller cannot choose `result`.
+
+`dblink` is not used. A passwordless self-connection worked only on the local peer cluster. Putting a database password or a service-role key inside SQL is rejected. A separate transaction owned by an edge function with a service role was not built, because this change does not connect to a hosted project and does not embed credentials. The portable choice is the same-transaction NULL return.
+
+A normal Supabase RPC is expected to autocommit, so the denial would remain. That hosted behavior has not been tested. A caller that rolls the session back also rolls the denial back. Business errors after authorization still raise, so an accepted void and its `applied` row commit or disappear together.
+
 ## Open risks
 
-- A denied void commits only when the caller commits. Supabase RPC autocommit does that. An explicit rollback drops the denial. This has not been executed on Supabase.
-- `get_procurement_board` and `task_economics` call `resolve_bar_price`. A task without `bar_product_prices` fails those reads instead of inventing a catalog price.
+- A denied void commits only when the caller commits. Local tests prove the NULL return, the unchanged sale, cash, and stock, and that an explicit rollback drops the denial. Supabase autocommit of that denial has not been executed. Do not treat persistence of `denied` as guaranteed.
 - `create_order` still prices a bar-scoped `produtos.preco_venda`. A missing row raises `product not in this bar`. A price of zero or less raises `sale price not configured`. That is the legacy JBM book, not the till price and not the procurement price. Existing `vendas` rows are not rewritten.
-- HQ, manager, reports, and the operations assistant now use the same net rule as `sales_indicator`: a voided till ticket contributes 0, a partial refund keeps the original total and subtracts one capped refund, and `vendas` excludes cancelled statuses. Gross stays on the stored row and on `posGross` / `jbmGross`. The two books are not added.
-- The client portal purchase projection can still estimate a till price as 2.8 times the JBM unit when `bar_pricing` is missing. That figure is labeled as an estimate. It is not a sale price.
-- `get_my_procurement_tasks` can still return locations without a bar filter.
-- This install has not been executed on Supabase. Protected projects were not contacted. Homologation is not complete.
+- HQ, manager, reports, and the operations assistant use the same net rule as `sales_indicator`: a voided till ticket contributes 0, a partial refund keeps the original total and subtracts one capped refund, and `vendas` excludes cancelled statuses. Gross stays on the stored row and on `posGross` / `jbmGross`. The two books are not added.
+- This install has not been executed on Supabase. Protected projects were not contacted. Homologation has not started. Local tests do not make the hosted project ready.

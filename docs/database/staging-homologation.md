@@ -83,7 +83,12 @@ Executar com dois usuários autenticados, cada um com `perfis.bar_id` de um bar 
 - Preço de procurement só em `bar_product_prices`. Sem linha, preço zero ou dois preços no mesmo patamar: a função recusa. Não usa `produtos.preco_venda`.
 - `create_order` continua no preço de lista JBM do produto com `produtos.bar_id` daquele bar. Preço ausente ou não positivo recusa. Pedidos já gravados conservam `pedidos_itens.preco_unitario`.
 - Cancelamento aceito é atômico: dinheiro, estoque e `applied` caem juntos se a transação desfaz.
-- Cancelamento negado não altera `refunded` nem `void_status`.
+- Cancelamento negado devolve NULL e não altera `refunded`, `void_status`, `total`, as linhas de `caixa_movimentos` daquela venda nem a contagem de `estoque_movimentos` do bar.
+- A linha `denied` fica só se a transação chamadora confirmar. Um `ROLLBACK` explícito apaga a recusa. Não há `dblink` e não há senha no SQL. Uma função de borda com `service_role` em outra transação não foi construída. A persistência no Supabase ainda não foi testada e não está garantida.
+- `get_my_procurement_tasks` não recebe `bar_id`. Fornecedor e gerente recebem `not allowed`. Funcionário vê só tarefa atribuída a ele cujo pedido passa em `user_can_access_bar`. Tarefa de outro bar, mesmo atribuída a ele, não aparece. O local de outro bar não aparece. `receive_procurement` nesse local responde `not allowed` e `quantity_received` permanece 0.
+- Fornecedor lê o rastreio só das tarefas do próprio `supplier_users`. `sale_price` vem nulo. Outro fornecedor recebe `not allowed`.
+- Sem preço em `bar_product_prices`, com preço zero ou com dois preços no mesmo patamar, o quadro de procurement continua devolvendo as faixas. `price_state` é `unavailable`. Receita e margem ficam nulas. Custo de compra já gravado permanece. Não se inventa valor.
+- Portal do cliente: preço de balcão só com `bar_pricing.preco_drink` e `drinks_por_garrafa` positivos. Sem isso, a tela mostra preço indisponível. O total real do caixa não é substituído por projeção. O múltiplo 2,8 foi removido. Essa projeção não grava venda, fatura nem caixa.
 - Dois cancelamentos parciais de um item de quantidade 2 esgotam a linha. O terceiro recusa (`already void` ou `refund exceeds`) e não cria outro `applied`.
 - `sales_indicator('till', bar)` e `sales_indicator('jbm', bar)` devolvem bruto, estornos, líquido e contagens separados. `sales_indicator('both', bar)` recusa. Uma venda anulada permanece e entra com líquido 0. Um estorno parcial mantém o total original.
 
