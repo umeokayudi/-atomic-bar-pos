@@ -156,7 +156,15 @@ test('8 two bars keep different sale prices for one product', () => {
   const fallback = resolveSalePrice({ prices: [], catalogPrice: catalog, qty: 1 })
   assert.equal(a, 59400)
   assert.equal(b, 61000)
-  assert.equal(fallback, 5000)
+  assert.equal(fallback, null)
+  assert.throws(() => resolveSalePrice({ prices: [{ salePrice: 0, minimumQuantity: 1, active: true }], qty: 1 }), /sale price not configured/)
+  assert.throws(() => resolveSalePrice({
+    prices: [
+      { salePrice: 1000, minimumQuantity: 1, active: true },
+      { salePrice: 1200, minimumQuantity: 1, active: true },
+    ],
+    qty: 1,
+  }), /ambiguous sale price/)
   assert.notEqual(a, b)
 })
 

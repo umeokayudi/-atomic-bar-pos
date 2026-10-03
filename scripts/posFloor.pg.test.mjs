@@ -425,6 +425,12 @@ async function main() {
     `SELECT public.pos_void_sale($1, 'partial_refund', NULL, 'cashier void', $2, $3, 1)`,
     [pour.venda_id, userA, saleItem.rows[0].id],
   ), /void not allowed/)
+  const deniedVoids = await root.query(
+    `SELECT result, reason FROM public.pos_void_audit WHERE venda_id = $1 AND result = 'denied'`,
+    [pour.venda_id],
+  )
+  assert.equal(deniedVoids.rows.length, 2)
+  assert.equal(deniedVoids.rows.every(row => row.reason === 'cashier void'), true)
   await tx(root, userB, () => root.query(
     `SELECT public.pos_void_sale($1, 'partial_refund', NULL, 'wrong pour', $2, $3, 1)`,
     [pour.venda_id, userB, saleItem.rows[0].id],

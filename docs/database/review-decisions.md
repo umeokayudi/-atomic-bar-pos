@@ -1,84 +1,84 @@
 # Review decisions
 
-These rules are part of the local foundation install (`sql/foundation/095_review.sql` and the `pos_void_sale` body in `sql/pos_floor.sql`). They were not applied to a hosted Supabase project. They are not a production-ready claim.
+Local foundation rules. They were not applied to a hosted Supabase project. Passing these tests does not make the database production-ready.
 
-## Void
+## Void and indicators
 
-`pos_void_sale` is `SECURITY DEFINER` and checks the caller inside PostgreSQL.
+`pos_void_sale` still authorizes inside PostgreSQL. A cashier, funcionário, or fornecedor cannot void. A gerente of that bar, or admin/jbm with live HQ access, can. The approver must be the caller.
 
-Allowed:
+The original `pos_vendas` row stays. `total` is not reduced and the row is not deleted. `refunded` accumulates once. `void_status` becomes `partial_refund` or `void`. Cash movement for a void is a new `caixa_movimentos` row.
 
-- `perfis.role = gerente` and `perfis.bar_id` is the sale bar
-- a live `bar_memberships` row with `role = gerente` for that bar
-- `admin` or `jbm` with live `platform_access.scope = hq`
+`sales_indicator(book, bar)` returns one book as jsonb:
 
-The approver argument must be the caller. Belonging to the bar is not enough. `caixa`, `funcionario`, `bar_staff`, and `fornecedor` cannot void. A gerente of another bar fails `pos_require_bar` before the void rule. A `jbm` profile without HQ fails the same bar check.
+| Field | Till (`pos_vendas`) | JBM (`vendas`) |
+| --- | --- | --- |
+| `gross` | Sum of original `total` | Sum of original `total` |
+| `refunds` | Sum of `min(total, refunded)` once per row | 0. This book has no refund column |
+| `net` | Valid amount. A row with `void_status` `void`, `cancelada`, or `cancelado` contributes 0. Otherwise `total` minus the capped refund, floored at 0 | Sum of `total` except rows whose `status` is `cancelada`, `cancelado`, `void`, or `estornada` |
+| `transactions` | Count of rows still stored | Count of rows still stored |
+| `valid_transactions` | Rows whose net amount is greater than 0 | Rows that are not in the cancelled statuses and have `total` greater than 0 |
 
-A successful call inserts `pos_void_audit` with `user_id`, `bar_id`, `venda_id`, `reason`, `result = applied`, and `created_at`.
+`net` does not subtract a void twice. A full void with `refunded = total` is in `gross` and `refunds` once, and in `net` as 0. A second void of the same row is rejected. Two partial voids accumulate `refunded` on the same row; the indicator reads that column once.
 
-A denied call raises `void not allowed` or `bar not allowed`. That exception aborts the statement, so a denial row is not kept. The sale's `refunded` stays unchanged. Recording denials would need a separate committed transaction. That mechanism is not in this install.
+`gross` is the historical book. `net` is the valid-sales figure. Reports that need both must read both fields. `sales_indicator` does not add `vendas` and `pos_vendas`.
+
+Manager analytics and the AI sales note use the same net rule. Other screens that still add `pos_vendas.total` are listed under open risks.
 
 ## Prices
 
-None of `drink_menu`, `bar_pricing`, or `bar_product_prices` was dropped. The app still reads all three.
+| Operation | Source | Missing, zero, or two prices |
+| --- | --- | --- |
+| Till drink | `drink_menu.preco_venda` for that bar and drink | `operation_price(..., 'pos_drink')` raises `sale price not configured` |
+| Till sealed unit | `bar_pricing.preco_drink` | `operation_price(..., 'pos_unit')` raises `sale price not configured` |
+| Procurement | active `bar_product_prices.sale_price` at the highest matching `minimum_quantity` | `resolve_bar_price` raises `sale price not configured` or `ambiguous sale price` |
 
-| Operation | Function argument | Source | Used by |
-| --- | --- | --- | --- |
-| Till drink | `operation_price(..., 'pos_drink')` | `drink_menu.preco_venda` for that bar and drink | `pos_close_ticket`, Atomic POS, client portal |
-| Till sealed unit | `operation_price(..., 'pos_unit')` | `bar_pricing.preco_drink` | `pos_close_ticket`, Atomic POS |
-| Procurement | `operation_price(..., 'procurement')` | active `bar_product_prices.sale_price` | Procurement board, bar orders |
+`resolve_bar_price` does not read `produtos.preco_venda`, `drink_menu`, or `bar_pricing`. A global product (`produtos.bar_id` null) and a bar-scoped product both need a `bar_product_prices` row for a new procurement order. The legacy `create_order` function still prices a bar-scoped `produtos` row for the JBM `vendas` book. That path is not procurement.
 
-`operation_price` returns null when that source has no row. It does not substitute a till price for a procurement price, or the reverse. `price_conflict` reports when the till unit price and the procurement price are both present and different.
+`pedidos_itens.preco_unitario` is the price captured when the order was submitted. Tracking reads that column. It does not re-price history.
 
-`resolve_bar_price` is unchanged. It still uses `bar_product_prices` and then `produtos.preco_venda`. That fallback is the legacy order book (`create_order` and some fulfillment audience paths). It is not a POS price. Callers that need a procurement price without that fallback use `operation_price(..., 'procurement')`.
+`price_conflict` reports the two till-unit and procurement numbers when both exist. A missing side stays null in that diagnostic. It does not copy the other price into the gap.
 
-`bar_catalog.sale_price` remains the activation and stock-policy row. It is not one of the three sale-price paths above.
+## Fulfillment privileges
 
-## Sales books
-
-| Book | Table | Official for | Writers |
-| --- | --- | --- | --- |
-| Till | `pos_vendas` | Atomic POS, manager till totals, AI operations center, guest and space tabs, drink-back, auto-close | `pos_close_ticket` inserts. `pos_void_sale` updates `refunded` and `void_status`. `src/lib/atomicPos.js` can insert and delete when the browser till is used. |
-| JBM | `vendas` | Vendas, Faturas, Relatorio, Configs, Portal Cliente, Ryoshusho, client analytics, holding sync, notifications | `create_order` in `sql/pos_sale_security.sql`. `src/lib/pedidoVenda.js` and `src/components/Vendas.jsx` insert or update. Configs can delete the auto-order sale. |
-
-`sales_indicator('till', bar)` sums `pos_vendas.total` for that bar, including a voided row whose `total` was not reduced. `sales_indicator('jbm', bar)` sums `vendas.total`. Any other book name raises `unknown sales book`. The function does not add the two sums.
-
-`src/lib/costBooks.js` already keeps the till total and the JBM bill in separate fields. `booksGrandTotal` returns null.
-
-No trigger copies a row from one table to the other. A copy would need an explicit idempotency key that is not defined here.
-
-## Grants
-
-Policies that exist and still have no table privilege for `authenticated`:
-
-- `order_supplier_items` (`items_read`)
-- `fulfillment_events` (`events_read`)
-- `delivery_confirmations` (`confirm_read`)
-- `supplier_purchase_requests` (`purchase_read`)
-- `audit_logs` (`audit_jbm`)
-
-`audit_logs` stays closed on purpose. `_fulfillment_audit` writes it as `SECURITY DEFINER`.
+The app selects `supplier_users`, `order_supplier_assignments`, and `fulfillment_alerts` (supplier portal), and selects `pedido_fulfillment`, `fulfillment_alerts`, `supplier_routing_rules`, and `supplier_products` (HQ). HQ upserts `supplier_routing_rules` and `supplier_users`. No API writes these tables directly. Nothing in the app updates `fulfillment_alerts.read_at`.
 
 Granted to `authenticated`, with RLS still applied:
 
-- `supplier_users`: `SELECT`, `INSERT`, `UPDATE` (portal read, HQ upsert). No `DELETE`.
+- `supplier_users`: `SELECT`, `INSERT`, `UPDATE`. No `DELETE`
 - `supplier_products`: `SELECT`
-- `supplier_routing_rules`: `SELECT`, `INSERT`, `UPDATE` (HQ upsert). No `DELETE`.
+- `supplier_routing_rules`: `SELECT`, `INSERT`, `UPDATE`. No `DELETE`
 - `pedido_fulfillment`: `SELECT`
 - `order_supplier_assignments`: `SELECT`
-- `fulfillment_alerts`: `SELECT`
+- `fulfillment_alerts`: `SELECT` only
 
-`fulfillment_alerts` has an `UPDATE` policy and no `UPDATE` grant. The app only selects alerts. A bar user cannot mark `read_at` through SQL until that grant is added on purpose.
+No table grant, despite a policy:
+
+- `order_supplier_items`
+- `fulfillment_events`
+- `delivery_confirmations`
+- `supplier_purchase_requests`
+- `audit_logs` (written by `_fulfillment_audit`)
+- `UPDATE` on `fulfillment_alerts`
+
+There is one login role, `authenticated`. Bar and supplier separation is RLS, not a second login role. A supplier sees only their `supplier_users` row and supplier-audience alerts. A bar user does not see another bar's alerts.
+
+## Denied void audit
+
+`pos_void_audit.result` is only `applied` or `denied`. Callers have `SELECT`. They do not have `INSERT`, `UPDATE`, or `DELETE`. The void function writes `applied` in the same transaction as the money movement. A rollback removes both.
+
+`denied` is written by `pos_record_void_denial` through `dblink`, then the void raises. The denial survives the aborted statement. The reason is truncated text. No token or secret is stored. The caller cannot choose `result`.
+
+`dblink` is revoked from `PUBLIC`. Only the security-definer function uses it. The connection string is `dbname=<current database>` and contains no password. On this local cluster the server user connects by peer authentication.
 
 ## Installer
 
-`sql/install_fresh.sql` keeps `ON_ERROR_STOP` and now includes `095_review.sql` after `090_security.sql`. An empty database and a second run of the same file are both supported. `sql/verify_schema.sql` remains a read-only inventory. Rollback limits are in `docs/database/fresh-install-guide.md`.
+`sql/install_fresh.sql` still stops on the first error, installs on an empty database, and can be run again. `sql/verify_schema.sql` only reads. There is no down migration. Rollback of a disposable database is `DROP DATABASE`. A failed statement rolls back only its own transaction; earlier statements in the script stay.
 
 ## Open risks
 
-- Denied voids are not stored in `pos_void_audit`.
-- `resolve_bar_price` can still disagree with `operation_price(..., 'procurement')` when `bar_product_prices` is missing and `produtos.preco_venda` is set.
-- `sales_indicator('till')` includes voided `pos_vendas.total`. Net till sales are `total - refunded`, and this function does not subtract `refunded`.
-- The browser demo ledger is not this database.
-- `get_my_procurement_tasks` still returns locations without a bar filter.
+- Denied-void audit depends on `dblink` and a passwordless local connection as the database server user. An isolated Supabase project must enable the extension and prove one denied void leaves a `denied` row. If that connection fails, the void is still rejected, but the error may be the connection failure and the denial row will be missing.
+- `get_procurement_board` and `task_economics` call `resolve_bar_price`. A task without `bar_product_prices` fails those reads instead of inventing a catalog price.
+- `create_order` still uses `produtos.preco_venda` for a product whose `bar_id` is that bar. That is the legacy JBM sale, not the procurement price.
+- Screens that still sum `pos_vendas.total` (`computeDayMetrics`, `barClose.periodReport`, goals, HQ filters, bar cost till total) show gross, including voided tickets. They are not `sales_indicator.net`.
+- `get_my_procurement_tasks` can still return locations without a bar filter.
 - This install has not been executed on Supabase. Protected projects were not contacted.

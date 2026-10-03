@@ -3,9 +3,8 @@
 -- verify_schema.sql stays read-only; this file is the only writer here.
 
 -- Till drink lines use drink_menu. Till sealed-bottle lines use bar_pricing.
--- Procurement orders use bar_product_prices. A missing procurement price does
--- not fall through to the till price. resolve_bar_price still falls back to
--- produtos.preco_venda for the legacy order book; that fallback is not a POS price.
+-- Procurement orders use bar_product_prices through resolve_bar_price.
+-- A missing or non-positive price is an error. It is not replaced by another table.
 
 CREATE OR REPLACE FUNCTION public.operation_price(
   p_bar uuid,
@@ -32,23 +31,19 @@ BEGIN
     SELECT d.preco_venda INTO price
     FROM public.drink_menu d
     WHERE d.id = p_drink AND d.bar_id = p_bar;
-    RETURN price;
   ELSIF p_operation = 'pos_unit' THEN
     SELECT bp.preco_drink INTO price
     FROM public.bar_pricing bp
     WHERE bp.bar_id = p_bar AND bp.produto_id = p_product;
-    RETURN price;
   ELSIF p_operation = 'procurement' THEN
-    SELECT bp.sale_price INTO price
-    FROM public.bar_product_prices bp
-    WHERE bp.bar_id = p_bar
-      AND bp.product_id = p_product
-      AND bp.active
-    ORDER BY bp.minimum_quantity DESC, bp.valid_from DESC NULLS LAST
-    LIMIT 1;
-    RETURN price;
+    RETURN public.resolve_bar_price(p_bar, p_product, now(), 1);
+  ELSE
+    RAISE EXCEPTION 'unknown price operation';
   END IF;
-  RAISE EXCEPTION 'unknown price operation';
+  IF price IS NULL OR price <= 0 THEN
+    RAISE EXCEPTION 'sale price not configured';
+  END IF;
+  RETURN price;
 END;
 $$;
 
@@ -72,8 +67,26 @@ BEGIN
   IF NOT (public.user_can_access_bar(p_bar) OR public.is_jbm()) THEN
     RAISE EXCEPTION 'not allowed';
   END IF;
-  till_price := public.operation_price(p_bar, p_product, NULL, 'pos_unit');
-  procurement_price := public.operation_price(p_bar, p_product, NULL, 'procurement');
+  BEGIN
+    till_price := public.operation_price(p_bar, p_product, NULL, 'pos_unit');
+  EXCEPTION
+    WHEN OTHERS THEN
+      IF SQLERRM LIKE '%sale price not configured%' OR SQLERRM LIKE '%ambiguous sale price%' THEN
+        till_price := NULL;
+      ELSE
+        RAISE;
+      END IF;
+  END;
+  BEGIN
+    procurement_price := public.operation_price(p_bar, p_product, NULL, 'procurement');
+  EXCEPTION
+    WHEN OTHERS THEN
+      IF SQLERRM LIKE '%sale price not configured%' OR SQLERRM LIKE '%ambiguous sale price%' THEN
+        procurement_price := NULL;
+      ELSE
+        RAISE;
+      END IF;
+  END;
   RETURN jsonb_build_object(
     'till_unit', till_price,
     'procurement', procurement_price,
@@ -87,15 +100,25 @@ $$;
 REVOKE ALL ON FUNCTION public.price_conflict(uuid, uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.price_conflict(uuid, uuid) TO authenticated;
 
--- Official indicators read one book. They do not add vendas and pos_vendas.
+-- One book per call. gross keeps the original total. net is the valid amount.
+-- A voided till row contributes 0 to net and is not subtracted a second time.
+-- refunds is the capped refund column, once per row. Rows are not deleted.
 
-CREATE OR REPLACE FUNCTION public.sales_indicator(p_book text, p_bar uuid)
-RETURNS numeric
+DROP FUNCTION IF EXISTS public.sales_indicator(text, uuid);
+
+CREATE FUNCTION public.sales_indicator(p_book text, p_bar uuid)
+RETURNS jsonb
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  gross numeric := 0;
+  refunds numeric := 0;
+  net numeric := 0;
+  transactions integer := 0;
+  valid_transactions integer := 0;
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'not authenticated';
@@ -104,15 +127,62 @@ BEGIN
     RAISE EXCEPTION 'not allowed';
   END IF;
   IF p_book = 'till' THEN
-    RETURN COALESCE((
-      SELECT SUM(v.total) FROM public.pos_vendas v WHERE v.bar_id = p_bar
-    ), 0);
+    SELECT
+      COALESCE(SUM(v.total), 0),
+      COALESCE(SUM(LEAST(GREATEST(v.total, 0), GREATEST(COALESCE(v.refunded, 0), 0))), 0),
+      COALESCE(SUM(
+        CASE
+          WHEN v.void_status IN ('void', 'cancelada', 'cancelado') THEN 0
+          ELSE GREATEST(
+            v.total - LEAST(GREATEST(v.total, 0), GREATEST(COALESCE(v.refunded, 0), 0)),
+            0
+          )
+        END
+      ), 0),
+      COUNT(*)::integer,
+      COUNT(*) FILTER (
+        WHERE v.void_status IS DISTINCT FROM 'void'
+          AND v.void_status IS DISTINCT FROM 'cancelada'
+          AND v.void_status IS DISTINCT FROM 'cancelado'
+          AND GREATEST(
+            v.total - LEAST(GREATEST(v.total, 0), GREATEST(COALESCE(v.refunded, 0), 0)),
+            0
+          ) > 0
+      )::integer
+    INTO gross, refunds, net, transactions, valid_transactions
+    FROM public.pos_vendas v
+    WHERE v.bar_id = p_bar;
   ELSIF p_book = 'jbm' THEN
-    RETURN COALESCE((
-      SELECT SUM(v.total) FROM public.vendas v WHERE v.bar_id = p_bar
-    ), 0);
+    SELECT
+      COALESCE(SUM(v.total), 0),
+      0,
+      COALESCE(SUM(
+        CASE
+          WHEN v.status IN ('cancelada', 'cancelado', 'void', 'estornada') THEN 0
+          ELSE v.total
+        END
+      ), 0),
+      COUNT(*)::integer,
+      COUNT(*) FILTER (
+        WHERE v.status IS DISTINCT FROM 'cancelada'
+          AND v.status IS DISTINCT FROM 'cancelado'
+          AND v.status IS DISTINCT FROM 'void'
+          AND v.status IS DISTINCT FROM 'estornada'
+          AND v.total > 0
+      )::integer
+    INTO gross, refunds, net, transactions, valid_transactions
+    FROM public.vendas v
+    WHERE v.bar_id = p_bar;
+  ELSE
+    RAISE EXCEPTION 'unknown sales book';
   END IF;
-  RAISE EXCEPTION 'unknown sales book';
+  RETURN jsonb_build_object(
+    'gross', gross,
+    'refunds', refunds,
+    'net', net,
+    'transactions', transactions,
+    'valid_transactions', valid_transactions
+  );
 END;
 $$;
 
@@ -127,13 +197,29 @@ CREATE POLICY pos_void_audit_read ON public.pos_void_audit
   FOR SELECT TO authenticated
   USING (public.user_can_access_bar(bar_id) OR public.is_jbm() OR user_id = auth.uid());
 
+REVOKE INSERT, UPDATE, DELETE ON public.pos_void_audit FROM authenticated;
 GRANT SELECT ON public.pos_void_audit TO authenticated;
+
+DO $$
+DECLARE
+  sig regprocedure;
+BEGIN
+  FOR sig IN
+    SELECT p.oid::regprocedure
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname LIKE 'dblink%'
+  LOOP
+    EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', sig);
+  END LOOP;
+END $$;
 
 -- Fulfillment policies already exist. Grants match the app queries only.
 -- SupplierPortal: SELECT supplier_users, order_supplier_assignments, fulfillment_alerts.
 -- FulfillmentHq: SELECT pedido_fulfillment, fulfillment_alerts, supplier_routing_rules,
 -- supplier_products; upsert supplier_routing_rules and supplier_users.
--- No DELETE. fulfillment_alerts is SELECT only: the app does not set read_at.
+-- No DELETE. fulfillment_alerts is SELECT only: the app does not write read_at.
+-- UPDATE stays ungranted, including for the bar that can see the row.
 -- These policies stay without a table grant:
 --   order_supplier_items, fulfillment_events, delivery_confirmations,
 --   supplier_purchase_requests, audit_logs.

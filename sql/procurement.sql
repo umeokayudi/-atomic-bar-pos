@@ -534,6 +534,7 @@ SET search_path = public
 AS $$
 DECLARE
   price numeric;
+  variants integer;
 BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'not authenticated';
@@ -541,20 +542,35 @@ BEGIN
   IF NOT (public.is_procurement_hq() OR public.user_can_access_bar(p_bar)) THEN
     RAISE EXCEPTION 'not allowed';
   END IF;
-  SELECT bp.sale_price INTO price
-  FROM public.bar_product_prices bp
-  WHERE bp.bar_id = p_bar
-    AND bp.product_id = p_product
-    AND bp.active
-    AND (bp.valid_from IS NULL OR bp.valid_from <= COALESCE(p_at, now()))
-    AND (bp.valid_until IS NULL OR bp.valid_until >= COALESCE(p_at, now()))
-    AND bp.minimum_quantity <= GREATEST(COALESCE(p_qty, 1), 1)
-  ORDER BY bp.minimum_quantity DESC, bp.valid_from DESC NULLS LAST
-  LIMIT 1;
-  IF price IS NOT NULL THEN
-    RETURN price;
+  -- Procurement price is bar_product_prices only. produtos.preco_venda is not a
+  -- substitute: a global row is a catalog identity and a bar-scoped row is the
+  -- legacy create_order price. Missing, zero, and two different prices at the
+  -- winning quantity tier are errors. The stored pedidos_itens.preco_unitario
+  -- remains the historical price.
+  WITH matched AS (
+    SELECT bp.sale_price, bp.minimum_quantity
+    FROM public.bar_product_prices bp
+    WHERE bp.bar_id = p_bar
+      AND bp.product_id = p_product
+      AND bp.active
+      AND (bp.valid_from IS NULL OR bp.valid_from <= COALESCE(p_at, now()))
+      AND (bp.valid_until IS NULL OR bp.valid_until >= COALESCE(p_at, now()))
+      AND bp.minimum_quantity <= GREATEST(COALESCE(p_qty, 1), 1)
+  ),
+  top AS (
+    SELECT sale_price
+    FROM matched
+    WHERE minimum_quantity = (SELECT MAX(minimum_quantity) FROM matched)
+  )
+  SELECT COUNT(DISTINCT sale_price)::integer, MIN(sale_price)
+  INTO variants, price
+  FROM top;
+  IF COALESCE(variants, 0) = 0 OR price IS NULL OR price <= 0 THEN
+    RAISE EXCEPTION 'sale price not configured for product % and bar %', p_product, p_bar;
   END IF;
-  SELECT pr.preco_venda INTO price FROM public.produtos pr WHERE pr.id = p_product;
+  IF variants > 1 THEN
+    RAISE EXCEPTION 'ambiguous sale price for product % and bar %', p_product, p_bar;
+  END IF;
   RETURN price;
 END;
 $$;
@@ -1953,7 +1969,7 @@ BEGIN
           ), 0)
         END,
         'sale_price', CASE
-          WHEN audience IN ('jbm', 'bar') THEN public.resolve_bar_price(ped.bar_id, i.produto_id, now(), i.qtd)
+          WHEN audience IN ('jbm', 'bar') THEN i.preco_unitario
           ELSE NULL
         END,
         'tasks', COALESCE((

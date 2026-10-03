@@ -323,10 +323,29 @@ async function main() {
   const untouched = await root.query(`SELECT refunded FROM public.pos_vendas WHERE id = $1`, [body.venda_id])
   assert.equal(untouched.rows[0].refunded, 0)
   const deniedAudit = await root.query(
-    `SELECT count(*)::int AS n FROM public.pos_void_audit WHERE venda_id = $1`,
+    `SELECT result FROM public.pos_void_audit WHERE venda_id = $1 ORDER BY created_at`,
     [body.venda_id],
   )
-  assert.equal(deniedAudit.rows[0].n, 0)
+  assert.equal(deniedAudit.rows.length, 2)
+  assert.equal(deniedAudit.rows.every(row => row.result === 'denied'), true)
+  const deniedVisible = await asUser(root, cashierA, () => root.query(
+    `SELECT result FROM public.pos_void_audit WHERE venda_id = $1`,
+    [body.venda_id],
+  ))
+  assert.equal(deniedVisible.rows.length, 2)
+  const hiddenDenial = await asUser(root, managerB, () => root.query(
+    `SELECT result FROM public.pos_void_audit WHERE venda_id = $1`,
+    [body.venda_id],
+  ))
+  assert.equal(hiddenDenial.rows.length, 0)
+  await expectRaise(root, cashierA, () => root.query(
+    `UPDATE public.pos_void_audit SET result = 'applied' WHERE venda_id = $1`,
+    [body.venda_id],
+  ), /permission denied/)
+  await expectRaise(root, cashierA, () => root.query(
+    `INSERT INTO public.pos_void_audit (user_id, bar_id, venda_id, reason, result) VALUES ($1, $2, $3, 'forged', 'applied')`,
+    [cashierA, barA, body.venda_id],
+  ), /permission denied/)
   await asUser(root, managerA, () => root.query(
     `SELECT public.pos_void_sale($1, 'refund', NULL, 'guest left', $2)`,
     [body.venda_id, managerA],
@@ -336,7 +355,7 @@ async function main() {
   assert.equal(afterVoid.rows[0].refunded, 2400)
   const voidAudit = await asUser(root, managerA, () => root.query(
     `SELECT user_id, bar_id, venda_id, reason, result, created_at
-     FROM public.pos_void_audit WHERE venda_id = $1`,
+     FROM public.pos_void_audit WHERE venda_id = $1 AND result = 'applied'`,
     [body.venda_id],
   ))
   assert.equal(voidAudit.rows.length, 1)
@@ -554,6 +573,53 @@ async function main() {
     [barA, priced],
   ))
   assert.equal(Number(legacy.rows[0].price), 1800)
+  const globalProduct = randomUUID()
+  const barProduct = randomUUID()
+  const zeroProduct = randomUUID()
+  const ambiguousProduct = randomUUID()
+  await root.query(
+    `INSERT INTO public.produtos (id, nome, preco_venda, bar_id) VALUES ($1, 'Global', 999, NULL), ($2, 'Bar scoped', 700, $3)`,
+    [globalProduct, barProduct, barA],
+  )
+  await expectRaise(root, managerA, () => root.query(
+    `SELECT public.resolve_bar_price($1, $2, now(), 1)`,
+    [barA, globalProduct],
+  ), /sale price not configured/)
+  await expectRaise(root, managerA, () => root.query(
+    `SELECT public.resolve_bar_price($1, $2, now(), 1)`,
+    [barA, barProduct],
+  ), /sale price not configured/)
+  await root.query(`INSERT INTO public.produtos (id, nome, preco_venda) VALUES ($1, 'Zero', 0)`, [zeroProduct])
+  await root.query(`ALTER TABLE public.bar_product_prices DROP CONSTRAINT bar_product_prices_positive`)
+  await root.query(
+    `INSERT INTO public.bar_product_prices (bar_id, product_id, sale_price) VALUES ($1, $2, 0)`,
+    [barA, zeroProduct],
+  )
+  await expectRaise(root, managerA, () => root.query(
+    `SELECT public.resolve_bar_price($1, $2, now(), 1)`,
+    [barA, zeroProduct],
+  ), /sale price not configured/)
+  await root.query(`DELETE FROM public.bar_product_prices WHERE product_id = $1`, [zeroProduct])
+  await root.query(`ALTER TABLE public.bar_product_prices ADD CONSTRAINT bar_product_prices_positive CHECK (sale_price > 0)`)
+  await root.query(`INSERT INTO public.produtos (id, nome, preco_venda) VALUES ($1, 'Ambiguous', 50)`, [ambiguousProduct])
+  await root.query(
+    `INSERT INTO public.bar_product_prices (bar_id, product_id, sale_price, minimum_quantity, valid_from)
+     VALUES ($1, $2, 1000, 1, now() - interval '2 days'), ($1, $2, 1100, 1, now() - interval '1 day')`,
+    [barA, ambiguousProduct],
+  )
+  await expectRaise(root, managerA, () => root.query(
+    `SELECT public.resolve_bar_price($1, $2, now(), 1)`,
+    [barA, ambiguousProduct],
+  ), /ambiguous sale price/)
+  const freeDrink = randomUUID()
+  await root.query(
+    `INSERT INTO public.drink_menu (id, bar_id, nome, preco_venda) VALUES ($1, $2, 'Zero drink', 0)`,
+    [freeDrink, barA],
+  )
+  await expectRaise(root, cashierA, () => root.query(
+    `SELECT public.operation_price($1, NULL, $2, 'pos_drink')`,
+    [barA, freeDrink],
+  ), /sale price not configured/)
   await expectRaise(root, managerB, () => root.query(
     `SELECT public.operation_price($1, $2, NULL, 'pos_unit')`,
     [barA, priced],
@@ -563,19 +629,97 @@ async function main() {
     `INSERT INTO public.vendas (bar_id, total, obs) VALUES ($1, 1000, 'jbm book only')`,
     [barA],
   )
+  await root.query(
+    `INSERT INTO public.vendas (bar_id, total, status, obs) VALUES ($1, 400, 'cancelada', 'cancelled jbm row')`,
+    [barA],
+  )
+  const openSale = randomUUID()
+  const partialSale = randomUUID()
+  const partialItem = randomUUID()
+  await root.query(
+    `INSERT INTO public.pos_vendas (id, bar_id, total, refunded, metodo_pagamento, void_status)
+     VALUES ($1, $2, 800, 0, 'cash', NULL)`,
+    [openSale, barA],
+  )
+  await root.query(
+    `INSERT INTO public.pos_vendas (id, bar_id, total, refunded, metodo_pagamento, void_status)
+     VALUES ($1, $2, 1000, 0, 'cash', NULL)`,
+    [partialSale, barA],
+  )
+  await root.query(
+    `INSERT INTO public.pos_vendas_itens (id, pos_venda_id, nome, qtd, preco_unitario, refunded_qtd)
+     VALUES ($1, $2, 'Two pours', 2, 500, 0)`,
+    [partialItem, partialSale],
+  )
+  const beforeVoids = await asUser(root, managerA, () => root.query(
+    `SELECT public.sales_indicator('till', $1) AS body`,
+    [barA],
+  ))
+  assert.equal(Number(beforeVoids.rows[0].body.gross), 4200)
+  assert.equal(Number(beforeVoids.rows[0].body.refunds), 2400)
+  assert.equal(Number(beforeVoids.rows[0].body.net), 1800)
+  assert.equal(Number(beforeVoids.rows[0].body.valid_transactions), 2)
+  assert.equal(Number(beforeVoids.rows[0].body.transactions), 3)
+  await root.query('BEGIN')
+  await root.query(`SELECT set_config('request.jwt.claim.sub', $1, true)`, [managerA])
+  await root.query('SET LOCAL ROLE authenticated')
+  await root.query(
+    `SELECT public.pos_void_sale($1, 'partial_refund', NULL, 'first half', $2, $3, 1)`,
+    [partialSale, managerA, partialItem],
+  )
+  await root.query('ROLLBACK')
+  const rolled = await root.query(`SELECT refunded, void_status FROM public.pos_vendas WHERE id = $1`, [partialSale])
+  assert.equal(rolled.rows[0].refunded, 0)
+  assert.equal(rolled.rows[0].void_status, null)
+  const noApplied = await root.query(
+    `SELECT count(*)::int AS n FROM public.pos_void_audit WHERE venda_id = $1 AND result = 'applied'`,
+    [partialSale],
+  )
+  assert.equal(noApplied.rows[0].n, 0)
+  await asUser(root, managerA, () => root.query(
+    `SELECT public.pos_void_sale($1, 'partial_refund', NULL, 'first half', $2, $3, 1)`,
+    [partialSale, managerA, partialItem],
+  ))
+  await asUser(root, managerA, () => root.query(
+    `SELECT public.pos_void_sale($1, 'partial_refund', NULL, 'second half', $2, $3, 1)`,
+    [partialSale, managerA, partialItem],
+  ))
+  await expectRaise(root, managerA, () => root.query(
+    `SELECT public.pos_void_sale($1, 'partial_refund', NULL, 'third', $2, $3, 1)`,
+    [partialSale, managerA, partialItem],
+  ), /already void|refund exceeds/)
+  const partialRow = await root.query(
+    `SELECT total, refunded, void_status FROM public.pos_vendas WHERE id = $1`,
+    [partialSale],
+  )
+  assert.equal(partialRow.rows[0].total, 1000)
+  assert.equal(partialRow.rows[0].refunded, 1000)
+  assert.equal(partialRow.rows[0].void_status, 'void')
+  const partialAudits = await root.query(
+    `SELECT result FROM public.pos_void_audit WHERE venda_id = $1 AND result = 'applied'`,
+    [partialSale],
+  )
+  assert.equal(partialAudits.rows.length, 2)
   const till = await asUser(root, managerA, () => root.query(
-    `SELECT public.sales_indicator('till', $1) AS total`,
+    `SELECT public.sales_indicator('till', $1) AS body`,
     [barA],
   ))
   const jbmBook = await asUser(root, managerA, () => root.query(
-    `SELECT public.sales_indicator('jbm', $1) AS total`,
+    `SELECT public.sales_indicator('jbm', $1) AS body`,
     [barA],
   ))
-  assert.equal(Number(till.rows[0].total), 2400)
-  assert.equal(Number(jbmBook.rows[0].total), 1000)
-  assert.equal(Number(till.rows[0].total) + Number(jbmBook.rows[0].total), 3400)
-  assert.notEqual(Number(till.rows[0].total), 3400)
-  assert.notEqual(Number(jbmBook.rows[0].total), 3400)
+  assert.equal(Number(till.rows[0].body.gross), 4200)
+  assert.equal(Number(till.rows[0].body.refunds), 3400)
+  assert.equal(Number(till.rows[0].body.net), 800)
+  assert.equal(Number(till.rows[0].body.transactions), 3)
+  assert.equal(Number(till.rows[0].body.valid_transactions), 1)
+  assert.equal(Number(jbmBook.rows[0].body.gross), 1400)
+  assert.equal(Number(jbmBook.rows[0].body.refunds), 0)
+  assert.equal(Number(jbmBook.rows[0].body.net), 1000)
+  assert.equal(Number(jbmBook.rows[0].body.transactions), 2)
+  assert.equal(Number(jbmBook.rows[0].body.valid_transactions), 1)
+  assert.equal(Number(till.rows[0].body.net) + Number(jbmBook.rows[0].body.net), 1800)
+  assert.notEqual(Number(till.rows[0].body.net), 1800)
   await expectRaise(root, managerA, () => root.query(
     `SELECT public.sales_indicator('both', $1)`,
     [barA],
@@ -618,6 +762,33 @@ async function main() {
   ))
   assert.ok(alertsA.rows.length >= 1)
   assert.equal(alertsB.rows.length, 0)
+  await expectRaise(root, managerA, () => root.query(
+    `UPDATE public.fulfillment_alerts SET title = 'changed' WHERE bar_id = $1`,
+    [barA],
+  ), /permission denied/)
+  await expectRaise(root, supplierA, () => root.query(
+    `UPDATE public.fulfillment_alerts SET read_at = now()`,
+  ), /permission denied/)
+  await root.query(
+    `INSERT INTO public.fulfillment_alerts (audience, supplier_id, event_type, title)
+     VALUES ('supplier', $1, 'review', 'Supplier A only')`,
+    [supplierId],
+  )
+  const supplierAlerts = await asUser(root, supplierA, () => root.query(
+    `SELECT id FROM public.fulfillment_alerts WHERE audience = 'supplier' AND supplier_id = $1`,
+    [supplierId],
+  ))
+  const otherSupplierAlerts = await asUser(root, supplierOther, () => root.query(
+    `SELECT id FROM public.fulfillment_alerts WHERE supplier_id = $1`,
+    [supplierId],
+  ))
+  const supplierSeesBar = await asUser(root, supplierA, () => root.query(
+    `SELECT id FROM public.fulfillment_alerts WHERE audience = 'bar' AND bar_id = $1`,
+    [barA],
+  ))
+  assert.ok(supplierAlerts.rows.length >= 1)
+  assert.equal(otherSupplierAlerts.rows.length, 0)
+  assert.equal(supplierSeesBar.rows.length, 0)
   const ownSupplier = await asUser(root, supplierA, () => root.query(
     `SELECT supplier_id FROM public.supplier_users WHERE user_id = $1`,
     [supplierA],

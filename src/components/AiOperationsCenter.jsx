@@ -11,6 +11,14 @@ function newId() {
   return `act-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
 }
 
+function validTillAmount(row) {
+  const status = String(row?.void_status || '')
+  if (status === 'void' || status === 'cancelada' || status === 'cancelado') return 0
+  const gross = Math.round(+row?.total || 0)
+  const refund = Math.min(Math.max(gross, 0), Math.max(0, Math.round(+row?.refunded || 0)))
+  return Math.max(0, gross - refund)
+}
+
 const COMMANDS = [
   { id: 'sales', label: 'Explain recorded sales', kind: 'calculation' },
   { id: 'profit', label: 'Prepare a gross-profit note', kind: 'calculation' },
@@ -55,14 +63,16 @@ export default function AiOperationsCenter({ bar, onTab }) {
     let sales = null
     let salesError = ''
     try {
-      const res = await supabase.from('pos_vendas').select('id,total').eq('bar_id', bar.id)
+      const res = await supabase.from('pos_vendas').select('id,total,refunded,void_status').eq('bar_id', bar.id)
       if (res.error) salesError = res.error.message || 'Sales could not be read'
       else sales = res.data || []
     } catch (e) {
       salesError = e.message || 'Sales could not be read'
     }
-    const count = sales ? sales.length : null
-    const total = sales ? sales.reduce((sum, row) => sum + (+row.total || 0), 0) : null
+    const records = sales ? sales.length : null
+    const validRows = sales ? sales.filter(row => validTillAmount(row) > 0) : null
+    const count = validRows ? validRows.length : null
+    const total = sales ? sales.reduce((sum, row) => sum + validTillAmount(row), 0) : null
     let body = ''
     let status = 'ready'
     if (command.id === 'sales') {
@@ -70,7 +80,7 @@ export default function AiOperationsCenter({ bar, onTab }) {
         ? `Sales could not be read. ${salesError}`
         : count === 0
           ? 'No sales records were returned for this bar. This is not a live zero from another database.'
-          : `${count} till ticket${count === 1 ? '' : 's'} are on record. Total ${Math.round(total)} yen. Source: pos_vendas.`
+          : `${records} till row${records === 1 ? '' : 's'} stay on record. ${count} valid ticket${count === 1 ? '' : 's'}, ${Math.round(total)} yen. A voided row adds zero and is not deleted.`
       if (salesError) status = 'failed'
     } else if (command.id === 'profit') {
       body = 'Gross profit is not calculated here. It requires recorded product cost, not sales alone. Open Overview to see the profit state.'
@@ -89,7 +99,7 @@ export default function AiOperationsCenter({ bar, onTab }) {
         ? 'Sales: unavailable.'
         : count === 0
           ? 'Sales: no records in this session.'
-          : `Sales: ${count} tickets, ${Math.round(total)} yen.`
+          : `Sales: ${records} rows on record, ${count} valid tickets, ${Math.round(total)} yen.`
       body = [
         `Daily report draft for ${scope.bar}, night ${night}.`,
         salesLine,
@@ -101,7 +111,7 @@ export default function AiOperationsCenter({ bar, onTab }) {
       ...base,
       status,
       body,
-      formula: command.id === 'sales' && sales ? 'sum(pos_vendas.total) for this bar' : 'No new formula',
+      formula: command.id === 'sales' && sales ? 'valid till = original total minus one capped refund; void status is zero' : 'No new formula',
       reversible: command.kind !== 'proposal' ? 'Nothing is written' : 'No register change is made by this screen',
     })
   }
