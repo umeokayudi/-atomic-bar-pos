@@ -70,6 +70,9 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
   const [counted, setCounted] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const [moveKind, setMoveKind] = useState('sangria')
+  const [moveAmount, setMoveAmount] = useState('')
+  const [moveNote, setMoveNote] = useState('')
   const [nightSales, setNightSales] = useState(salesHint || [])
   const [cashMoves, setCashMoves] = useState([])
   const [open, setOpen] = useState(!compact)
@@ -123,6 +126,40 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
     )
   }
 
+  async function recordDrawerMove() {
+    if (isLocalDemo) {
+      setMsg(t('atomicPos.drawerDemoBlocked'))
+      return
+    }
+    const amount = Math.round(+moveAmount)
+    if (!Number.isInteger(amount) || amount <= 0) {
+      setMsg(t('atomicPos.drawerAmountInvalid'))
+      return
+    }
+    setBusy(true)
+    setMsg('')
+    const { data, error } = await supabase.rpc('cash_drawer_move', {
+      p_bar: bar.id,
+      p_day: nightKey,
+      p_kind: moveKind,
+      p_amount: amount,
+      p_note: moveNote,
+      p_key: crypto.randomUUID(),
+    })
+    setBusy(false)
+    if (error) {
+      setMsg(error.message)
+      return
+    }
+    setCashMoves(rows => [
+      ...rows,
+      { tipo: moveKind === 'suprimento' ? 'entrada' : 'saida', valor: amount, referencia_tipo: moveKind, data: new Date().toISOString(), operational_day: nightKey },
+    ])
+    setMoveAmount('')
+    setMoveNote('')
+    setMsg(data?.duplicate ? t('atomicPos.drawerDuplicate') : t('atomicPos.drawerMoved'))
+  }
+
   async function closeNight() {
     if (isLocalDemo) {
       setMsg(t('atomicPos.demoCloseBlocked'))
@@ -130,6 +167,17 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
     }
     setBusy(true)
     setMsg('')
+    const countedCashPreview = counted === '' ? summary.expectedCash : +counted
+    const ledger = await supabase.rpc('cash_close_night', {
+      p_bar: bar.id,
+      p_day: nightKey,
+      p_counted: countedCashPreview,
+    })
+    if (ledger.error) {
+      setBusy(false)
+      setMsg(ledger.error.message)
+      return
+    }
     let salesRes = await supabase.from('pos_vendas')
       .select('id,total,refunded,card_fee,card_fee_reversed,data,criado_em,metodo_pagamento,obs')
       .eq('bar_id', bar.id)
@@ -219,11 +267,32 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
         </div>
       </div>
       {isLocalDemo ? (
-        <p className="pos-close-meta">{t('atomicPos.demoCloseBlocked')}</p>
+        <p className="pos-close-meta">{t('atomicPos.demoCloseBlocked')} {t('atomicPos.drawerDemoBlocked')}</p>
       ) : closed ? (
         <div className="pos-close-done">{t('atomicPos.alreadyClosed')} · {fmtYen(shift.drinks_total || summary.drinksTotal)}</div>
       ) : (
         <div className="pos-close-actions">
+          <select value={moveKind} onChange={e => setMoveKind(e.target.value)} aria-label={t('atomicPos.drawerKind')}>
+            <option value="sangria">{t('atomicPos.drawerSangria')}</option>
+            <option value="suprimento">{t('atomicPos.drawerSuprimento')}</option>
+          </select>
+          <input
+            type="number"
+            min="1"
+            placeholder={t('atomicPos.drawerAmount')}
+            value={moveAmount}
+            onChange={e => setMoveAmount(e.target.value)}
+          />
+          <input
+            type="text"
+            maxLength={500}
+            placeholder={t('atomicPos.drawerNote')}
+            value={moveNote}
+            onChange={e => setMoveNote(e.target.value)}
+          />
+          <button type="button" disabled={busy} onClick={recordDrawerMove}>
+            {t('atomicPos.drawerMove')}
+          </button>
           <input
             type="number"
             min="0"

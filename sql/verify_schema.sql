@@ -313,6 +313,7 @@ WITH expected(object_name, object_kind, module, detail) AS (
   ('stock_post', 'function', 'foundation', 'sql/foundation/080_operations.sql'),
   ('staff_clock', 'function', 'foundation', 'sql/foundation/080_operations.sql'),
   ('cash_close_night', 'function', 'foundation', 'sql/foundation/080_operations.sql'),
+  ('cash_drawer_move', 'function', 'foundation', 'sql/foundation/080_operations.sql'),
   ('foundation-1', 'version', 'foundation', 'schema_install.version'),
   ('vendas', 'rls', 'security', 'ENABLE ROW LEVEL SECURITY in sql/foundation/090_security.sql'),
   ('produtos', 'rls', 'security', 'ENABLE ROW LEVEL SECURITY in sql/foundation/090_security.sql'),

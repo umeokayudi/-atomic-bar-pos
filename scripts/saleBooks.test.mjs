@@ -10,6 +10,7 @@ import {
   sumJbmGross,
   sumJbmNet,
   sumTillGross,
+  compareBarIndicators,
   sumTillNet,
   tillGross,
   tillNet,
@@ -120,5 +121,28 @@ const categories = categoryAnalysis([
 ], {}, { monthKey: '2026-10' })
 assert.equal(Number.isNaN(categories[0].sharePct), false)
 assert.equal(categories[0].posTotal, null)
+
+const sameBook = compareBarIndicators([
+  { barId: 'a', name: 'A', book: 'till', gross: 2400, net: 1400 },
+  { barId: 'b', name: 'B', book: 'till', gross: 1000, net: 1000 },
+])
+assert.equal(sameBook.comparable, true)
+assert.equal(sameBook.book, 'till')
+assert.equal(sameBook.gross, 3400)
+assert.equal(sameBook.net, 2400)
+const mixed = compareBarIndicators([
+  { barId: 'a', book: 'till', gross: 2400, net: 1400 },
+  { barId: 'b', book: 'jbm', gross: 900, net: 900 },
+])
+assert.equal(mixed.comparable, false)
+assert.equal(mixed.gross, null)
+assert.equal(mixed.net, null)
+assert.equal(mixed.reason, 'mixed books')
+const missing = compareBarIndicators([
+  { barId: 'a', book: 'till', gross: 2400, net: null },
+])
+assert.equal(missing.comparable, false)
+assert.equal(missing.net, null)
+assert.equal(missing.reason, 'missing indicator')
 
 console.log('sale books ok')

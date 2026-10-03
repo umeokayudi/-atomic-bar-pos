@@ -3373,7 +3373,10 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
   margin-bottom: 12px;
 }
 .pos-close-meta { font-size: 12px; color: var(--text2); }
-.pos-close-actions { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+.pos-close-actions { display: flex; gap: 8px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
+.pos-close-actions select,
+.pos-close-actions input { min-width: 8rem; flex: 1 1 8rem; }
+.pos-close-actions button { min-height: 40px; }
 .pos-close-done { font-size: 13px; font-weight: 700; color: var(--green); margin-top: 6px; }
 .pos-close-msg { font-size: 12px; margin-top: 6px; }
 .pos-receipt-bar {

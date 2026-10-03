@@ -224,6 +224,102 @@ $$;
 REVOKE ALL ON FUNCTION public.cash_drawer_expected(uuid, date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.cash_drawer_expected(uuid, date) TO authenticated;
 
+ALTER TABLE public.caixa_movimentos ADD COLUMN IF NOT EXISTS idempotency_key text;
+
+CREATE UNIQUE INDEX IF NOT EXISTS caixa_movimentos_drawer_key
+  ON public.caixa_movimentos (bar_id, idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
+
+-- Sangria leaves the drawer. Suprimento enters it. Neither touches sales or stock.
+CREATE OR REPLACE FUNCTION public.cash_drawer_move(
+  p_bar uuid,
+  p_day date,
+  p_kind text,
+  p_amount integer,
+  p_note text,
+  p_key text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  actor uuid;
+  role text;
+  existing uuid;
+  expected integer;
+  move_id uuid;
+  tipo text;
+BEGIN
+  actor := public.pos_require_bar(p_bar);
+  SELECT p.role INTO role FROM public.perfis p WHERE p.id = actor;
+  IF role IS NULL OR role NOT IN ('caixa', 'gerente', 'cliente', 'admin', 'jbm') THEN
+    RAISE EXCEPTION 'drawer move not allowed';
+  END IF;
+  IF p_key IS NULL OR btrim(p_key) = '' THEN
+    RAISE EXCEPTION 'idempotency key required';
+  END IF;
+  IF p_kind = 'sangria' THEN
+    tipo := 'saida';
+  ELSIF p_kind = 'suprimento' THEN
+    tipo := 'entrada';
+  ELSE
+    RAISE EXCEPTION 'unknown drawer move';
+  END IF;
+  IF COALESCE(p_amount, 0) <= 0 THEN
+    RAISE EXCEPTION 'amount invalid';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM public.cash_closings c
+    WHERE c.bar_id = p_bar AND c.operational_day = p_day
+  ) THEN
+    RAISE EXCEPTION 'already closed';
+  END IF;
+  PERFORM pg_advisory_xact_lock(hashtext('cash-drawer'), hashtext(p_bar::text || COALESCE(p_day::text, '')));
+  SELECT m.id INTO existing
+  FROM public.caixa_movimentos m
+  WHERE m.bar_id = p_bar AND m.idempotency_key = p_key;
+  IF existing IS NOT NULL THEN
+    RETURN jsonb_build_object(
+      'id', existing,
+      'duplicate', true,
+      'expected', public.cash_drawer_expected(p_bar, p_day)
+    );
+  END IF;
+  expected := public.cash_drawer_expected(p_bar, p_day);
+  IF p_kind = 'sangria' AND p_amount > expected THEN
+    RAISE EXCEPTION 'drawer short';
+  END IF;
+  BEGIN
+    INSERT INTO public.caixa_movimentos (
+      bar_id, tipo, valor, descricao, referencia_tipo, operational_day, criado_por, idempotency_key
+    )
+    VALUES (
+      p_bar, tipo, p_amount, left(btrim(COALESCE(p_note, '')), 500), p_kind, p_day, actor, p_key
+    )
+    RETURNING id INTO move_id;
+  EXCEPTION WHEN unique_violation THEN
+    SELECT m.id INTO move_id
+    FROM public.caixa_movimentos m
+    WHERE m.bar_id = p_bar AND m.idempotency_key = p_key;
+    RETURN jsonb_build_object(
+      'id', move_id,
+      'duplicate', true,
+      'expected', public.cash_drawer_expected(p_bar, p_day)
+    );
+  END;
+  RETURN jsonb_build_object(
+    'id', move_id,
+    'duplicate', false,
+    'expected', public.cash_drawer_expected(p_bar, p_day)
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.cash_drawer_move(uuid, date, text, integer, text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.cash_drawer_move(uuid, date, text, integer, text, text) TO authenticated;
+
 CREATE OR REPLACE FUNCTION public.cash_close_night(p_bar uuid, p_day date, p_counted integer)
 RETURNS uuid
 LANGUAGE plpgsql
