@@ -14,11 +14,11 @@ Roles kept as profile values: `admin`, `jbm`, `gerente`, `caixa`, `bar_staff`, `
 
 ## Catalog
 
-`produtos.bar_id` null is a global product. A non-null `bar_id` is the legacy bar-scoped row `create_order` still requires. `bar_catalog` is the bar activation, cost, stock policy, and minimum stock. `bar_product_prices` is the procurement sale price. `bar_pricing` and `drink_menu` remain the till prices `pos_close_ticket` already uses. One product can be sold by more than one bar. Historical rows are not merged.
+`produtos.bar_id` null is a global product. A non-null `bar_id` is the legacy bar-scoped row `create_order` still requires. `bar_catalog` is the bar activation, cost, stock policy, and minimum stock. Precedence by operation is in `docs/database/review-decisions.md`: `drink_menu` for a till drink, `bar_pricing` for a till sealed unit, `bar_product_prices` for procurement. `operation_price` does not fall through from one of those to another. `resolve_bar_price` still falls back to `produtos.preco_venda` for the legacy order book. One product can be sold by more than one bar. Historical rows are not merged.
 
 ## Sales
 
-`pos_vendas` is the till sale. `vendas` remains the JBM book written by `create_order`. They are not the same event and this install does not copy one into the other.
+`pos_vendas` is the till sale written by `pos_close_ticket`. `vendas` is the JBM book written by `create_order` and by the JBM screens. `sales_indicator('till')` and `sales_indicator('jbm')` each sum one table. This install does not copy one into the other.
 
 A till close separates subtotal, `discount_total`, payments in `pos_sale_payments`, card fee, and cash. Cash drawer lines are written only for cash amounts. A card fee is one `taxa_cartao` line and is excluded by `cash_drawer_expected`. Split payments must sum to the net before `pos_close_ticket` commits. A second close of the same ticket returns the existing sale.
 

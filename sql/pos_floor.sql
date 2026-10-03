@@ -1108,6 +1108,19 @@ $$;
 REVOKE ALL ON FUNCTION public.pos_close_ticket(uuid, uuid, text, text, uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.pos_close_ticket(uuid, uuid, text, text, uuid) TO authenticated;
 
+-- Successful voids only. A denied call raises inside the caller's transaction,
+-- so the denial row would roll back with the exception. Do not claim a denial
+-- is stored. Columns: user, bar, sale, reason, result, created_at.
+CREATE TABLE IF NOT EXISTS public.pos_void_audit (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  bar_id uuid NOT NULL,
+  venda_id uuid,
+  reason text,
+  result text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
 DROP FUNCTION IF EXISTS public.pos_void_sale(uuid, text, integer, text, uuid);
 
 CREATE OR REPLACE FUNCTION public.pos_void_sale(
@@ -1161,6 +1174,32 @@ BEGIN
     RAISE EXCEPTION 'sale missing';
   END IF;
   actor := public.pos_require_bar(sale.bar_id);
+  IF p_approver IS DISTINCT FROM actor THEN
+    RAISE EXCEPTION 'void not allowed';
+  END IF;
+  IF NOT (
+    EXISTS (
+      SELECT 1 FROM public.perfis p
+      WHERE p.id = actor AND p.role = 'gerente' AND p.bar_id = sale.bar_id
+    )
+    OR EXISTS (
+      SELECT 1 FROM public.bar_memberships m
+      WHERE m.user_id = actor
+        AND m.bar_id = sale.bar_id
+        AND m.role = 'gerente'
+        AND m.revoked_at IS NULL
+    )
+    OR EXISTS (
+      SELECT 1 FROM public.platform_access a
+      JOIN public.perfis p ON p.id = a.user_id
+      WHERE a.user_id = actor
+        AND a.scope = 'hq'
+        AND a.revoked_at IS NULL
+        AND p.role IN ('admin', 'jbm')
+    )
+  ) THEN
+    RAISE EXCEPTION 'void not allowed';
+  END IF;
   IF sale.void_status = 'void' THEN
     RAISE EXCEPTION 'already void';
   END IF;
@@ -1319,6 +1358,9 @@ BEGIN
       SET refunded_qtd = COALESCE(refunded_qtd, 0) + row.qty
       WHERE id = item.id;
   END LOOP;
+
+  INSERT INTO public.pos_void_audit (user_id, bar_id, venda_id, reason, result)
+  VALUES (actor, sale.bar_id, sale.id, p_reason, 'applied');
 
   RETURN event_id;
 END;

@@ -317,7 +317,12 @@ WITH expected(object_name, object_kind, module, detail) AS (
   ('vendas', 'rls', 'security', 'ENABLE ROW LEVEL SECURITY in sql/foundation/090_security.sql'),
   ('produtos', 'rls', 'security', 'ENABLE ROW LEVEL SECURITY in sql/foundation/090_security.sql'),
   ('pedidos', 'rls', 'security', 'ENABLE ROW LEVEL SECURITY in sql/foundation/090_security.sql'),
-  ('time_clock', 'rls', 'security', 'ENABLE ROW LEVEL SECURITY in sql/foundation/090_security.sql')
+  ('time_clock', 'rls', 'security', 'ENABLE ROW LEVEL SECURITY in sql/foundation/090_security.sql'),
+  ('pos_void_audit', 'table', 'foundation', 'CREATE TABLE in sql/pos_floor.sql'),
+  ('operation_price', 'function', 'foundation', 'sql/foundation/095_review.sql'),
+  ('price_conflict', 'function', 'foundation', 'sql/foundation/095_review.sql'),
+  ('sales_indicator', 'function', 'foundation', 'sql/foundation/095_review.sql'),
+  ('pos_void_audit', 'rls', 'security', 'ENABLE ROW LEVEL SECURITY in sql/foundation/095_review.sql')
 ),
 checked AS (
   SELECT
