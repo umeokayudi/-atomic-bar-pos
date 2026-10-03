@@ -11,6 +11,7 @@ import {
   saveChatStore,
 } from '../src/lib/aiAssistant.js'
 import { SAMPLE_STUDIO, composeSampleAnswer } from '../src/lib/aiSampleStudio.js'
+import { explainCashClose } from '../src/lib/cashCloseExplain.js'
 import handler from '../api/ai-assistant.js'
 
 function memoryStorage() {
@@ -133,5 +134,24 @@ await handler({ method: 'GET', headers: {} }, status)
 assert.equal(status.body.configured, false)
 assert.equal(status.body.connected, false)
 assert.equal(status.body.drafts, false)
+
+const explained = explainCashClose({
+  barId: 'bar-a',
+  operationalDay: '2026-10-03',
+  expected: 1400,
+  counted: 1300,
+  sources: ['cash_drawer_expected', 'counted cash entered by a person'],
+})
+assert.equal(explained.executed, false)
+assert.equal(explained.requiresApproval, true)
+assert.equal(explained.variance, -100)
+assert.deepEqual(explained.missing, [])
+assert.match(explained.text, /does not close the register/)
+const incomplete = explainCashClose({ barId: 'bar-a', expected: 1400 })
+assert.equal(incomplete.executed, false)
+assert.equal(incomplete.variance, null)
+assert.ok(incomplete.missing.includes('counted'))
+assert.ok(incomplete.missing.includes('operationalDay'))
+assert.equal(explainCashClose({ expected: 10.5, counted: 10, barId: 'a', operationalDay: '2026-10-03' }).variance, null)
 
 console.log('ai assistant tests passed')

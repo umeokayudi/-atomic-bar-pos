@@ -296,6 +296,57 @@ async function main() {
   assert.equal(sale.rows[0].desconto_total, 100)
   assert.equal(sale.rows[0].card_fee, 38)
   assert.equal(sale.rows[0].metodo_pagamento, 'split')
+  const stockAfterSale = await root.query(`SELECT public.stock_on_hand($1, $2) AS n`, [barA, product])
+  assert.equal(stockAfterSale.rows[0].n, 2)
+  const salesBeforeDrawer = await root.query(`SELECT count(*)::int AS n FROM public.pos_vendas WHERE bar_id = $1`, [barA])
+  const stockBeforeDrawer = await root.query(`SELECT count(*)::int AS n FROM public.estoque_movimentos WHERE bar_id = $1`, [barA])
+  const nightForMove = await root.query(`SELECT public.pos_tokyo_night(now()) AS day`)
+  const moveDay = nightForMove.rows[0].day
+  const supplyKey = `supply-${randomUUID()}`
+  const supplied = await asUser(root, cashierA, () => root.query(
+    `SELECT public.cash_drawer_move($1, $2, 'suprimento', 200, 'float', $3) AS body`,
+    [barA, moveDay, supplyKey],
+  ))
+  assert.equal(supplied.rows[0].body.duplicate, false)
+  assert.equal(Number(supplied.rows[0].body.expected), 1600)
+  const suppliedAgain = await asUser(root, cashierA, () => root.query(
+    `SELECT public.cash_drawer_move($1, $2, 'suprimento', 200, 'float', $3) AS body`,
+    [barA, moveDay, supplyKey],
+  ))
+  assert.equal(suppliedAgain.rows[0].body.duplicate, true)
+  assert.equal(suppliedAgain.rows[0].body.id, supplied.rows[0].body.id)
+  assert.equal(Number(suppliedAgain.rows[0].body.expected), 1600)
+  const bled = await asUser(root, cashierA, () => root.query(
+    `SELECT public.cash_drawer_move($1, $2, 'sangria', 200, 'drop', $3) AS body`,
+    [barA, moveDay, `bleed-${randomUUID()}`],
+  ))
+  assert.equal(bled.rows[0].body.duplicate, false)
+  assert.equal(Number(bled.rows[0].body.expected), 1400)
+  await expectRaise(root, cashierA, () => root.query(
+    `SELECT public.cash_drawer_move($1, $2, 'sangria', 999999, 'too much', $3)`,
+    [barA, moveDay, `short-${randomUUID()}`],
+  ), /drawer short/)
+  await expectRaise(root, employeeA, () => root.query(
+    `SELECT public.cash_drawer_move($1, $2, 'sangria', 100, 'staff', $3)`,
+    [barA, moveDay, `staff-${randomUUID()}`],
+  ), /drawer move not allowed/)
+  await expectRaise(root, supplierA, () => root.query(
+    `SELECT public.cash_drawer_move($1, $2, 'suprimento', 100, 'supplier', $3)`,
+    [barA, moveDay, `supplier-${randomUUID()}`],
+  ), /drawer move not allowed|bar not allowed/)
+  await expectRaise(root, managerB, () => root.query(
+    `SELECT public.cash_drawer_move($1, $2, 'sangria', 100, 'other bar', $3)`,
+    [barA, moveDay, `other-${randomUUID()}`],
+  ), /bar not allowed/)
+  const drawerRows = await root.query(
+    `SELECT count(*)::int AS n FROM public.caixa_movimentos WHERE bar_id = $1 AND referencia_tipo IN ('sangria', 'suprimento')`,
+    [barA],
+  )
+  assert.equal(drawerRows.rows[0].n, 2)
+  const salesAfterDrawer = await root.query(`SELECT count(*)::int AS n FROM public.pos_vendas WHERE bar_id = $1`, [barA])
+  const stockAfterDrawer = await root.query(`SELECT count(*)::int AS n FROM public.estoque_movimentos WHERE bar_id = $1`, [barA])
+  assert.equal(salesAfterDrawer.rows[0].n, salesBeforeDrawer.rows[0].n)
+  assert.equal(stockAfterDrawer.rows[0].n, stockBeforeDrawer.rows[0].n)
   const drawer = await root.query(`SELECT public.cash_drawer_expected($1, public.pos_tokyo_night(now())) AS n`, [barA])
   assert.equal(Number(drawer.rows[0].n), 1400)
   const night = await root.query(`SELECT public.pos_tokyo_night(now()) AS day`)
@@ -307,6 +358,33 @@ async function main() {
     `SELECT public.cash_close_night($1, $2, $3)`,
     [barA, night.rows[0].day, 1400],
   ), /already closed/)
+  await expectRaise(root, cashierA, () => root.query(
+    `SELECT public.cash_drawer_move($1, $2, 'suprimento', 100, 'after close', $3)`,
+    [barA, night.rows[0].day, `late-${randomUUID()}`],
+  ), /already closed/)
+  const closing = await root.query(
+    `SELECT expected_cash, counted_cash FROM public.cash_closings WHERE bar_id = $1 AND operational_day = $2`,
+    [barA, night.rows[0].day],
+  )
+  assert.equal(Number(closing.rows[0].expected_cash), 1400)
+  assert.equal(Number(closing.rows[0].counted_cash), 1400)
+  assert.equal(Number(closing.rows[0].counted_cash) - Number(closing.rows[0].expected_cash), 0)
+  const oddDay = '2020-01-15'
+  await asUser(root, cashierA, () => root.query(
+    `SELECT public.cash_drawer_move($1, $2, 'suprimento', 500, 'odd float', $3)`,
+    [barA, oddDay, `odd-${randomUUID()}`],
+  ))
+  await asUser(root, managerA, () => root.query(
+    `SELECT public.cash_close_night($1, $2, $3)`,
+    [barA, oddDay, 450],
+  ))
+  const odd = await root.query(
+    `SELECT expected_cash, counted_cash FROM public.cash_closings WHERE bar_id = $1 AND operational_day = $2`,
+    [barA, oddDay],
+  )
+  assert.equal(Number(odd.rows[0].expected_cash), 500)
+  assert.equal(Number(odd.rows[0].counted_cash), 450)
+  assert.equal(Number(odd.rows[0].counted_cash) - Number(odd.rows[0].expected_cash), -50)
   const feeRows = await root.query(
     `SELECT count(*)::int AS n FROM public.caixa_movimentos WHERE referencia_id = $1 AND referencia_tipo = 'taxa_cartao'`,
     [body.venda_id],
@@ -559,7 +637,7 @@ async function main() {
      WHERE produto_id = $1 AND bar_id = $2 AND tipo = 'entrada' AND obs LIKE 'JBM ship%'`,
     [product, barA],
   )
-  assert.ok(received.rows[0].n >= 2)
+  assert.equal(received.rows[0].n, 2)
   const done = await root.query(`SELECT status FROM public.pedidos WHERE id = $1`, [orderId])
   assert.equal(done.rows[0].status, 'entregue')
 

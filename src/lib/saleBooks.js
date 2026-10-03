@@ -50,3 +50,38 @@ export function sumJbmNet(rows) {
 export function countJbmValid(rows) {
   return (rows || []).filter(sale => jbmNet(sale) > 0).length
 }
+
+/**
+ * Compare units that already carry one sales_indicator book.
+ * Till and JBM are never added together. A missing net or gross blocks the total.
+ */
+export function compareBarIndicators(rows) {
+  const list = Array.isArray(rows) ? rows : []
+  const units = list.map(row => ({
+    barId: row?.barId ?? null,
+    name: row?.name ?? null,
+    book: row?.book ?? null,
+    gross: row?.gross ?? null,
+    net: row?.net ?? null,
+  }))
+  const books = new Set(units.map(row => row.book).filter(Boolean))
+  const missing = units.some(row => row.book == null || row.gross == null || row.net == null)
+  if (!units.length || books.size !== 1 || missing) {
+    return {
+      comparable: false,
+      book: books.size === 1 ? [...books][0] : null,
+      gross: null,
+      net: null,
+      reason: !units.length || missing ? 'missing indicator' : 'mixed books',
+      units,
+    }
+  }
+  return {
+    comparable: true,
+    book: [...books][0],
+    gross: units.reduce((sum, row) => sum + Number(row.gross), 0),
+    net: units.reduce((sum, row) => sum + Number(row.net), 0),
+    reason: null,
+    units,
+  }
+}

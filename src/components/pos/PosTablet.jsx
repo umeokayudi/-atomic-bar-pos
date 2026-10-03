@@ -1,4 +1,5 @@
 import { fmtYen } from '../utils'
+import FloorDrawerControls from './FloorDrawerControls'
 
 export default function PosTablet({ t, floor }) {
   const {
@@ -118,6 +119,7 @@ export default function PosTablet({ t, floor }) {
                 {floor.openRegister && <button type="button" onClick={floor.openRegister}>Register</button>}
               </p>
             )}
+            <FloorDrawerControls t={t} floor={floor} />
             <div className="pos-t-pays">
               {payments.map(id => (
                 <button key={id} type="button" className={pay === id ? 'is-on' : ''} onClick={() => floor.changePay(id)}>{t(`posFloor.pay_${id}`)}</button>

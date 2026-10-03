@@ -8,6 +8,7 @@ import { groupSpaces } from '../lib/posFloor'
 import { readPosDeviceMode, suggestPosDeviceMode, writePosDeviceMode } from '../lib/posDeviceMode'
 import { snapshot, subscribeLedger } from '../lib/demoLedger'
 import { fmtYen } from './utils'
+import { tokyoNightKey } from '../lib/tokyo'
 import PosModePicker from './pos/PosModePicker'
 import PosMobile from './pos/PosMobile'
 import PosTablet from './pos/PosTablet'
@@ -34,6 +35,12 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
   const [cat, setCat] = useState('all')
   const [query, setQuery] = useState('')
   const [drawer, setDrawer] = useState(() => (isLocalDemo ? snapshot().cash : null))
+  const [ledgerExpected, setLedgerExpected] = useState(null)
+  const [moveKind, setMoveKind] = useState('sangria')
+  const [moveAmount, setMoveAmount] = useState('')
+  const [moveNote, setMoveNote] = useState('')
+  const [countedCash, setCountedCash] = useState('')
+  const [drawerMsg, setDrawerMsg] = useState('')
   const [ticket, setTicket] = useState(null)
   const [lines, setLines] = useState([])
   const [preview, setPreview] = useState(null)
@@ -67,6 +74,16 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
     if (!isLocalDemo) return undefined
     return subscribeLedger(next => setDrawer(next.cash))
   }, [])
+
+  useEffect(() => {
+    if (isLocalDemo) return undefined
+    let cancelled = false
+    supabase.rpc('cash_drawer_expected', { p_bar: bar.id, p_day: tokyoNightKey() }).then(({ data, error }) => {
+      if (cancelled || error) return
+      setLedgerExpected(data)
+    })
+    return () => { cancelled = true }
+  }, [bar.id])
 
   useEffect(() => {
     let cancelled = false
@@ -361,6 +378,58 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
     await reloadBoard()
   }
 
+  async function recordDrawerMove() {
+    if (isLocalDemo) {
+      setDrawerMsg(t('atomicPos.drawerDemoBlocked'))
+      return
+    }
+    const amount = Math.round(+moveAmount)
+    if (!Number.isInteger(amount) || amount <= 0) {
+      setDrawerMsg(t('atomicPos.drawerAmountInvalid'))
+      return
+    }
+    setBusy(true)
+    setDrawerMsg('')
+    const { data, error } = await supabase.rpc('cash_drawer_move', {
+      p_bar: bar.id,
+      p_day: tokyoNightKey(),
+      p_kind: moveKind,
+      p_amount: amount,
+      p_note: moveNote,
+      p_key: crypto.randomUUID(),
+    })
+    setBusy(false)
+    if (error) {
+      setDrawerMsg(error.message)
+      return
+    }
+    setLedgerExpected(data?.expected ?? null)
+    setMoveAmount('')
+    setMoveNote('')
+    setDrawerMsg(data?.duplicate ? t('atomicPos.drawerDuplicate') : t('atomicPos.drawerMoved'))
+  }
+
+  async function closeLedgerNight() {
+    if (isLocalDemo) {
+      setDrawerMsg(t('atomicPos.demoCloseBlocked'))
+      return
+    }
+    const counted = countedCash === '' ? ledgerExpected : Math.round(+countedCash)
+    if (!Number.isInteger(counted) || counted < 0) {
+      setDrawerMsg(t('atomicPos.drawerAmountInvalid'))
+      return
+    }
+    setBusy(true)
+    setDrawerMsg('')
+    const { error } = await supabase.rpc('cash_close_night', {
+      p_bar: bar.id,
+      p_day: tokyoNightKey(),
+      p_counted: counted,
+    })
+    setBusy(false)
+    setDrawerMsg(error ? error.message : t('atomicPos.closedOk'))
+  }
+
   async function changePay(id) {
     setPay(id)
     if (ticket?.id) await refreshPreview(ticket.id, id, agentId)
@@ -387,6 +456,9 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
     confirmLoss, openSettings: () => setSettingsOpen(true),
     drawer,
     openRegister: isLocalDemo ? () => window.dispatchEvent(new CustomEvent('atomic-demo-nav', { detail: 'fechamento' })) : null,
+    ledgerExpected,
+    moveKind, setMoveKind, moveAmount, setMoveAmount, moveNote, setMoveNote,
+    countedCash, setCountedCash, drawerMsg, recordDrawerMove, closeLedgerNight,
   }
 
   if (!modeReady) return null
