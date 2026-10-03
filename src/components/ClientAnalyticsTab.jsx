@@ -17,20 +17,42 @@ import { useI18n } from '../lib/i18n'
 
 const CAT_COLORS = ['#001028', '#2563eb', '#c19c56', '#1a6b4a', '#8b5cf6', '#dc2626', '#0891b2', '#ea580c']
 
+function moneyOrDash(n) {
+  return n == null || Number.isNaN(Number(n)) ? '—' : fmtYen(n)
+}
+
+function chartValue(n) {
+  const value = Number(n)
+  return Number.isFinite(value) ? value : 0
+}
+
+function nullsLast(get) {
+  return (a, b) => {
+    const av = get(a)
+    const bv = get(b)
+    if (av == null && bv == null) return 0
+    if (av == null) return 1
+    if (bv == null) return -1
+    return bv - av
+  }
+}
+
 function DualBarChart({ labels, seriesA, seriesB, names, selectedIndex, onSelect, height = 120 }) {
-  const max = Math.max(...seriesA, ...seriesB, 1)
+  const max = Math.max(...seriesA.map(chartValue), ...seriesB.map(chartValue), 1)
   return (
     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height, paddingTop: 8 }}>
       {labels.map((label, i) => {
-        const aPct = Math.max(seriesA[i] / max * 100, seriesA[i] > 0 ? 3 : 0)
-        const bPct = Math.max(seriesB[i] / max * 100, seriesB[i] > 0 ? 3 : 0)
+        const a = chartValue(seriesA[i])
+        const b = chartValue(seriesB[i])
+        const aPct = Math.max(a / max * 100, a > 0 ? 3 : 0)
+        const bPct = Math.max(b / max * 100, b > 0 ? 3 : 0)
         const active = selectedIndex === i
         return (
           <button
             key={i}
             type="button"
             onClick={() => onSelect?.(i)}
-            title={`${names[0]}: ${fmtYen(seriesA[i])}\n${names[1]}: ${fmtYen(seriesB[i])}`}
+            title={`${names[0]}: ${moneyOrDash(seriesA[i])}\n${names[1]}: ${seriesB[i] == null ? 'price unavailable' : moneyOrDash(seriesB[i])}`}
             style={{
               flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
               background: 'transparent', border: 'none', cursor: 'pointer', padding: 0,
@@ -39,12 +61,12 @@ function DualBarChart({ labels, seriesA, seriesB, names, selectedIndex, onSelect
           >
             <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', width: '100%', height: height - 28 }}>
               <div style={{
-                flex: 1, height: `${aPct}%`, minHeight: seriesA[i] > 0 ? 4 : 0,
+                flex: 1, height: `${aPct}%`, minHeight: a > 0 ? 4 : 0,
                 background: active ? 'var(--navy)' : '#94a3b8',
                 borderRadius: '4px 4px 0 0', transition: 'height 0.25s',
               }} />
               <div style={{
-                flex: 1, height: `${bPct}%`, minHeight: seriesB[i] > 0 ? 4 : 0,
+                flex: 1, height: `${bPct}%`, minHeight: b > 0 ? 4 : 0,
                 background: active ? 'var(--green)' : '#86efac',
                 borderRadius: '4px 4px 0 0', transition: 'height 0.25s',
               }} />
@@ -137,10 +159,10 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
     let list = monthStats.products
     if (catFilter) list = list.filter(p => p.categoria === catFilter)
     const sorters = {
-      margin: (a, b) => b.margin - a.margin,
-      roi: (a, b) => b.roiPct - a.roiPct,
-      jbm: (a, b) => b.jbmTotal - a.jbmTotal,
-      qtd: (a, b) => b.qtd - a.qtd,
+      margin: nullsLast(row => row.margin),
+      roi: nullsLast(row => row.roiPct),
+      jbm: nullsLast(row => row.jbmTotal),
+      qtd: nullsLast(row => row.qtd),
     }
     return [...list].sort(sorters[sortBy] || sorters.margin)
   }, [monthStats.products, catFilter, sortBy])
@@ -152,7 +174,7 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
       map.set(it.produto_id, {
         produto_id: it.produto_id,
         nome: it.produtos?.nome || '?',
-        preco_unitario: +it.preco_unitario || +it.produtos?.preco_venda || 0,
+        preco_unitario: +it.preco_unitario > 0 ? +it.preco_unitario : null,
         categoria: it.produtos?.categoria,
         produtos: it.produtos,
       })
@@ -238,7 +260,7 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
         {[
           {
             label: t('portal.analytics.jbmAccount'),
-            value: fmtYen(monthStats.jbmTotal),
+            value: moneyOrDash(monthStats.jbmTotal),
             sub: jbmMom !== null
               ? t('portal.analytics.vsPrevMonth', { dir: jbmMom >= 0 ? '↑' : '↓', pct: Math.abs(jbmMom) })
               : t('portal.analytics.itemsCount', { count: monthStats.itemCount }),
@@ -246,7 +268,7 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
           },
           {
             label: t('portal.analytics.posRevenue'),
-            value: fmtYen(monthStats.posTotal),
+            value: moneyOrDash(monthStats.posTotal),
             sub: posMom !== null
               ? t('portal.analytics.vsPrevMonth', { dir: posMom >= 0 ? '↑' : '↓', pct: Math.abs(posMom) })
               : t('portal.analytics.realPricesPct', { pct: monthStats.posCoveragePct }),
@@ -254,15 +276,17 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
           },
           {
             label: t('portal.analytics.projectedProfit'),
-            value: fmtYen(monthStats.margin),
-            sub: t('portal.analytics.marginPct', { pct: monthStats.marginPct }),
+            value: moneyOrDash(monthStats.margin),
+            sub: monthStats.marginPct == null
+              ? t('portal.home.priceUnavailable')
+              : t('portal.analytics.marginPct', { pct: monthStats.marginPct }),
             color: 'var(--green)',
           },
           {
             label: 'ROI',
-            value: `${monthStats.roiPct}%`,
-            sub: monthStats.estimatedSharePct > 0
-              ? t('portal.home.estimated', { pct: monthStats.estimatedSharePct })
+            value: monthStats.roiPct == null ? '—' : `${monthStats.roiPct}%`,
+            sub: monthStats.priceState === 'unavailable'
+              ? t('portal.home.priceUnavailable')
               : t('portal.analytics.onJbmCost'),
             color: 'var(--gold)',
           },
@@ -327,8 +351,8 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
                 <span>{t('portal.analytics.shareOfSpend', { pct: c.sharePct })}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>
-                <span>{fmtYen(c.jbmTotal)} → {fmtYen(c.posTotal)}</span>
-                <span style={{ color: 'var(--green)', fontWeight: 700 }}>ROI {c.roiPct}%</span>
+                <span>{moneyOrDash(c.jbmTotal)} → {c.posTotal == null ? t('portal.home.priceUnavailable') : moneyOrDash(c.posTotal)}</span>
+                <span style={{ color: 'var(--green)', fontWeight: 700 }}>{c.roiPct == null ? t('portal.home.priceUnavailable') : `ROI ${c.roiPct}%`}</span>
               </div>
               <div style={{ height: 6, background: 'var(--bg3)', borderRadius: 3, overflow: 'hidden' }}>
                 <div style={{ height: '100%', width: `${c.sharePct}%`, background: CAT_COLORS[i % CAT_COLORS.length], borderRadius: 3 }} />
@@ -381,14 +405,17 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
           {simResult && (
             <div style={{ background: 'white', borderRadius: 12, padding: '12px 14px', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: 11, color: 'var(--text2)' }}>{t('portal.analytics.projection')}</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--green)' }}>{fmtYen(simResult.posTotal)}</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--green)' }}>
+                {simResult.posTotal == null ? t('portal.home.priceUnavailable') : moneyOrDash(simResult.posTotal)}
+              </div>
               <div style={{ fontSize: 11, marginTop: 4 }}>
-                {t('portal.analytics.costProfitRoi', {
-                  cost: fmtYen(simResult.jbmTotal),
-                  profit: fmtYen(simResult.margin),
-                  roi: simResult.jbmTotal > 0 ? Math.round(simResult.margin / simResult.jbmTotal * 100) : 0,
-                })}
-                {simResult.source === 'estimate' ? ' · ~' : ''}
+                {simResult.margin == null
+                  ? t('portal.home.priceUnavailable')
+                  : t('portal.analytics.costProfitRoi', {
+                    cost: moneyOrDash(simResult.jbmTotal),
+                    profit: moneyOrDash(simResult.margin),
+                    roi: simResult.jbmTotal > 0 ? Math.round(simResult.margin / simResult.jbmTotal * 100) : 0,
+                  })}
               </div>
             </div>
           )}
@@ -447,25 +474,25 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
                       }}
                     >
                       <td style={{ padding: '10px', fontWeight: 600 }}>
-                        {p.source === 'estimate' ? '~ ' : ''}{p.nome}
+                        {p.nome}
                       </td>
                       <td style={{ padding: '10px', fontSize: 11, color: 'var(--text2)' }}>{p.categoria}</td>
                       <td style={{ padding: '10px' }}>{p.qtd}</td>
-                      <td style={{ padding: '10px', color: 'var(--red)' }}>{fmtYen(p.jbmTotal)}</td>
-                      <td style={{ padding: '10px' }}>{fmtYen(p.posTotal)}</td>
-                      <td style={{ padding: '10px', color: 'var(--green)', fontWeight: 700 }}>{fmtYen(p.margin)}</td>
+                      <td style={{ padding: '10px', color: 'var(--red)' }}>{moneyOrDash(p.jbmTotal)}</td>
+                      <td style={{ padding: '10px' }}>{p.posTotal == null ? t('portal.home.priceUnavailable') : moneyOrDash(p.posTotal)}</td>
+                      <td style={{ padding: '10px', color: 'var(--green)', fontWeight: 700 }}>{moneyOrDash(p.margin)}</td>
                       <td style={{ padding: '10px' }}>
-                        <Tooltip text={t('portal.analytics.marginTooltip', {
+                        <Tooltip text={p.marginPct == null ? t('portal.home.priceUnavailable') : t('portal.analytics.marginTooltip', {
                           pct: p.marginPct,
                           qty: p.qtd,
-                          unit: fmtYen(p.posPerUnit),
+                          unit: moneyOrDash(p.posPerUnit),
                         })}>
                           <span style={{
                             padding: '3px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700,
                             background: p.roiPct > 150 ? '#f0fdf4' : '#fffbeb',
                             color: p.roiPct > 150 ? 'var(--green)' : 'var(--amber)',
                           }}>
-                            {p.roiPct}%
+                            {p.roiPct == null ? '—' : `${p.roiPct}%`}
                           </span>
                         </Tooltip>
                       </td>
@@ -475,12 +502,12 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
                       <tr key={`${p.nome}-detail`}>
                         <td colSpan={8} style={{ padding: '12px 16px 16px', background: 'var(--bg3)' }}>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, fontSize: 12 }}>
-                            <div><div style={{ color: 'var(--text2)', fontSize: 10 }}>{t('portal.analytics.costPerUnitJbm')}</div><strong>{fmtYen(p.jbmPerUnit)}</strong></div>
-                            <div><div style={{ color: 'var(--text2)', fontSize: 10 }}>{t('portal.analytics.projPerUnitPos')}</div><strong>{fmtYen(p.posPerUnit)}</strong></div>
-                            <div><div style={{ color: 'var(--text2)', fontSize: 10 }}>{t('portal.analytics.marginPctLabel')}</div><strong>{p.marginPct}%</strong></div>
+                            <div><div style={{ color: 'var(--text2)', fontSize: 10 }}>{t('portal.analytics.costPerUnitJbm')}</div><strong>{moneyOrDash(p.jbmPerUnit)}</strong></div>
+                            <div><div style={{ color: 'var(--text2)', fontSize: 10 }}>{t('portal.analytics.projPerUnitPos')}</div><strong>{moneyOrDash(p.posPerUnit)}</strong></div>
+                            <div><div style={{ color: 'var(--text2)', fontSize: 10 }}>{t('portal.analytics.marginPctLabel')}</div><strong>{p.marginPct == null ? '—' : `${p.marginPct}%`}</strong></div>
                             <div>
                               <div style={{ color: 'var(--text2)', fontSize: 10 }}>{t('portal.analytics.simulate6Units')}</div>
-                              <strong>{fmtYen(simulatePurchase(pricingMap, { produto_id: p.produto_id, preco_unitario: p.jbmPerUnit, qtd: 6, produtos: { preco_venda: p.jbmPerUnit } }).margin)}</strong> {t('portal.analytics.profit')}
+                              <strong>{moneyOrDash(simulatePurchase(pricingMap, { produto_id: p.produto_id, preco_unitario: p.jbmPerUnit, qtd: 6 }).margin)}</strong> {t('portal.analytics.profit')}
                             </div>
                           </div>
                         </td>

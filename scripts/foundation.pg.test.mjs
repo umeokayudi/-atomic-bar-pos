@@ -312,6 +312,18 @@ async function main() {
     [body.venda_id],
   )
   assert.equal(feeRows.rows[0].n, 1)
+  const cashBeforeDenial = await root.query(
+    `SELECT count(*)::int AS n FROM public.caixa_movimentos WHERE referencia_id = $1`,
+    [body.venda_id],
+  )
+  const stockBeforeDenial = await root.query(
+    `SELECT count(*)::int AS n FROM public.estoque_movimentos WHERE bar_id = $1`,
+    [barA],
+  )
+  const saleBeforeDenial = await root.query(
+    `SELECT refunded, void_status, total FROM public.pos_vendas WHERE id = $1`,
+    [body.venda_id],
+  )
   const cashierDenied = await asUser(root, cashierA, () => root.query(
     `SELECT public.pos_void_sale($1, 'refund', NULL, 'cashier', $2) AS result`,
     [body.venda_id, managerA],
@@ -322,8 +334,20 @@ async function main() {
     [body.venda_id, cashierA],
   ))
   assert.equal(cashierDeniedAgain.rows[0].result, null)
-  const untouched = await root.query(`SELECT refunded FROM public.pos_vendas WHERE id = $1`, [body.venda_id])
+  const untouched = await root.query(`SELECT refunded, void_status, total FROM public.pos_vendas WHERE id = $1`, [body.venda_id])
   assert.equal(untouched.rows[0].refunded, 0)
+  assert.equal(untouched.rows[0].void_status, saleBeforeDenial.rows[0].void_status)
+  assert.equal(untouched.rows[0].total, saleBeforeDenial.rows[0].total)
+  const cashAfterDenial = await root.query(
+    `SELECT count(*)::int AS n FROM public.caixa_movimentos WHERE referencia_id = $1`,
+    [body.venda_id],
+  )
+  const stockAfterDenial = await root.query(
+    `SELECT count(*)::int AS n FROM public.estoque_movimentos WHERE bar_id = $1`,
+    [barA],
+  )
+  assert.equal(cashAfterDenial.rows[0].n, cashBeforeDenial.rows[0].n)
+  assert.equal(stockAfterDenial.rows[0].n, stockBeforeDenial.rows[0].n)
   const deniedAudit = await root.query(
     `SELECT result FROM public.pos_void_audit WHERE venda_id = $1 ORDER BY created_at`,
     [body.venda_id],
@@ -539,6 +563,76 @@ async function main() {
   const done = await root.query(`SELECT status FROM public.pedidos WHERE id = $1`, [orderId])
   assert.equal(done.rows[0].status, 'entregue')
 
+  await expectRaise(root, supplierA, () => root.query(`SELECT public.get_my_procurement_tasks()`), /not allowed/)
+  await expectRaise(root, managerA, () => root.query(`SELECT public.get_my_procurement_tasks()`), /not allowed/)
+  const foreignOrder = randomUUID()
+  const foreignItem = randomUUID()
+  const foreignTask = randomUUID()
+  const ownOrder = randomUUID()
+  const ownItem = randomUUID()
+  const ownTask = randomUUID()
+  const foreignLoc = randomUUID()
+  const ownLoc = randomUUID()
+  await root.query(`INSERT INTO public.pedidos (id, bar_id, status) VALUES ($1, $2, 'pendente'), ($3, $4, 'pendente')`, [foreignOrder, barB, ownOrder, barA])
+  await root.query(
+    `INSERT INTO public.pedidos_itens (id, pedido_id, produto_id, qtd, preco_unitario) VALUES ($1, $2, $3, 1, 900), ($4, $5, $3, 1, 900)`,
+    [foreignItem, foreignOrder, product, ownItem, ownOrder],
+  )
+  await root.query(
+    `INSERT INTO public.procurement_tasks (
+       id, task_number, order_id, order_item_id, product_id, source_id,
+       quantity_requested, quantity_allocated, assigned_to, status
+     ) VALUES
+       ($1, $2, $3, $4, $5, $6, 1, 1, $7, 'assigned'),
+       ($8, $9, $10, $11, $5, $6, 1, 1, $7, 'assigned')`,
+    [
+      foreignTask, `BUY-FOREIGN-${foreignTask.slice(0, 8)}`, foreignOrder, foreignItem, product, source.rows[0].id, employeeA,
+      ownTask, `BUY-OWN-${ownTask.slice(0, 8)}`, ownOrder, ownItem,
+    ],
+  )
+  await root.query(
+    `INSERT INTO public.locations (id, name, type, bar_id, active) VALUES ($1, 'Bar B warehouse', 'WAREHOUSE', $2, true)`,
+    [foreignLoc, barB],
+  )
+  await root.query(
+    `INSERT INTO public.locations (id, name, type, source_id, active) VALUES ($1, 'Own source warehouse', 'WAREHOUSE', $2, true)`,
+    [ownLoc, source.rows[0].id],
+  )
+  const employeeMine = await asUser(root, employeeA, () => root.query(`SELECT public.get_my_procurement_tasks() AS body`))
+  const employeeTasks = employeeMine.rows[0].body.tasks || []
+  const employeeLocations = employeeMine.rows[0].body.locations || []
+  assert.equal(employeeTasks.some(row => row.id === ownTask && row.bar_id === barA), true)
+  assert.equal(employeeTasks.some(row => row.id === foreignTask), false)
+  assert.equal(employeeLocations.some(row => row.id === ownLoc), true)
+  assert.equal(employeeLocations.some(row => row.id === foreignLoc), false)
+  const otherEmployee = await asUser(root, employeeB, () => root.query(`SELECT public.get_my_procurement_tasks() AS body`))
+  assert.equal((otherEmployee.rows[0].body.tasks || []).some(row => row.id === ownTask || row.id === foreignTask), false)
+  assert.equal((otherEmployee.rows[0].body.locations || []).some(row => row.id === foreignLoc), false)
+  await expectRaise(root, managerB, () => root.query(`SELECT public.get_procurement_tracking($1)`, [orderId]), /not allowed/)
+  await expectRaise(root, employeeA, () => root.query(`SELECT public.get_procurement_tracking($1)`, [foreignOrder]), /not allowed/)
+  await expectRaise(root, employeeA, () => root.query(
+    `SELECT public.receive_procurement($1, $2, 1, 'cross bar')`,
+    [foreignTask, foreignLoc],
+  ), /not allowed/)
+  await expectRaise(root, employeeA, () => root.query(`SELECT public.fallback_task($1)`, [foreignTask]), /not allowed/)
+  const foreignStill = await root.query(
+    `SELECT quantity_received, status FROM public.procurement_tasks WHERE id = $1`,
+    [foreignTask],
+  )
+  assert.equal(Number(foreignStill.rows[0].quantity_received), 0)
+  assert.equal(foreignStill.rows[0].status, 'assigned')
+  const supplierTrack = await asUser(root, supplierA, () => root.query(
+    `SELECT public.get_procurement_tracking($1) AS body`,
+    [orderId],
+  ))
+  assert.equal(supplierTrack.rows[0].body.audience, 'supplier')
+  const supplierLines = supplierTrack.rows[0].body.lines || []
+  assert.equal(supplierLines.every(line => line.sale_price == null), true)
+  await expectRaise(root, supplierOther, () => root.query(
+    `SELECT public.get_procurement_tracking($1)`,
+    [orderId],
+  ), /not allowed/)
+
   const priced = randomUUID()
   const drinkId = randomUUID()
   await root.query(
@@ -608,6 +702,29 @@ async function main() {
     `SELECT public.resolve_bar_price($1, $2, now(), 1)`,
     [barA, zeroProduct],
   ), /sale price not configured/)
+  const zeroResolved = await asUser(root, jbm, () => root.query(
+    `SELECT public.try_resolve_bar_price($1, $2, now(), 1) AS price`,
+    [barA, zeroProduct],
+  ))
+  assert.equal(zeroResolved.rows[0].price, null)
+  const zeroOrder = randomUUID()
+  const zeroItem = randomUUID()
+  const zeroTask = randomUUID()
+  await root.query(`INSERT INTO public.pedidos (id, bar_id, status) VALUES ($1, $2, 'pendente')`, [zeroOrder, barA])
+  await root.query(
+    `INSERT INTO public.pedidos_itens (id, pedido_id, produto_id, qtd) VALUES ($1, $2, $3, 1)`,
+    [zeroItem, zeroOrder, zeroProduct],
+  )
+  await root.query(
+    `INSERT INTO public.procurement_tasks (id, task_number, order_id, order_item_id, product_id, quantity_requested, quantity_allocated, status)
+     VALUES ($1, $2, $3, $4, $5, 1, 1, 'assigned')`,
+    [zeroTask, `BUY-ZERO-${zeroTask.slice(0, 8)}`, zeroOrder, zeroItem, zeroProduct],
+  )
+  const zeroEcon = await asUser(root, jbm, () => root.query(`SELECT public.task_economics($1) AS body`, [zeroTask]))
+  assert.equal(zeroEcon.rows[0].body.price_state, 'unavailable')
+  assert.equal(zeroEcon.rows[0].body.sale_price, null)
+  assert.equal(zeroEcon.rows[0].body.margin, null)
+  assert.equal(Number(zeroEcon.rows[0].body.purchase_cost), 0)
   await root.query(`DELETE FROM public.bar_product_prices WHERE product_id = $1`, [zeroProduct])
   await root.query(`ALTER TABLE public.bar_product_prices ADD CONSTRAINT bar_product_prices_positive CHECK (sale_price > 0)`)
   await root.query(`INSERT INTO public.produtos (id, nome, preco_venda) VALUES ($1, 'Ambiguous', 50)`, [ambiguousProduct])
@@ -620,6 +737,60 @@ async function main() {
     `SELECT public.resolve_bar_price($1, $2, now(), 1)`,
     [barA, ambiguousProduct],
   ), /ambiguous sale price/)
+  const ambiguousResolved = await asUser(root, jbm, () => root.query(
+    `SELECT public.try_resolve_bar_price($1, $2, now(), 1) AS price`,
+    [barA, ambiguousProduct],
+  ))
+  assert.equal(ambiguousResolved.rows[0].price, null)
+  const confirmedEcon = await asUser(root, jbm, () => root.query(
+    `SELECT public.task_economics($1) AS body`,
+    [task.rows[0].id],
+  ))
+  assert.equal(confirmedEcon.rows[0].body.price_state, 'confirmed')
+  assert.equal(Number(confirmedEcon.rows[0].body.sale_price), 2500)
+  assert.ok(confirmedEcon.rows[0].body.task_number)
+  const missingProduct = randomUUID()
+  const missingOrder = randomUUID()
+  const missingItem = randomUUID()
+  const missingTask = randomUUID()
+  const ambiguousOrder = randomUUID()
+  const ambiguousItem = randomUUID()
+  const ambiguousTask = randomUUID()
+  await root.query(`INSERT INTO public.produtos (id, nome) VALUES ($1, 'Unpriced')`, [missingProduct])
+  await root.query(
+    `INSERT INTO public.pedidos (id, bar_id, status) VALUES ($1, $2, 'pendente'), ($3, $2, 'pendente')`,
+    [missingOrder, barA, ambiguousOrder],
+  )
+  await root.query(
+    `INSERT INTO public.pedidos_itens (id, pedido_id, produto_id, qtd)
+     VALUES ($1, $2, $3, 1), ($4, $5, $6, 1)`,
+    [missingItem, missingOrder, missingProduct, ambiguousItem, ambiguousOrder, ambiguousProduct],
+  )
+  await root.query(
+    `INSERT INTO public.procurement_tasks (id, task_number, order_id, order_item_id, product_id, quantity_requested, quantity_allocated, status)
+     VALUES
+       ($1, $2, $3, $4, $5, 1, 1, 'assigned'),
+       ($6, $7, $8, $9, $10, 1, 1, 'assigned')`,
+    [
+      missingTask, `BUY-MISS-${missingTask.slice(0, 8)}`, missingOrder, missingItem, missingProduct,
+      ambiguousTask, `BUY-AMB-${ambiguousTask.slice(0, 8)}`, ambiguousOrder, ambiguousItem, ambiguousProduct,
+    ],
+  )
+  const missingEcon = await asUser(root, jbm, () => root.query(`SELECT public.task_economics($1) AS body`, [missingTask]))
+  assert.equal(missingEcon.rows[0].body.price_state, 'unavailable')
+  assert.equal(missingEcon.rows[0].body.sale_price, null)
+  assert.equal(missingEcon.rows[0].body.margin, null)
+  assert.ok(missingEcon.rows[0].body.task_number)
+  const ambiguousEcon = await asUser(root, jbm, () => root.query(`SELECT public.task_economics($1) AS body`, [ambiguousTask]))
+  assert.equal(ambiguousEcon.rows[0].body.price_state, 'unavailable')
+  assert.equal(ambiguousEcon.rows[0].body.revenue, null)
+  const board = await asUser(root, jbm, () => root.query(`SELECT public.get_procurement_board() AS body`))
+  assert.ok(Array.isArray(board.rows[0].body.waiting_purchase))
+  assert.equal(board.rows[0].body.economics.price_state, 'unavailable')
+  assert.equal(board.rows[0].body.economics.revenue, null)
+  assert.equal(board.rows[0].body.economics.margin, null)
+  assert.ok(Number(board.rows[0].body.economics.unpriced_tasks) > 0)
+  assert.equal(board.rows[0].body.economics.purchase_cost != null, true)
   const freeDrink = randomUUID()
   await root.query(
     `INSERT INTO public.drink_menu (id, bar_id, nome, preco_venda) VALUES ($1, $2, 'Zero drink', 0)`,

@@ -13,43 +13,44 @@ export function buildPricingMap(barPricing = []) {
   return map
 }
 
-/** POS projection — uses bar_pricing (POS drink prices). Fallback estimate when missing. */
+/** Confirmed till price from bar_pricing only. A missing price stays unavailable. */
 export function projectItemRevenue(item, pricingMap) {
   const qtd = +item.qtd || 0
-  const jbmUnit = +item.preco_unitario || +item.produtos?.preco_venda || 0
-  const jbmTotal = jbmUnit * qtd
-  if (!qtd) return { jbmTotal, posTotal: 0, margin: 0, source: 'none', drinks: 0 }
+  const captured = +item.preco_unitario
+  const jbmTotal = captured > 0 && qtd > 0 ? captured * qtd : null
+  const unavailable = {
+    jbmTotal,
+    posTotal: null,
+    margin: null,
+    marginPct: null,
+    source: 'unavailable',
+    sourceLabel: 'price unavailable',
+    drinks: 0,
+    preco_drink: null,
+    drinks_por_garrafa: null,
+    confirmed: false,
+  }
+  if (!qtd) return unavailable
 
   const pr = pricingMap[item.produto_id]
   if (pr?.preco_drink > 0 && pr?.drinks_por_garrafa > 0) {
     const drinks = qtd * pr.drinks_por_garrafa
     const posTotal = drinks * pr.preco_drink
+    const margin = jbmTotal == null ? null : posTotal - jbmTotal
     return {
       jbmTotal,
       posTotal,
-      margin: posTotal - jbmTotal,
-      marginPct: posTotal > 0 ? Math.round((posTotal - jbmTotal) / posTotal * 100) : 0,
+      margin,
+      marginPct: margin != null && posTotal > 0 ? Math.round(margin / posTotal * 100) : null,
       source: 'pos',
       sourceLabel: 'POS price on file',
       drinks,
       preco_drink: pr.preco_drink,
       drinks_por_garrafa: pr.drinks_por_garrafa,
+      confirmed: true,
     }
   }
-
-  const bottlePos = Math.round(jbmUnit * 2.8)
-  const posTotal = bottlePos * qtd
-  return {
-    jbmTotal,
-    posTotal,
-    margin: posTotal - jbmTotal,
-    marginPct: posTotal > 0 ? Math.round((posTotal - jbmTotal) / posTotal * 100) : 0,
-    source: 'estimate',
-    sourceLabel: 'estimate (no POS price)',
-    drinks: qtd,
-    preco_drink: bottlePos,
-    drinks_por_garrafa: 1,
-  }
+  return unavailable
 }
 
 export function analyzePurchases(itens, pricingMap, { monthKey, cutoffStr } = {}) {
@@ -61,17 +62,22 @@ export function analyzePurchases(itens, pricingMap, { monthKey, cutoffStr } = {}
   })
 
   const byProduct = {}
-  let jbmTotal = 0
-  let posTotal = 0
+  let jbmKnown = 0
+  let jbmMissing = false
+  let posKnown = 0
+  let posMissing = filtered.length === 0
   let posSourced = 0
-  let estimated = 0
 
   for (const it of filtered) {
     const r = projectItemRevenue(it, pricingMap)
-    jbmTotal += r.jbmTotal
-    posTotal += r.posTotal
-    if (r.source === 'pos') posSourced += r.jbmTotal
-    if (r.source === 'estimate') estimated += r.jbmTotal
+    if (r.jbmTotal == null) jbmMissing = true
+    else jbmKnown += r.jbmTotal
+    if (r.confirmed && r.posTotal != null) {
+      posKnown += r.posTotal
+      if (r.jbmTotal != null) posSourced += r.jbmTotal
+    } else {
+      posMissing = true
+    }
 
     const nome = it.produtos?.nome || '?'
     if (!byProduct[nome]) {
@@ -83,35 +89,52 @@ export function analyzePurchases(itens, pricingMap, { monthKey, cutoffStr } = {}
         jbmTotal: 0,
         posTotal: 0,
         margin: 0,
+        jbmMissing: false,
+        posMissing: false,
         source: r.source,
       }
     }
     const p = byProduct[nome]
     p.qtd += +it.qtd || 0
-    p.jbmTotal += r.jbmTotal
-    p.posTotal += r.posTotal
-    p.margin += r.margin
-    if (r.source === 'estimate') p.source = 'estimate'
+    if (r.jbmTotal == null) p.jbmMissing = true
+    else p.jbmTotal += r.jbmTotal
+    if (!r.confirmed || r.posTotal == null) p.posMissing = true
+    else p.posTotal += r.posTotal
+    if (r.margin == null) p.posMissing = true
+    else p.margin += r.margin
+    if (r.source !== 'pos') p.source = 'unavailable'
   }
 
   const products = Object.values(byProduct)
-    .map(p => ({
-      ...p,
-      marginPct: p.posTotal > 0 ? Math.round(p.margin / p.posTotal * 100) : 0,
-      roiPct: p.jbmTotal > 0 ? Math.round(p.margin / p.jbmTotal * 100) : 0,
-      jbmPerUnit: p.qtd > 0 ? Math.round(p.jbmTotal / p.qtd) : 0,
-      posPerUnit: p.qtd > 0 ? Math.round(p.posTotal / p.qtd) : 0,
-    }))
-    .sort((a, b) => b.margin - a.margin)
+    .map(p => {
+      const jbmTotal = p.jbmMissing ? null : p.jbmTotal
+      const posTotal = p.posMissing ? null : p.posTotal
+      const margin = jbmTotal == null || posTotal == null ? null : posTotal - jbmTotal
+      return {
+        ...p,
+        jbmTotal,
+        posTotal,
+        margin,
+        marginPct: margin != null && posTotal > 0 ? Math.round(margin / posTotal * 100) : null,
+        roiPct: margin != null && jbmTotal > 0 ? Math.round(margin / jbmTotal * 100) : null,
+        jbmPerUnit: jbmTotal != null && p.qtd > 0 ? Math.round(jbmTotal / p.qtd) : null,
+        posPerUnit: posTotal != null && p.qtd > 0 ? Math.round(posTotal / p.qtd) : null,
+      }
+    })
+    .sort((a, b) => (b.jbmTotal || 0) - (a.jbmTotal || 0))
 
+  const jbmTotal = jbmMissing ? null : jbmKnown
+  const posTotal = posMissing ? null : posKnown
+  const margin = jbmTotal == null || posTotal == null ? null : posTotal - jbmTotal
   return {
     jbmTotal,
     posTotal,
-    margin: posTotal - jbmTotal,
-    marginPct: posTotal > 0 ? Math.round((posTotal - jbmTotal) / posTotal * 100) : 0,
-    roiPct: jbmTotal > 0 ? Math.round((posTotal - jbmTotal) / jbmTotal * 100) : 0,
-    posCoveragePct: jbmTotal > 0 ? Math.round(posSourced / jbmTotal * 100) : 0,
-    estimatedSharePct: jbmTotal > 0 ? Math.round(estimated / jbmTotal * 100) : 0,
+    margin,
+    marginPct: margin != null && posTotal > 0 ? Math.round((posTotal - jbmTotal) / posTotal * 100) : null,
+    roiPct: margin != null && jbmTotal > 0 ? Math.round((posTotal - jbmTotal) / jbmTotal * 100) : null,
+    posCoveragePct: jbmKnown > 0 ? Math.round(posSourced / jbmKnown * 100) : 0,
+    estimatedSharePct: 0,
+    priceState: posTotal == null ? 'unavailable' : 'confirmed',
     products,
     itemCount: filtered.length,
   }
@@ -220,34 +243,42 @@ export function categoryAnalysis(itens, pricingMap, { monthKey, cutoffStr } = {}
   for (const it of filtered) {
     const cat = it.produtos?.categoria || 'Outros'
     if (!byCat[cat]) {
-      byCat[cat] = { categoria: cat, qtd: 0, jbmTotal: 0, posTotal: 0, margin: 0, skuCount: 0, _names: new Set() }
+      byCat[cat] = { categoria: cat, qtd: 0, jbmTotal: 0, posTotal: 0, margin: 0, jbmMissing: false, posMissing: false, skuCount: 0, _names: new Set() }
     }
     const r = projectItemRevenue(it, pricingMap)
     const c = byCat[cat]
     c.qtd += +it.qtd || 0
-    c.jbmTotal += r.jbmTotal
-    c.posTotal += r.posTotal
-    c.margin += r.margin
+    if (r.jbmTotal == null) c.jbmMissing = true
+    else c.jbmTotal += r.jbmTotal
+    if (!r.confirmed || r.posTotal == null) c.posMissing = true
+    else c.posTotal += r.posTotal
+    if (r.margin == null) c.posMissing = true
+    else c.margin += r.margin
     c._names.add(it.produtos?.nome)
   }
 
   const rows = Object.values(byCat)
-    .map(c => ({
-      categoria: c.categoria,
-      qtd: c.qtd,
-      jbmTotal: c.jbmTotal,
-      posTotal: c.posTotal,
-      margin: c.margin,
-      skuCount: c._names.size,
-      marginPct: c.posTotal > 0 ? Math.round(c.margin / c.posTotal * 100) : 0,
-      roiPct: c.jbmTotal > 0 ? Math.round(c.margin / c.jbmTotal * 100) : 0,
-    }))
-    .sort((a, b) => b.jbmTotal - a.jbmTotal)
+    .map(c => {
+      const jbmTotal = c.jbmMissing ? null : c.jbmTotal
+      const posTotal = c.posMissing ? null : c.posTotal
+      const margin = jbmTotal == null || posTotal == null ? null : posTotal - jbmTotal
+      return {
+        categoria: c.categoria,
+        qtd: c.qtd,
+        jbmTotal,
+        posTotal,
+        margin,
+        skuCount: c._names.size,
+        marginPct: margin != null && posTotal > 0 ? Math.round(margin / posTotal * 100) : null,
+        roiPct: margin != null && jbmTotal > 0 ? Math.round(margin / jbmTotal * 100) : null,
+      }
+    })
+    .sort((a, b) => (b.jbmTotal || 0) - (a.jbmTotal || 0))
 
-  const totalJbm = rows.reduce((a, r) => a + r.jbmTotal, 0)
+  const totalJbm = rows.reduce((a, r) => a + (r.jbmTotal || 0), 0)
   return rows.map(r => ({
     ...r,
-    sharePct: totalJbm > 0 ? Math.round(r.jbmTotal / totalJbm * 100) : 0,
+    sharePct: r.jbmTotal != null && totalJbm > 0 ? Math.round(r.jbmTotal / totalJbm * 100) : 0,
   }))
 }
 
@@ -298,6 +329,7 @@ export function monthOverMonthDelta(series, index) {
   if (index <= 0) return null
   const prev = series[index - 1]
   const curr = series[index]
+  if (prev == null || curr == null) return null
   if (prev <= 0) return curr > 0 ? 100 : null
   return Math.round((curr - prev) / prev * 100)
 }

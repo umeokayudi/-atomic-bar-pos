@@ -86,13 +86,15 @@ export async function fetchClientPortalSnapshot(supabase, bar) {
 export function buildClientChatSystem(snapshot) {
   const s = snapshot || {}
   const yen = n => `¥${Math.round(n || 0).toLocaleString('ja-JP')}`
+  const priceFact = n => (n == null ? 'price unavailable' : yen(n))
   const facts = `
 CURRENT DATA (${s.mes || 'this month'}):
 - JBM purchases this month: ${yen(s.comprasMes)} (${s.entregasMes || 0} deliveries)
 - Growth vs last month: ${s.crescimentoPct != null ? s.crescimentoPct + '%' : 'N/A'}
-- POS / counter sales (month): ${yen(s.projecaoPosMes)}
-- Estimated profit: ${yen(s.margemMes)} (${s.margemPct || 0}%)
-- Estimated ROI: ${s.roiPct || 0}%
+- Confirmed purchase-to-till projection (not counter sales): ${priceFact(s.projecaoPosMes)}
+- Margin on that projection: ${priceFact(s.margemMes)} (${s.margemPct == null ? 'price unavailable' : s.margemPct + '%'})
+- ROI on that projection: ${s.roiPct == null ? 'price unavailable' : s.roiPct + '%'}
+- A null product pos or margin means price unavailable. Do not call it zero and do not invent a multiple of the JBM price.
 - Open invoices: ${s.faturasPendentes || 0} (${yen(s.totalPendente)}) — ${s.faturasAtraso || 0} overdue
 - Paid this month: ${yen(s.faturaPagaMes)}
 

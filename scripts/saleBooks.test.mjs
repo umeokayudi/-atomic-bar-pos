@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { computeDayMetrics } from '../src/lib/atomicPos.js'
 import { periodReport, tenderOf } from '../src/lib/barClose.js'
 import { buildMonthSeries } from '../src/lib/hqFilters.js'
@@ -77,5 +78,47 @@ assert.equal(pedidoTotal({ total_estimado: 500, pedidos_itens: [{ preco_unitario
 assert.equal(pedidoTotal({ pedidos_itens: [{ preco_unitario: 100, qtd: 2 }] }), 200)
 assert.equal(pedidoTotal({ pedidos_itens: [{ preco_unitario: 0, qtd: 2 }] }), null)
 assert.equal(pedidoTotal({ pedidos_itens: [{ preco_unitario: null, qtd: 1 }], produtos: { preco_venda: 900 } }), null)
+
+const analyticsSrc = readFileSync(new URL('../src/lib/clientAnalytics.js', import.meta.url), 'utf8')
+assert.equal(analyticsSrc.includes('2.8'), false)
+assert.equal(/preco_venda/.test(analyticsSrc.slice(analyticsSrc.indexOf('function projectItemRevenue'), analyticsSrc.indexOf('function analyzePurchases'))), false)
+const isolated = (
+  analyticsSrc.slice(
+    analyticsSrc.indexOf('export function projectItemRevenue'),
+    analyticsSrc.indexOf('export function monthlyAccountSummary'),
+  ) + analyticsSrc.slice(
+    analyticsSrc.indexOf('export function categoryAnalysis'),
+    analyticsSrc.indexOf('export function weeklySpendSeries'),
+  )
+).replaceAll('export function', 'function')
+const { projectItemRevenue, analyzePurchases, categoryAnalysis } = new Function(`${isolated}; return { projectItemRevenue, analyzePurchases, categoryAnalysis }`)()
+const missingPrice = projectItemRevenue(
+  { produto_id: 'p1', qtd: 2, preco_unitario: 900, produtos: { preco_venda: 900 } },
+  {},
+)
+assert.equal(missingPrice.posTotal, null)
+assert.equal(missingPrice.source, 'unavailable')
+assert.equal(missingPrice.confirmed, false)
+assert.equal(JSON.stringify(missingPrice).includes('2520'), false)
+const confirmedPrice = projectItemRevenue(
+  { produto_id: 'p1', qtd: 2, preco_unitario: 900 },
+  { p1: { preco_drink: 500, drinks_por_garrafa: 8 } },
+)
+assert.equal(confirmedPrice.source, 'pos')
+assert.equal(confirmedPrice.confirmed, true)
+assert.equal(confirmedPrice.posTotal, 8000)
+assert.equal(confirmedPrice.jbmTotal, 1800)
+const month = analyzePurchases([
+  { qtd: 1, preco_unitario: null, produto_id: 'p1', produtos: { nome: 'A', preco_venda: 900, categoria: 'Whisky' }, vendas: { data: '2026-10-01' } },
+], {}, { monthKey: '2026-10' })
+assert.equal(month.posTotal, null)
+assert.equal(month.jbmTotal, null)
+assert.equal(month.margin, null)
+assert.equal(month.priceState, 'unavailable')
+const categories = categoryAnalysis([
+  { qtd: 1, preco_unitario: null, produto_id: 'p1', produtos: { nome: 'A', categoria: 'Whisky' }, vendas: { data: '2026-10-01' } },
+], {}, { monthKey: '2026-10' })
+assert.equal(Number.isNaN(categories[0].sharePct), false)
+assert.equal(categories[0].posTotal, null)
 
 console.log('sale books ok')

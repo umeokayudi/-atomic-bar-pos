@@ -1119,7 +1119,33 @@ $$;
 REVOKE ALL ON FUNCTION public.submit_bar_order(uuid, timestamptz, text, jsonb, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.submit_bar_order(uuid, timestamptz, text, jsonb, text) TO authenticated;
 
--- JBM only. Purchase + freight + fees + logistics share, against the bar sale price.
+-- Missing, zero, and ambiguous prices become NULL. Other errors still raise.
+CREATE OR REPLACE FUNCTION public.try_resolve_bar_price(
+  p_bar_id uuid,
+  p_product_id uuid,
+  p_at timestamptz,
+  p_qty integer
+) RETURNS numeric
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN public.resolve_bar_price(p_bar_id, p_product_id, p_at, p_qty);
+EXCEPTION
+  WHEN OTHERS THEN
+    IF SQLERRM LIKE '%sale price not configured%' OR SQLERRM LIKE '%ambiguous sale price%' THEN
+      RETURN NULL;
+    END IF;
+    RAISE;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.try_resolve_bar_price(uuid, uuid, timestamptz, integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.try_resolve_bar_price(uuid, uuid, timestamptz, integer) TO authenticated;
+
+-- JBM only. Recorded purchase costs stay. Sale revenue is null until a price is confirmed.
 CREATE OR REPLACE FUNCTION public.task_economics(p_task_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -1136,6 +1162,7 @@ DECLARE
   logistics numeric := 0;
   sale numeric;
   qty integer;
+  price_state text := 'confirmed';
 BEGIN
   IF NOT public.is_procurement_hq() THEN
     RAISE EXCEPTION 'not allowed';
@@ -1162,25 +1189,66 @@ BEGIN
   WHERE si.procurement_task_id = task.id
     AND s.status <> 'cancelled';
   qty := task.quantity_allocated;
-  sale := public.resolve_bar_price(ped_bar, task.product_id, COALESCE(task.requested_delivery_at, now()), qty);
+  sale := public.try_resolve_bar_price(ped_bar, task.product_id, COALESCE(task.requested_delivery_at, now()), qty);
+  IF sale IS NULL THEN
+    price_state := 'unavailable';
+  END IF;
   RETURN jsonb_build_object(
     'task_id', task.id,
     'task_number', task.task_number,
     'quantity', qty,
+    'status', task.status,
     'purchase_cost', purchase,
     'freight', freight,
     'fees', fees,
     'logistics_cost', logistics,
     'real_cost', purchase + freight + fees + logistics,
     'sale_price', sale,
-    'revenue', COALESCE(sale, 0) * qty,
-    'margin', COALESCE(sale, 0) * qty - (purchase + freight + fees + logistics)
+    'revenue', CASE WHEN sale IS NULL THEN NULL ELSE sale * qty END,
+    'margin', CASE WHEN sale IS NULL THEN NULL ELSE sale * qty - (purchase + freight + fees + logistics) END,
+    'price_state', price_state
   );
 END;
 $$;
 
 REVOKE ALL ON FUNCTION public.task_economics(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.task_economics(uuid) TO authenticated;
+
+-- Server-side task scope. A browser bar id is not an argument.
+-- Supplier access is the linked supplier only. An employee also needs the order's bar.
+CREATE OR REPLACE FUNCTION public.caller_may_work_procurement_task(
+  p_task_id uuid,
+  p_allow_supplier boolean
+) RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT public.is_procurement_hq()
+    OR (
+      p_allow_supplier
+      AND EXISTS (
+        SELECT 1
+        FROM public.procurement_tasks t
+        JOIN public.procurement_sources s ON s.id = t.source_id
+        WHERE t.id = p_task_id
+          AND s.fornecedor_id IN (SELECT public.my_supplier_ids())
+      )
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.procurement_tasks t
+      JOIN public.pedidos ped ON ped.id = t.order_id
+      JOIN public.perfis p ON p.id = auth.uid()
+      WHERE t.id = p_task_id
+        AND t.assigned_to = auth.uid()
+        AND p.role = 'funcionario'
+        AND public.user_can_access_bar(ped.bar_id)
+    );
+$$;
+
+REVOKE ALL ON FUNCTION public.caller_may_work_procurement_task(uuid, boolean) FROM PUBLIC;
 
 -- ── purchase record. Status purchased requires this row. ───────────────────
 
@@ -1192,7 +1260,6 @@ SET search_path = public
 AS $$
 DECLARE
   task public.procurement_tasks%ROWTYPE;
-  src public.procurement_sources%ROWTYPE;
   qty integer;
   unit_cost numeric;
   buyer uuid;
@@ -1213,12 +1280,7 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'task not found';
   END IF;
-  SELECT * INTO src FROM public.procurement_sources WHERE id = task.source_id;
-  IF NOT (
-    public.is_procurement_hq()
-    OR task.assigned_to = auth.uid()
-    OR (src.fornecedor_id IS NOT NULL AND src.fornecedor_id IN (SELECT public.my_supplier_ids()))
-  ) THEN
+  IF NOT public.caller_may_work_procurement_task(task.id, true) THEN
     RAISE EXCEPTION 'not allowed';
   END IF;
   IF task.status IN ('completed', 'cancelled', 'purchased', 'received', 'in_transit') THEN
@@ -1348,7 +1410,32 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'location not found';
   END IF;
-  IF NOT (public.is_procurement_hq() OR task.assigned_to = auth.uid()) THEN
+  IF NOT (
+    public.is_procurement_hq()
+    OR (
+      task.assigned_to = auth.uid()
+      AND public.user_can_access_bar((SELECT bar_id FROM public.pedidos WHERE id = task.order_id))
+      AND EXISTS (
+        SELECT 1 FROM public.perfis p
+        WHERE p.id = auth.uid() AND p.role = 'funcionario'
+      )
+    )
+  ) THEN
+    RAISE EXCEPTION 'not allowed';
+  END IF;
+  IF loc.bar_id IS NOT NULL AND NOT (public.is_procurement_hq() OR public.user_can_access_bar(loc.bar_id)) THEN
+    RAISE EXCEPTION 'not allowed';
+  END IF;
+  IF NOT public.is_procurement_hq() AND NOT (
+    (loc.source_id IS NOT NULL AND loc.source_id = task.source_id)
+    OR EXISTS (
+      SELECT 1
+      FROM public.shipment_items si
+      JOIN public.shipments s ON s.id = si.shipment_id
+      WHERE si.procurement_task_id = task.id
+        AND (s.from_location_id = loc.id OR s.to_location_id = loc.id)
+    )
+  ) THEN
     RAISE EXCEPTION 'not allowed';
   END IF;
   IF loc.type = 'BAR' THEN
@@ -1741,7 +1828,7 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'task not found';
   END IF;
-  IF NOT (public.is_procurement_hq() OR task.assigned_to = auth.uid()) THEN
+  IF NOT public.caller_may_work_procurement_task(task.id, false) THEN
     RAISE EXCEPTION 'not allowed';
   END IF;
   IF task.status NOT IN ('draft', 'planned', 'assigned', 'waiting_purchase', 'purchasing', 'exception')
@@ -1802,15 +1889,7 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'task not found';
   END IF;
-  IF NOT (
-    public.is_procurement_hq()
-    OR task.assigned_to = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM public.procurement_sources s
-      WHERE s.id = task.source_id
-        AND s.fornecedor_id IN (SELECT public.my_supplier_ids())
-    )
-  ) THEN
+  IF NOT public.caller_may_work_procurement_task(task.id, true) THEN
     RAISE EXCEPTION 'not allowed';
   END IF;
   IF task.status IN ('completed', 'cancelled') THEN
@@ -1853,7 +1932,7 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'task not found';
   END IF;
-  IF NOT (public.is_procurement_hq() OR task.assigned_to = auth.uid()) THEN
+  IF NOT public.caller_may_work_procurement_task(task.id, false) THEN
     RAISE EXCEPTION 'not allowed';
   END IF;
   IF task.quantity_purchased > 0 AND p_qty > task.quantity_allocated - task.quantity_purchased THEN
@@ -1921,7 +2000,12 @@ BEGIN
   ELSIF EXISTS (
     SELECT 1 FROM public.procurement_tasks t
     WHERE t.order_id = p_order_id AND t.assigned_to = auth.uid()
-  ) THEN
+  ) AND public.user_can_access_bar(ped.bar_id)
+    AND EXISTS (
+      SELECT 1 FROM public.perfis p
+      WHERE p.id = auth.uid() AND p.role = 'funcionario'
+    )
+  THEN
     audience := 'employee';
   ELSE
     RAISE EXCEPTION 'not allowed';
@@ -2106,19 +2190,36 @@ BEGIN
     'incomplete', COALESCE((SELECT jsonb_agg(t.id) FROM public.procurement_tasks t WHERE t.status NOT IN ('completed','cancelled') AND t.quantity_at_bar < t.quantity_allocated), '[]'::jsonb),
     'economics', (
       SELECT jsonb_build_object(
-        'revenue', COALESCE(SUM(COALESCE(public.resolve_bar_price(p.bar_id, t.product_id, COALESCE(t.requested_delivery_at, now()), t.quantity_allocated), 0) * t.quantity_allocated), 0),
-        'purchase_cost', COALESCE(SUM(costs.purchase), 0),
-        'freight', COALESCE(SUM(costs.freight), 0),
-        'fees', COALESCE(SUM(costs.fees), 0),
-        'logistics_cost', COALESCE(SUM(costs.logistics), 0),
-        'margin', COALESCE(SUM(
-          COALESCE(public.resolve_bar_price(p.bar_id, t.product_id, COALESCE(t.requested_delivery_at, now()), t.quantity_allocated), 0) * t.quantity_allocated
-          - COALESCE(costs.purchase, 0) - COALESCE(costs.freight, 0) - COALESCE(costs.fees, 0) - COALESCE(costs.logistics, 0)
-        ), 0)
+        'price_state', CASE WHEN COUNT(*) FILTER (WHERE priced.price IS NULL) > 0 THEN 'unavailable' ELSE 'confirmed' END,
+        'unpriced_tasks', COUNT(*) FILTER (WHERE priced.price IS NULL),
+        'revenue', CASE
+          WHEN COUNT(*) FILTER (WHERE priced.price IS NULL) > 0 THEN NULL
+          ELSE COALESCE(SUM(priced.price * priced.quantity_allocated), 0)
+        END,
+        'purchase_cost', COALESCE(SUM(priced.purchase), 0),
+        'freight', COALESCE(SUM(priced.freight), 0),
+        'fees', COALESCE(SUM(priced.fees), 0),
+        'logistics_cost', COALESCE(SUM(priced.logistics), 0),
+        'margin', CASE
+          WHEN COUNT(*) FILTER (WHERE priced.price IS NULL) > 0 THEN NULL
+          ELSE COALESCE(SUM(
+            priced.price * priced.quantity_allocated
+            - COALESCE(priced.purchase, 0) - COALESCE(priced.freight, 0)
+            - COALESCE(priced.fees, 0) - COALESCE(priced.logistics, 0)
+          ), 0)
+        END
       )
-      FROM public.procurement_tasks t
-      JOIN public.pedidos p ON p.id = t.order_id
-      LEFT JOIN LATERAL (
+      FROM (
+        SELECT
+          t.quantity_allocated,
+          public.try_resolve_bar_price(p.bar_id, t.product_id, COALESCE(t.requested_delivery_at, now()), t.quantity_allocated) AS price,
+          costs.purchase,
+          costs.freight,
+          costs.fees,
+          costs.logistics
+        FROM public.procurement_tasks t
+        JOIN public.pedidos p ON p.id = t.order_id
+        LEFT JOIN LATERAL (
         SELECT
           (SELECT COALESCE(SUM(l.quantity * l.unit_cost), 0) FROM public.purchase_lines l WHERE l.procurement_task_id = t.id) AS purchase,
           (SELECT COALESCE(SUM(pt.freight), 0)
@@ -2138,8 +2239,9 @@ BEGIN
             JOIN public.shipments s ON s.id = si.shipment_id
             WHERE si.procurement_task_id = t.id
               AND s.status <> 'cancelled') AS logistics
-      ) costs ON true
-      WHERE t.status <> 'cancelled'
+        ) costs ON true
+        WHERE t.status <> 'cancelled'
+      ) priced
     )
   );
 END;
@@ -2195,19 +2297,23 @@ BEGIN
   IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'not authenticated';
   END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM public.perfis p
-    WHERE p.id = auth.uid()
-      AND p.role IN ('admin', 'jbm', 'funcionario')
+  IF NOT (
+    public.is_procurement_hq()
+    OR EXISTS (
+      SELECT 1 FROM public.perfis p
+      WHERE p.id = auth.uid() AND p.role = 'funcionario'
+    )
   ) THEN
     RAISE EXCEPTION 'not allowed';
   END IF;
+  -- No bar id argument. The order's bar is read from the database.
   RETURN jsonb_build_object(
     'tasks', COALESCE((
     SELECT jsonb_agg(jsonb_build_object(
       'id', t.id,
       'task_number', t.task_number,
       'order_id', t.order_id,
+      'bar_id', ped.bar_id,
       'status', t.status,
       'quantity_allocated', t.quantity_allocated,
       'quantity_purchased', t.quantity_purchased,
@@ -2223,13 +2329,38 @@ BEGIN
       'source_id', t.source_id
     ) ORDER BY t.buy_by_at NULLS LAST)
     FROM public.procurement_tasks t
+    JOIN public.pedidos ped ON ped.id = t.order_id
     WHERE t.assigned_to = auth.uid()
       AND t.status NOT IN ('cancelled', 'completed')
+      AND (public.is_procurement_hq() OR public.user_can_access_bar(ped.bar_id))
   ), '[]'::jsonb),
     'locations', COALESCE((
       SELECT jsonb_agg(jsonb_build_object('id', l.id, 'name', l.name, 'type', l.type) ORDER BY l.name)
       FROM public.locations l
-      WHERE l.active AND l.type IN ('WAREHOUSE', 'STORE', 'SUPPLIER', 'OTHER')
+      WHERE l.active
+        AND l.type IN ('WAREHOUSE', 'STORE', 'SUPPLIER', 'OTHER')
+        AND (l.bar_id IS NULL OR public.user_can_access_bar(l.bar_id) OR public.is_procurement_hq())
+        AND (
+          public.is_procurement_hq()
+          OR EXISTS (
+            SELECT 1
+            FROM public.procurement_tasks t
+            JOIN public.pedidos ped ON ped.id = t.order_id
+            WHERE t.assigned_to = auth.uid()
+              AND t.status NOT IN ('cancelled', 'completed')
+              AND public.user_can_access_bar(ped.bar_id)
+              AND (
+                (l.source_id IS NOT NULL AND l.source_id = t.source_id)
+                OR EXISTS (
+                  SELECT 1
+                  FROM public.shipment_items si
+                  JOIN public.shipments s ON s.id = si.shipment_id
+                  WHERE si.procurement_task_id = t.id
+                    AND (s.from_location_id = l.id OR s.to_location_id = l.id)
+                )
+              )
+          )
+        )
     ), '[]'::jsonb)
   );
 END;
@@ -2636,8 +2767,14 @@ CREATE POLICY purchase_lines_read ON public.purchase_lines
   USING (
     public.is_procurement_hq()
     OR EXISTS (
-      SELECT 1 FROM public.procurement_tasks t
-      WHERE t.id = procurement_task_id AND t.assigned_to = auth.uid()
+      SELECT 1
+      FROM public.procurement_tasks t
+      JOIN public.pedidos ped ON ped.id = t.order_id
+      JOIN public.perfis actor ON actor.id = auth.uid()
+      WHERE t.id = procurement_task_id
+        AND t.assigned_to = auth.uid()
+        AND actor.role = 'funcionario'
+        AND public.user_can_access_bar(ped.bar_id)
     )
     OR EXISTS (
       SELECT 1 FROM public.purchase_transactions p
@@ -2659,8 +2796,14 @@ CREATE POLICY shipment_items_read ON public.shipment_items
   USING (
     public.is_procurement_hq()
     OR EXISTS (
-      SELECT 1 FROM public.procurement_tasks t
-      WHERE t.id = procurement_task_id AND t.assigned_to = auth.uid()
+      SELECT 1
+      FROM public.procurement_tasks t
+      JOIN public.pedidos ped ON ped.id = t.order_id
+      JOIN public.perfis actor ON actor.id = auth.uid()
+      WHERE t.id = procurement_task_id
+        AND t.assigned_to = auth.uid()
+        AND actor.role = 'funcionario'
+        AND public.user_can_access_bar(ped.bar_id)
     )
   );
 
