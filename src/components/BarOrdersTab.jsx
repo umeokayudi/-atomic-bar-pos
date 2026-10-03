@@ -73,12 +73,31 @@ export default function BarOrdersTab({ bar }) {
   pedidosMes.forEach(p => (p.pedidos_itens || []).forEach(it => {
     const pid = it.produto_id
     const pr = it.produtos
-    if (!prodMap[pid]) prodMap[pid] = { nome: pr?.nome || '?', categoria: pr?.categoria || '—', volume_ml: pr?.volume_ml || 0, preco_unit: pr?.preco_venda || 0, qtd: 0, total: 0 }
+    const captured = Number(it.preco_unitario)
+    const priced = Number.isFinite(captured) && captured > 0
+    if (!prodMap[pid]) {
+      prodMap[pid] = {
+        nome: pr?.nome || '?',
+        categoria: pr?.categoria || '—',
+        volume_ml: pr?.volume_ml || 0,
+        preco_unit: priced ? captured : null,
+        qtd: 0,
+        total: 0,
+        missing: !priced,
+        mixed: false,
+      }
+    }
     prodMap[pid].qtd += it.qtd
-    prodMap[pid].total += (pr?.preco_venda || 0) * it.qtd
+    if (!priced) prodMap[pid].missing = true
+    else {
+      if (prodMap[pid].preco_unit != null && prodMap[pid].preco_unit !== captured) prodMap[pid].mixed = true
+      if (prodMap[pid].preco_unit == null) prodMap[pid].preco_unit = captured
+      prodMap[pid].total += captured * it.qtd
+    }
   }))
   const summaryList = Object.values(prodMap).sort((a, b) => b.total - a.total)
-  const summaryTotal = summaryList.reduce((a, p) => a + p.total, 0)
+  const summaryMissing = summaryList.some(p => p.missing)
+  const summaryTotal = summaryMissing ? null : summaryList.reduce((a, p) => a + p.total, 0)
 
   function salePriceOf(product, qty) {
     if (!product) return null
@@ -240,15 +259,15 @@ export default function BarOrdersTab({ bar }) {
                       <td style={{ padding: '8px 12px' }}>{p.categoria}</td>
                       <td style={{ padding: '8px 12px' }}>{p.volume_ml > 0 ? `${p.volume_ml}ml` : '—'}</td>
                       <td style={{ padding: '8px 12px', fontWeight: 700 }}>{p.qtd}</td>
-                      <td style={{ padding: '8px 12px' }}>{fmtYen(p.preco_unit)}</td>
-                      <td style={{ padding: '8px 12px', fontWeight: 800 }}>{fmtYen(p.total)}</td>
+                      <td style={{ padding: '8px 12px' }}>{p.missing || p.mixed || !(p.preco_unit > 0) ? '—' : fmtYen(p.preco_unit)}</td>
+                      <td style={{ padding: '8px 12px', fontWeight: 800 }}>{p.missing ? '—' : fmtYen(p.total)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr style={{ borderTop: '2px solid var(--border)' }}>
                     <td colSpan={5} style={{ padding: '10px 12px', fontWeight: 700 }}>{t('common.total')}</td>
-                    <td style={{ padding: '10px 12px', fontWeight: 800 }}>{fmtYen(summaryTotal)}</td>
+                    <td style={{ padding: '10px 12px', fontWeight: 800 }}>{summaryTotal == null ? '—' : fmtYen(summaryTotal)}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -421,7 +440,7 @@ export default function BarOrdersTab({ bar }) {
             ))}
             <div className="ord-total-bar">
               <span>{t('common.total')}</span>
-              <span>{fmtYen(orderPreview.total_estimado || 0)}</span>
+              <span>{+orderPreview.total_estimado > 0 ? fmtYen(orderPreview.total_estimado) : '—'}</span>
             </div>
             <p className="ff-note">{t('fulfillment.hideSupplier')}</p>
             {trackErr && <p className="ff-miss">{trackErr}</p>}

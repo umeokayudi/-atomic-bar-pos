@@ -1,6 +1,6 @@
 /** Helpers do POS Atomic — preços, descontos, códigos, dashboard e estoque */
 
-import { hourOfSale } from './nightClose.js'
+import { hourOfSale, saleValid } from './nightClose.js'
 import { tokyoDateKey, tokyoNightKey } from './tokyo.js'
 
 export function generateDiscountCode(prefix = 'ATOMIC') {
@@ -134,8 +134,10 @@ export function aggregateHourlySales(sales = []) {
   for (const s of sales) {
     const h = hourOfSale(s)
     if (h == null) continue
+    const net = saleValid(s)
+    if (net <= 0) continue
     hours[h].count += 1
-    hours[h].total += +s.total || 0
+    hours[h].total += net
   }
   return hours
 }
@@ -177,8 +179,8 @@ export {
 
 /** Métricas rápidas do dia para o dashboard POS */
 export function computeDayMetrics(sales = []) {
-  const total = sales.reduce((a, s) => a + (+s.total || 0), 0)
-  const count = sales.length
+  const total = sales.reduce((a, s) => a + saleValid(s), 0)
+  const count = sales.filter(s => saleValid(s) > 0).length
   const ticketMedio = count > 0 ? Math.round(total / count) : 0
   const hourly = aggregateHourlySales(sales)
   const peakHour = hourly.reduce((best, h) => (h.total > best.total ? h : best), hourly[0])

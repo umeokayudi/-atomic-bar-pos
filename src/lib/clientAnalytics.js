@@ -1,5 +1,6 @@
 import { filterSupplierVendas } from '../components/utils'
 import { filterJbmDrinksFaturas, faturaPago, faturaValor, faturaVencimento } from './barPortal'
+import { sumJbmNet } from './saleBooks.js'
 
 export function buildPricingMap(barPricing = []) {
   const map = {}
@@ -119,14 +120,12 @@ export function analyzePurchases(itens, pricingMap, { monthKey, cutoffStr } = {}
 export function monthlyAccountSummary(vendas, faturas, monthKey) {
   const supplier = filterSupplierVendas(vendas || [])
   const mesVendas = supplier.filter(v => v.data?.startsWith(monthKey))
-  const contaMes = mesVendas.reduce((a, v) => a + (+v.total || 0), 0)
+  const contaMes = sumJbmNet(mesVendas)
 
   const prev = new Date(monthKey + '-01')
   prev.setMonth(prev.getMonth() - 1)
   const prevKey = prev.toISOString().slice(0, 7)
-  const contaPrev = supplier
-    .filter(v => v.data?.startsWith(prevKey))
-    .reduce((a, v) => a + (+v.total || 0), 0)
+  const contaPrev = sumJbmNet(supplier.filter(v => v.data?.startsWith(prevKey)))
 
   const growth = contaPrev > 0 ? Math.round((contaMes - contaPrev) / contaPrev * 100) : null
 
@@ -167,7 +166,7 @@ export function monthlySpendSeries(vendas, months = 6) {
     const mk = d.toISOString().slice(0, 7)
     keys.push(mk)
     labels.push(mk.slice(5))
-    values.push(supplier.filter(v => v.data?.startsWith(mk)).reduce((a, v) => a + (+v.total || 0), 0))
+    values.push(sumJbmNet(supplier.filter(v => v.data?.startsWith(mk))))
   }
   return { labels, values, keys }
 }
@@ -267,11 +266,7 @@ export function weeklySpendSeries(vendas, weeks = 8) {
     const endStr = end.toISOString().slice(0, 10)
     keys.push(`${startStr}_${endStr}`)
     labels.push(`${start.getDate()}/${start.getMonth() + 1}`)
-    values.push(
-      supplier
-        .filter(v => v.data >= startStr && v.data <= endStr)
-        .reduce((a, v) => a + (+v.total || 0), 0)
-    )
+    values.push(sumJbmNet(supplier.filter(v => v.data >= startStr && v.data <= endStr)))
   }
 
   return { labels, values, keys }

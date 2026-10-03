@@ -10,6 +10,7 @@ import { tokyoMonthKey, recentMonthKeys, isMonthKey } from '../lib/tokyo'
 import { compactYen, monthChipHint, matchHqSearch, matchInvoiceStatus } from '../lib/hqFilters'
 import { payrollFromPunches, monthRange, localHoursPay } from '../lib/timeClock'
 import { splitCostBooks } from '../lib/costBooks'
+import { sumTillNet } from '../lib/saleBooks'
 import { asReactText, errText } from '../lib/errText'
 import { costAccessForRole } from '../lib/access'
 import { fetchHqSnapshot } from '../lib/hqSnapshot'
@@ -113,7 +114,7 @@ export async function loadCostBooks(barId, monthKey) {
   const [vR, fR, posR, clockText, teamText, rentR] = await Promise.all([
     supabase.from('vendas').select('*').eq('bar_id', barId),
     supabase.from('faturas').select('*').eq('bar_id', barId),
-    supabase.from('pos_vendas').select('total,data').eq('bar_id', barId),
+    supabase.from('pos_vendas').select('total,refunded,void_status,data').eq('bar_id', barId),
     staffFetch(`/api/time-clock?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`).then(r => r.text()).then(jsonObject),
     staffFetch('/api/bar-staff').then(r => r.text()).then(jsonObject),
     supabase.from('bar_overhead').select('kind,month_key,amount').eq('bar_id', barId).eq('kind', 'rent').eq('month_key', mes),
@@ -121,9 +122,7 @@ export async function loadCostBooks(barId, monthKey) {
   const vendas = filterSupplierVendas(vR.data || [])
   const faturas = filterJbmDrinksFaturas(fR.data || [])
   const account = monthlyAccountSummary(vendas, faturas, mes)
-  const posMonthTotal = (posR.data || [])
-    .filter(s => String(s.data || '').startsWith(mes))
-    .reduce((a, s) => a + (+s.total || 0), 0)
+  const posMonthTotal = sumTillNet((posR.data || []).filter(s => String(s.data || '').startsWith(mes)))
   if (!clockText || !teamText) return null
   const payroll = payrollFromPunches(clockText.punches || [], teamText.staff || [], range, {
     nightPremium: teamText.goals?.adicional_noturno !== false,

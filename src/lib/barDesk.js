@@ -3,7 +3,7 @@
 import { aggregateHourlySales } from './atomicPos.js'
 import { faturaRemaining } from './barPortal.js'
 import { cardCash, commissionOf, tenderOf } from './barClose.js'
-import { nightKeyOfSale, prevTokyoDateKey } from './nightClose.js'
+import { nightKeyOfSale, prevTokyoDateKey, saleValid } from './nightClose.js'
 import { readTicketMeta } from './nightTicket.js'
 import { orderCastFromObs, orderCastIdFromObs } from './orderMeta.js'
 import { tokyoNightKey, tokyoDateKey } from './tokyo.js'
@@ -33,7 +33,7 @@ export function buildBarDesk({
 } = {}) {
   const monthKey = String(today).slice(0, 7)
   const monthTickets = (tickets || []).filter(s => nightKeyOfSale(s).startsWith(monthKey))
-  const posIn = Math.round(+hq?.books?.pos?.amount || monthTickets.reduce((a, s) => a + (+s.total || 0), 0))
+  const posIn = Math.round(+hq?.books?.pos?.amount || monthTickets.reduce((a, s) => a + saleValid(s), 0))
   const wages = Math.round(+hq?.books?.staff?.amount || (hq?.payroll || []).reduce((a, r) => a + (+r.pay || 0), 0))
   const rentRegistry = sumKind(registry, 'aluguel', monthKey)
   const rent = rentRegistry || Math.round(+hq?.books?.rent?.amount || hq?.rent?.amount || 0)
@@ -89,7 +89,7 @@ export function buildBarDesk({
     const rows = (tickets || []).filter(s => nightKeyOfSale(s) === cursor)
     days.push({
       date: cursor,
-      total: rows.reduce((a, s) => a + (+s.total || 0), 0),
+      total: rows.reduce((a, s) => a + saleValid(s), 0),
       count: rows.length,
     })
     cursor = prevTokyoDateKey(cursor)
@@ -111,7 +111,7 @@ export function buildBarDesk({
     const key = id || name
     const prev = castMap.get(key) || { id: key, name: name || 'Cast', sales: 0, commission: 0, tickets: 0 }
     if (name) prev.name = name
-    prev.sales += +s.total || 0
+    prev.sales += saleValid(s)
     prev.tickets += 1
     const comm = readTicketMeta(s.obs).commission
     if (comm) prev.commission += comm

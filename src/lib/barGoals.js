@@ -1,6 +1,6 @@
 /** Goal pace for the bar: night, hour, week, shift, profit, and drink-back cast. */
 
-import { hourOfSale, nightKeyOfSale } from './nightClose.js'
+import { hourOfSale, nightKeyOfSale, saleValid } from './nightClose.js'
 import { readTicketMeta } from './nightTicket.js'
 import { orderCastFromObs, orderCastIdFromObs } from './orderMeta.js'
 import { lastDayOfMonth, tokyoHour, tokyoNightKey } from './tokyo.js'
@@ -69,7 +69,7 @@ function hourOf(sale) {
 }
 
 function sumSales(rows) {
-  return (rows || []).reduce((a, s) => a + (+s.total || 0), 0)
+  return (rows || []).reduce((a, s) => a + saleValid(s), 0)
 }
 
 function commissionOf(rows) {
@@ -138,7 +138,7 @@ export function buildGoalProgress({
       const h = hourOf(s)
       if (h == null) continue
       const prev = byHour.get(h) || { hour: h, label: `${String(h).padStart(2, '0')}:00`, sales: 0, count: 0 }
-      prev.sales += +s.total || 0
+      prev.sales += saleValid(s)
       prev.count += 1
       byHour.set(h, prev)
     }

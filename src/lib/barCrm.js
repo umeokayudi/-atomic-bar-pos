@@ -4,7 +4,7 @@
  */
 
 import { tokyoParts, tokyoNightKey } from './tokyo.js'
-import { nightWindow } from './nightClose.js'
+import { nightWindow, saleValid } from './nightClose.js'
 
 export const SPACE_TYPES = [
   { id: 'counter', labelKey: 'spaces.types.counter' },
@@ -126,8 +126,8 @@ export function formatVisitDuration(minutes) {
 export function guestSpendFromPos(sales = [], guestId) {
   const mine = (sales || []).filter(s => s.guest_id === guestId)
   return {
-    count: mine.length,
-    total: mine.reduce((a, s) => a + (+s.total || 0), 0),
+    count: mine.filter(s => saleValid(s) > 0).length,
+    total: mine.reduce((a, s) => a + saleValid(s), 0),
     last: mine[0]?.data || mine[0]?.criado_em || null,
   }
 }

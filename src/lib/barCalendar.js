@@ -1,6 +1,7 @@
 /** Events the bar calendar can open: dues, orders, deliveries, till nights. */
 
 import { faturaPago, faturaPeriodoFim, faturaRemaining, faturaValor, faturaVencimento } from './barPortal.js'
+import { saleValid } from './nightClose.js'
 
 function day(value) {
   return String(value || '').slice(0, 10)
@@ -58,7 +59,9 @@ export function buildBarCalendarEvents({ invoices = [], orders = [], notes = [],
     const date = day(ticket.data || ticket.criado_em)
     if (!date) continue
     const cur = nights.get(date) || { amount: 0, count: 0 }
-    cur.amount += +ticket.total || 0
+    const net = saleValid(ticket)
+    if (net <= 0) continue
+    cur.amount += net
     cur.count += 1
     nights.set(date, cur)
   }

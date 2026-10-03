@@ -312,14 +312,16 @@ async function main() {
     [body.venda_id],
   )
   assert.equal(feeRows.rows[0].n, 1)
-  await expectRaise(root, cashierA, () => root.query(
-    `SELECT public.pos_void_sale($1, 'refund', NULL, 'cashier', $2)`,
+  const cashierDenied = await asUser(root, cashierA, () => root.query(
+    `SELECT public.pos_void_sale($1, 'refund', NULL, 'cashier', $2) AS result`,
     [body.venda_id, managerA],
-  ), /void not allowed/)
-  await expectRaise(root, cashierA, () => root.query(
-    `SELECT public.pos_void_sale($1, 'refund', NULL, 'cashier', $2)`,
+  ))
+  assert.equal(cashierDenied.rows[0].result, null)
+  const cashierDeniedAgain = await asUser(root, cashierA, () => root.query(
+    `SELECT public.pos_void_sale($1, 'refund', NULL, 'cashier', $2) AS result`,
     [body.venda_id, cashierA],
-  ), /void not allowed/)
+  ))
+  assert.equal(cashierDeniedAgain.rows[0].result, null)
   const untouched = await root.query(`SELECT refunded FROM public.pos_vendas WHERE id = $1`, [body.venda_id])
   assert.equal(untouched.rows[0].refunded, 0)
   const deniedAudit = await root.query(
@@ -364,22 +366,29 @@ async function main() {
   assert.equal(voidAudit.rows[0].reason, 'guest left')
   assert.equal(voidAudit.rows[0].result, 'applied')
   assert.ok(voidAudit.rows[0].created_at)
-  await expectRaise(root, employeeA, () => root.query(
-    `SELECT public.pos_void_sale($1, 'refund', NULL, 'staff', $2)`,
+  const staffDenied = await asUser(root, employeeA, () => root.query(
+    `SELECT public.pos_void_sale($1, 'refund', NULL, 'staff', $2) AS result`,
     [body.venda_id, employeeA],
-  ), /void not allowed/)
-  await expectRaise(root, managerB, () => root.query(
-    `SELECT public.pos_void_sale($1, 'refund', NULL, 'other bar', $2)`,
+  ))
+  assert.equal(staffDenied.rows[0].result, null)
+  const otherBarDenied = await asUser(root, managerB, () => root.query(
+    `SELECT public.pos_void_sale($1, 'refund', NULL, 'other bar', $2) AS result`,
     [body.venda_id, managerB],
-  ), /bar not allowed/)
-  await expectRaise(root, supplierA, () => root.query(
-    `SELECT public.pos_void_sale($1, 'refund', NULL, 'supplier', $2)`,
+  ))
+  assert.equal(otherBarDenied.rows[0].result, null)
+  const supplierDenied = await asUser(root, supplierA, () => root.query(
+    `SELECT public.pos_void_sale($1, 'refund', NULL, 'supplier', $2) AS result`,
     [body.venda_id, supplierA],
-  ), /bar not allowed/)
-  await expectRaise(root, jbmPlain, () => root.query(
-    `SELECT public.pos_void_sale($1, 'refund', NULL, 'jbm without hq', $2)`,
+  ))
+  assert.equal(supplierDenied.rows[0].result, null)
+  const jbmDenied = await asUser(root, jbmPlain, () => root.query(
+    `SELECT public.pos_void_sale($1, 'refund', NULL, 'jbm without hq', $2) AS result`,
     [body.venda_id, jbmPlain],
-  ), /bar not allowed/)
+  ))
+  assert.equal(jbmDenied.rows[0].result, null)
+  const stillVoid = await root.query(`SELECT void_status, refunded FROM public.pos_vendas WHERE id = $1`, [body.venda_id])
+  assert.equal(stillVoid.rows[0].void_status, 'void')
+  assert.equal(stillVoid.rows[0].refunded, 2400)
   await expectRaise(root, admin, () => root.query(
     `SELECT public.pos_void_sale($1, 'refund', NULL, 'hq repeat', $2)`,
     [body.venda_id, admin],
@@ -676,6 +685,27 @@ async function main() {
     [partialSale],
   )
   assert.equal(noApplied.rows[0].n, 0)
+  const deniedBeforeRollback = await root.query(
+    `SELECT count(*)::int AS n FROM public.pos_void_audit WHERE venda_id = $1 AND result = 'denied'`,
+    [partialSale],
+  )
+  await root.query('BEGIN')
+  await root.query(`SELECT set_config('request.jwt.claim.sub', $1, true)`, [cashierA])
+  await root.query('SET LOCAL ROLE authenticated')
+  const inflightDenial = await root.query(
+    `SELECT public.pos_void_sale($1, 'partial_refund', NULL, 'rolled denial', $2, $3, 1) AS result`,
+    [partialSale, cashierA, partialItem],
+  )
+  assert.equal(inflightDenial.rows[0].result, null)
+  await root.query('ROLLBACK')
+  const deniedAfterRollback = await root.query(
+    `SELECT count(*)::int AS n FROM public.pos_void_audit WHERE venda_id = $1 AND result = 'denied'`,
+    [partialSale],
+  )
+  assert.equal(deniedAfterRollback.rows[0].n, deniedBeforeRollback.rows[0].n)
+  const rolledSale = await root.query(`SELECT refunded, void_status FROM public.pos_vendas WHERE id = $1`, [partialSale])
+  assert.equal(rolledSale.rows[0].refunded, 0)
+  assert.equal(rolledSale.rows[0].void_status, null)
   await asUser(root, managerA, () => root.query(
     `SELECT public.pos_void_sale($1, 'partial_refund', NULL, 'first half', $2, $3, 1)`,
     [partialSale, managerA, partialItem],

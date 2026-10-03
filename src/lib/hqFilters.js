@@ -1,5 +1,7 @@
 /** Pure HQ filter helpers. Never writes ledgers. Never mixes the four books. */
 
+import { countJbmValid, countTillValid, sumJbmGross, sumJbmNet, sumTillGross, sumTillNet } from './saleBooks.js'
+
 export function monthKeyOf(value) {
   const m = String(value || '').match(/(\d{4}-\d{2})/)
   return m ? m[1] : ''
@@ -104,10 +106,12 @@ export function buildMonthSeries({ keys, vendas, posRows, pedidos, rentRows }) {
     const rent = (rentRows || []).find(r => r.kind === 'rent' && r.month_key === key)
     return {
       key,
-      pos: pos.reduce((a, s) => a + (+s.total || 0), 0),
-      posCount: pos.length,
-      jbm: jbmRows.reduce((a, v) => a + (+v.total || 0), 0),
-      jbmCount: jbmRows.length,
+      pos: sumTillNet(pos),
+      posGross: sumTillGross(pos),
+      posCount: countTillValid(pos),
+      jbm: sumJbmNet(jbmRows),
+      jbmGross: sumJbmGross(jbmRows),
+      jbmCount: countJbmValid(jbmRows),
       pedidos: peds.length,
       pedidosTotal: peds.reduce((a, p) => a + (+p.total_estimado || +p.total || 0), 0),
       rent: Math.round(+rent?.amount || 0),

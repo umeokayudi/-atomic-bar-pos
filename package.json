@@ -17,6 +17,7 @@
     "test:pos": "node scripts/posFloor.test.mjs",
     "test:supabase": "node scripts/supabaseTarget.test.mjs",
     "test:analytics": "node scripts/managerAnalytics.test.mjs",
+    "test:books": "node scripts/saleBooks.test.mjs",
     "test:reports": "node scripts/managementReport.test.mjs",
     "test:ai": "node scripts/aiAssistant.test.mjs",
     "test:demo": "node scripts/demoLedger.test.mjs",

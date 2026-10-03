@@ -69,7 +69,12 @@ function pedidosFaturamentoForMonth(pedidos, m) {
 
 /** Regra única: faturamento − notas pagas do mês (Jul e demais meses) */
 export function monthDashboardStats(m, { vendas, compras, faturas, pedidos, produtos }) {
-  const receita = (vendas || []).filter(v => saleMonthKey(v) === m).reduce((a, v) => a + (+v.total || 0), 0)
+  const monthNotes = (vendas || []).filter(v => saleMonthKey(v) === m)
+  const receita = monthNotes.reduce((a, v) => {
+    const status = String(v.status || '')
+    if (status === 'cancelada' || status === 'cancelado' || status === 'void' || status === 'estornada') return a
+    return a + (Math.round(+v.total || 0) > 0 ? Math.round(+v.total || 0) : 0)
+  }, 0)
   const faturamentoFaturas = faturamentoForMonth(faturas, m)
   const faturamentoPedidos = pedidosFaturamentoForMonth(pedidos, m)
   const aReceber = aReceberForMonth(faturas, m)
@@ -90,7 +95,10 @@ export function monthDashboardStats(m, { vendas, compras, faturas, pedidos, prod
     lucro: receita - comprasTotal,
     lucroProjetado,
     margem: faturamento > 0 ? Math.round(lucroProjetado / faturamento * 100) : 0,
-    vendasCount: (vendas || []).filter(v => saleMonthKey(v) === m).length,
+    vendasCount: monthNotes.filter(v => {
+      const status = String(v.status || '')
+      return status !== 'cancelada' && status !== 'cancelado' && status !== 'void' && status !== 'estornada' && Math.round(+v.total || 0) > 0
+    }).length,
     comprasCount: comprasMes.length,
     aReceber,
   }
@@ -412,7 +420,9 @@ export function buildDashboardCalendar({
     const date = dayKey(v.data || v.data_venda)
     if (!date) continue
     byDay[date] = byDay[date] || { in: 0, out: 0 }
-    byDay[date].in += +v.total || 0
+    const status = String(v.status || '')
+    if (status === 'cancelada' || status === 'cancelado' || status === 'void' || status === 'estornada') continue
+    byDay[date].in += Math.max(0, Math.round(+v.total || 0))
   }
   for (const c of compras) {
     const date = dayKey(c.data_compra || c.data)

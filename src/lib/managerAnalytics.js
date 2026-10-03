@@ -4,7 +4,7 @@
  */
 
 import { addDays, tenderOf, weekdayOf } from './barClose.js'
-import { hourOfSale, nightKeyOfSale, saleNet } from './nightClose.js'
+import { hourOfSale, nightKeyOfSale, saleValid } from './nightClose.js'
 import { orderCastFromObs, orderCastIdFromObs } from './orderMeta.js'
 import { lastDayOfMonth } from './tokyo.js'
 
@@ -131,9 +131,7 @@ function rangeCovered(coverage, start, end) {
 }
 
 export function validSaleAmount(sale) {
-  const status = String(sale?.void_status || '')
-  if (status === 'void' || status === 'cancelada' || status === 'cancelado') return 0
-  return saleNet(sale)
+  return saleValid(sale)
 }
 
 export function salesOf(rows) {

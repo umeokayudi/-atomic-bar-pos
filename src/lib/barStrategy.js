@@ -1,7 +1,7 @@
 /** What already worked, plus birthday event ideas the manager can accept or drop. */
 
 import { aggregateHourlySales } from './atomicPos.js'
-import { nightKeyOfSale } from './nightClose.js'
+import { nightKeyOfSale, saleValid } from './nightClose.js'
 import { orderCastFromObs } from './orderMeta.js'
 import { tokyoDateKey, tokyoParts } from './tokyo.js'
 
@@ -43,7 +43,9 @@ export function whatWorked(tickets = []) {
     const key = nightKeyOfSale(s)
     if (!key) continue
     const prev = byNight.get(key) || { date: key, sales: 0, count: 0 }
-    prev.sales += +s.total || 0
+    const net = saleValid(s)
+    if (net <= 0) continue
+    prev.sales += net
     prev.count += 1
     byNight.set(key, prev)
   }
@@ -64,7 +66,7 @@ export function whatWorked(tickets = []) {
   for (const s of tickets || []) {
     const name = orderCastFromObs(s.obs)
     if (!name) continue
-    cast.set(name, (cast.get(name) || 0) + (+s.total || 0))
+    cast.set(name, (cast.get(name) || 0) + saleValid(s))
   }
   const topCast = [...cast.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([nome, sales]) => ({ nome, sales }))
   return {

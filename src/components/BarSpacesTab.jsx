@@ -69,12 +69,12 @@ export default function BarSpacesTab({ bar }) {
         supabase.from('bar_spaces').select('*').eq('bar_id', bar.id).order('ordem'),
         supabase.from('bar_visits').select('id,space_id,status,party_size,inicio,fim,guest_id,pos_venda_id,host_nome,bar_guests(nome)').eq('bar_id', bar.id).order('inicio', { ascending: false }).limit(800),
         supabase.from('bar_guests').select('id,nome,telefone,line_id,preferred_host').eq('bar_id', bar.id).eq('ativo', true).order('nome'),
-        supabase.from('pos_vendas').select('id,total,space_id,visit_id,guest_id,vip_member_id,criado_em,data').eq('bar_id', bar.id).gte('data', since).order('criado_em', { ascending: false }).limit(2000),
+        supabase.from('pos_vendas').select('id,total,refunded,void_status,space_id,visit_id,guest_id,vip_member_id,criado_em,data').eq('bar_id', bar.id).gte('data', since).order('criado_em', { ascending: false }).limit(2000),
         supabase.from('vip_members').select('id,nome').eq('bar_id', bar.id).eq('ativo', true),
       ]))
       let salesRows = salesR.data || []
       if (salesR.error && /vip_member_id|guest_id/.test(salesR.error.message || '')) {
-        const again = await supabase.from('pos_vendas').select('id,total,space_id,visit_id,guest_id,criado_em,data').eq('bar_id', bar.id).gte('data', since).order('criado_em', { ascending: false }).limit(2000)
+        const again = await supabase.from('pos_vendas').select('id,total,refunded,void_status,space_id,visit_id,guest_id,criado_em,data').eq('bar_id', bar.id).gte('data', since).order('criado_em', { ascending: false }).limit(2000)
         salesRows = again.error ? [] : (again.data || [])
       } else if (salesR.error) salesRows = []
       const err = sR.error || vR.error || gR.error

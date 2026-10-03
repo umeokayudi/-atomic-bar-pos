@@ -56,16 +56,25 @@ export default function VendasTab() {
     (!filterBar   || v.bar_id === filterBar)
   )
 
-  const totalReceita = filtered.reduce((a,v) => a + (+v.total||0), 0)
-
-  const totalVendaForm = form.itens.reduce((a, it) => {
-    const p = produtos.find(x => x.id === it.produto_id)
-    return a + (p ? p.preco_venda * it.qtd : 0)
+  const totalReceita = filtered.reduce((a, v) => {
+    const status = String(v.status || '')
+    if (status === 'cancelada' || status === 'cancelado' || status === 'void' || status === 'estornada') return a
+    return a + (Math.round(+v.total || 0) > 0 ? Math.round(+v.total || 0) : 0)
   }, 0)
+
+  const formLines = form.itens.map(it => {
+    const p = produtos.find(x => x.id === it.produto_id)
+    const unit = +p?.preco_venda
+    const qty = +it.qtd
+    return { it, p, unit, qty, line: unit > 0 && qty > 0 ? unit * qty : null }
+  })
+  const formPriceMissing = form.itens.length > 0 && formLines.some(line => line.line == null)
+  const totalVendaForm = formPriceMissing ? null : formLines.reduce((a, line) => a + line.line, 0)
 
   async function saveVenda() {
     if (scope.kind === 'none') return
     if (!form.itens.length) return alert(t('sales.addOneItem'))
+    if (!(totalVendaForm > 0)) return alert('sale price not configured')
     const barId = scope.kind === 'bar' ? scope.barId : form.bar_id
     if (!barId) return alert(t('sales.selectBar'))
     setSaving(true)
@@ -77,7 +86,7 @@ export default function VendasTab() {
       await supabase.from('vendas_itens').insert(
         form.itens.map(it => {
           const p = produtos.find(x => x.id === it.produto_id)
-          return { venda_id: venda.id, produto_id: it.produto_id, qtd: it.qtd, preco_unitario: p?.preco_venda || 0 }
+          return { venda_id: venda.id, produto_id: it.produto_id, qtd: it.qtd, preco_unitario: p.preco_venda }
         })
       )
     }
@@ -141,7 +150,7 @@ export default function VendasTab() {
                   const a=[...form.itens]; a[i]={...a[i],qtd:+e.target.value}; setF('itens',a)
                 }}/>
                 <span style={{ fontSize:13, color:'var(--text2)' }}>
-                  {prod ? fmtYen(prod.preco_venda * it.qtd) : '—'}
+                  {prod && +prod.preco_venda > 0 ? fmtYen(prod.preco_venda * it.qtd) : '—'}
                 </span>
                 <button onClick={()=>setF('itens',form.itens.filter((_,j)=>j!==i))}
                   style={{ padding:0, fontSize:14 }}>✕</button>
@@ -151,8 +160,8 @@ export default function VendasTab() {
         </div>
 
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-          <div style={{ fontSize:14 }}>{t('common.total')}: <strong>{fmtYen(totalVendaForm)}</strong></div>
-          <button className="btn-primary" onClick={saveVenda} disabled={saving}>
+          <div style={{ fontSize:14 }}>{t('common.total')}: <strong>{totalVendaForm == null ? '—' : fmtYen(totalVendaForm)}</strong></div>
+          <button className="btn-primary" onClick={saveVenda} disabled={saving || formPriceMissing}>
             {saving ? <><span className="spinner" />{t('common.saving')}</> : t('sales.saveSale')}
           </button>
         </div>

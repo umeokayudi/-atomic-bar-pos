@@ -44,7 +44,7 @@ export default function BarGuestsTab({ bar }) {
     try {
       const [gR, sR, vR, kR] = await withTimeout(Promise.all([
         supabase.from('bar_guests').select('*').eq('bar_id', bar.id).order('nome'),
-        supabase.from('pos_vendas').select('id,guest_id,total,data,criado_em,space_id').eq('bar_id', bar.id).order('criado_em', { ascending: false }).limit(400),
+        supabase.from('pos_vendas').select('id,guest_id,total,refunded,void_status,data,criado_em,space_id').eq('bar_id', bar.id).order('criado_em', { ascending: false }).limit(400),
         supabase.from('vip_members').select('id,nome').eq('bar_id', bar.id).eq('ativo', true),
         supabase.from('bar_bottle_keeps').select('*').eq('bar_id', bar.id).eq('ativo', true).order('criado_em', { ascending: false }),
       ]))

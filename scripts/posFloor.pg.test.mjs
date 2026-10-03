@@ -417,14 +417,22 @@ async function main() {
     `SELECT id, qtd, comissao_valor FROM public.pos_vendas_itens WHERE pos_venda_id = $1`,
     [pour.venda_id],
   )
-  await expectRaise(root, userA, () => root.query(
-    `SELECT public.pos_void_sale($1, 'partial_refund', NULL, 'cashier void', $2, $3, 1)`,
+  const cashierDenied = await tx(root, userA, () => root.query(
+    `SELECT public.pos_void_sale($1, 'partial_refund', NULL, 'cashier void', $2, $3, 1) AS result`,
     [pour.venda_id, userB, saleItem.rows[0].id],
-  ), /void not allowed/)
-  await expectRaise(root, userA, () => root.query(
-    `SELECT public.pos_void_sale($1, 'partial_refund', NULL, 'cashier void', $2, $3, 1)`,
+  ))
+  assert.equal(cashierDenied.rows[0].result, null)
+  const cashierDeniedAgain = await tx(root, userA, () => root.query(
+    `SELECT public.pos_void_sale($1, 'partial_refund', NULL, 'cashier void', $2, $3, 1) AS result`,
     [pour.venda_id, userA, saleItem.rows[0].id],
-  ), /void not allowed/)
+  ))
+  assert.equal(cashierDeniedAgain.rows[0].result, null)
+  const untouchedPour = await root.query(
+    `SELECT refunded, void_status FROM public.pos_vendas WHERE id = $1`,
+    [pour.venda_id],
+  )
+  assert.equal(untouchedPour.rows[0].refunded, 0)
+  assert.equal(untouchedPour.rows[0].void_status, null)
   const deniedVoids = await root.query(
     `SELECT result, reason FROM public.pos_void_audit WHERE venda_id = $1 AND result = 'denied'`,
     [pour.venda_id],

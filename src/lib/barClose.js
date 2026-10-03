@@ -1,7 +1,7 @@
 /** Weekly and monthly close, payment dates, and salary vs what each person sold. */
 
 import { faturaRemaining } from './barPortal.js'
-import { nightKeyOfSale, paySplitFromObs, prevTokyoDateKey } from './nightClose.js'
+import { nightKeyOfSale, paySplitFromObs, prevTokyoDateKey, saleGross, saleValid } from './nightClose.js'
 import { readTicketMeta } from './nightTicket.js'
 import { orderCastFromObs } from './orderMeta.js'
 import { lastDayOfMonth, tokyoNightKey } from './tokyo.js'
@@ -70,18 +70,21 @@ function rowsIn(tickets, start, end) {
 export function tenderOf(tickets) {
   const pay = { cash: 0, card: 0, paypay: 0, other: 0 }
   for (const s of tickets || []) {
+    const gross = saleGross(s)
+    const net = saleValid(s)
+    if (gross <= 0 || net <= 0) continue
+    const scale = net / gross
     const split = paySplitFromObs(s.obs)
-    const total = +s.total || 0
     if (split) {
-      pay.cash += split.Cash
-      pay[split.otherBucket] += split.other
+      pay.cash += split.Cash * scale
+      pay[split.otherBucket] += split.other * scale
       continue
     }
     const method = String(s.metodo_pagamento || '')
-    if (/paypay|ペイペイ/i.test(method)) pay.paypay += total
-    else if (/card|credit|debit|visa|クレジット/i.test(method)) pay.card += total
-    else if (/cash|現金/i.test(method) || !method) pay.cash += total
-    else pay.other += total
+    if (/paypay|ペイペイ/i.test(method)) pay.paypay += net
+    else if (/card|credit|debit|visa|クレジット/i.test(method)) pay.card += net
+    else if (/cash|現金/i.test(method) || !method) pay.cash += net
+    else pay.other += net
   }
   return pay
 }
@@ -173,7 +176,8 @@ export function periodReport({ tickets, start, end, registry, hq, monthKey }) {
   const [y, m] = String(monthKey || start).slice(0, 7).split('-').map(Number)
   const dim = lastDayOfMonth(y, m) || 30
   const costs = fixedMonthCost(registry, hq, String(monthKey || start).slice(0, 7))
-  const sales = rows.reduce((a, s) => a + (+s.total || 0), 0)
+  const sales = rows.reduce((a, s) => a + saleValid(s), 0)
+  const gross = rows.reduce((a, s) => a + saleGross(s), 0)
   const comm = commissionOf(rows)
   const tender = tenderOf(rows)
   const fee = Math.round(tender.card * cardPct(registry) / 100)
@@ -187,19 +191,20 @@ export function periodReport({ tickets, start, end, registry, hq, monthKey }) {
   const byNight = nightsBetween(start, end).map(date => ({
     date,
     label: WEEK[weekdayOf(date)],
-    sales: rowsIn(tickets, date, date).reduce((a, s) => a + (+s.total || 0), 0),
+    sales: rowsIn(tickets, date, date).reduce((a, s) => a + saleValid(s), 0),
   }))
+  const count = rows.filter(s => saleValid(s) > 0).length
   return {
-    start, end, nights, sales, count: rows.length,
-    ticket: rows.length ? Math.round(sales / rows.length) : 0,
+    start, end, nights, sales, gross, count,
+    ticket: count ? Math.round(sales / count) : 0,
     tender, fee, comm, vip: vipOf(rows), profit, net, tax, accountant, card, allocated, costs, byNight,
   }
 }
 
 export function sameWeekdaySales(tickets, nightKey) {
   const prev = addDays(nightKey, -7)
-  const now = rowsIn(tickets, nightKey, nightKey).reduce((a, s) => a + (+s.total || 0), 0)
-  const before = rowsIn(tickets, prev, prev).reduce((a, s) => a + (+s.total || 0), 0)
+  const now = rowsIn(tickets, nightKey, nightKey).reduce((a, s) => a + saleValid(s), 0)
+  const before = rowsIn(tickets, prev, prev).reduce((a, s) => a + saleValid(s), 0)
   return { nightKey, prev, now, before, delta: now - before }
 }
 
@@ -252,7 +257,7 @@ export function paymentAgenda({
   push({ id: 'aluguel', kind: 'aluguel', amount: costs.rent, day: (registry.find(r => r.kind === 'aluguel' && r.vence_dia) || {}).vence_dia || 1, tab: 'aluguel' })
   push({ id: 'energia', kind: 'energia', amount: costs.energy, day: (registry.find(r => r.kind === 'energia' && r.vence_dia) || {}).vence_dia || 1, tab: 'energia' })
   push({ id: 'contador', kind: 'contador', amount: costs.accountant, day: (registry.find(r => r.kind === 'contador' && r.vence_dia) || {}).vence_dia || 1, tab: 'contador' })
-  const monthSales = monthTickets.reduce((a, s) => a + (+s.total || 0), 0)
+  const monthSales = monthTickets.reduce((a, s) => a + saleValid(s), 0)
   for (const r of registry || []) {
     if (r.kind !== 'imposto') continue
     const amount = Math.round(monthSales * (+r.pct || 0) / 100) + Math.round(+r.amount || 0)
@@ -301,7 +306,7 @@ export function salaryBoard({ payroll = [], tickets = [], monthKey }) {
   const rows = (payroll || []).map(p => {
     const nome = String(p.nome || '').trim().toLowerCase()
     const mine = monthTickets.filter(s => orderCastFromObs(s.obs).trim().toLowerCase() === nome)
-    const sales = mine.reduce((a, s) => a + (+s.total || 0), 0)
+    const sales = mine.reduce((a, s) => a + saleValid(s), 0)
     const comm = commissionOf(mine)
     const pay = Math.round(+p.pay || 0)
     const hours = +p.hours || 0
