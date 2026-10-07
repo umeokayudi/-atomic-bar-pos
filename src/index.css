@@ -6097,7 +6097,7 @@ html[data-layout="desktop"] .app-main {
   color: inherit;
 }
 @media (max-width: 760px) {
-  .gpt-app { height: calc(100dvh - 148px); min-height: 0; }
+  .gpt-app { height: calc(100dvh - 280px); min-height: 280px; }
   .gpt-side {
     display: none;
     position: absolute;
@@ -6110,6 +6110,10 @@ html[data-layout="desktop"] .app-main {
   .gpt-menu { display: inline-flex; align-items: center; }
   .gpt-welcome h1 { font-size: 22px; }
   .gpt-compose { padding-bottom: 10px; }
+}
+html[data-device="phone"] .gpt-app {
+  height: calc(100dvh - 320px);
+  min-height: 280px;
 }
 
 

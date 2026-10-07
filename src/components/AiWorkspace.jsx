@@ -202,7 +202,7 @@ export default function AiWorkspace({ bar, onTab }) {
             ref={inputRef}
             rows={1}
             value={draft}
-            placeholder="Pergunte ou peça uma alteração"
+            placeholder="Pergunte aqui"
             aria-label="Mensagem"
             onChange={event => setDraft(event.target.value)}
             onKeyDown={event => {
