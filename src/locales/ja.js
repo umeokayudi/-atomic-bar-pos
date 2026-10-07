@@ -1149,6 +1149,7 @@ export default {
   },
   nav: {
     dashboard: 'ダッシュボード',
+    assistant: 'AI',
     billingHub: 'レポート・請求',
     purchases: '仕入',
     sales: '売上',

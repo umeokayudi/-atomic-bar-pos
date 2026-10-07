@@ -23,7 +23,7 @@ import {
   projectItemRevenue,
 } from '../lib/clientAnalytics'
 import BarDesk from './BarDesk'
-import AiOperationsCenter from './AiOperationsCenter'
+import AiWorkspace from './AiWorkspace'
 import AutoReorder from './AutoReorder'
 import BillMatch from './BillMatch'
 import RangeCalendar from './RangeCalendar'
@@ -2270,7 +2270,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         {tab==='precos'    && canManageBarTeam(perfil?.role) && <PrecosCardapioTab bar={bar} />}
         {tab==='faturas'   && canManageBarTeam(perfil?.role) && <FaturasTab bar={bar} />}
         {tab==='recibos'  && canManageBarTeam(perfil?.role) && <TabHold><PortalRecibosTab bar={bar} /></TabHold>}
-        {tab==='ia'       && canManageBarTeam(perfil?.role) && <TabHold><AiOperationsCenter bar={bar} onTab={selectTab} /></TabHold>}
+        {tab==='ia'       && canManageBarTeam(perfil?.role) && <TabHold><AiWorkspace bar={bar} onTab={selectTab} /></TabHold>}
         </main>
       </div>
       {DOCK.length > 0 && (
