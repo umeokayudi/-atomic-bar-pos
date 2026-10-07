@@ -36,7 +36,7 @@ export function barBookScope(role, barId) {
 export function shellTabIds(role) {
   if (role === 'admin') {
     return [
-      'dashboard', 'billingHub', 'purchases', 'sales', 'pedidos', 'fulfillment', 'procurement',
+      'dashboard', 'assistant', 'billingHub', 'purchases', 'sales', 'pedidos', 'fulfillment', 'procurement',
       'relatorio', 'ryoshusho', 'seikyusho', 'products', 'bars', 'usuarios', 'faturas', 'suppliers', 'cashflow',
       'payroll',
     ]

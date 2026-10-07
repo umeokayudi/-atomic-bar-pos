@@ -18,6 +18,7 @@
     "test:supabase": "node scripts/supabaseTarget.test.mjs",
     "test:analytics": "node scripts/managerAnalytics.test.mjs",
     "test:reports": "node scripts/managementReport.test.mjs",
+    "test:ai": "node scripts/aiWorkspace.test.mjs",
     "test:pos:pg": "node scripts/posFloor.pg.test.mjs"
   },
   "dependencies": {

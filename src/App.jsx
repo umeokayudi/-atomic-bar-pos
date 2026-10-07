@@ -46,11 +46,13 @@ const SupplierPortal = lazy(() => import('./components/SupplierPortal'))
 const DashboardMetricModal = lazy(() => import('./components/DashboardMetricModal'))
 const DashboardCalendar = lazy(() => import('./components/DashboardCalendar'))
 const DashboardAi = lazy(() => import('./components/DashboardAi'))
+const AiWorkspace = lazy(() => import('./components/AiWorkspace'))
 const MarkPaidPopup = lazy(() => import('./components/MarkPaidPopup'))
 
 // ── TABS por role ─────────────────────────────────────────────────────────────
 const ADMIN_TABS = [
   { id:'dashboard', labelKey:'nav.dashboard', icon:'📊' },
+  { id:'assistant', labelKey:'nav.assistant', icon:'✨' },
   { id:'billingHub', labelKey:'nav.billingHub', icon:'📱' },
   { id:'purchases', labelKey:'nav.purchases', icon:'🛒' },
   { id:'sales',    labelKey:'nav.sales', icon:'💴' },
@@ -573,6 +575,7 @@ function Shell() {
         <Suspense fallback={null}>
         <div className="fade-in" key={activeTab}>
           {activeTab==='dashboard' && <Dashboard onNav={selectTab}/>}
+          {activeTab==='assistant' && <AiWorkspace onTab={selectTab} />}
           {activeTab==='billingHub' && <ReportsBilling onNav={selectTab}/>}
           {activeTab==='purchases'   && <ComprasTab/>}
           {activeTab==='sales'    && <VendasTab/>}
