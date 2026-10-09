@@ -1,0 +1,1 @@
+These files replace the four device doors on umeokayudi/-bebidas-control (bebidas-control.vercel.app). This agent cannot push that repo (403). Apply them on branch cursor/pos-tablet-door or main of -bebidas-control.

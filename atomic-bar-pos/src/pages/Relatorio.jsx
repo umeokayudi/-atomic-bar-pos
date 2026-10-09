@@ -1,48 +1,57 @@
 import { useState, useEffect } from 'react'
-import { supabase, BAR_ID } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
+import { useBar } from '../lib/useBar'
+import { tokyoDateKey, tokyoDayWindow, tokyoMonthWindow, tokyoMonthStart, tokyoNextDate, tokyoNextMonthStart } from '../lib/tokyoDay'
 
 const fmt = n => '¥' + Math.round(n).toLocaleString('ja-JP')
 const fmtDate = d => new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
 
 export default function Relatorio() {
+  const { barId } = useBar()
   const [vendas, setVendas] = useState([])
   const [caixa, setCaixa] = useState([])
   const [compras, setCompras] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadErr, setLoadErr] = useState(null)
   const [period, setPeriod] = useState('hoje')
 
-  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
-  const monthStart = today.slice(0, 7) + '-01'
-
-  const dateFilter = period === 'hoje' ? today : monthStart
-
   useEffect(() => {
+    if (!barId) return
     async function load() {
-      const [{ data: vData }, { data: cxData }, { data: compData }] = await Promise.all([
-        supabase.from('vendas').select('*, vendas_itens(*)').eq('bar_id', BAR_ID).gte('data_venda', dateFilter).order('data_venda', { ascending: false }),
-        supabase.from('caixa_movimentos').select('*').eq('bar_id', BAR_ID).gte('data', dateFilter).order('data', { ascending: false }),
-        supabase.from('compras').select('*, compras_itens(*)').eq('bar_id', BAR_ID).gte('data_emissao', dateFilter)
+      const today = tokyoDateKey()
+      const bounds = period === 'hoje' ? tokyoDayWindow(today) : tokyoMonthWindow(today)
+      const compraFrom = period === 'hoje' ? today : tokyoMonthStart(today)
+      const compraTo = period === 'hoje' ? tokyoNextDate(today) : tokyoNextMonthStart(today)
+      const [vRes, cxRes, compRes] = await Promise.all([
+        supabase.from('vendas').select('id,total,forma_pagamento,data_venda,mesa,comissao_total').eq('bar_id', barId).gte('data_venda', bounds.start).lt('data_venda', bounds.end).order('data_venda', { ascending: false }).limit(80),
+        supabase.from('caixa_movimentos').select('id,tipo,valor,descricao,data,referencia_tipo').eq('bar_id', barId).gte('data', bounds.start).lt('data', bounds.end).order('data', { ascending: false }).limit(80),
+        supabase.from('compras').select('id,total,data_emissao').eq('bar_id', barId).gte('data_emissao', compraFrom).lt('data_emissao', compraTo).limit(80)
       ])
-      setVendas(vData || [])
-      setCaixa(cxData || [])
-      setCompras(compData || [])
+      const failed = vRes.error || cxRes.error || compRes.error
+      if (failed) {
+        setLoadErr(failed.message || 'Erro ao carregar o relatório')
+        setVendas([])
+        setCaixa([])
+        setCompras([])
+      } else {
+        setLoadErr(null)
+        setVendas(vRes.data || [])
+        setCaixa(cxRes.data || [])
+        setCompras(compRes.data || [])
+      }
       setLoading(false)
     }
     load()
 
-    // Real-time: listen to vendas and caixa_movimentos
-    const ch = supabase.channel('relatorio-rt')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'vendas', filter: `bar_id=eq.${BAR_ID}` }, async () => {
-        const { data } = await supabase.from('vendas').select('*, vendas_itens(*)').eq('bar_id', BAR_ID).gte('data_venda', dateFilter).order('data_venda', { ascending: false })
-        setVendas(data || [])
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'caixa_movimentos', filter: `bar_id=eq.${BAR_ID}` }, (payload) => {
-        setCaixa(prev => [payload.new, ...prev])
+    const ch = supabase.channel('relatorio-rt-' + barId)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'vendas', filter: `bar_id=eq.${barId}` }, () => { load() })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'caixa_movimentos', filter: `bar_id=eq.${barId}` }, (payload) => {
+        setCaixa(prev => [payload.new, ...prev].slice(0, 80))
       })
       .subscribe()
 
     return () => supabase.removeChannel(ch)
-  }, [period])
+  }, [period, barId])
 
   // Metrics
   const totalVendasBruto = vendas.reduce((s, v) => s + (v.total || 0), 0)
@@ -73,8 +82,13 @@ export default function Relatorio() {
         <div>
           <h2 style={{ fontSize: 18, fontWeight: 500, marginBottom: 4 }}>Relatório</h2>
           <div style={{ fontSize: 12, color: 'var(--white60)' }}>
-            <span style={{ color: 'var(--gold)' }}>●</span> Atualização em tempo real
+            <span style={{ color: 'var(--gold)' }}>●</span> Atualização em tempo real · horário de Tóquio
           </div>
+          {loadErr && (
+            <div style={{ marginTop: 8, fontSize: 13, color: 'var(--danger)' }}>
+              Erro ao carregar o relatório. {loadErr}
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           {['hoje', 'mes'].map(p => (
@@ -102,14 +116,14 @@ export default function Relatorio() {
       {/* Vendas table */}
       <div style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: 'var(--white30)', marginBottom: 8 }}>Pedidos</div>
       <div style={{ background: 'var(--white05)', border: '0.5px solid rgba(255,255,255,0.08)', borderRadius: 10, overflow: 'hidden', marginBottom: 20 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 80px 80px 80px 90px', gap: 8, padding: '10px 16px', borderBottom: '0.5px solid rgba(255,255,255,0.08)', fontSize: 11, color: 'var(--white30)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-          <span>Data / Mesa</span><span>Pgto</span><span>Itens</span><span>Comissão</span><span style={{ textAlign: 'right' }}>Total</span>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 80px 80px 90px', gap: 8, padding: '10px 16px', borderBottom: '0.5px solid rgba(255,255,255,0.08)', fontSize: 11, color: 'var(--white30)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          <span>Data / Mesa</span><span>Pgto</span><span>Comissão</span><span style={{ textAlign: 'right' }}>Total</span>
         </div>
         {vendas.length === 0 && (
           <div style={{ textAlign: 'center', color: 'var(--white30)', padding: 24, fontSize: 13 }}>Nenhum pedido no período</div>
         )}
         {vendas.slice(0, 30).map(v => (
-          <div key={v.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 80px 80px 80px 90px', gap: 8, padding: '10px 16px', borderBottom: '0.5px solid rgba(255,255,255,0.04)', fontSize: 13, alignItems: 'center' }}>
+          <div key={v.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 80px 80px 90px', gap: 8, padding: '10px 16px', borderBottom: '0.5px solid rgba(255,255,255,0.04)', fontSize: 13, alignItems: 'center' }}>
             <span>
               <div>{v.mesa}</div>
               <div style={{ fontSize: 11, color: 'var(--white30)' }}>{fmtDate(v.data_venda)}</div>
@@ -123,7 +137,6 @@ export default function Relatorio() {
                 {v.forma_pagamento === 'dinheiro' ? '💴' : '💳'}
               </span>
             </span>
-            <span style={{ color: 'var(--white60)' }}>{v.vendas_itens?.length || 0}</span>
             <span style={{ color: (v.comissao_total || 0) > 0 ? 'var(--warning)' : 'var(--white30)' }}>
               {(v.comissao_total || 0) > 0 ? fmt(v.comissao_total) : '—'}
             </span>

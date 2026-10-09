@@ -70,3 +70,195 @@ input, select { font-family: inherit; }
   font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
   color: var(--white30); margin-bottom: 12px;
 }
+
+.shell {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--navy);
+}
+.shell-nav {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--navy2);
+  border-right: 0.5px solid var(--gold-border);
+  display: flex;
+  flex-direction: column;
+}
+.shell-brand {
+  padding: 18px 16px 14px;
+  border-bottom: 0.5px solid var(--gold-border);
+}
+.shell-brand strong {
+  display: block;
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--gold);
+}
+.shell-brand span {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--white30);
+}
+.shell-links {
+  padding: 10px 8px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: auto;
+}
+.shell-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  text-decoration: none;
+  color: var(--white60);
+  border: 0.5px solid transparent;
+}
+.shell-link.is-on {
+  background: var(--gold-dim);
+  color: var(--gold);
+  border-color: var(--gold-border);
+}
+.shell-foot {
+  padding: 12px;
+  border-top: 0.5px solid var(--gold-border);
+}
+.shell-foot select {
+  width: 100%;
+  margin-bottom: 8px;
+  background: var(--white05);
+  border: 0.5px solid var(--gold-border);
+  border-radius: 8px;
+  color: var(--white90);
+  padding: 8px 10px;
+  font-size: 12px;
+}
+.shell-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.shell-top {
+  height: 52px;
+  flex-shrink: 0;
+  background: var(--navy2);
+  border-bottom: 0.5px solid var(--gold-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  gap: 12px;
+}
+.pos-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  height: 100%;
+  overflow: hidden;
+}
+.ticket {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #001433;
+  border-left: 0.5px solid var(--gold-border);
+}
+.ticket-head {
+  padding: 12px 14px;
+  border-bottom: 0.5px solid var(--gold-border);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.ticket-head select {
+  width: 100%;
+  background: var(--white05);
+  border: 0.5px solid var(--gold-border);
+  border-radius: 8px;
+  color: var(--white90);
+  padding: 8px 10px;
+  font-size: 12px;
+}
+.ticket-list {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 10px 12px;
+}
+.ticket-empty {
+  text-align: center;
+  color: var(--white30);
+  padding: 40px 16px;
+  font-size: 13px;
+}
+.ticket-line {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 8px;
+  border-radius: 10px;
+  margin-bottom: 6px;
+  background: var(--white05);
+}
+.ticket-line strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--white90);
+}
+.ticket-line em {
+  display: block;
+  font-style: normal;
+  font-size: 11px;
+  color: var(--white30);
+  margin-top: 2px;
+}
+.ticket-qty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ticket-qty button {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 0.5px solid var(--gold-border);
+  background: none;
+  color: var(--gold);
+  font-size: 16px;
+}
+.ticket-foot {
+  padding: 12px 14px 14px;
+  border-top: 0.5px solid var(--gold-border);
+  background: var(--navy2);
+}
+.row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 6px;
+  color: var(--white60);
+}
+.row.total {
+  color: var(--gold);
+  font-size: 18px;
+  font-weight: 700;
+  border-top: 0.5px solid var(--gold-border);
+  padding-top: 10px;
+  margin-top: 8px;
+}
+@media (max-width: 860px) {
+  .shell-nav { display: none; }
+  .pos-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) minmax(240px, 42%);
+  }
+  .ticket { border-left: none; border-top: 0.5px solid var(--gold-border); }
+}
+

@@ -1,19 +1,22 @@
 import { useState, useEffect } from 'react'
-import { supabase, BAR_ID } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
+import { useBar } from '../lib/useBar'
 
 const fmt = n => '¥' + Math.round(n).toLocaleString('ja-JP')
 
 export default function Estoque() {
+  const { barId } = useBar()
   const [produtos, setProdutos] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('todos')
 
   useEffect(() => {
+    if (!barId) return
     async function load() {
       const { data } = await supabase
         .from('produtos')
-        .select('*')
-        .eq('bar_id', BAR_ID)
+        .select('id,nome,categoria,estoque_atual,estoque_minimo,preco_venda')
+        .eq('bar_id', barId)
         .order('categoria')
         .order('nome')
       setProdutos(data || [])
@@ -21,16 +24,15 @@ export default function Estoque() {
     }
     load()
 
-    // Real-time subscription
     const channel = supabase
-      .channel('estoque-realtime')
+      .channel('estoque-realtime-' + barId)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'produtos',
-        filter: `bar_id=eq.${BAR_ID}`
+        filter: `bar_id=eq.${barId}`
       }, payload => {
         setProdutos(prev => {
           if (payload.eventType === 'UPDATE') {
-            return prev.map(p => p.id === payload.new.id ? payload.new : p)
+            return prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p)
           }
           if (payload.eventType === 'INSERT') return [...prev, payload.new]
           if (payload.eventType === 'DELETE') return prev.filter(p => p.id !== payload.old.id)
@@ -40,7 +42,7 @@ export default function Estoque() {
       .subscribe()
 
     return () => supabase.removeChannel(channel)
-  }, [])
+  }, [barId])
 
   const cats = ['todos', ...new Set(produtos.map(p => p.categoria))]
   const filtered = filter === 'todos' ? produtos : filter === 'baixo'

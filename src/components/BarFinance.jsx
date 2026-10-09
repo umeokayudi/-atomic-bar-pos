@@ -1,0 +1,435 @@
+import { useEffect, useState } from 'react'
+import { fmtYen, Spinner } from './utils'
+import { staffFetch } from '../lib/apiAuth'
+import { invalidateBarTeam, loadBarTeam, peekBarTeam } from '../lib/barTeam'
+import { fetchHqSnapshot, peekHqSnapshot } from '../lib/hqSnapshot'
+import {
+  WEEK,
+  addDays,
+  lastClosedWeek,
+  monthBounds,
+  paymentAgenda,
+  periodReport,
+  salaryBoard,
+  stillToSell,
+  weekdayOf,
+} from '../lib/barClose'
+import { tokyoNightKey } from '../lib/tokyo'
+import { clockLabel, closeSettings } from '../lib/autoClose'
+import { monthRange, payrollFromPunches } from '../lib/timeClock'
+import StaffPayCards from './StaffPayCards'
+import DayStaffBoard from './DayStaffBoard'
+import { useI18n } from '../lib/i18n'
+import { asReactText, errText } from '../lib/errText'
+
+function money(n) {
+  return fmtYen(Math.round(+n || 0))
+}
+
+function CloseHours({ goals, busy, onSave }) {
+  const { t } = useI18n()
+  const cfg = closeSettings(goals)
+  function fromClock(value) {
+    const [h, m] = String(value || '00:00').split(':')
+    return { hour: h, minute: m }
+  }
+  return (
+    <section className="desk-card">
+      <h3>{t('portal.close.autoTitle')}</h3>
+      <p className="desk-note">{t('portal.close.autoLead')}</p>
+      <div className="house-editor">
+        <label>
+          {t('portal.close.openAt')}
+          <input type="time" defaultValue={clockLabel(cfg.abre, 0)} disabled={busy} onBlur={e => onSave({ abre: fromClock(e.target.value).hour })} />
+        </label>
+        <label>
+          {t('portal.close.splitAt')}
+          <input type="time" defaultValue={clockLabel(cfg.corta, 0)} disabled={busy} onBlur={e => onSave({ corta: fromClock(e.target.value).hour })} />
+        </label>
+        <label>
+          {t('portal.close.nightAt')}
+          <input
+            type="time"
+            defaultValue={clockLabel(cfg.horaNoite, cfg.minNoite)}
+            disabled={busy}
+            onBlur={e => {
+              const clock = fromClock(e.target.value)
+              onSave({ hora_noite: clock.hour, min_noite: clock.minute, auto_noite: true })
+            }}
+          />
+        </label>
+        <label>
+          {t('portal.close.dayAt')}
+          <input
+            type="time"
+            defaultValue={clockLabel(cfg.horaDia, cfg.minDia)}
+            disabled={busy}
+            onBlur={e => {
+              const clock = fromClock(e.target.value)
+              onSave({ hora_dia: clock.hour, min_dia: clock.minute, auto_dia: true })
+            }}
+          />
+        </label>
+      </div>
+      <div className="goal-modes">
+        <button type="button" className={cfg.autoNoite ? 'is-on' : ''} disabled={busy} onClick={() => onSave({ auto_noite: !cfg.autoNoite })}>
+          {t('portal.close.autoNight')} · {cfg.autoNoite ? t('portal.close.autoOn') : t('portal.close.autoOff')}
+        </button>
+        <button type="button" className={cfg.autoDia ? 'is-on' : ''} disabled={busy} onClick={() => onSave({ auto_dia: !cfg.autoDia })}>
+          {t('portal.close.autoDay')} · {cfg.autoDia ? t('portal.close.autoOn') : t('portal.close.autoOff')}
+        </button>
+        <button
+          type="button"
+          className={goals?.adicional_noturno !== false ? 'is-on' : ''}
+          disabled={busy}
+          onClick={() => onSave({ adicional_noturno: goals?.adicional_noturno === false })}
+        >
+          {t('portal.close.nightPremium')} · {goals?.adicional_noturno !== false ? t('portal.close.nightPremiumOn') : t('portal.close.nightPremiumOff')}
+        </button>
+      </div>
+      <p className="desk-note">
+        {t('portal.close.autoHint', {
+          night: clockLabel(cfg.horaNoite, cfg.minNoite),
+          day: clockLabel(cfg.horaDia, cfg.minDia),
+        })}
+      </p>
+    </section>
+  )
+}
+
+function mondayOf(date) {
+  const wd = weekdayOf(date)
+  return addDays(date, wd === 0 ? -6 : 1 - wd)
+}
+
+function CloseDoc({ t, current, previous }) {
+  const rows = [
+    ['sales', current.sales, previous.sales],
+    ['cash', current.tender.cash, previous.tender.cash],
+    ['card', current.tender.card, previous.tender.card],
+    ['paypay', current.tender.paypay, previous.tender.paypay],
+    ['vip', current.vip, previous.vip],
+    ['fee', current.fee, previous.fee],
+    ['comm', current.comm, previous.comm],
+    ['costs', current.allocated, previous.allocated],
+    ['accountant', current.accountant, previous.accountant],
+    ['tax', current.tax, previous.tax],
+    ['net', current.net, previous.net],
+  ]
+  return (
+    <table className="close-doc">
+      <thead>
+        <tr>
+          <th />
+          <th>{t('portal.close.now')}</th>
+          <th>{t('portal.close.before')}</th>
+          <th>{t('portal.close.delta')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map(([key, now, before]) => {
+          const delta = Math.round((+now || 0) - (+before || 0))
+          return (
+            <tr key={key}>
+              <td>{t(`portal.close.${key}`)}</td>
+              <td>{money(now)}</td>
+              <td>{money(before)}</td>
+              <td className={delta > 0 ? 'is-up' : delta < 0 ? 'is-down' : ''}>{delta > 0 ? '+' : ''}{money(delta)}</td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
+  )
+}
+
+export default function BarFinance({ bar, section = 'fechamento', onTab }) {
+  const { t } = useI18n()
+  const [loading, setLoading] = useState(() => !(peekBarTeam() && peekHqSnapshot()))
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [view, setView] = useState('week')
+  const [pack, setPack] = useState(null)
+  const [days, setDays] = useState({ dia_mes: 1, dia_salario: 25, dia_drink: 10 })
+
+  function packFrom(teamRes, hq) {
+    const prev = hq?.prev
+    return {
+      registry: teamRes.registry || [],
+      goals: teamRes.goals || {},
+      hq,
+      tickets: hq?.pos?.history?.length ? hq.pos.history : (hq?.pos?.tickets || []),
+      invoices: hq?.jbm?.openInvoices || [],
+      prevHq: prev ? { books: prev.books, payroll: prev.payroll, rent: prev.rent, pos: prev.pos } : null,
+      clockReady: !!teamRes.clockReady,
+      punches: teamRes.punches || [],
+      staff: teamRes.staff || [],
+      punched: teamRes.punched || [],
+    }
+  }
+
+  async function load() {
+    const cachedTeam = peekBarTeam()
+    const cachedHq = peekHqSnapshot()
+    if (cachedTeam && cachedHq) setPack(packFrom(cachedTeam, cachedHq))
+    const range = monthRange()
+    const [teamRes, hq, clockRes] = await Promise.all([
+      loadBarTeam(),
+      fetchHqSnapshot().catch(() => cachedHq),
+      staffFetch(`/api/time-clock?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`).then(r => r.json()).catch(() => ({ punches: [] })),
+    ])
+    if (teamRes.error) throw new Error(errText(teamRes.error))
+    const nightPremium = teamRes.goals?.adicional_noturno !== false
+    teamRes.clockReady = true
+    teamRes.punches = clockRes.punches || []
+    teamRes.punched = payrollFromPunches(teamRes.punches, teamRes.staff || [], range, { nightPremium })
+    setPack(packFrom(teamRes, hq || cachedHq))
+  }
+
+  useEffect(() => {
+    if (!pack?.goals) return
+    setDays({
+      dia_mes: pack.goals.dia_mes || 1,
+      dia_salario: pack.goals.dia_salario || 25,
+      dia_drink: pack.goals.dia_drink || 10,
+    })
+  }, [pack?.goals?.dia_mes, pack?.goals?.dia_salario, pack?.goals?.dia_drink])
+
+  useEffect(() => {
+    let cancelled = false
+    if (!peekBarTeam() || !peekHqSnapshot()) setLoading(true)
+    load()
+      .catch(e => { if (!cancelled) setErr(errText(e)) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [bar?.id])
+
+  async function saveSettings(patch) {
+    setBusy(true)
+    setErr('')
+    invalidateBarTeam()
+    try {
+      const r = await staffFetch('/api/bar-staff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'saveCloseSettings', ...patch }),
+      })
+      const j = await r.json()
+      if (!r.ok || j.error) throw new Error(errText(j.error || j))
+      setPack(prev => ({ ...prev, goals: { ...(prev?.goals || {}), ...(j.goals || patch) } }))
+    } catch (e) {
+      setErr(errText(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (loading) return <Spinner text={t('portal.close.loading')} />
+  if (!pack) return <div className="house-page"><p>{asReactText(err)}</p></div>
+
+  const night = tokyoNightKey()
+  const goals = pack.goals || {}
+  const nightPremium = goals.adicional_noturno !== false
+  const punched = pack.clockReady
+    ? payrollFromPunches(pack.punches || [], pack.staff || [], monthRange(), { nightPremium })
+    : (pack.punched || [])
+  const closeDay = goals.fecha_semana == null ? 0 : +goals.fecha_semana
+  const week = lastClosedWeek(night, closeDay)
+  const openEnd = night < week.openEnd ? night : week.openEnd
+  const month = monthBounds(night)
+  const monthEnd = night < month.end ? night : month.end
+  const shared = { tickets: pack.tickets, registry: pack.registry, hq: pack.hq }
+  const openReport = periodReport({ ...shared, start: week.openStart, end: openEnd, monthKey: night.slice(0, 7) })
+  const closedReport = periodReport({ ...shared, start: week.start, end: week.end, monthKey: week.end.slice(0, 7) })
+  const monthReport = periodReport({ ...shared, start: month.start, end: monthEnd, monthKey: night.slice(0, 7) })
+  const prevReport = periodReport({
+    tickets: pack.prevHq?.pos?.tickets || pack.tickets,
+    registry: pack.registry,
+    hq: pack.prevHq || pack.hq,
+    start: month.prevStart,
+    end: month.prevEnd,
+    monthKey: month.prevStart.slice(0, 7),
+  })
+  const current = view === 'month' ? monthReport : openReport
+  const previous = view === 'month' ? prevReport : closedReport
+  const gap = stillToSell(current.sales, view === 'month' ? goals.lucro : goals.semana)
+  const agenda = paymentAgenda({
+    registry: pack.registry,
+    hq: pack.hq,
+    invoices: pack.invoices,
+    tickets: pack.tickets,
+    goals,
+    today: night,
+  })
+  const board = salaryBoard({
+    payroll: punched.length ? punched : (pack.hq?.payroll || []),
+    tickets: pack.tickets,
+    monthKey: night.slice(0, 7),
+  })
+
+  return (
+    <div className="house-page goal-page fade-in">
+      <h1>{t(`portal.${section === 'fechamento' ? 'close' : section === 'pagamentos' ? 'pay' : 'salary'}.title`)}</h1>
+      <p className="house-lead">{t(`portal.${section === 'fechamento' ? 'close' : section === 'pagamentos' ? 'pay' : 'salary'}.lead`)}</p>
+      {err && <p className="desk-note">{asReactText(err)}</p>}
+
+      {section === 'fechamento' && (
+        <>
+          <DayStaffBoard />
+          <section className="desk-card">
+            <h3>{t('portal.close.weekday')}</h3>
+            <div className="goal-modes">
+              {WEEK.map((label, i) => (
+                <button key={label} type="button" className={closeDay === i ? 'is-on' : ''} disabled={busy} onClick={() => saveSettings({ fecha_semana: i })}>
+                  {t(`portal.close.days.${i}`)}
+                </button>
+              ))}
+            </div>
+            <label className="house-month">
+              {t('portal.close.monthDay')}
+              <input
+                type="number"
+                min="1"
+                max="28"
+                value={days.dia_mes}
+                onChange={e => setDays(d => ({ ...d, dia_mes: e.target.value }))}
+                onBlur={() => saveSettings({ dia_mes: days.dia_mes })}
+              />
+            </label>
+            <p className="desk-note">{t('portal.close.monthHint', { day: goals.dia_mes || 1 })}</p>
+          </section>
+
+          <CloseHours goals={goals} busy={busy} onSave={saveSettings} />
+
+          <div className="goal-modes">
+            <button type="button" className={view === 'week' ? 'is-on' : ''} onClick={() => setView('week')}>{t('portal.close.week')}</button>
+            <button type="button" className={view === 'month' ? 'is-on' : ''} onClick={() => setView('month')}>{t('portal.close.month')}</button>
+          </div>
+
+          <div className="goal-hero">
+            <div>
+              <div className="goal-hero-kicker">{current.start} → {current.end}</div>
+              <div className="goal-hero-value">{money(current.net)}</div>
+              <div className="goal-hero-goal">{t('portal.close.net')}</div>
+              <div className="goal-hero-goal">
+                {t('portal.close.profit')} {money(current.profit)}
+                {' · '}
+                {previous.profit === current.profit
+                  ? t('portal.close.flat')
+                  : t(current.profit > previous.profit ? 'portal.close.up' : 'portal.close.down', { amount: money(Math.abs(current.profit - previous.profit)) })}
+              </div>
+              {gap != null && (
+                <div className="goal-hero-goal">
+                  {gap === 0 ? t('portal.close.hit') : t('portal.close.still', { amount: money(gap) })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <section className="desk-card">
+            <p className="desk-note">{previous.start} → {previous.end}</p>
+            <CloseDoc t={t} current={current} previous={previous} />
+            <p className="desk-note">
+              {t('portal.close.ticket')} {money(current.ticket)} · {t('portal.close.count')} {current.count}
+              {current.card.nome ? ` · ${current.card.nome}` : ''}
+              {' · '}
+              {t('portal.close.cardRule', { pct: current.card.pct || 0, days: current.card.days || 0 })}
+              {' · '}
+              {t('portal.close.cardLanded')} {money(current.card.landed)}
+              {' · '}
+              {t('portal.close.cardWaiting')} {money(current.card.waiting)}
+            </p>
+          </section>
+        </>
+      )}
+
+      {section === 'pagamentos' && (
+        <>
+          <section className="desk-card">
+            <div className="house-editor">
+              <label>
+                {t('portal.pay.salaryDay')}
+                <input type="number" min="1" max="28" value={days.dia_salario} onChange={e => setDays(d => ({ ...d, dia_salario: e.target.value }))} onBlur={() => saveSettings({ dia_salario: days.dia_salario })} />
+              </label>
+              <label>
+                {t('portal.pay.drinkDay')}
+                <input type="number" min="1" max="28" value={days.dia_drink} onChange={e => setDays(d => ({ ...d, dia_drink: e.target.value }))} onBlur={() => saveSettings({ dia_drink: days.dia_drink })} />
+              </label>
+            </div>
+          </section>
+          {(() => {
+            const late = agenda.filter(item => !item.inflow && item.days < 0)
+            if (!late.length) return null
+            const total = late.reduce((sum, item) => sum + (+item.amount || 0), 0)
+            return (
+              <div className="pay-late">
+                <strong>{t('portal.desk.lateAlert', { count: late.length })}</strong>
+                <b>{money(total)}</b>
+              </div>
+            )
+          })()}
+          {!agenda.length && <div className="desk-empty">{t('portal.pay.empty')}</div>}
+          {[...agenda.reduce((map, item) => {
+            const start = mondayOf(item.date)
+            const list = map.get(start) || []
+            list.push(item)
+            map.set(start, list)
+            return map
+          }, new Map()).entries()].sort((a, b) => a[0] < b[0] ? -1 : 1).map(([start, items]) => (
+            <section key={start} className="desk-card">
+              <h3>{t('portal.pay.weekOf', { date: start })}</h3>
+              {items.map(item => (
+                <button key={item.id} type="button" className={`desk-alert ${item.inflow ? 'is-in' : item.days < 0 ? 'is-bad' : item.days <= 7 ? 'is-soon' : ''}`} onClick={() => onTab?.(item.tab)}>
+                  <span>
+                    <strong>{item.title || t(`portal.pay.kind.${item.kind}`)}</strong>
+                    <em>
+                      {item.date}
+                      {' · '}
+                      {item.days < 0 && t('portal.desk.overdue', { days: Math.abs(item.days) })}
+                      {item.days === 0 && t('portal.desk.dueToday')}
+                      {item.days > 0 && t('portal.desk.dueSoon', { days: item.days })}
+                    </em>
+                  </span>
+                  <b>{item.inflow ? '+' : ''}{money(item.amount)}</b>
+                </button>
+              ))}
+            </section>
+          ))}
+        </>
+      )}
+
+      {section === 'salarios' && (
+        <>
+          <div className="goal-hero">
+            <div>
+              <div className="goal-hero-kicker">{t('portal.salary.total')}</div>
+              <div className="goal-hero-value">{money(board.total)}</div>
+              <div className="goal-hero-goal">
+                {board.save > 0
+                  ? t('portal.salary.save', { amount: money(board.save) })
+                  : t('portal.salary.ok')}
+              </div>
+            </div>
+          </div>
+          <div className="goal-modes">
+            <button
+              type="button"
+              className={nightPremium ? 'is-on' : ''}
+              disabled={busy}
+              onClick={() => saveSettings({ adicional_noturno: !nightPremium })}
+            >
+              {t('portal.close.nightPremium')} · {nightPremium ? t('portal.close.nightPremiumOn') : t('portal.close.nightPremiumOff')}
+            </button>
+          </div>
+          <section className="desk-card">
+            <StaffPayCards rows={board.rows} showPay nightPremium={nightPremium} />
+            <div className="desk-more" style={{ marginTop: 12 }}>
+              <button type="button" onClick={() => onTab?.('staff')}>{t('portal.salary.openStaff')}</button>
+              <button type="button" onClick={() => onTab?.('ponto')}>{t('nav.portalClock')}</button>
+            </div>
+          </section>
+        </>
+      )}
+    </div>
+  )
+}
