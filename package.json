@@ -5,7 +5,6 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:holding": "cd jbm-master-app && npm ci --silent && npm run build:holding && cd .. && rm -rf public/holding && cp -r jbm-master-app/dist public/holding && vite build",
     "preview": "vite preview",
     "deploy": "bash scripts/deploy-vercel.sh",
     "deploy:bebidas": "bash scripts/deploy-vercel.sh bebidas",
