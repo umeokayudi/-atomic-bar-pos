@@ -7,41 +7,8 @@ export const LANE_PERFIL_KEY = 'bar_lane_perfil'
 export const POS_LOGIN_ID = '11111111-1111-4111-8111-111111111111'
 export const STAFF_LOGIN_ID = '22222222-2222-4222-8222-222222222222'
 
-export const WRITTEN_LOGINS = {
-  pos: {
-    lane: 'pos',
-    email: 'pos@atomic.bar',
-    password: 'PosOnly#2026',
-    role: 'caixa',
-    nome: 'Atomic POS',
-  },
-  gerente: {
-    lane: 'gerente',
-    email: 'umeokayudi@gmail.com',
-    password: 'JbmVer#2026',
-    role: 'cliente',
-    nome: 'Gerente Atomic',
-    via: 'supabase',
-  },
-  funcionario: {
-    lane: 'funcionario',
-    email: 'funcionario@atomic.bar',
-    password: 'Funcionario#2026',
-    role: 'bar_staff',
-    nome: 'Funcionário Atomic',
-    pin: '2468',
-    salario_hora: 1500,
-    cargo: 'Floor',
-  },
-  jbm: {
-    lane: 'jbm',
-    email: 'umeokagroup@gmail.com',
-    password: 'Jbm#Fornecedor2026',
-    role: 'admin',
-    nome: 'Alexandre Umeoka',
-    via: 'supabase',
-  },
-}
+// Lane sign-in emails are identifiers only. Passwords stay in the server-side login store.
+export const LANE_LOGIN_EMAILS = ['pos@atomic.bar', 'funcionario@atomic.bar']
 
 function readStore(key) {
   try { return sessionStorage.getItem(key) || localStorage.getItem(key) || '' } catch { return '' }
@@ -84,5 +51,5 @@ export function clearLaneSession() {
 
 export function isLaneEmail(email) {
   const e = String(email || '').trim().toLowerCase()
-  return e === WRITTEN_LOGINS.pos.email || e === WRITTEN_LOGINS.funcionario.email
+  return LANE_LOGIN_EMAILS.includes(e)
 }
