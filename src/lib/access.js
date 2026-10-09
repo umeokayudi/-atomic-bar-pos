@@ -84,9 +84,16 @@ const CAIXA_NAV = [
 ]
 
 const STAFF_NAV = [
+  { id: 'profile', labelKey: 'nav.myProfile', icon: '👤' },
+  { id: 'shifts', labelKey: 'nav.myShifts', icon: '🗓️' },
   { id: 'ponto', labelKey: 'nav.portalClock', icon: '🕒' },
-  { id: 'pos', labelKey: 'nav.portalPos', icon: '🧾' },
-  { id: 'pedidos', labelKey: 'nav.portalOrders', icon: '🛒' },
+  { id: 'goals', labelKey: 'nav.myGoals', icon: '🎯' },
+  { id: 'result', labelKey: 'nav.myResult', icon: '📈' },
+  { id: 'points', labelKey: 'nav.myPoints', icon: '⭐' },
+  { id: 'occurrences', labelKey: 'nav.myOccurrences', icon: '📝' },
+  { id: 'rewards', labelKey: 'nav.myRewards', icon: '🏅' },
+  { id: 'salary', labelKey: 'nav.mySalary', icon: '💴' },
+  { id: 'pedidos', labelKey: 'nav.myTasks', icon: '📋' },
 ]
 
 export function navForBarRole(role) {
@@ -112,8 +119,8 @@ export function primaryDockForRole(role) {
   if (role === ROLES.bar_staff) {
     return [
       { id: 'ponto', icon: '🕒', labelKey: 'nav.portalClock' },
-      { id: 'pos', icon: '🧾', labelKey: 'nav.portalPos' },
-      { id: 'pedidos', icon: '🛒', labelKey: 'nav.portalOrders' },
+      { id: 'goals', icon: '🎯', labelKey: 'nav.myGoals' },
+      { id: 'pedidos', icon: '📋', labelKey: 'nav.myTasks' },
     ]
   }
   return [
