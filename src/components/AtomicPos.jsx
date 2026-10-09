@@ -1550,7 +1550,7 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
           <div className="pos-head-sub">{access === 'cashier' ? t('atomicPos.tillSubtitle') : t('atomicPos.subtitle')}</div>
           <div className="pos-head-bar">{t('atomicPos.thisTill', { name: bar.nome || 'Atomic' })}</div>
           {access === 'cashier' && (
-            <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 6 }}>{t('atomicPos.tillOnly')}</div>
+            <div className="pos-head-only">{t('atomicPos.tillOnly')}</div>
           )}
         </div>
         <div className="pos-head-today">

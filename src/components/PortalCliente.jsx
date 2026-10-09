@@ -2247,7 +2247,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         <main className="app-content">
         {tab==='custos'    && isGerente(perfil?.role) && <BarCostsTab bar={bar} onTab={selectTab} />}
         {tab==='metas' && canManageBarTeam(perfil?.role) && <TabHold><BarGoalsTab bar={bar} /></TabHold>}
-        {['profile', 'shifts', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary'].includes(tab) && perfil?.role === 'bar_staff' && <TabHold><EmployeeDesk section={tab} /></TabHold>}
+        {['hoje', 'profile', 'shifts', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary'].includes(tab) && perfil?.role === 'bar_staff' && <TabHold><EmployeeDesk section={tab} bar={bar} onTab={selectTab} /></TabHold>}
         {tab==='eventos' && canManageBarTeam(perfil?.role) && <TabHold><BarEventsTab bar={bar} /></TabHold>}
         {['fechamento', 'pagamentos', 'salarios'].some(id => opened.has(id)) && canManageBarTeam(perfil?.role) && (
           <div hidden={!['fechamento', 'pagamentos', 'salarios'].includes(tab)}>

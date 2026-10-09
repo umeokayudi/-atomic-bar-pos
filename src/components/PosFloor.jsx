@@ -62,12 +62,39 @@ export default function PosFloor({ bar, drinks = [], shots = [], agents = [], ca
       const id = data.session?.user?.id || ''
       setUserId(id)
       const saved = readPosDeviceMode(id)
-      setMode(saved)
-      setAsking(!saved)
+      // A tablet-sized screen opens straight into the tablet till; Layout still switches it.
+      const auto = saved || (suggestPosDeviceMode({ width: window.innerWidth, height: window.innerHeight }) === 'tablet' ? 'tablet' : null)
+      if (!saved && auto) writePosDeviceMode(id, auto)
+      setMode(auto)
+      setAsking(!auto)
       setModeReady(true)
     })
     return () => { cancelled = true }
   }, [])
+
+  // Keep the till screen awake during service. Browsers drop the lock when the tab hides.
+  useEffect(() => {
+    if (!navigator.wakeLock) return undefined
+    let lock = null
+    let alive = true
+    const take = () => {
+      if (document.visibilityState !== 'visible') return
+      navigator.wakeLock.request('screen').then(l => { if (alive) lock = l; else l.release() }).catch(() => {})
+    }
+    take()
+    document.addEventListener('visibilitychange', take)
+    return () => {
+      alive = false
+      document.removeEventListener('visibilitychange', take)
+      lock?.release().catch(() => {})
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!mode) return undefined
+    document.documentElement.setAttribute('data-pos-mode', mode)
+    return () => document.documentElement.removeAttribute('data-pos-mode')
+  }, [mode])
 
   useEffect(() => {
     const read = () => setOrientation(window.innerHeight >= window.innerWidth ? 'portrait' : 'landscape')
