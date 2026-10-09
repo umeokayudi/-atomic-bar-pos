@@ -36,6 +36,7 @@ const BarTeamTab = lazy(() => import('./BarTeamTab'))
 const BarHouseTab = lazy(() => import('./BarHouse'))
 const DrinkBackTab = lazy(() => import('./DrinkBackTab'))
 const BarGoalsTab = lazy(() => import('./BarGoals'))
+const EmployeeDesk = lazy(() => import('./EmployeeDesk'))
 const BarEventsTab = lazy(() => import('./BarEvents'))
 const BarFinance = lazy(() => import('./BarFinance'))
 const BarGuestsTab = lazy(() => import('./BarGuestsTab'))
@@ -2230,18 +2231,23 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
       <div className="app-main app-main-wide">
         <DemoModeBanner />
         <AutoClose bar={bar} />
-        <WorkspaceChrome>
-          <UiPrefsPanel compact />
-          {isGerente(perfil?.role) && (
-            <button type="button" className="chrome-till" onClick={() => { setDoorHash('pos'); setDoor('pos') }}>
-              {t('auth.openTillTablet')}
-            </button>
-          )}
-          <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
-        </WorkspaceChrome>
+        {perfil?.role === 'caixa' ? (
+          <div style={{ padding: '10px 18px', fontSize: 13, fontWeight: 700, color: 'var(--text2)' }}>{bar.nome} · POS</div>
+        ) : (
+          <WorkspaceChrome>
+            <UiPrefsPanel compact />
+            {isGerente(perfil?.role) && (
+              <button type="button" className="chrome-till" onClick={() => { setDoorHash('pos'); setDoor('pos') }}>
+                {t('auth.openTillTablet')}
+              </button>
+            )}
+            <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
+          </WorkspaceChrome>
+        )}
         <main className="app-content">
         {tab==='custos'    && isGerente(perfil?.role) && <BarCostsTab bar={bar} onTab={selectTab} />}
         {tab==='metas' && canManageBarTeam(perfil?.role) && <TabHold><BarGoalsTab bar={bar} /></TabHold>}
+        {['profile', 'shifts', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary'].includes(tab) && perfil?.role === 'bar_staff' && <TabHold><EmployeeDesk section={tab} /></TabHold>}
         {tab==='eventos' && canManageBarTeam(perfil?.role) && <TabHold><BarEventsTab bar={bar} /></TabHold>}
         {['fechamento', 'pagamentos', 'salarios'].some(id => opened.has(id)) && canManageBarTeam(perfil?.role) && (
           <div hidden={!['fechamento', 'pagamentos', 'salarios'].includes(tab)}>
