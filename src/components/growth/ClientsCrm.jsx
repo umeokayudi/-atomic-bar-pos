@@ -113,7 +113,7 @@ export default function ClientsCrm({ onNav }) {
           <div className="ui-empty"><Icon name="crm" size={22} /><div className="ui-empty-title">{t('growth.noClients')}</div></div>
         )}
         {data && visible.length > 0 && (
-          <table className="ui-table is-stack">
+          <table className="ui-table is-stack is-stack-md">
             <thead>
               <tr>
                 <th>{t('common.bar')}</th>
@@ -143,7 +143,7 @@ export default function ClientsCrm({ onNav }) {
                       {r.overdue > 0 && <div className="txt-danger">{t('growth.overdueAmt', { amount: fmtYen(r.overdue) })}</div>}
                     </td>
                     <td data-label={t('growth.colSignals')}>
-                      <div className="ui-row">
+                      <div className="ui-row is-wrap">
                         {signals.length === 0 && <span className="ui-badge is-success">{t('growth.sigOk')}</span>}
                         {signals.map(s => <span key={s} className={`ui-badge ${s === 'overdue' ? 'is-danger' : 'is-warning'}`}>{t(`growth.sig.${s}`)}</span>)}
                         {r.overdue > 0 && onNav && (

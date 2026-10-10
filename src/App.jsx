@@ -534,6 +534,7 @@ function Shell() {
           <span style={{ fontSize: 14, fontWeight: 800, color: 'white', letterSpacing: '-0.02em' }}>{t('billingHub.mobileTitle')}</span>
         ) : undefined}
       >
+        {isAdminScreen && activeTab !== 'ai' && <AskAiButton />}
         {perfil?.role === 'admin' && tab !== 'billingHub' && (
           <button
             type="button"

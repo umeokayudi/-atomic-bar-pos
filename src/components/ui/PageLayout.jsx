@@ -7,7 +7,7 @@ export function PageHeader({ title, subtitle, actions }) {
         <div className="portal-page-title">{title}</div>
         {subtitle && <div className="portal-page-sub">{subtitle}</div>}
       </div>
-      {actions && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>{actions}</div>}
+      {actions && <div className="page-header-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', minWidth: 0, maxWidth: '100%' }}>{actions}</div>}
     </div>
   )
 }
@@ -30,8 +30,10 @@ export function PortalHero({ label, value, sub, alert, onClick, style }) {
   )
 }
 
-export function PortalKpi({ label, value, sub, subColor, color = 'var(--navy)', onClick, hint }) {
+export function PortalKpi({ label, value, sub, subColor, color = 'var(--c-text)', onClick, hint }) {
   const clickable = typeof onClick === 'function'
+  // --navy is the dark chrome colour: as text it vanishes on dark surfaces, so it reads as body text here.
+  const valueColor = !color || color === 'var(--navy)' ? 'var(--c-text)' : color
   return (
     <div
       className={`portal-kpi-card${clickable ? ' is-clickable' : ''}`}
@@ -40,7 +42,7 @@ export function PortalKpi({ label, value, sub, subColor, color = 'var(--navy)', 
       tabIndex={clickable ? 0 : undefined}
     >
       <div className="portal-overline">{label}</div>
-      <div className="portal-kpi-value" style={{ color }}>{value}</div>
+      <div className="portal-kpi-value" style={{ color: valueColor }}>{value}</div>
       {sub && <div className="portal-kpi-sub" style={subColor ? { color: subColor, fontWeight: 600 } : undefined}>{sub}</div>}
       {hint && <div className="portal-kpi-hint">{hint}</div>}
     </div>

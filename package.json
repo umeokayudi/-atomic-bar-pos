@@ -18,7 +18,8 @@
     "test:ai": "node scripts/aiActions.test.mjs",
     "test:pos:pg": "node scripts/posFloor.pg.test.mjs",
     "test:floor:pg": "node scripts/floorComandas.pg.test.mjs",
-    "test:redesign": "node scripts/redesign.test.mjs"
+    "test:redesign": "node scripts/redesign.test.mjs",
+    "test:visual": "npm run build && node scripts/visual/shots.mjs visual-out"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

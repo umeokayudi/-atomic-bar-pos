@@ -2202,6 +2202,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         onToggle={() => setMenuOpen(o => !o)}
         title={<div className="logo-mobile-header"><span style={{ fontSize: 14, fontWeight: 800, color: 'white' }}>{bar.nome}</span></div>}
       >
+        {aiOn && <AskAiButton />}
         <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
       </MobileTopBar>
 
