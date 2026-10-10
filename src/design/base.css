@@ -445,3 +445,32 @@ html[data-pointer="coarse"] .fe-resize { width: 28px; height: 28px; }
 .ui-formulas dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px 20px; margin: 12px 0; }
 .ui-formulas dt { font-size: 12px; font-weight: 700; color: var(--c-text); }
 .ui-formulas dd { margin: 2px 0 0; font-size: 13px; color: var(--c-text-2); }
+
+/* ── Collapsible side menu (tablet/desktop). Phones keep the slide-in menu. ── */
+.sidebar { transition: width var(--dur) var(--ease); }
+.sidebar-brand { display: flex; align-items: center; justify-content: space-between; gap: 8px; position: relative; }
+.sidebar-collapse-btn {
+  flex-shrink: 0; width: 32px; height: 32px; padding: 0; display: grid; place-items: center;
+  border-radius: 9px; border: 1px solid color-mix(in srgb, var(--c-on-chrome) 14%, transparent);
+  background: transparent; color: color-mix(in srgb, var(--c-on-chrome) 70%, transparent);
+}
+.sidebar-collapse-btn:hover { background: color-mix(in srgb, var(--c-on-chrome) 8%, transparent); color: var(--c-on-chrome); }
+.sidebar-signout { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.sidebar-signout-icon { opacity: .8; }
+html .sidebar.sidebar.is-collapsed,
+html[data-layout] .sidebar.sidebar.is-collapsed { width: 76px !important; }
+.sidebar.is-collapsed .sidebar-brand { flex-direction: column; padding: 18px 8px 14px; gap: 10px; }
+.sidebar.is-collapsed .sidebar-brand > div > div:last-child { display: none; }
+.sidebar.is-collapsed .sidebar-nav { padding: 12px 10px; }
+.sidebar.is-collapsed .nav-group { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid color-mix(in srgb, var(--c-on-chrome) 7%, transparent); }
+.sidebar.is-collapsed .nav-group:last-child { border-bottom: 0; }
+.sidebar.is-collapsed .nav-group-label,
+.sidebar.is-collapsed .nav-label,
+.sidebar.is-collapsed .sidebar-who-text,
+.sidebar.is-collapsed .sidebar-footer-details { display: none; }
+.sidebar.is-collapsed .nav-item { justify-content: center; padding: 0; min-height: 44px; position: relative; }
+.sidebar.is-collapsed .nav-badge { position: absolute; top: 4px; right: 4px; min-width: 16px; height: 16px; padding: 0 4px; font-size: 9px; }
+.sidebar.is-collapsed .sidebar-footer { padding: 12px 10px; }
+.sidebar.is-collapsed .sidebar-who { justify-content: center; }
+.sidebar.is-collapsed .sidebar-signout { padding: 9px 0; }
+@media (prefers-reduced-motion: reduce) { .sidebar { transition: none; } }

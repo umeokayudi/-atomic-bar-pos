@@ -15,6 +15,7 @@ import { useNotifications, NotificationBell, useOverdueAlerts } from './componen
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, useLocation, useNavigate } from 'react-router-dom'
 import Icon from './components/ui/Icon'
+import { SidebarCollapseButton, useSidebarCollapse } from './lib/sidebarCollapse'
 import { groupTabs, HQ_ADMIN_TABS, aiModuleForTab, tabFromPath, pathForTab } from './lib/navigation'
 import { AiPanelProvider, AiContextPublisher, snapshotToKpis, useAiPanel } from './lib/aiPanel'
 import AskAiDrawer, { AskAiButton } from './components/ai/AskAiDrawer'
@@ -456,6 +457,7 @@ function Shell() {
   const tab = tabFromPath(location.pathname, 'hq', allowedTabs, allowedTabs[0] || '')
 
   useMobileMenuLock(menuOpen)
+  const rail = useSidebarCollapse()
 
   // The AI panel follows the screen: module + title for whatever is open.
   useEffect(() => {
@@ -561,18 +563,19 @@ function Shell() {
         <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
       </MobileTopBar>
 
-      <aside className={`sidebar${menuOpen ? ' open' : ''}`}>
+      <aside className={`sidebar${menuOpen ? ' open' : ''}${rail.collapsed ? ' is-collapsed' : ''}`}>
         <div className="sidebar-brand">
           <LogoSidebar />
+          {rail.allowed && <SidebarCollapseButton collapsed={rail.collapsed} onToggle={rail.toggle} />}
         </div>
         <nav className="sidebar-nav" aria-label="Main">
           {groups.map(g => (
             <div key={g.id} className="nav-group">
               {groups.length > 1 && <div className="nav-group-label">{t(g.labelKey)}</div>}
               {g.ids.map(id => TABS_BY_ID[id]).map(nav => (
-                <button key={nav.id} onClick={()=>selectTab(nav.id)} className={`nav-item ${activeTab===nav.id?'active':''}`} aria-current={activeTab===nav.id ? 'page' : undefined}>
+                <button key={nav.id} onClick={()=>selectTab(nav.id)} className={`nav-item ${activeTab===nav.id?'active':''}`} aria-current={activeTab===nav.id ? 'page' : undefined} title={rail.collapsed ? t(nav.labelKey) : undefined} aria-label={rail.collapsed ? t(nav.labelKey) : undefined}>
                   <Icon name={nav.icon} size={18} />
-                  <span style={{fontSize:13}}>{t(nav.labelKey)}</span>
+                  <span className="nav-label" style={{fontSize:13}}>{t(nav.labelKey)}</span>
                   {nav.id==='pedidos'&&pedidosPendentes>0&&(
                     <span className="nav-badge">{pedidosPendentes}</span>
                   )}
@@ -585,16 +588,16 @@ function Shell() {
           ))}
         </nav>
         <div className="sidebar-footer">
-          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
-            <div style={{width:34,height:34,borderRadius:10,background:'color-mix(in srgb, var(--gold) 20%, transparent)',border:'1px solid color-mix(in srgb, var(--gold) 30%, transparent)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:700,color:'var(--gold)',flexShrink:0}}>
+          <div className="sidebar-who" style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}} title={rail.collapsed ? `${perfil?.nome||user?.email||''} · ${roleLabel(perfil?.role)}` : undefined}>
+            <div className="sidebar-avatar" style={{width:34,height:34,borderRadius:10,background:'color-mix(in srgb, var(--gold) 20%, transparent)',border:'1px solid color-mix(in srgb, var(--gold) 30%, transparent)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:700,color:'var(--gold)',flexShrink:0}}>
               {(perfil?.nome||user?.email||'U')[0].toUpperCase()}
             </div>
-            <div style={{minWidth:0}}>
+            <div className="sidebar-who-text" style={{minWidth:0}}>
               <div style={{fontSize:12,fontWeight:700,color:'rgba(255,255,255,0.85)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{perfil?.nome||user?.email}</div>
               <div style={{fontSize:10,color:'color-mix(in srgb, var(--gold) 70%, transparent)'}}>{roleLabel(perfil?.role)}</div>
             </div>
           </div>
-          <button onClick={signOut} className="sidebar-signout">{t('common.signOut')}</button>
+          <button onClick={signOut} className="sidebar-signout" title={rail.collapsed ? t('common.signOut') : undefined} aria-label={t('common.signOut')}><Icon name="signOut" size={15} className="sidebar-signout-icon" /><span className="nav-label">{t('common.signOut')}</span></button>
         </div>
       </aside>
 

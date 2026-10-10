@@ -15,6 +15,7 @@ export default {
     deliveries: 'Deliveries', deliveriesDef: 'JBM supply sales (vendas) in the month, one per delivery.',
     source: 'Source: the same server calculation as the monthly report (api/_dashboardMonth.js). June 2026 uses a cost estimate from July prices because June purchases were not recorded.',
   },
+  shell: { collapseMenu: 'Collapse menu', expandMenu: 'Expand menu' },
   nav: {
     crm: 'Clients & CRM', marketing: 'Marketing', consultoria: 'Consulting', ai: 'AI Center', mesas: 'Floor & tables',
     comandas: 'Tabs',

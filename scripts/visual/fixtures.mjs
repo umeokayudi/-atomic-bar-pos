@@ -68,3 +68,28 @@ export const TABLES = {
   ],
   pos_settings: [{ bar_id: BAR.id, service_pct: 10, room_min: 10000, set_minutes: 60, set_price: 0 }],
 }
+
+/** /api/bar-staff GET: team, registry (suppliers, rent, power...), goals, events, day sheets. */
+export const BAR_STAFF = {
+  staff: [
+    { id: 'st1', nome: 'Aiko Tanaka', role: 'bar_staff', cargo: 'Bartender', salario_hora: 1600, drink_back: true, comissao_pct: 10, dias: ['Fri', 'Sat'], idiomas: ['JA', 'EN'], aniversario: '1998-10-20', source: 'house' },
+    { id: 'st2', nome: 'Ken Mori', role: 'bar_staff', cargo: 'Floor', salario_hora: 1300, drink_back: false, comissao_pct: 0, dias: ['Thu', 'Fri', 'Sat'], idiomas: ['JA'], source: 'house' },
+    { id: 'st3', nome: 'Lucia Sato', role: 'bar_staff', cargo: 'Cast', salario_mes: 220000, drink_back: true, comissao_pct: 15, dias: ['Wed', 'Fri'], idiomas: ['PT', 'JA'], source: 'house' },
+  ],
+  people: [],
+  registry: [
+    { id: 'rg1', kind: 'aluguel', nome: 'Shibuya Realty', cargo: 'Mr. Ito', contato: '03-1234-5678', amount: 180000, vence_dia: 25 },
+    { id: 'rg2', kind: 'energia', nome: 'Tokyo Power', amount: 32000, vence_dia: 10 },
+    { id: 'rg3', kind: 'fornecedor', nome: 'Sake Wholesale', detalhe: 'Sake, shochu', contato: '03-9999-0000' },
+    { id: 'rg4', kind: 'fixo', nome: 'Internet', amount: 6000, vence_dia: 5 },
+  ],
+  goals: { noite: 150000, hora: 20000, semana: 800000, turno: 90000, lucro: 400000, mes: 3200000, abre: 20, fecha: 5, corta: 0, pessoas: [] },
+  events: [],
+  sheets: [],
+  bar: { id: BAR.id, nome: BAR.nome, geofence_m: 150, tabletPaired: false },
+}
+
+export const PUNCHES = [
+  { id: 'pu1', bar_id: BAR.id, staff_id: 'st1', tipo: 'in', criado_em: ago(240) },
+  { id: 'pu2', bar_id: BAR.id, staff_id: 'st2', tipo: 'in', criado_em: ago(200) },
+]

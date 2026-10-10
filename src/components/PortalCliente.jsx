@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Icon, { hasIcon } from './ui/Icon'
+import { SidebarCollapseButton, useSidebarCollapse } from '../lib/sidebarCollapse'
 import { BAR_ADMIN_TABS, aiModuleForTab, pathForTab, tabFromPath } from '../lib/navigation'
 import { useAiPanel } from '../lib/aiPanel'
 import AskAiDrawer, { AskAiButton } from './ai/AskAiDrawer'
@@ -2127,6 +2128,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   const overdueAlerts = useBarOverdueAlerts(bar?.id)
   const { setCtx: setAiCtx } = useAiPanel()
   const aiOn = isGerente(perfil?.role) && BAR_ADMIN_TABS.has(tab)
+  const rail = useSidebarCollapse()
   const navLabel = id => NAV_GROUPS.flatMap(g => g.items).find(n => n.id === id)?.labelKey
 
   useEffect(() => {
@@ -2206,24 +2208,26 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
       </MobileTopBar>
 
-      <aside className={`sidebar${menuOpen ? ' open' : ''}`}>
+      <aside className={`sidebar${menuOpen ? ' open' : ''}${rail.collapsed ? ' is-collapsed' : ''}`}>
         <div className="sidebar-brand">
           <LogoSidebar />
+          {rail.allowed && <SidebarCollapseButton collapsed={rail.collapsed} onToggle={rail.toggle} />}
         </div>
         <nav className="sidebar-nav">
           {NAV_GROUPS.map(g => (
             <div key={g.id} className="nav-group">
               {g.labelKey && <div className="nav-group-label">{t(g.labelKey)}</div>}
               {g.items.map(n => (
-                <button key={n.id} onClick={() => selectTab(n.id)} className={`nav-item ${tab===n.id?'active':''}`} aria-current={tab===n.id ? 'page' : undefined}>
+                <button key={n.id} onClick={() => selectTab(n.id)} className={`nav-item ${tab===n.id?'active':''}`} aria-current={tab===n.id ? 'page' : undefined} title={rail.collapsed ? t(n.labelKey) : undefined} aria-label={rail.collapsed ? t(n.labelKey) : undefined}>
                   <Icon name={hasIcon(n.id) ? n.id : 'info'} size={18} />
-                  <span style={{ fontSize: 13 }}>{t(n.labelKey)}</span>
+                  <span className="nav-label" style={{ fontSize: 13 }}>{t(n.labelKey)}</span>
                 </button>
               ))}
             </div>
           ))}
         </nav>
         <div className="sidebar-footer">
+          <div className="sidebar-footer-details">
           <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.06em'}}>{t('shell.clientPortal')}</div>
           <div style={{fontSize:13,fontWeight:700,color:'var(--gold)',marginBottom:2}}>{bar.nome}</div>
           <div style={{fontSize:12,fontWeight:700,color:'rgba(255,255,255,0.85)',marginBottom:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{perfil?.nome || ''}</div>
@@ -2231,7 +2235,8 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
           <div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginBottom:10,lineHeight:1.5}}>
             {t(footerKey)}
           </div>
-          <button onClick={signOut} className="sidebar-signout">{t('common.signOut')}</button>
+          </div>
+          <button onClick={signOut} className="sidebar-signout" title={rail.collapsed ? `${bar.nome} · ${t('common.signOut')}` : undefined} aria-label={t('common.signOut')}><Icon name="signOut" size={15} className="sidebar-signout-icon" /><span className="nav-label">{t('common.signOut')}</span></button>
         </div>
       </aside>
       <main className="app-main app-main-wide">

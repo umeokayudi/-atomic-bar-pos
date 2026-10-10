@@ -7,7 +7,7 @@
 import { chromium } from '@playwright/test'
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { ADMIN, MANAGER, TABLES } from './fixtures.mjs'
+import { ADMIN, MANAGER, TABLES, BAR_STAFF, PUNCHES } from './fixtures.mjs'
 import {
   monthDashboardStats, buildDashboardAlertas, entregasDetalheForMonth, buildDashboardCalendar,
 } from '../../api/_dashboardMonth.js'
@@ -15,20 +15,41 @@ import {
 const OUT = process.argv[2] || 'visual-out'
 const PORT = 4179
 const SHELL = '/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell'
-const WIDTHS = [360, 390, 768, 1024, 1280, 1440]
-const THEMES = { light: 'modern', dark: 'classic' }
+const WIDTHS = process.env.WIDTHS ? process.env.WIDTHS.split(',').map(Number) : [360, 390, 768, 1024, 1280, 1440]
+const THEMES = Object.fromEntries(Object.entries({ light: 'modern', dark: 'classic' }).filter(([k]) => !process.env.THEMES || process.env.THEMES.split(',').includes(k)))
 const PAGES = [
   { who: ADMIN, path: '/hq/dashboard', name: 'hq-dashboard' },
+  { who: ADMIN, path: '/hq/dashboard', name: 'hq-dashboard-rail', rail: true },
   { who: ADMIN, path: '/hq/crm', name: 'hq-crm' },
   { who: ADMIN, path: '/hq/marketing', name: 'hq-marketing' },
   { who: ADMIN, path: '/hq/consultoria', name: 'hq-consulting' },
   { who: ADMIN, path: '/hq/ai', name: 'hq-ai-center' },
   { who: ADMIN, path: '/hq/cashflow', name: 'hq-cashflow', ask: true },
+  { who: ADMIN, path: '/hq/faturas', name: 'hq-invoices' },
+  { who: ADMIN, path: '/hq/relatorio', name: 'hq-report' },
+  { who: ADMIN, path: '/hq/purchases', name: 'hq-purchases' },
+  { who: ADMIN, path: '/hq/suppliers', name: 'hq-suppliers' },
+  { who: ADMIN, path: '/hq/payroll', name: 'hq-payroll' },
+  { who: ADMIN, path: '/hq/products', name: 'hq-products' },
+  { who: ADMIN, path: '/hq/procurement', name: 'hq-procurement' },
+  { who: ADMIN, path: '/hq/sales', name: 'hq-sales' },
+  { who: MANAGER, path: '/bar/estoque', name: 'bar-stock' },
+  { who: MANAGER, path: '/bar/custos', name: 'bar-costs' },
+  { who: MANAGER, path: '/bar/faturas', name: 'bar-invoices' },
+  { who: MANAGER, path: '/bar/pagamentos', name: 'bar-payments' },
+  { who: MANAGER, path: '/bar/salarios', name: 'bar-salaries' },
+  { who: MANAGER, path: '/bar/staff', name: 'bar-staff' },
+  { who: MANAGER, path: '/bar/metas', name: 'bar-goals' },
+  { who: MANAGER, path: '/bar/ponto', name: 'bar-clock' },
+  { who: MANAGER, path: '/bar/fechamento', name: 'bar-close' },
+  { who: MANAGER, path: '/bar/ia', name: 'bar-ai' },
+  { who: MANAGER, path: '/bar/aluguel', name: 'bar-rent' },
   { who: MANAGER, path: '/bar/mesas', name: 'bar-floor' },
   { who: MANAGER, path: '/bar/mesas', name: 'bar-floor-edit', edit: true },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos' },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-counter', click: /Counter/ },
   { who: MANAGER, path: '/bar/inicio', name: 'bar-home' },
+  { who: MANAGER, path: '/bar/inicio', name: 'bar-home-rail', rail: true },
 ]
 const ONLY = process.env.PAGES ? process.env.PAGES.split(',') : null
 
@@ -120,7 +141,14 @@ async function mock(page, who) {
       const rows = TABLES[spec.table] || []
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: spec.wantSingle ? rows[0] || null : rows }) })
     }
-    if (new URL(req.url()).pathname === '/api/dashboard') {
+    const path = new URL(req.url()).pathname
+    if (req.method() === 'GET' && path === '/api/bar-staff') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(BAR_STAFF) })
+    }
+    if (req.method() === 'GET' && (path === '/api/time-clock' || path === '/api/bar/time-clock')) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ punches: PUNCHES, adicional_noturno: true }) })
+    }
+    if (path === '/api/dashboard') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(dashboardPayload()) })
     }
     route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'offline in visual check' }) })
@@ -146,6 +174,7 @@ async function main() {
           page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|ERR_|WebSocket|realtime|503/i.test(m.text())) errors.push(m.text()) })
           await mock(page, pg.who)
           const session = { access_token: fakeJwt(pg.who), token_type: 'bearer', expires_in: 86400, expires_at: Math.floor(Date.now() / 1000) + 86400, refresh_token: 'r', user: { id: pg.who.id, email: pg.who.email, aud: 'authenticated', role: 'authenticated', user_metadata: {}, app_metadata: {} } }
+          await page.addInitScript(rail => { if (rail) localStorage.setItem('jbm_sidebar_collapsed', '1') }, !!pg.rail)
           await page.addInitScript(([s, th]) => {
             sessionStorage.setItem('bebidas_tab_id', 'pw')
             sessionStorage.setItem('sb-ojirgkqtqvugqktyuhem-auth-pw', JSON.stringify(s))

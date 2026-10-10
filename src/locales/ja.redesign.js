@@ -15,6 +15,7 @@ export default {
     deliveries: '納品', deliveriesDef: '当月のJBM供給売上（vendas）、納品ごとに1件。',
     source: '出典：月次レポートと同じサーバー計算（api/_dashboardMonth.js）。2026年6月は仕入れ記録がないため、7月の価格から原価を推定しています。',
   },
+  shell: { collapseMenu: 'メニューを閉じる', expandMenu: 'メニューを開く' },
   nav: {
     crm: '顧客・CRM', marketing: 'マーケティング', consultoria: 'コンサルティング', ai: 'AIセンター', mesas: 'フロア・テーブル',
     comandas: '伝票',
