@@ -28,7 +28,7 @@ import { summarizeNight, reconcileNight, nightWindow, closeVariance, saleOnNight
 import { CASH_CHIPS, cashSettle, isCashMethod, payRecordNote } from '../lib/posPay'
 import { printGuestReceipt } from '../lib/guestReceipt'
 import { drinkBackCommission } from '../lib/drinkBackPay'
-import PosFloor from './PosFloor'
+import PosQuick from './pos/PosQuick'
 
 const SUB_TAB_IDS = [
   { id: 'dashboard', key: 'tabDashboard', icon: '📊' },
@@ -997,7 +997,7 @@ function PosPricesTab({ bar, drinks, onRefresh }) {
   const [priceMode, setPriceMode] = useState('menu')
   const [produtos, setProdutos] = useState([])
   const [pricing, setPricing] = useState({})
-  const [form, setForm] = useState({ nome: '', categoria: 'Custom', preco_venda: '', custo: '', preco_desconto: '500' })
+  const [form, setForm] = useState({ nome: '', categoria: 'Custom', preco_venda: '', custo: '', preco_desconto: '500', imagem_url: '' })
   const [shotForm, setShotForm] = useState({ produto_id: '', drinks: '16', preco: '' })
   const [editId, setEditId] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -1025,9 +1025,11 @@ function PosPricesTab({ bar, drinks, onRefresh }) {
       preco_desconto: +form.preco_desconto || 500,
       custom: true,
     }
+    // Only sent when filled, so saving still works before sql/pos_start.sql adds the column.
+    if (form.imagem_url?.trim()) payload.imagem_url = form.imagem_url.trim()
     if (editId) await supabase.from('drink_menu').update(payload).eq('id', editId)
     else await supabase.from('drink_menu').insert(payload)
-    setForm({ nome: '', categoria: 'Custom', preco_venda: '', custo: '', preco_desconto: '500' })
+    setForm({ nome: '', categoria: 'Custom', preco_venda: '', custo: '', preco_desconto: '500', imagem_url: '' })
     setEditId(null)
     setSaving(false)
     onRefresh()
@@ -1067,6 +1069,7 @@ function PosPricesTab({ bar, drinks, onRefresh }) {
               <input placeholder={t('atomicPos.priceYen')} type="number" value={form.preco_venda} onChange={e => setForm({ ...form, preco_venda: e.target.value })} />
               <input placeholder={t('atomicPos.costYen')} type="number" value={form.custo} onChange={e => setForm({ ...form, custo: e.target.value })} />
               <input placeholder={t('atomicPos.vipYen')} type="number" value={form.preco_desconto} onChange={e => setForm({ ...form, preco_desconto: e.target.value })} />
+              <input placeholder={t('atomicPos.photoUrl')} type="url" value={form.imagem_url || ''} onChange={e => setForm({ ...form, imagem_url: e.target.value })} />
               <button className="btn-primary" onClick={saveDrink} disabled={saving}>{editId ? t('common.save') : t('common.add')}</button>
             </div>
           </div>
@@ -1079,7 +1082,7 @@ function PosPricesTab({ bar, drinks, onRefresh }) {
                   <td>{fmtYen(d.preco_venda)}</td>
                   <td style={{ color: 'var(--gold)' }}>{fmtYen(d.preco_desconto || 500)}</td>
                   <td>{Math.round((d.margem || 0) * 100)}%</td>
-                  <td><button onClick={() => { setEditId(d.id); setForm({ nome: d.nome, categoria: d.categoria, preco_venda: d.preco_venda, custo: d.custo, preco_desconto: d.preco_desconto || 500 }) }} style={{ fontSize: 11 }}>{t('common.edit')}</button></td>
+                  <td><button onClick={() => { setEditId(d.id); setForm({ nome: d.nome, categoria: d.categoria, preco_venda: d.preco_venda, custo: d.custo, preco_desconto: d.preco_desconto || 500, imagem_url: d.imagem_url || '' }) }} style={{ fontSize: 11 }}>{t('common.edit')}</button></td>
                 </tr>
               ))}
             </tbody>
@@ -1492,13 +1495,15 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
   const [todaySales, setTodaySales] = useState({ count: 0, total: 0 })
   const [salesList, setSalesList] = useState([])
   const [posErr, setPosErr] = useState('')
+  const [catalogErr, setCatalogErr] = useState('')
   const [loading, setLoading] = useState(true)
   const [classicTill, setClassicTill] = useState(false)
 
   useEffect(() => { init() }, [bar])
 
-  async function init() {
-    setLoading(true)
+  async function init({ quiet = false } = {}) {
+    // A refresh after a sale keeps the till on screen; only the first load shows the spinner.
+    if (!quiet) setLoading(true)
     const nightKey = tokyoNightKey()
     const from = prevTokyoDateKey(nightKey)
     const salesSelect = 'total,refunded,card_fee,card_fee_reversed,criado_em,data,metodo_pagamento,obs,drink_back_agent_id'
@@ -1518,6 +1523,7 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
     setReady(schema.ready)
     if (dR.error) setPosErr(dR.error.message || t('atomicPos.tillLoadError'))
     else if (sR.error) setPosErr(sR.error.message || t('atomicPos.tillLoadError'))
+    setCatalogErr(dR.error?.message || sR.error?.message || '')
     setDrinks(dR.error ? [] : (dR.data || []))
     setShots(sR.error ? [] : (sR.data || []))
     setDiscountCodes(cR.data || [])
@@ -1542,6 +1548,7 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
     <div className={`fade-in pos-shell${access === 'cashier' ? ' pos-kiosk' : ''}`}>
       <SetupBanner onRefresh={init} />
 
+      {access !== 'cashier' && (
       <div className="pos-head">
         <div>
           <div className="pos-head-title">{access === 'cashier' ? t('atomicPos.tillTitle') : t('atomicPos.title')}</div>
@@ -1557,6 +1564,7 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
           <div className="pos-head-count">{posErr ? t('atomicPos.tillLoadError') : t('atomicPos.salesCount', { count: todaySales.count })}</div>
         </div>
       </div>
+      )}
 
       {tabs.length > 1 && (
         <div className="pos-subnav">
@@ -1600,13 +1608,14 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
               {access !== 'cashier' && (
                 <button type="button" className="pos-chip" onClick={() => setClassicTill(true)}>{t('posFloor.classic')}</button>
               )}
-              <PosFloor
+              <PosQuick
                 bar={bar}
                 drinks={drinks}
                 shots={shots}
                 agents={drinkBackAgents}
-                catalogError={posErr}
-                onSale={init}
+                todaySales={todaySales}
+                catalogError={catalogErr}
+                onSale={() => init({ quiet: true })}
               />
             </>
           )}
