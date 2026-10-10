@@ -17,7 +17,8 @@
     "test:ledger": "node scripts/faturaLedger.test.mjs",
     "test:ai": "node scripts/aiActions.test.mjs",
     "test:pos:pg": "node scripts/posFloor.pg.test.mjs",
-    "test:floor:pg": "node scripts/floorComandas.pg.test.mjs"
+    "test:floor:pg": "node scripts/floorComandas.pg.test.mjs",
+    "test:redesign": "node scripts/redesign.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

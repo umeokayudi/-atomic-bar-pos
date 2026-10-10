@@ -16,6 +16,7 @@ import {
   publicProposal,
   scopeForRole,
 } from './_aiActions.js'
+import { AI_MODULES, analysisPrompt, loadAnalysisPack } from './_aiData.js'
 
 const MISSING_TABLE = new Set(['42P01', 'PGRST205'])
 
@@ -47,15 +48,30 @@ async function plan(res, actor, body) {
   const contents = toContents(body.messages, body.image)
   if (!contents.length) return res.status(400).json({ error: 'messages is required' })
 
+  // Page context ("Ask AI" panel / AI Center): load the facts for that module with the user's own rights.
+  // Bar managers are always pinned to their own bar; HQ may narrow to one bar.
+  let analysis = ''
+  let sources = null
+  if (body.analysis && typeof body.analysis === 'object') {
+    const module = AI_MODULES.includes(body.analysis.module) ? body.analysis.module : 'overview'
+    const barId = actor.scope === 'hq'
+      ? (/^[0-9a-f-]{36}$/i.test(body.analysis.barId || '') ? body.analysis.barId : null)
+      : actor.perfil.bar_id
+    const pack = await loadAnalysisPack(actor.db, { module, days: body.analysis.days, barId })
+    analysis = analysisPrompt(pack)
+    sources = { period: pack.period, scope: pack.scope, modules: Object.keys(pack.facts), limitations: pack.limitations }
+  }
+  const screen = [String(body.screen || '').slice(0, 4000), analysis].filter(Boolean).join('\n\n')
+
   const data = await geminiGenerate({
-    systemInstruction: { parts: [{ text: agentSystemPrompt(ctx, String(body.screen || '').slice(0, 4000)) }] },
+    systemInstruction: { parts: [{ text: agentSystemPrompt(ctx, screen) }] },
     contents,
-    generationConfig: { temperature: 0.2, maxOutputTokens: 1500, responseMimeType: 'application/json' },
+    generationConfig: { temperature: 0.2, maxOutputTokens: body.analysis ? 3000 : 1500, responseMimeType: 'application/json' },
   })
   const text = data.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || ''
   const out = parseAgentJson(text)
   const proposals = out.actions.map(a => publicProposal(normalizeAction(ctx, a), randomUUID()))
-  return res.status(200).json({ reply: out.reply, proposals })
+  return res.status(200).json({ reply: out.reply, proposals, sources })
 }
 
 async function logStart(db, row) {

@@ -15,10 +15,17 @@
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <script>
       (function () {
-        var t = localStorage.getItem('jbm_drinks_theme') || 'modern';
+        var t = 'system';
+        try { t = localStorage.getItem('jbm_drinks_theme') || 'system'; } catch (e) {}
         if (t === 'light') t = 'modern';
         if (t === 'dark') t = 'classic';
-        var lang = localStorage.getItem('jbm_drinks_lang') === 'ja' ? 'ja' : 'en';
+        if (t !== 'modern' && t !== 'classic') {
+          t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'classic' : 'modern';
+        }
+        var tc = document.querySelector('meta[name="theme-color"]');
+        if (tc) tc.setAttribute('content', t === 'classic' ? '#101B19' : '#F4F7F5');
+        var lang = 'en';
+        try { lang = localStorage.getItem('jbm_drinks_lang') === 'ja' ? 'ja' : 'en'; } catch (e) {}
         var w = window.innerWidth;
         var h = window.innerHeight;
         var screenShort = Math.min((window.screen && window.screen.width) || w, (window.screen && window.screen.height) || h);

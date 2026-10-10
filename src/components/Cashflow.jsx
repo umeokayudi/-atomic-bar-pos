@@ -4,7 +4,7 @@ import { fmtYen, fmtDate, Spinner, Empty, compraDueDate, isCompraOverdue } from 
 import { splitPendingCompras, splitPendingFaturas, buildCashflowEvents, pagamentoFor, pagamentoMap } from '../lib/compraPagamentos'
 import { uploadCobrancaDoc, buildCobrancaDocument, downloadTextFile } from '../lib/cobrancaDocs'
 import JbmHoldingPanel from './JbmHoldingPanel'
-import CashflowAi from './CashflowAi'
+import { AiContextPublisher, snapshotToKpis } from '../lib/aiPanel'
 import MarkPaidPopup from './MarkPaidPopup'
 import OpenInvoicesList from './OpenInvoicesList'
 import { AdminPage, PortalKpi, PortalSurface, PortalPills } from './ui/PageLayout'
@@ -212,7 +212,7 @@ function CashflowOverview() {
         </div>
       </PortalSurface>
 
-      <CashflowAi snapshot={aiSnap} />
+      <AiContextPublisher screen="cashflow" ctx={{ kpis: snapshotToKpis(aiSnap) }} />
       {payItem && <MarkPaidPopup item={payItem} onClose={() => setPayItem(null)} onSaved={load} />}
     </div>
   )
@@ -662,12 +662,12 @@ function Calendario() {
 
   return (
     <div>
-      <CashflowAi snapshot={{
+      <AiContextPublisher screen="cashflow" ctx={{ kpis: snapshotToKpis({
         weekText: upcomingEvents.map(ev => `${fmtDate(ev.date)} ${ev.type === 'in' ? 'receber' : 'pagar'} ${fmtYen(ev.amount)} ${ev.label}`).join('\n'),
         collectText: overdueFaturas.map(ev => `${ev.label} ${fmtYen(ev.amount)}`).join('\n'),
         payText: overdueCompras.map(ev => `${ev.label} ${fmtYen(ev.amount)}`).join('\n'),
         netCash: 0, paidIn: 0, paidOut: 0, pendingIn: 0, pendingOut: 0,
-      }} />
+      }) }} />
 
       <PortalSurface title={t('cashflow.agendaAddTitle')} sub={t('cashflow.agendaAddSub')} style={{ marginBottom: 16 }}>
         <form

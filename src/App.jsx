@@ -12,7 +12,13 @@ class ErrorBoundary extends Component {
 import { LogoSidebar } from './components/Logo'
 import { MobileTopBar, ShellOverlay, WorkspaceChrome, useMobileMenuLock } from './components/MobileShell'
 import { useNotifications, NotificationBell, useOverdueAlerts } from './components/Notifications'
-import { useState, useEffect, useRef, lazy, Suspense } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
+import { BrowserRouter, useLocation, useNavigate } from 'react-router-dom'
+import Icon from './components/ui/Icon'
+import { groupTabs, HQ_ADMIN_TABS, aiModuleForTab, tabFromPath, pathForTab } from './lib/navigation'
+import { AiPanelProvider, AiContextPublisher, snapshotToKpis, useAiPanel } from './lib/aiPanel'
+import AskAiDrawer, { AskAiButton } from './components/ai/AskAiDrawer'
+import ThemeAccountSync from './components/ThemeAccountSync'
 import { AuthProvider, useAuth, LoginPage } from './components/Auth'
 import { supabase } from './lib/supabase'
 import { isBarRole, isSupplierRole } from './lib/access'
@@ -44,58 +50,68 @@ const PayrollHq = lazy(() => import('./components/PayrollHq'))
 const SupplierPortal = lazy(() => import('./components/SupplierPortal'))
 const DashboardMetricModal = lazy(() => import('./components/DashboardMetricModal'))
 const DashboardCalendar = lazy(() => import('./components/DashboardCalendar'))
-const DashboardAi = lazy(() => import('./components/DashboardAi'))
 const MarkPaidPopup = lazy(() => import('./components/MarkPaidPopup'))
+const AiCenter = lazy(() => import('./components/ai/AiCenter'))
+const ClientsCrm = lazy(() => import('./components/growth/ClientsCrm'))
+const MarketingHub = lazy(() => import('./components/growth/MarketingHub'))
+const ConsultingHub = lazy(() => import('./components/growth/ConsultingHub'))
 
 // ── TABS por role ─────────────────────────────────────────────────────────────
 const ADMIN_TABS = [
-  { id:'dashboard', labelKey:'nav.dashboard', icon:'📊' },
-  { id:'billingHub', labelKey:'nav.billingHub', icon:'📱' },
-  { id:'purchases', labelKey:'nav.purchases', icon:'🛒' },
-  { id:'sales',    labelKey:'nav.sales', icon:'💴' },
-  { id:'pedidos',   labelKey:'nav.orders', icon:'📋' },
-  { id:'fulfillment', labelKey:'nav.fulfillment', icon:'🚚' },
-  { id:'procurement', labelKey:'nav.procurement', icon:'📦' },
-  { id:'relatorio', labelKey:'nav.report', icon:'📈' },
-  { id:'ryoshusho', labelKey:'nav.ryoshusho', icon:'🧾' },
-  { id:'seikyusho', labelKey:'nav.seikyusho', icon:'📄' },
-  { id:'products',  labelKey:'nav.products', icon:'🍾' },
-  { id:'bars',      labelKey:'nav.bars', icon:'🏪' },
-  { id:'usuarios',  labelKey:'nav.users', icon:'👥' },
-  { id:'faturas',    labelKey:'nav.invoices', icon:'💰' },
-  { id:'suppliers',  labelKey:'nav.suppliers', icon:'🏭' },
-  { id:'cashflow',   labelKey:'nav.cashflow', icon:'💸' },
-  { id:'payroll', labelKey:'nav.payroll', icon:'💴' },
+  { id:'dashboard', labelKey:'nav.dashboard', icon:'dashboard' },
+  { id:'billingHub', labelKey:'nav.billingHub', icon:'billingHub' },
+  { id:'purchases', labelKey:'nav.purchases', icon:'purchases' },
+  { id:'sales',    labelKey:'nav.sales', icon:'sales' },
+  { id:'pedidos',   labelKey:'nav.orders', icon:'pedidos' },
+  { id:'fulfillment', labelKey:'nav.fulfillment', icon:'fulfillment' },
+  { id:'procurement', labelKey:'nav.procurement', icon:'procurement' },
+  { id:'relatorio', labelKey:'nav.report', icon:'relatorio' },
+  { id:'ryoshusho', labelKey:'nav.ryoshusho', icon:'ryoshusho' },
+  { id:'seikyusho', labelKey:'nav.seikyusho', icon:'seikyusho' },
+  { id:'products',  labelKey:'nav.products', icon:'products' },
+  { id:'bars',      labelKey:'nav.bars', icon:'bars' },
+  { id:'usuarios',  labelKey:'nav.users', icon:'usuarios' },
+  { id:'faturas',    labelKey:'nav.invoices', icon:'faturas' },
+  { id:'suppliers',  labelKey:'nav.suppliers', icon:'suppliers' },
+  { id:'cashflow',   labelKey:'nav.cashflow', icon:'cashflow' },
+  { id:'payroll', labelKey:'nav.payroll', icon:'payroll' },
 ]
 
 const EMPLOYEE_TABS = [
-  { id:'profile', labelKey:'nav.myProfile', icon:'👤' },
-  { id:'shifts', labelKey:'nav.myShifts', icon:'🗓️' },
-  { id:'clock', labelKey:'nav.myClock', icon:'🕒' },
-  { id:'goals', labelKey:'nav.myGoals', icon:'🎯' },
-  { id:'result', labelKey:'nav.myResult', icon:'📈' },
-  { id:'points', labelKey:'nav.myPoints', icon:'⭐' },
-  { id:'occurrences', labelKey:'nav.myOccurrences', icon:'📝' },
-  { id:'rewards', labelKey:'nav.myRewards', icon:'🏅' },
-  { id:'salary', labelKey:'nav.mySalary', icon:'💴' },
-  { id:'procurement', labelKey:'nav.myTasks', icon:'📦' },
+  { id:'profile', labelKey:'nav.myProfile', icon:'profile' },
+  { id:'shifts', labelKey:'nav.myShifts', icon:'shifts' },
+  { id:'clock', labelKey:'nav.myClock', icon:'clock' },
+  { id:'goals', labelKey:'nav.myGoals', icon:'goals' },
+  { id:'result', labelKey:'nav.myResult', icon:'result' },
+  { id:'points', labelKey:'nav.myPoints', icon:'points' },
+  { id:'occurrences', labelKey:'nav.myOccurrences', icon:'occurrences' },
+  { id:'rewards', labelKey:'nav.myRewards', icon:'rewards' },
+  { id:'salary', labelKey:'nav.mySalary', icon:'salary' },
+  { id:'procurement', labelKey:'nav.myTasks', icon:'procurement' },
 ]
 
 const STAFF_TABS = [
-  { id:'purchases', labelKey:'nav.purchases', icon:'🛒' },
-  { id:'sales',    labelKey:'nav.sales', icon:'💴' },
-  { id:'relatorio', labelKey:'nav.report', icon:'📈' },
-  { id:'ryoshusho', labelKey:'nav.ryoshusho', icon:'🧾' },
-  { id:'products',  labelKey:'nav.products', icon:'🍾' },
+  { id:'purchases', labelKey:'nav.purchases', icon:'purchases' },
+  { id:'sales',    labelKey:'nav.sales', icon:'sales' },
+  { id:'relatorio', labelKey:'nav.report', icon:'relatorio' },
+  { id:'ryoshusho', labelKey:'nav.ryoshusho', icon:'ryoshusho' },
+  { id:'products',  labelKey:'nav.products', icon:'products' },
+]
+
+const GROWTH_TABS = [
+  { id:'crm', labelKey:'nav.crm', icon:'crm' },
+  { id:'marketing', labelKey:'nav.marketing', icon:'marketing' },
+  { id:'consultoria', labelKey:'nav.consultoria', icon:'consultoria' },
+  { id:'ai', labelKey:'nav.ai', icon:'ai' },
 ]
 
 const JBM_TABS = [
-  { id:'fulfillment', labelKey:'nav.fulfillment', icon:'🚚' },
-  { id:'procurement', labelKey:'nav.procurement', icon:'📦' },
-  { id:'payroll', labelKey:'nav.payroll', icon:'💴' },
+  { id:'fulfillment', labelKey:'nav.fulfillment', icon:'fulfillment' },
+  { id:'procurement', labelKey:'nav.procurement', icon:'procurement' },
+  { id:'payroll', labelKey:'nav.payroll', icon:'payroll' },
 ]
 
-const TABS_BY_ID = Object.fromEntries([...ADMIN_TABS, ...EMPLOYEE_TABS, ...STAFF_TABS, ...JBM_TABS].map(tab => [tab.id, tab]))
+const TABS_BY_ID = Object.fromEntries([...ADMIN_TABS, ...EMPLOYEE_TABS, ...STAFF_TABS, ...JBM_TABS, ...GROWTH_TABS].map(tab => [tab.id, tab]))
 
 // ── MINI BAR CHART ────────────────────────────────────────────────────────────
 function BarChart({ data, color='var(--gold)', height=80, valueLabel=fmtYen }) {
@@ -233,7 +249,7 @@ function Dashboard({ onNav }) {
         subtitle={`${isCurrentMonth ? t('dashboard.currentMonth') : t('dashboard.history')} · ${monthLabel(selMonth)}`}
       />
 
-      <DashboardAi snapshot={{
+      <AiContextPublisher screen="dashboard" ctx={{ period: monthLabel(selMonth), kpis: snapshotToKpis({
         monthLabel: monthLabel(selMonth),
         lucro: m.lucroProjetado ?? m.lucro,
         faturamento: m.faturamento ?? m.receita,
@@ -249,7 +265,7 @@ function Dashboard({ onNav }) {
           .slice(0, 40)
           .map(e => `${e.date} ${e.kind} ${e.label} ${e.amount || 0}`)
           .join('\n'),
-      }} />
+      }) }} />
 
       {data.pedidosPendentes > 0 && (
         <PortalAlert variant="navy" onClick={() => onNav('pedidos')}>
@@ -418,29 +434,31 @@ function Shell() {
   const { user, perfil, loading, signOut } = useAuth()
   const { layout } = useUiPrefs()
   const { t } = useI18n()
-  const [tab, setTab] = useState('dashboard')
+  const location = useLocation()
+  const navigate = useNavigate()
   const [bar, setBar] = useState(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [pedidosPendentes, setPedidosPendentes] = useState(0)
   const { notifs, unread, markRead, markAllRead, deleteNotif, deleteAll } = useNotifications()
   const overdueAlerts = useOverdueAlerts()
-  const landedUsers = useRef(false)
+  const { setCtx: setAiCtx } = useAiPanel()
+  const allowedTabs = shellTabIds(perfil?.role)
+  const tab = tabFromPath(location.pathname, 'hq', allowedTabs, allowedTabs[0] || '')
 
   useMobileMenuLock(menuOpen)
 
+  // The AI panel follows the screen: module + title for whatever is open.
   useEffect(() => {
-    if (!landedUsers.current && perfil?.role === 'admin') {
-      landedUsers.current = true
-      setTab('usuarios')
-    }
-  }, [perfil])
+    if (!tab) return
+    setAiCtx({ module: aiModuleForTab(tab), screen: tab, title: t(TABS_BY_ID[tab]?.labelKey || 'nav.dashboard') })
+  }, [tab, setAiCtx, t])
 
   useEffect(() => {
     if (layout === LAYOUTS.desktop || layout === LAYOUTS.tablet) setMenuOpen(false)
   }, [layout])
 
   function selectTab(id) {
-    setTab(id)
+    if (id !== tab) navigate({ pathname: pathForTab('hq', id), hash: location.hash })
     setMenuOpen(false)
   }
 
@@ -501,9 +519,10 @@ function Shell() {
   }
 
   // ADMIN / JBM / FUNCIONÁRIO / STAFF — aba fora da lista não monta o livro global
-  const tabs = shellTabIds(perfil?.role).map(id => TABS_BY_ID[id]).filter(Boolean)
-  const activeTab = tabs.some(item => item.id === tab) ? tab : (tabs[0]?.id || '')
-  if (activeTab && activeTab !== tab) setTab(activeTab)
+  const tabs = allowedTabs.map(id => TABS_BY_ID[id]).filter(Boolean)
+  const groups = groupTabs(tabs.map(x => x.id))
+  const activeTab = tab
+  const isAdminScreen = HQ_ADMIN_TABS.has(activeTab) && (perfil?.role === 'admin' || perfil?.role === 'jbm')
 
   return (
     <div className="app-shell">
@@ -522,7 +541,7 @@ function Shell() {
             onClick={() => selectTab('billingHub')}
             aria-label={t('billingHub.mobileTitle')}
           >
-            📊
+            <Icon name="billingHub" size={18} />
             {(overdueAlerts?.faturas?.length ?? 0) > 0 && (
               <span className="mobile-hub-badge">{overdueAlerts.faturas.length}</span>
             )}
@@ -535,18 +554,23 @@ function Shell() {
         <div className="sidebar-brand">
           <LogoSidebar />
         </div>
-        <nav className="sidebar-nav">
-          {tabs.map(nav => (
-            <button key={nav.id} onClick={()=>selectTab(nav.id)} className={`nav-item ${activeTab===nav.id?'active':''}`}>
-              <span>{nav.icon}</span>
-              <span style={{fontSize:13}}>{t(nav.labelKey)}</span>
-              {nav.id==='pedidos'&&pedidosPendentes>0&&(
-                <span style={{marginLeft:'auto',background:'var(--gold)',color:'var(--c-on-accent)',fontSize:10,fontWeight:800,padding:'1px 6px',borderRadius:10}}>{pedidosPendentes}</span>
-              )}
-              {nav.id==='billingHub'&&(overdueAlerts?.faturas?.length ?? 0)>0&&(
-                <span style={{marginLeft:'auto',background:'var(--red)',color:'white',fontSize:10,fontWeight:800,padding:'1px 6px',borderRadius:10}}>{overdueAlerts.faturas.length}</span>
-              )}
-            </button>
+        <nav className="sidebar-nav" aria-label="Main">
+          {groups.map(g => (
+            <div key={g.id} className="nav-group">
+              {groups.length > 1 && <div className="nav-group-label">{t(g.labelKey)}</div>}
+              {g.ids.map(id => TABS_BY_ID[id]).map(nav => (
+                <button key={nav.id} onClick={()=>selectTab(nav.id)} className={`nav-item ${activeTab===nav.id?'active':''}`} aria-current={activeTab===nav.id ? 'page' : undefined}>
+                  <Icon name={nav.icon} size={18} />
+                  <span style={{fontSize:13}}>{t(nav.labelKey)}</span>
+                  {nav.id==='pedidos'&&pedidosPendentes>0&&(
+                    <span className="nav-badge">{pedidosPendentes}</span>
+                  )}
+                  {nav.id==='billingHub'&&(overdueAlerts?.faturas?.length ?? 0)>0&&(
+                    <span className="nav-badge is-danger">{overdueAlerts.faturas.length}</span>
+                  )}
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
         <div className="sidebar-footer">
@@ -565,6 +589,7 @@ function Shell() {
 
       <main className="app-main app-main-wide">
         <WorkspaceChrome>
+          {isAdminScreen && activeTab !== 'ai' && <AskAiButton />}
           <UiPrefsPanel compact />
           <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
         </WorkspaceChrome>
@@ -588,20 +613,30 @@ function Shell() {
           {activeTab==='faturas'   && <Faturas />}
           {activeTab==='cashflow'   && <Cashflow />}
           {activeTab==='suppliers' && <Fornecedores />}
+          {activeTab==='ai' && <AiCenter />}
+          {activeTab==='crm' && <ClientsCrm onNav={selectTab} />}
+          {activeTab==='marketing' && <MarketingHub />}
+          {activeTab==='consultoria' && <ConsultingHub />}
         </div>
         </Suspense>
       </main>
+      {isAdminScreen && <AskAiDrawer />}
     </div>
   )
 }
 
 function AppInner() {
   return (
-    <UiPrefsProvider>
-      <I18nProvider>
-        <AuthProvider><Shell/></AuthProvider>
-      </I18nProvider>
-    </UiPrefsProvider>
+    <BrowserRouter>
+      <UiPrefsProvider>
+        <I18nProvider>
+          <AuthProvider>
+            <ThemeAccountSync />
+            <AiPanelProvider><Shell/></AiPanelProvider>
+          </AuthProvider>
+        </I18nProvider>
+      </UiPrefsProvider>
+    </BrowserRouter>
   )
 }
 
