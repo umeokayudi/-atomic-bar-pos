@@ -10,6 +10,9 @@ import { resolveItemPrice } from '../src/lib/atomicPos.js'
 import * as fe from '../src/lib/floorEditor.js'
 import { moveItem, resolveLayout, serializeLayout } from '../src/lib/dashboardLayoutCore.js'
 import { deltaPct, niceMax, shortNum } from '../src/lib/chartMath.js'
+import { staffDayCsv, staffDayReport } from '../src/lib/staffDayReport.js'
+import { drinkPhotoPath, fitSize } from '../src/lib/drinkPhoto.js'
+import { greetingPart } from '../src/lib/greeting.js'
 
 let n = 0
 const queue = []
@@ -291,6 +294,53 @@ test('chart math: nice axis, short numbers, change vs previous', () => {
   assert.equal(shortNum(1200), '1.2k')
   assert.equal(deltaPct(112, 100), 12)
   assert.equal(deltaPct(50, 0), null)
+})
+
+test('daily staff report: shifts, open shift until now, late/absent, sales by name or id', () => {
+  const r = staffDayReport({
+    night: '2026-10-09',
+    staff: [{ id: 'a', nome: 'Ana', salario_hora: 1200 }, { id: 'b', nome: 'Bia', salario_hora: 1100 }, { id: 'c', nome: 'Caio' }, { id: 'd', nome: 'Duda', ativo: false }],
+    punches: [
+      { staff_id: 'a', tipo: 'in', punched_at: '2026-10-09T10:00:00.000Z' },
+      { staff_id: 'a', tipo: 'out', punched_at: '2026-10-09T16:00:00.000Z' },
+      { staff_id: 'b', tipo: 'in', punched_at: '2026-10-09T12:00:00.000Z' },
+      { staff_id: 'a', tipo: 'in', punched_at: '2026-10-08T10:00:00.000Z' },
+    ],
+    tickets: [
+      { obs: 'Cast: Ana', total: 5000, criado_em: '2026-10-09T13:00:00.000Z' },
+      { obs: 'Cast: Someone|b', total: 3000, criado_em: '2026-10-09T14:00:00.000Z' },
+      { obs: '', total: 2000, criado_em: '2026-10-09T13:30:00.000Z' },
+      { obs: 'Cast: Ana', total: 9000, criado_em: '2026-10-08T13:00:00.000Z' },
+    ],
+    sheet: { late: [{ id: 'b' }], absent: [{ id: 'c' }] },
+    now: '2026-10-09T15:00:00.000Z',
+  })
+  const by = Object.fromEntries(r.rows.map(x => [x.id, x]))
+  assert.equal(by.d, undefined, 'inactive staff is left out')
+  assert.deepEqual([by.a.status, by.a.firstIn, by.a.lastOut, by.a.hours, by.a.lateHours], ['done', '19:00', '01:00', 6, 3])
+  assert.equal(by.a.pay, 3 * 1200 + Math.round(3 * 1200 * 1.25))
+  assert.deepEqual([by.a.tickets, by.a.sales], [1, 5000], 'other nights do not count')
+  assert.deepEqual([by.b.status, by.b.late, by.b.hours, by.b.lateHours, by.b.sales], ['working', true, 3, 2, 3000])
+  assert.equal(by.c.status, 'absent')
+  assert.deepEqual([r.totals.people, r.totals.unassigned, r.totals.tickets], [2, 1, 3])
+  assert.equal(r.rows[0].id, 'b', 'people working now come first')
+  const csv = staffDayCsv(r).split('\n')
+  assert.equal(csv.length, 4)
+  assert.match(csv[2], /^2026-10-09,Ana,,done,,19:00,01:00,6,3,/)
+})
+
+test('drink photo: fit inside 800px without upscaling, safe storage path', () => {
+  assert.deepEqual(fitSize(4000, 3000), { width: 800, height: 600 })
+  assert.deepEqual(fitSize(300, 500), { width: 300, height: 500 })
+  assert.equal(drinkPhotoPath('bar-1', 'Gin Tônic!', 5), 'bar-1/5-gin-tonic.jpg')
+  assert.equal(drinkPhotoPath('../x', '', 5), 'x/5-drink.jpg')
+})
+
+test('welcome greeting follows Tokyo time', () => {
+  assert.equal(greetingPart(new Date('2026-10-10T00:00:00Z')), 'morning')
+  assert.equal(greetingPart(new Date('2026-10-10T05:00:00Z')), 'afternoon')
+  assert.equal(greetingPart(new Date('2026-10-10T10:00:00Z')), 'evening')
+  assert.equal(greetingPart(new Date('2026-10-10T16:00:00Z')), 'night')
 })
 
 for (const [name, fn] of queue) { await fn(); n++; console.log(`ok ${n} - ${name}`) }

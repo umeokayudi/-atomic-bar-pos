@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Icon, { hasIcon } from './ui/Icon'
+import PhotoField from './ui/PhotoField'
 import { SidebarCollapseButton, useSidebarCollapse } from '../lib/sidebarCollapse'
 import { BAR_ADMIN_TABS, aiModuleForTab, pathForTab, tabFromPath } from '../lib/navigation'
 import { useAiPanel } from '../lib/aiPanel'
@@ -32,7 +33,7 @@ import {
 import BarDesk from './BarDesk'
 import DashboardGrid from './ui/DashboardGrid'
 import { ColumnChart, RankList, deltaPct } from './ui/Charts'
-import { PageHeader, PortalHero, PortalKpi, PortalPills, PortalSurface } from './ui/PageLayout'
+import { PageHeader, PortalHero, PortalKpi, PortalPills, PortalSurface, WelcomeHeader } from './ui/PageLayout'
 import { useDashboardLayout } from '../lib/dashboardLayout'
 import { aggregateHourlySales, computeDayMetrics } from '../lib/atomicPos'
 import { nightKeyOfSale } from '../lib/nightClose'
@@ -514,13 +515,21 @@ function HomeTab({ bar, onTab }) {
 
   return (
     <div className="fade-in portal-page easy-dash hq-dash">
-      <div className="hq-top">
-        <div>
-          <div className="hq-title">{bar.nome}</div>
-          <div className="hq-sub">{t('portal.home.atAGlance')}</div>
-        </div>
-      </div>
-      <DashboardGrid id="bar-home" widgets={widgets} layout={layout} />
+      <DashboardGrid id="bar-home" widgets={widgets} layout={layout} renderHead={customize => (
+        <WelcomeHeader
+          kicker={`${bar.nome} · ${t('portal.home.atAGlance')}`}
+          name={perfil?.nome || ''}
+          greet={(part, name) => t(name ? `welcome.${part}` : `welcome.${part}Plain`, { name })}
+          lead={t('welcome.barLead')}
+          actions={(
+            <>
+              <button type="button" className="ui-btn is-primary is-sm" onClick={() => onTab?.('pos')}><Icon name="pos" size={15} /> {t('welcome.openTill')}</button>
+              <button type="button" className="ui-btn is-sm" onClick={() => onTab?.('fechamento')}><Icon name="fechamento" size={15} /> {t('welcome.closeNight')}</button>
+              {customize}
+            </>
+          )}
+        />
+      )} />
     </div>
   )
 }
@@ -1154,7 +1163,7 @@ function MenuTab({ bar }) {
   const [editId,   setEditId]   = useState(null)
 
   const [ingredientes, setIngredientes] = useState([]) // {nome, volume_garrafa, preco_garrafa, ml_no_drink}
-  const emptyForm = { nome:'', categoria:'Custom', receita:'', copo:'', preco_venda:'', custo:'', preco_desconto:'', notas:'' }
+  const emptyForm = { nome:'', categoria:'Custom', receita:'', copo:'', preco_venda:'', custo:'', preco_desconto:'', notas:'', imagem_url:'' }
   const emptyIng  = { nome:'', volume_garrafa: '', preco_garrafa: '', ml_no_drink: '' }
   const [form, setForm] = useState(emptyForm)
 
@@ -1193,6 +1202,8 @@ function MenuTab({ bar }) {
       notas: form.notas || '',
       custom: true
     }
+    // Only send the photo when there is one: databases without pos_start.sql have no imagem_url column yet.
+    if (form.imagem_url?.trim()) payload.imagem_url = form.imagem_url.trim()
     if (editId) {
       await supabase.from('drink_menu').update(payload).eq('id', editId)
     } else {
@@ -1214,7 +1225,7 @@ function MenuTab({ bar }) {
 
   function startEdit(d) {
     setForm({ nome:d.nome, categoria:d.categoria, receita:d.receita||'', copo:d.copo||'',
-      preco_venda:d.preco_venda, custo:d.custo, preco_desconto:d.preco_desconto||500, notas:d.notas||'' })
+      preco_venda:d.preco_venda, custo:d.custo, preco_desconto:d.preco_desconto||500, notas:d.notas||'', imagem_url:d.imagem_url||'' })
     setEditId(d.id)
     setShowAdd(true)
   }
@@ -1290,6 +1301,11 @@ function MenuTab({ bar }) {
               <label className="form-label">{t('portal.menu.glass')}</label>
               <input type="text" value={form.copo} onChange={e=>setForm({...form,copo:e.target.value})} placeholder={t('portal.menu.glassPlaceholder')} />
             </div>
+          </div>
+
+          <div style={{ marginBottom:12 }}>
+            <label className="form-label">{t('photo.label')}</label>
+            <PhotoField value={form.imagem_url || ''} onChange={url => setForm(f => ({ ...f, imagem_url: url }))} scope={bar.id} name={form.nome} />
           </div>
 
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:12 }}>

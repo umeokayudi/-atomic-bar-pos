@@ -1,4 +1,7 @@
 import Icon from './Icon'
+import { greetingPart } from '../../lib/greeting'
+
+export { greetingPart }
 
 /** Shared layout primitives — same visual language as PortalCliente */
 
@@ -10,6 +13,27 @@ export function PageHeader({ title, subtitle, actions }) {
         {subtitle && <div className="portal-page-sub">{subtitle}</div>}
       </div>
       {actions && <div className="page-header-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', minWidth: 0, maxWidth: '100%' }}>{actions}</div>}
+    </div>
+  )
+}
+
+/**
+ * Welcome header (same idea as kuripuro's dashboard): small kicker, greeting by first name,
+ * one line on what the page shows, and the main actions on the right.
+ */
+export function WelcomeHeader({ kicker, name, lead, actions, greet }) {
+  const first = String(name || '').trim().split(/\s+/)[0]
+  return (
+    <div className="welcome-head">
+      <div className="welcome-text">
+        {kicker && <div className="welcome-kicker">{kicker}</div>}
+        <h1 className="welcome-title">
+          {greet(greetingPart(), first)}
+          <span className="welcome-wave" aria-hidden="true"><Icon name="wave" size={22} /></span>
+        </h1>
+        {lead && <p className="welcome-lead">{lead}</p>}
+      </div>
+      {actions && <div className="welcome-actions">{actions}</div>}
     </div>
   )
 }

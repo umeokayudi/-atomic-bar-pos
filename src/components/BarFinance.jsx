@@ -19,6 +19,7 @@ import { clockLabel, closeSettings } from '../lib/autoClose'
 import { monthRange, payrollFromPunches } from '../lib/timeClock'
 import StaffPayCards from './StaffPayCards'
 import DayStaffBoard from './DayStaffBoard'
+import StaffDayReport from './StaffDayReport'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 
@@ -165,6 +166,7 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
       punches: teamRes.punches || [],
       staff: teamRes.staff || [],
       punched: teamRes.punched || [],
+      sheets: teamRes.sheets || [],
     }
   }
 
@@ -400,6 +402,7 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
 
       {section === 'salarios' && (
         <>
+          <StaffDayReport staff={pack.staff} tickets={pack.tickets} sheets={pack.sheets} punches={pack.punches} nightPremium={nightPremium} />
           <div className="goal-hero">
             <div>
               <div className="goal-hero-kicker">{t('portal.salary.total')}</div>

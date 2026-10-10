@@ -6,9 +6,10 @@ import Icon from './Icon'
 /**
  * Configurable dashboard. Each widget: { id, title, icon?, size: 'full'|'half', defaultHidden?, empty?, render() }.
  * Pass `layout` (from useDashboardLayout) when the page needs to know what is visible.
+ * renderHead(customizeButton) puts the page header (with the Customize button) inside the grid.
  * "Customize" lets the person show/hide cards, drag or arrow them into order and pick full or half width.
  */
-export default function DashboardGrid({ id, widgets, layout }) {
+export default function DashboardGrid({ id, widgets, layout, renderHead }) {
   const { t } = useI18n()
   const own = useDashboardLayout(id, widgets)
   const { items, toggle, setSize, move, reset } = layout || own
@@ -25,19 +26,26 @@ export default function DashboardGrid({ id, widgets, layout }) {
     setDragOver(null)
   }
 
+  const customizeBtn = (
+    <button type="button" className={`ui-btn is-sm${editing ? ' is-primary' : ''}`} onClick={() => setEditing(v => !v)} aria-pressed={editing}>
+      <Icon name={editing ? 'check' : 'customize'} size={15} /> {editing ? t('dash.done') : t('dash.customize')}
+    </button>
+  )
+
   return (
     <div className={`dash${editing ? ' is-editing' : ''}`}>
-      <div className="dash-bar">
-        {editing && <span className="dash-hint">{t('dash.hint')}</span>}
-        {editing && (
-          <button type="button" className="ui-btn is-ghost is-sm" onClick={reset}>
-            <Icon name="reopen" size={15} /> {t('dash.reset')}
-          </button>
-        )}
-        <button type="button" className={`ui-btn is-sm${editing ? ' is-primary' : ''}`} onClick={() => setEditing(v => !v)} aria-pressed={editing}>
-          <Icon name={editing ? 'check' : 'customize'} size={15} /> {editing ? t('dash.done') : t('dash.customize')}
-        </button>
-      </div>
+      {renderHead?.(customizeBtn)}
+      {(editing || !renderHead) && (
+        <div className="dash-bar">
+          {editing && <span className="dash-hint">{t('dash.hint')}</span>}
+          {editing && (
+            <button type="button" className="ui-btn is-ghost is-sm" onClick={reset}>
+              <Icon name="reopen" size={15} /> {t('dash.reset')}
+            </button>
+          )}
+          {!renderHead && customizeBtn}
+        </div>
+      )}
 
       {editing && hidden.length > 0 && (
         <div className="dash-tray" aria-label={t('dash.hiddenCards')}>

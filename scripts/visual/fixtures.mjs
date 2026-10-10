@@ -90,6 +90,7 @@ export const BAR_STAFF = {
 }
 
 export const PUNCHES = [
-  { id: 'pu1', bar_id: BAR.id, staff_id: 'st1', tipo: 'in', criado_em: ago(240) },
-  { id: 'pu2', bar_id: BAR.id, staff_id: 'st2', tipo: 'in', criado_em: ago(200) },
+  { id: 'pu1', bar_id: BAR.id, staff_id: 'st1', tipo: 'in', criado_em: ago(240), punched_at: ago(240) },
+  { id: 'pu2', bar_id: BAR.id, staff_id: 'st2', tipo: 'in', criado_em: ago(200), punched_at: ago(200) },
+  { id: 'pu3', bar_id: BAR.id, staff_id: 'st2', tipo: 'out', criado_em: ago(20), punched_at: ago(20) },
 ]

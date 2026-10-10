@@ -12,6 +12,7 @@ import {
   Grape, Brush, CalendarClock, RotateCcw, Hourglass, Pencil, Smartphone, Eye, Users as People, Wine as WineGlass,
   PanelLeftClose, PanelLeftOpen, Paperclip, Image as ImageIcon, FileText as FileDoc, Video, GripVertical, EyeOff, LayoutTemplate, ArrowUp, ArrowDown,
   TrendingDown, Percent, Coins, Package, PiggyBank, Check, Columns2, UserCheck, Scale, Warehouse,
+  Download, Hand, UserX, Timer,
 } from 'lucide-react'
 
 /** One name → one vector icon. Screens ask for a semantic name, never an emoji. */
@@ -42,6 +43,7 @@ const ICONS = {
   trendUp: TrendingUp, trendDown: TrendingDown, percent: Percent, coins: Coins, package: Package,
   piggy: PiggyBank, check: Check, sizeWide: RectangleHorizontal, sizeHalf: Columns2, userCheck: UserCheck,
   scale: Scale, warehouse: Warehouse,
+  download: Download, print: Printer, wave: Hand, userOff: UserX, timer: Timer,
   hoje: Sun, star: Star, edit: Pencil, eye: Eye, reopen: RotateCcw, people: People, phone: Smartphone,
   // table states
   stFree: CheckCircle2, stAwaitingOrder: Hourglass, stConsuming: GlassWater, stOccupied: People,

@@ -30,7 +30,7 @@ import { I18nProvider, useI18n } from './lib/i18n'
 import UiPrefsPanel from './components/UiPrefsPanel'
 import { UiPrefsProvider, useUiPrefs, LAYOUTS } from './lib/uiPrefs'
 import { loadDashboard, invalidateDashboard } from './lib/loadDashboard'
-import { PageHeader, PortalHero, PortalKpi, PortalSurface, PortalAlert } from './components/ui/PageLayout'
+import { PortalHero, PortalKpi, PortalSurface, PortalAlert, WelcomeHeader } from './components/ui/PageLayout'
 import { InOutChart, LineChart, RankList, deltaPct } from './components/ui/Charts'
 import DashboardGrid from './components/ui/DashboardGrid'
 const PortalCliente = lazy(() => import('./components/PortalCliente'))
@@ -154,7 +154,7 @@ function goToReport(onNav, month) {
 }
 
 function Dashboard({ onNav }) {
-  const { user } = useAuth()
+  const { user, perfil } = useAuth()
   const { t, monthLabel } = useI18n()
   const [data, setData] = useState(null)
   const [selMonth, setSelMonth] = useState('')
@@ -236,10 +236,6 @@ function Dashboard({ onNav }) {
   return (
     <Suspense fallback={null}>
     <div className="fade-in" style={{ maxWidth: 1000 }}>
-      <PageHeader
-        title={t('dashboard.title')}
-        subtitle={`${isCurrentMonth ? t('dashboard.currentMonth') : t('dashboard.history')} · ${monthLabel(selMonth)}`}
-      />
 
       <AiContextPublisher screen="dashboard" ctx={{ period: monthLabel(selMonth), kpis: snapshotToKpis({
         monthLabel: monthLabel(selMonth),
@@ -259,7 +255,22 @@ function Dashboard({ onNav }) {
           .join('\n'),
       }) }} />
 
-      <DashboardGrid id="hq" widgets={[
+      <DashboardGrid id="hq" renderHead={customize => (
+        <WelcomeHeader
+          kicker={`${t('welcome.hqKicker')} · ${isCurrentMonth ? t('dashboard.currentMonth') : t('dashboard.history')} · ${monthLabel(selMonth)}`}
+          name={perfil?.nome || user?.user_metadata?.nome || ''}
+          greet={(part, name) => t(name ? `welcome.${part}` : `welcome.${part}Plain`, { name })}
+          lead={t('welcome.hqLead')}
+          actions={(
+            <>
+              <button type="button" className="ui-btn is-primary is-sm" onClick={() => onNav('sales')}><Icon name="plus" size={15} /> {t('dashboard.registerSale')}</button>
+              <button type="button" className="ui-btn is-sm" onClick={() => onNav('purchases')}><Icon name="plus" size={15} /> {t('dashboard.newPurchase')}</button>
+              <button type="button" className="ui-btn is-sm" onClick={() => onNav('faturas')}><Icon name="invoices" size={15} /> {t('nav.invoices')}</button>
+              {customize}
+            </>
+          )}
+        />
+      )} widgets={[
         {
           id: 'alerts', title: t('dash.w.alerts'), icon: 'warning', size: 'full',
           empty: !(data.pedidosPendentes > 0 || data.alertas?.faturasAtrasadasTotal > 0 || data.alertas?.comprasAtrasadasTotal > 0),

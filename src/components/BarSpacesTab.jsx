@@ -23,6 +23,7 @@ import { tokyoMonthKey, tokyoNightKey } from '../lib/tokyo'
 import { addDays } from '../lib/barClose'
 import { monthBounds } from '../lib/barCalendar'
 import RangeCalendar from './RangeCalendar'
+import { PageHeader } from './ui/PageLayout'
 
 function typeLabel(t, tipo) {
   const row = SPACE_TYPES.find(x => x.id === tipo)
@@ -307,8 +308,7 @@ export default function BarSpacesTab({ bar }) {
 
   return (
     <div className="fade-in floor-page">
-      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>{t('spaces.title')}</div>
-      <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16 }}>{t('spaces.subtitle')}</div>
+      <PageHeader title={t('spaces.title')} subtitle={t('spaces.subtitle')} />
       {loadErr && <div className="pos-sale-err" style={{ marginBottom: 12 }}>{asReactText(loadErr)}</div>}
 
       {staleVisits.length > 0 && (

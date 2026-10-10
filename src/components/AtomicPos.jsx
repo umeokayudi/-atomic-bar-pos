@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import PhotoField from './ui/PhotoField'
 import { useAuth } from './Auth'
 import { fmtYen, fmtDate, Spinner, SectionTitle } from './utils'
 import {
@@ -1104,8 +1105,10 @@ function PosPricesTab({ bar, drinks, onRefresh }) {
               <input placeholder={t('atomicPos.priceYen')} type="number" value={form.preco_venda} onChange={e => setForm({ ...form, preco_venda: e.target.value })} />
               <input placeholder={t('atomicPos.costYen')} type="number" value={form.custo} onChange={e => setForm({ ...form, custo: e.target.value })} />
               <input placeholder={t('atomicPos.vipYen')} type="number" value={form.preco_desconto} onChange={e => setForm({ ...form, preco_desconto: e.target.value })} />
-              <input placeholder={t('atomicPos.photoUrl')} type="url" value={form.imagem_url || ''} onChange={e => setForm({ ...form, imagem_url: e.target.value })} />
               <button className="btn-primary" onClick={saveDrink} disabled={saving}>{editId ? t('common.save') : t('common.add')}</button>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <PhotoField value={form.imagem_url || ''} onChange={url => setForm(f => ({ ...f, imagem_url: url }))} scope="menu" name={form.nome} />
+              </div>
             </div>
           </div>
           <table style={{ width: '100%', fontSize: 13 }}>

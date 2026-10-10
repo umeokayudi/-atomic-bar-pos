@@ -5,6 +5,8 @@ import { staffFetch } from '../lib/apiAuth'
 import { payrollFromPunches, monthRange, hoursBetween } from '../lib/timeClock'
 import { canManageBarTeam } from '../lib/access'
 import { loadBarTeam } from '../lib/barTeam'
+import StaffDayReport from './StaffDayReport'
+import { PageHeader } from './ui/PageLayout'
 import StaffPayCards from './StaffPayCards'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
@@ -75,8 +77,7 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
 
   return (
     <div className="fade-in">
-      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>{t('clock.title')}</div>
-      <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16 }}>{t('clock.selfHint')}</div>
+      <PageHeader title={t('clock.title')} subtitle={t('clock.selfHint')} />
       {err && <div className="pos-sale-err" style={{ marginBottom: 12 }}>{asReactText(err)}</div>}
       {loading ? <Spinner /> : (
         <div className="card people-me">
@@ -103,6 +104,16 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
         <div style={{ marginTop: 16 }}>
           <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 8 }}>{t('clock.teamTitle')}</div>
           <StaffPayCards rows={payrollFromPunches(punches, staff, range, { nightPremium })} nightPremium={nightPremium} />
+        </div>
+      )}
+      {!loading && (
+        <div style={{ marginTop: 16 }}>
+          <StaffDayReport
+            onlyId={manager ? undefined : meId}
+            staff={manager ? staff : [{ id: meId, nome: perfil?.nome, salario_hora: perfil?.salario_hora || 0 }]}
+            punches={punches}
+            nightPremium={nightPremium}
+          />
         </div>
       )}
       {manager && onOpenStaff && (
