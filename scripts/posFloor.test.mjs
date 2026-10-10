@@ -342,7 +342,11 @@ assert.match(panel, /access !== 'cashier'/)
 assert.match(panel, /legacyIsolated/)
 assert.match(sql, /operational_day/)
 assert.match(sql, /reason required/)
-assert.match(panel, /commitPosSale/)
+// The till commits through posCommit (one atomic RPC; commitPosSale only as fallback before the migration).
+assert.match(panel, /commitSaleAtomic/)
+const commitSource = readFileSync('src/lib/posCommit.js', 'utf8')
+assert.match(commitSource, /pos_commit_sale/)
+assert.match(commitSource, /commitPosSale/)
 assert.match(panel, /syncPosStockAndReorder/)
 assert.match(panel, /PosQuick/)
 
@@ -430,7 +434,7 @@ assert.deepEqual(starterPicks([
 ]), ['d-1', 'd-3'])
 
 const quickSource = readFileSync(new URL('../src/components/pos/PosQuick.jsx', import.meta.url), 'utf8')
-assert.match(quickSource, /commitPosSale/)
+assert.match(quickSource, /commitSaleAtomic/)
 assert.match(quickSource, /pq-charge/)
 assert.match(quickSource, /posQuick\.top/)
 assert.doesNotMatch(quickSource, /pos_void_sale/)
