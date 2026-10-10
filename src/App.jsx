@@ -410,6 +410,16 @@ function Dashboard({ onNav }) {
         </div>
       </PortalSurface>
 
+      <details className="ui-card ui-formulas">
+        <summary>{t('dashFormula.title')}</summary>
+        <dl>
+          {['keep', 'billed', 'purchases', 'margin', 'receivable', 'overdue', 'deliveries'].map(k => (
+            <div key={k}><dt>{t(`dashFormula.${k}`)}</dt><dd>{t(`dashFormula.${k}Def`)}</dd></div>
+          ))}
+        </dl>
+        <p className="ui-muted">{t('dashFormula.source')}</p>
+      </details>
+
       <DashboardMetricModal
         open={detailModal === 'receita'}
         onClose={() => setDetailModal(null)}

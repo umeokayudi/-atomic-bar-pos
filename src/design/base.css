@@ -438,3 +438,10 @@ html[data-pointer="coarse"] .fe-resize { width: 28px; height: 28px; }
 .floor-row .num { grid-area: money; font-size: 13px; font-weight: 700; }
 .floor-floating { flex-wrap: wrap; margin-top: 8px; }
 .floor-manual { flex-wrap: wrap; margin-top: 12px; }
+
+/* Metric definitions under dashboards */
+.ui-formulas { margin-top: 16px; }
+.ui-formulas summary { cursor: pointer; font-weight: 700; color: var(--c-text); }
+.ui-formulas dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px 20px; margin: 12px 0; }
+.ui-formulas dt { font-size: 12px; font-weight: 700; color: var(--c-text); }
+.ui-formulas dd { margin: 2px 0 0; font-size: 13px; color: var(--c-text-2); }

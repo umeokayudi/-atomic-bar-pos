@@ -4,6 +4,17 @@ export default {
     overview: 'Overview', operation: 'Operation', supply: 'Supply', finance: 'Finance', people: 'People',
     growth: 'Growth', intelligence: 'Intelligence', settings: 'Settings', more: 'More',
   },
+  dashFormula: {
+    title: 'How these numbers are calculated',
+    keep: 'You keep (projected profit)', keepDef: 'Billed to bars this month − purchases from suppliers this month.',
+    billed: 'Billed to bars', billedDef: 'Totals of the invoices whose period covers the month (paid or open). If there are no invoices yet: JBM supply sales of the month; if none, delivered or confirmed orders (estimated total).',
+    purchases: 'Purchases', purchasesDef: 'Sum of supplier purchases dated in the month: the real total; if missing, the amount paid; if missing, items × unit cost.',
+    margin: 'Margin', marginDef: 'You keep ÷ billed to bars × 100, rounded. 0% when nothing was billed.',
+    receivable: 'Still to collect', receivableDef: 'Invoices covering the month that are not marked paid: total − amount already paid.',
+    overdue: 'Overdue alerts', overdueDef: 'Unpaid invoices and supplier purchases whose due date has passed.',
+    deliveries: 'Deliveries', deliveriesDef: 'JBM supply sales (vendas) in the month, one per delivery.',
+    source: 'Source: the same server calculation as the monthly report (api/_dashboardMonth.js). June 2026 uses a cost estimate from July prices because June purchases were not recorded.',
+  },
   nav: {
     crm: 'Clients & CRM', marketing: 'Marketing', consultoria: 'Consulting', ai: 'AI Center', mesas: 'Floor & tables',
     comandas: 'Tabs',

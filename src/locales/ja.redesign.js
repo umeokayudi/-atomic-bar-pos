@@ -4,6 +4,17 @@ export default {
     overview: '概要', operation: 'オペレーション', supply: '仕入れ', finance: '財務', people: 'スタッフ',
     growth: '成長', intelligence: 'インテリジェンス', settings: '設定', more: 'その他',
   },
+  dashFormula: {
+    title: '数値の計算方法',
+    keep: '手元に残る額（見込み利益）', keepDef: '当月のバー向け請求 − 当月の仕入れ。',
+    billed: 'バー向け請求', billedDef: '対象期間が当月を含む請求書の合計（支払済み・未払い両方）。請求書がない場合は当月のJBM供給売上、それもない場合は納品済み・確定済みの注文（見積額）。',
+    purchases: '仕入れ', purchasesDef: '当月日付の仕入れ合計：確定額、なければ支払額、なければ品目数量×単価。',
+    margin: '利益率', marginDef: '手元に残る額 ÷ バー向け請求 × 100（四捨五入）。請求がない月は0%。',
+    receivable: '未回収', receivableDef: '当月を対象とする未払いの請求書：合計 − 入金済み額。',
+    overdue: '期限超過アラート', overdueDef: '支払期限を過ぎた未払いの請求書と仕入れ。',
+    deliveries: '納品', deliveriesDef: '当月のJBM供給売上（vendas）、納品ごとに1件。',
+    source: '出典：月次レポートと同じサーバー計算（api/_dashboardMonth.js）。2026年6月は仕入れ記録がないため、7月の価格から原価を推定しています。',
+  },
   nav: {
     crm: '顧客・CRM', marketing: 'マーケティング', consultoria: 'コンサルティング', ai: 'AIセンター', mesas: 'フロア・テーブル',
     comandas: '伝票',
