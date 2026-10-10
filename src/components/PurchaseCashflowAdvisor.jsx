@@ -9,13 +9,15 @@ import {
   loadCashflowSnapshot,
 } from '../lib/purchaseCashflowAdvisor'
 import { loadHoldingLocal, syncHoldingFromCloud } from '../lib/jbmHolding'
+import { useAiPanel } from '../lib/aiPanel'
+import Icon from './ui/Icon'
 
 const VERDICT_STYLE = {
-  pay_now: { bg: 'var(--green-bg)', border: '#86efac', icon: '💵', label: 'Pay cash' },
-  pay_later: { bg: '#eff6ff', border: '#93c5fd', icon: '📅', label: 'Pay on terms' },
-  caution: { bg: 'var(--amber-bg)', border: '#fcd34d', icon: '⚠️', label: 'Caution' },
-  neutral: { bg: 'var(--bg3)', border: 'var(--border)', icon: '📊', label: 'Analysis' },
-  incomplete: { bg: 'var(--bg3)', border: 'var(--border)', icon: '—', label: 'Waiting' },
+  pay_now: { bg: 'var(--c-success-bg)', border: 'color-mix(in srgb, var(--c-success) 35%, transparent)', icon: 'payCash', label: 'Pay cash' },
+  pay_later: { bg: 'var(--c-info-bg)', border: 'color-mix(in srgb, var(--c-info) 35%, transparent)', icon: 'shifts', label: 'Pay on terms' },
+  caution: { bg: 'var(--c-warning-bg)', border: 'color-mix(in srgb, var(--c-warning) 35%, transparent)', icon: 'warning', label: 'Caution' },
+  neutral: { bg: 'var(--c-surface-2)', border: 'var(--c-border)', icon: 'report', label: 'Analysis' },
+  incomplete: { bg: 'var(--c-surface-2)', border: 'var(--c-border)', icon: 'info', label: 'Waiting' },
 }
 
 const PRESSURE_LABEL = { alta: 'High', média: 'Medium', baixa: 'Low' }
@@ -39,6 +41,7 @@ export default function PurchaseCashflowAdvisor({
   const [showSettings, setShowSettings] = useState(false)
   const [aiText, setAiText] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
+  const panel = useAiPanel()
 
   useEffect(() => {
     loadCashflowSnapshot(supabase).then(setCashflow).catch(() => setCashflow({}))
@@ -74,6 +77,14 @@ export default function PurchaseCashflowAdvisor({
       pointsPct,
       holding: holding || loadHoldingLocal(),
     })
+    // With the Ask AI panel: hand it this purchase and ask there, so the answer can be followed up.
+    if (panel.enabled) {
+      const screen = panel.ctx?.screen || panel.ctx?.module
+      if (screen) panel.setPageCtx(screen, { notes: `${prompt.system}\n\n${prompt.messages.map(m => m.content).join('\n')}` })
+      setAiLoading(false)
+      panel.openAi('Cash or terms for this purchase? Give the recommendation first.', true)
+      return
+    }
     const text = await callGeminiChat({ ...prompt, temperature: 0.4, maxOutputTokens: 900 })
     setAiText(text)
     setAiLoading(false)
@@ -83,7 +94,7 @@ export default function PurchaseCashflowAdvisor({
     if (compact) return null
     return (
       <div style={{ background: 'var(--bg3)', borderRadius: 12, padding: 14, fontSize: 12, color: 'var(--text2)' }}>
-        💡 Enter the supplier and the amount — AI compares paying cash vs on terms using <strong>JBM Holding</strong>.
+        <Icon name="idea" size={14} /> Enter the supplier and the amount — AI compares paying cash vs on terms using <strong>JBM Holding</strong>.
       </div>
     )
   }
@@ -99,7 +110,7 @@ export default function PurchaseCashflowAdvisor({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text2)', marginBottom: 4 }}>
-            {style.icon} Advisor JBM Holding · custo oport. {analysis.opportunityCostPct}%/ano
+            <Icon name={style.icon} size={13} /> Advisor JBM Holding · custo oport. {analysis.opportunityCostPct}%/ano
           </div>
           <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--c-text)', lineHeight: 1.3 }}>
             {analysis.headline}
@@ -110,7 +121,7 @@ export default function PurchaseCashflowAdvisor({
           onClick={() => setShowSettings(s => !s)}
           style={{ fontSize: 11, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg2)', cursor: 'pointer' }}
         >
-          ⚙️ {showSettings ? 'Hide' : 'Assumptions'}
+          <Icon name="settings" size={13} /> {showSettings ? 'Hide' : 'Assumptions'}
         </button>
       </div>
 
@@ -166,7 +177,7 @@ export default function PurchaseCashflowAdvisor({
           <tbody>
             {analysis.scenarios.map((sc, i) => (
               <tr key={sc.id} style={{ background: i === 0 ? 'rgba(255,255,255,0.5)' : 'transparent', borderBottom: '1px solid var(--border)' }}>
-                <td style={{ padding: '8px', fontWeight: i === 0 ? 700 : 500 }}>{i === 0 ? '🏆 ' : ''}{sc.label}</td>
+                <td style={{ padding: '8px', fontWeight: i === 0 ? 700 : 500 }}>{sc.label}</td>
                 <td style={{ padding: '8px' }}>Dia {sc.paymentDay}</td>
                 <td style={{ padding: '8px', fontWeight: 700 }}>
                   {fmtYen(sc.effectiveCost)}
@@ -201,12 +212,9 @@ export default function PurchaseCashflowAdvisor({
         type="button"
         onClick={askAI}
         disabled={aiLoading}
-        style={{
-          padding: '10px 16px', borderRadius: 10, border: 'none',
-          background: 'var(--navy)', color: 'white', fontWeight: 700, fontSize: 12, cursor: 'pointer',
-        }}
+        className="ui-btn is-primary is-sm"
       >
-        {aiLoading ? 'Analyzing...' : '🤖 Holding AI: cash or terms?'}
+        <Icon name="ai" size={14} /> {aiLoading ? 'Analyzing...' : 'Ask AI: cash or terms?'}
       </button>
 
       {aiLoading && <div style={{ marginTop: 10 }}><Spinner text="AI synced with JBM Holding..." /></div>}

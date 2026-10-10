@@ -12,9 +12,9 @@ import { payrollFromPunches, monthRange, localHoursPay } from '../lib/timeClock'
 import { splitCostBooks } from '../lib/costBooks'
 import { asReactText, errText } from '../lib/errText'
 import { costAccessForRole } from '../lib/access'
-import { fetchHqSnapshot } from '../lib/hqSnapshot'
+import { buildHqChatSystem, fetchHqSnapshot } from '../lib/hqSnapshot'
 import { useI18n } from '../lib/i18n'
-import HqAiDock from './HqAiDock'
+import AiPromptStrip from './ai/AiPromptStrip'
 import Icon from './ui/Icon'
 import BarOpsGlance from './BarOpsGlance'
 import { buildBarOpsGlance } from '../lib/barOpsGlance'
@@ -521,7 +521,13 @@ export default function BarCostsTab({ bar, onTab }) {
             </div>
           )}
         </div>
-        <HqAiDock snapshot={hq} />
+        <AiPromptStrip
+          title={t('portal.hq.aiSlot')}
+          hint={t('portal.hq.aiSlotHint')}
+          prompts={[t('portal.hq.aiChipPos'), t('portal.hq.aiChipJbm'), t('portal.hq.aiChipHours'), t('portal.hq.aiChipRent')]}
+          notes={hq ? buildHqChatSystem(hq) : ''}
+          module="finance"
+        />
       </div>
     </div>
   )

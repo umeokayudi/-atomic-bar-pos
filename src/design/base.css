@@ -789,3 +789,80 @@ html .upload-zone:hover { border-color: var(--c-accent); background: var(--c-acc
 html .cash-ai-assistant { background: var(--c-surface-2); }
 html .ff-badge { background: var(--c-surface-2); color: var(--c-text-2); }
 html .ops-kpi:hover { border-color: var(--c-accent); }
+.ui-empty-state { display: grid; justify-items: center; gap: 10px; padding: 36px 12px; color: var(--c-text-3); font-size: 13px; text-align: center; }
+.ui-empty-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--c-surface-2); color: var(--c-text-2); }
+.portal-hero-grid.is-three-even { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 520px) { html .portal-hero-grid.is-three-even { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } html .portal-hero-grid.is-three-even .portal-kpi-icon { display: none; } }
+.ui-banner { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; margin-bottom: 12px; border: 1px solid var(--c-border); background: var(--c-surface); flex-wrap: wrap; }
+.ui-banner.is-danger { background: var(--c-danger-bg); border-color: color-mix(in srgb, var(--c-danger) 30%, transparent); }
+.ui-banner.is-warning { background: var(--c-warning-bg); border-color: color-mix(in srgb, var(--c-warning) 30%, transparent); }
+.ui-banner-icon { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex: none; background: var(--c-surface); }
+.ui-banner.is-danger .ui-banner-icon { color: var(--c-danger); }
+.ui-banner.is-warning .ui-banner-icon { color: var(--c-warning); }
+.ui-banner-main { flex: 1; min-width: 200px; display: grid; gap: 2px; }
+.ui-banner-main strong { font-size: 14px; color: var(--c-text); }
+.ui-banner-main span { font-size: 12px; color: var(--c-text-2); line-height: 1.5; }
+.notif-row-icon { display: grid; place-items: center; }
+
+/* Receivables ("AR war room"): light card with aging buckets, not a dark maroon block */
+html .ar-war { background: var(--c-surface); color: var(--c-text); border: 1px solid var(--c-border); border-radius: 16px; }
+html .ar-war-kicker { color: var(--c-text-2); opacity: 1; font-weight: 700; }
+html .ar-war-total { color: var(--c-danger); letter-spacing: -.02em; }
+html .ar-war-hint { color: var(--c-text-3); opacity: 1; }
+html .ar-aging-cell { background: var(--c-surface-2); }
+html .ar-aging-cell span { color: var(--c-text-2); opacity: 1; }
+html .ar-aging-cell.is-hot { background: var(--c-danger-bg); color: var(--c-danger); }
+html .ar-overdue-row { background: var(--c-danger-bg); color: var(--c-text); }
+html .ar-overdue-row b { color: var(--c-danger); }
+@media (max-width: 520px) { html .ar-aging { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.cash-charts { margin: 0 0 16px; align-items: start; }
+
+/* Date range calendar: fits a 360px phone, emerald range */
+html .range-cal-head, html .range-cal-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+html .range-cal-day { min-width: 0; padding: 0; color: var(--c-text); }
+html .range-cal-day.is-in { background: var(--c-accent-soft); }
+html .range-cal-day.is-edge { background: var(--c-accent); color: var(--c-on-accent); }
+html .range-cal-day.is-today { box-shadow: inset 0 0 0 1px var(--c-accent); }
+html .range-cal .date-filter { flex-wrap: wrap; min-width: 0; }
+html .range-cal-card { min-width: 0; max-width: 100%; box-sizing: border-box; }
+
+/* Older screens lay KPIs out with inline 3/4-column grids: two columns on phones */
+@media (max-width: 640px) {
+  html [style*="grid-template-columns: repeat(4, 1fr)"], html [style*="grid-template-columns: repeat(3, 1fr)"] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 639px) { .uc-xlabels span { font-size: 9px; } }
+
+/* Embedded AI: suggested questions that open the one Ask AI panel */
+.ai-strip { border: 1px solid var(--c-border); background: var(--c-surface); border-radius: 14px; padding: 14px; margin: 12px 0; display: grid; gap: 10px; }
+.ai-strip-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ai-strip-head > div { flex: 1; min-width: 160px; display: grid; gap: 2px; }
+.ai-strip-head strong { font-size: 14px; color: var(--c-text); }
+.ai-strip-head span:not(.ai-strip-icon) { font-size: 12px; color: var(--c-text-3); }
+.ai-strip-icon { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: var(--c-accent-soft); color: var(--c-accent); flex: none; }
+.ai-strip-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.ai-strip-chip {
+  border: 1px solid var(--c-border-2); background: var(--c-surface); color: var(--c-text); border-radius: 999px;
+  padding: 7px 12px; font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; text-align: left; min-height: 34px;
+}
+.ai-strip-chip:hover { border-color: var(--c-accent); color: var(--c-accent); background: var(--c-accent-soft); }
+.ai-strip.is-inline .ai-chat { max-height: 420px; }
+.holding-ai { display: grid; gap: 14px; }
+.holding-ai > * { margin: 0 !important; }
+.holding-ai-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+.holding-checks { display: flex; flex-wrap: wrap; gap: 6px; }
+.holding-audit { font-size: 13px; line-height: 1.7; white-space: pre-wrap; color: var(--c-text); }
+
+/* Costs screen: grid columns may shrink below their content; month chips wrap instead of pushing the page wider. */
+html .hq-layout { grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.9fr); }
+html .hq-layout > * { min-width: 0; }
+html .hq-filters, html .hq-filter-group { min-width: 0; max-width: 100%; }
+@media (max-width: 900px) {
+  html .hq-layout { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  html .hq-filter-group { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+  html .hq-filter-group::-webkit-scrollbar { display: none; }
+  html .hq-filter-group > * { flex: 0 0 auto; }
+}
+/* Payroll filters keep a visible label above each field. */
+.payroll-filter { display: grid; gap: 4px; min-width: 0; font-size: 12px; font-weight: 600; color: var(--c-text-2, var(--text2)); }

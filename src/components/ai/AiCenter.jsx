@@ -72,21 +72,23 @@ function ActionLog() {
 }
 
 /** AI Center: one place for analysis across modules, history, and what the AI wrote after confirmation. */
-export default function AiCenter() {
+/** bar: when opened from a bar portal, the center is locked to that bar. */
+export default function AiCenter({ bar = null } = {}) {
   const { t, lang } = useI18n()
   const { perfil } = useAuth()
   const [area, setArea] = useState('overview')
   const [view, setView] = useState('chat')
   const [days, setDays] = useState(30)
   const [bars, setBars] = useState([])
-  const [barId, setBarId] = useState('')
+  const [barId, setBarId] = useState(bar?.id || '')
   const [threads, setThreads] = useState([])
   const [thread, setThread] = useState({ id: 'center', messages: [] })
   const [histMode, setHistMode] = useState('')
 
   useEffect(() => {
+    if (bar) { setBars([{ id: bar.id, nome: bar.nome }]); return }
     supabase.from('bars').select('id,nome').order('nome').then(({ data }) => setBars(data || []))
-  }, [])
+  }, [bar?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function refreshHistory() {
     try {
@@ -127,13 +129,13 @@ export default function AiCenter() {
     <div className="ai-center fade-in">
       <div className="ui-pagebar">
         <div className="ui-pagebar-title">{t('ai.center')}</div>
-        <label className="ui-field ai-center-filter">
+        {!bar && <label className="ui-field ai-center-filter">
           <span className="ui-sr">{t('common.bar')}</span>
           <select value={barId} onChange={e => setBarId(e.target.value)} disabled={perfil?.role !== 'admin' && perfil?.role !== 'jbm'}>
             <option value="">{t('common.allBars')}</option>
             {bars.map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
           </select>
-        </label>
+        </label>}
         <div className="ui-seg" role="radiogroup" aria-label={t('ai.period')}>
           {PERIODS.map(n => (
             <button key={n} type="button" role="radio" aria-checked={days === n} onClick={() => setDays(n)}>{t('ai.daysShort', { n })}</button>

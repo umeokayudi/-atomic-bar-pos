@@ -1,4 +1,5 @@
 import { t as translate, getGlobalLang } from '../lib/i18n'
+import Icon, { hasIcon } from './ui/Icon'
 import { dateLocale } from '../lib/tokyo'
 export const fmtYen   = n => `¥${Math.round(+n || 0).toLocaleString('ja-JP')}`
 export const fmtDate  = (iso, lang = getGlobalLang()) => {
@@ -188,11 +189,18 @@ export function Spinner({ text }) {
 }
 
 // ── Empty ─────────────────────────────────────────────────────────────────────
+/** Old screens pass an emoji; it maps to the matching line icon so empty states stay in one style. */
+const EMPTY_ICONS = {
+  '📭': 'info', '⭐': 'star', '🍹': 'catCocktail', '🎯': 'goals', '🏅': 'rewards', '🏭': 'suppliers', '💳': 'payCard',
+  '💵': 'payCash', '📊': 'report', '📝': 'occurrences', '🗓️': 'shifts', '🛒': 'purchases', '🥂': 'clientes', '🧾': 'pos',
+}
+
 export function Empty({ text, icon = '📭' }) {
+  const name = hasIcon(icon) ? icon : EMPTY_ICONS[icon] || 'info'
   return (
-    <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text3)' }}>
-      <div style={{ fontSize:32, marginBottom:8 }}>{icon}</div>
-      <div style={{ fontSize:13 }}>{text ?? translate('common.empty')}</div>
+    <div className="ui-empty-state">
+      <span className="ui-empty-icon"><Icon name={name} size={22} /></span>
+      <div>{text ?? translate('common.empty')}</div>
     </div>
   )
 }
@@ -211,14 +219,14 @@ export function SectionTitle({ children, sub }) {
 export function DelBtn({ onClick, title = 'Excluir' }) {
   return (
     <button className="btn-danger" onClick={onClick} title={title}
-      style={{ padding:'4px 10px', fontSize:11, borderRadius:6 }}>🗑</button>
+      style={{ padding:'4px 10px', fontSize:11, borderRadius:6 }}><Icon name="trash" size={14} /></button>
   )
 }
 
 export function EditBtn({ onClick, title = 'Editar' }) {
   return (
     <button onClick={onClick} title={title}
-      style={{ padding:'4px 10px', fontSize:11, borderRadius:6, border:'1px solid var(--border)', background:'var(--bg2)', cursor:'pointer' }}>✏️</button>
+      style={{ padding:'4px 10px', fontSize:11, borderRadius:6, border:'1px solid var(--border)', background:'var(--bg2)', cursor:'pointer' }}><Icon name="edit" size={14} /></button>
   )
 }
 

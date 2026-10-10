@@ -15,6 +15,7 @@ import {
   crmTableMissing,
   withTimeout,
 } from '../lib/barCrm'
+import Icon from './ui/Icon'
 
 const emptyForm = {
   nome: '', telefone: '', line_id: '', email: '', aniversario: '',
@@ -169,7 +170,7 @@ export default function BarGuestsTab({ bar }) {
         <div className="card" style={{ marginBottom: 16, padding: 14 }}>
           {todayBirthdays.length > 0 && (
             <div style={{ fontWeight: 800, marginBottom: 4 }}>
-              🎂 {t('guests.birthdayToday')}: {todayBirthdays.map(g => g.nome).join(', ')}
+              <Icon name="eventos" size={14} /> {t('guests.birthdayToday')}: {todayBirthdays.map(g => g.nome).join(', ')}
             </div>
           )}
           <div style={{ fontSize: 13, color: 'var(--text2)' }}>

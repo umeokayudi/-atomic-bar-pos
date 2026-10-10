@@ -10,7 +10,8 @@ import { nightKeyOfSale } from '../lib/nightClose'
 import { lastDayOfMonth, tokyoHour, tokyoNightKey } from '../lib/tokyo'
 import { useI18n } from '../lib/i18n'
 import { errText } from '../lib/errText'
-import BarOwnerAi from './BarOwnerAi'
+import AiPromptStrip from './ai/AiPromptStrip'
+import { buildHqChatSystem } from '../lib/hqSnapshot'
 
 const SPANS = ['turno', 'noite', 'semana', 'mes']
 const DAY_KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
@@ -79,7 +80,6 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
-  const [ask, setAsk] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -299,10 +299,14 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
             {t('portal.desk.aiLine', { hour: peak.label || String(peak.hour || ''), amount: money(peak.total) })}
           </p>
         )}
-        <button type="button" className="house-text" onClick={() => setAsk(v => !v)}>{t('portal.desk.ask')}</button>
       </section>
 
-      {ask && <BarOwnerAi bar={bar} hq={hq} />}
+      <AiPromptStrip
+        title={t('portal.desk.ask')}
+        prompts={[t('portal.hq.aiChipPos'), t('portal.hq.aiChipJbm'), t('portal.hq.aiChipHours'), t('portal.hq.aiChipRent')]}
+        notes={hq ? buildHqChatSystem(hq) : ''}
+        module="overview"
+      />
 
       {(hq?.jbm?.billCheck?.status === 'off' || hq?.jbm?.billCheck?.status === 'paid-gap') && (
         <button type="button" className="desk-alarm" onClick={() => onTab?.('faturas')}>

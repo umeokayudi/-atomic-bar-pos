@@ -11,6 +11,7 @@ import { supabase } from './supabase'
 const AiPanelContext = createContext(null)
 const LOCAL_KEY = 'jbm_ai_threads_v1'
 const MAX_LOCAL = 40
+export const NOTES_MAX = 2500
 
 /** Keep only what helps the model and is safe to send: no ids of people, no free-form personal fields. */
 export function compactContext(ctx = {}) {
@@ -28,6 +29,8 @@ export function compactContext(ctx = {}) {
   if (Array.isArray(ctx.kpis)) {
     out.visible = ctx.kpis.slice(0, 16).map(k => ({ label: String(k.label).slice(0, 60), value: String(k.value).slice(0, 40) }))
   }
+  // A screen's own summary (e.g. this month's books), already scoped to what the person can see.
+  if (ctx.notes) out.notes = String(ctx.notes).slice(0, NOTES_MAX)
   return out
 }
 
@@ -38,6 +41,7 @@ export function contextToScreen(ctx = {}) {
   if (c.period) lines.push(`Period on screen: ${c.period}`)
   if (c.filters && Object.keys(c.filters).length) lines.push(`Filters: ${Object.entries(c.filters).map(([k, v]) => `${k}=${v}`).join(', ')}`)
   if (c.visible?.length) lines.push(`Numbers on screen: ${c.visible.map(k => `${k.label}: ${k.value}`).join('; ')}`)
+  if (c.notes) lines.push(`Screen data:\n${c.notes}`)
   return lines.join('\n')
 }
 
@@ -106,11 +110,15 @@ export function AiPanelProvider({ children, enabled = true }) {
   const [base, setCtx] = useState({ module: 'overview' })
   const [pages, setPages] = useState({})
   const [seed, setSeed] = useState('')
+  const [seedSend, setSeedSend] = useState(false)
   const ctx = useMemo(() => ({ ...base, ...(pages[base.screen || base.module] || {}) }), [base, pages])
-  const setPageCtx = useCallback((screen, value) => setPages(prev => ({ ...prev, [screen]: value })), [])
+  // Several parts of one screen can publish (the page, an embedded AI strip): later keys merge over earlier ones.
+  const setPageCtx = useCallback((screen, value) => setPages(prev => ({ ...prev, [screen]: { ...(prev[screen] || {}), ...value } })), [])
 
-  const openAi = useCallback((prompt = '') => {
+  // send=true asks the question right away (suggested prompts); otherwise it only fills the box.
+  const openAi = useCallback((prompt = '', send = false) => {
     setSeed(prompt)
+    setSeedSend(!!(send && prompt))
     setOpen(true)
   }, [])
   const closeAi = useCallback(() => setOpen(false), [])
@@ -128,7 +136,7 @@ export function AiPanelProvider({ children, enabled = true }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [enabled])
 
-  const value = useMemo(() => ({ enabled, open, ctx, seed, setSeed, openAi, closeAi, setCtx, setPageCtx }), [enabled, open, ctx, seed, openAi, closeAi, setPageCtx])
+  const value = useMemo(() => ({ enabled, open, ctx, seed, seedSend, setSeed, openAi, closeAi, setCtx, setPageCtx }), [enabled, open, ctx, seed, seedSend, openAi, closeAi, setPageCtx])
   return <AiPanelContext.Provider value={value}>{children}</AiPanelContext.Provider>
 }
 

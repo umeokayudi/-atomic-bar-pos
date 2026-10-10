@@ -6,6 +6,8 @@ import { pagamentoStatus, pagamentosPendentes, totalPagamentosPendentes } from '
 import { confirmFaturaPayment } from '../lib/faturaLedger'
 import { useI18n } from '../lib/i18n'
 import MarkPaidPopup from './MarkPaidPopup'
+import Icon from './ui/Icon'
+import { ColumnChart } from './ui/Charts'
 
 function getBillingPeriod(date) {
   const d = new Date(date)
@@ -65,7 +67,6 @@ function Overview() {
     const total = vendas.filter(v=>v.data>=startStr&&v.data<=endStr).reduce((a,v)=>a+(+v.total||0),0)
     weeks.push({ label: start.toLocaleDateString('pt-BR',{month:'short',day:'numeric'}), total })
   }
-  const maxWeek = Math.max(...weeks.map(w=>w.total), 1)
   const avgWeek = Math.round(weeks.reduce((a,w)=>a+w.total,0)/weeks.filter(w=>w.total>0).length||1)
 
   // Monthly chart - last 4 months
@@ -76,7 +77,6 @@ function Overview() {
     const total = vendas.filter(v=>v.data?.startsWith(mk)).reduce((a,v)=>a+(+v.total||0),0)
     months.push({ label: mk.slice(5), total })
   }
-  const maxMonth = Math.max(...months.map(m=>m.total), 1)
 
   return (
     <div>
@@ -89,19 +89,19 @@ function Overview() {
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:20 }}>
         {[
-          { label: t('invoices.toReceive'), value: fmtYen(totalPending), color: totalPending > 0 ? 'var(--red)' : 'var(--green)' },
-          { label: t('invoices.overdueCount'), value: overdue.length, color: overdue.length > 0 ? 'var(--red)' : 'var(--green)' },
-          { label: t('invoices.upcoming'), value: upcoming.length, color: 'var(--c-text)' },
-          { label: t('invoices.avgPerWeek'), value: fmtYen(avgWeek), color: 'var(--c-text)' },
+          { label: t('invoices.toReceive'), value: fmtYen(totalPending), color: totalPending > 0 ? 'var(--red)' : 'var(--green)', icon: 'invoices', tone: totalPending > 0 ? 'danger' : 'success' },
+          { label: t('invoices.overdueCount'), value: overdue.length, color: overdue.length > 0 ? 'var(--red)' : 'var(--green)', icon: 'warning', tone: overdue.length > 0 ? 'danger' : 'success' },
+          { label: t('invoices.upcoming'), value: upcoming.length, color: 'var(--c-text)', icon: 'shifts', tone: 'info' },
+          { label: t('invoices.avgPerWeek'), value: fmtYen(avgWeek), color: 'var(--c-text)', icon: 'trendUp' },
         ].map(k=>(
-          <PortalKpi key={k.label} label={k.label} value={k.value} color={k.color} />
+          <PortalKpi key={k.label} label={k.label} value={k.value} color={k.color} icon={k.icon} tone={k.tone} />
         ))}
       </div>
 
       {/* Pending client payments */}
       {pagamentos.length>0 && (
         <PortalAlert variant="amber">
-          <div style={{ fontSize:14, fontWeight:700, marginBottom:12 }}>🔔 {t('invoices.pendingReview', { count: pagamentos.length })}</div>
+          <div style={{ fontSize:14, fontWeight:700, marginBottom:12 }}>{t('invoices.pendingReview', { count: pagamentos.length })}</div>
           {pagamentos.map(p=>{
             const st = pagamentoStatus(p)
             return (
@@ -126,42 +126,17 @@ function Overview() {
         title={t('invoices.weeklyRevenue')}
         headerRight={<span style={{ fontSize:12, color:'var(--text2)' }}>{t('invoices.avgWeek', { amount: fmtYen(avgWeek) })}</span>}
       >
-        <div style={{ display:'flex', alignItems:'flex-end', gap:6, height:100 }}>
-          {weeks.map((w,i) => {
-            const pct = Math.max(w.total/maxWeek*100, w.total>0?4:0)
-            const isCurrent = i===7
-            const isHigh = w.total === Math.max(...weeks.map(x=>x.total)) && w.total > 0
-            const isLow = w.total > 0 && w.total === Math.min(...weeks.filter(x=>x.total>0).map(x=>x.total))
-            return (
-              <div key={i} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
-                <div style={{ fontSize:9, color:'var(--text2)', fontWeight:600, textAlign:'center' }}>
-                  {w.total>0?Math.round(w.total/1000)+'k':''}
-                  {isHigh && <span style={{ color:'var(--green)' }}> ↑</span>}
-                  {isLow && <span style={{ color:'var(--red)' }}> ↓</span>}
-                </div>
-                <div style={{ width:'100%', height:pct+'%', minHeight:w.total>0?3:0, borderRadius:'4px 4px 0 0', transition:'height 0.3s',
-                  background:isHigh?'var(--green)':isLow?'var(--red)':isCurrent?'var(--navy)':'var(--border)' }}/>
-                <div style={{ fontSize:9, color:isCurrent?'var(--navy)':'var(--text3)', fontWeight:isCurrent?700:400, textAlign:'center' }}>{w.label}</div>
-              </div>
-            )
-          })}
-        </div>
+        <ColumnChart
+          data={weeks.map(w => ({ label: w.label, value: w.total }))}
+          format={fmtYen} highlight="last" height={160} empty={t('dash.noData')}
+        />
       </PortalSurface>
 
       <PortalSurface title={t('invoices.monthlyRevenue')}>
-        <div style={{ display:'flex', alignItems:'flex-end', gap:10, height:80 }}>
-          {months.map((m,i) => {
-            const pct = Math.max(m.total/maxMonth*100, m.total>0?4:0)
-            const isCurrent = i===3
-            return (
-              <div key={i} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
-                <div style={{ fontSize:11, color:'var(--text2)', fontWeight:600 }}>{m.total>0?fmtYen(m.total):''}</div>
-                <div style={{ width:'100%', height:pct+'%', minHeight:m.total>0?3:0, background:isCurrent?'var(--navy)':'var(--border)', borderRadius:'6px 6px 0 0' }}/>
-                <div style={{ fontSize:11, color:isCurrent?'var(--navy)':'var(--text3)', fontWeight:isCurrent?700:400 }}>{m.label}</div>
-              </div>
-            )
-          })}
-        </div>
+        <ColumnChart
+          data={months.map(m => ({ label: m.label, value: m.total }))}
+          format={fmtYen} highlight="last" height={140} empty={t('dash.noData')}
+        />
       </PortalSurface>
 
       {upcoming.length>0 && (
@@ -312,7 +287,7 @@ function InvoiceList() {
                   </div>
                   {pendingPay.length>0 && (
                     <div style={{ background:'var(--amber-bg)', border:'1px solid #fcd34d', borderRadius:8, padding:'8px 12px', marginBottom:10, fontSize:12 }}>
-                      ⏳ {t('invoices.underReview', { amount: fmtYen(pendingTotal), count: pendingPay.length })}
+                      {t('invoices.underReview', { amount: fmtYen(pendingTotal), count: pendingPay.length })}
                       {pendingPay.map(p => (
                         <div key={p.id} style={{ color:'var(--text2)', marginTop:4 }}>{p.metodo}{p.notas ? ` · ${p.notas}` : ''}</div>
                       ))}
@@ -325,7 +300,7 @@ function InvoiceList() {
                     {periodVendas.length>0&&<button onClick={()=>setExpanded(expanded===f.id?null:f.id)} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'1px solid var(--border)', background:'transparent', cursor:'pointer' }}>
                       {expanded===f.id ? t('invoices.hideDeliveries') : t('invoices.showDeliveries')} {t('invoices.deliveriesCount', { count: periodVendas.length })}
                     </button>}
-                    <button onClick={async()=>{ if(!confirm(t('invoices.confirmDeleteInvoice')))return; await supabase.from('fatura_pagamentos').delete().eq('fatura_id',f.id); await supabase.from('faturas').delete().eq('id',f.id); setFaturas(prev=>prev.filter(x=>x.id!==f.id)) }} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'none', background:'var(--red)', color:'white', cursor:'pointer', fontWeight:600 }}>🗑</button>
+                    <button onClick={async()=>{ if(!confirm(t('invoices.confirmDeleteInvoice')))return; await supabase.from('fatura_pagamentos').delete().eq('fatura_id',f.id); await supabase.from('faturas').delete().eq('id',f.id); setFaturas(prev=>prev.filter(x=>x.id!==f.id)) }} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'none', background:'var(--red)', color:'white', cursor:'pointer', fontWeight:600 }}><Icon name="trash" size={14} /></button>
                   </div>
                 </div>
                 {expanded===f.id && (
@@ -382,7 +357,7 @@ function PaymentList() {
             return (
             <div key={p.id} style={{ background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:12, padding:'14px 16px', display:'flex', alignItems:'center', gap:14 }}>
               <div style={{ width:40, height:40, borderRadius:10, background: st.tone==='green'?'var(--green-bg)':'var(--amber-bg)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>
-                {/dinheiro|cash/i.test(p.metodo)?'💵':/stripe/i.test(p.metodo)?'💳':/cart/i.test(p.metodo)?'💳':'🏦'}
+                <Icon name={/dinheiro|cash/i.test(p.metodo)?'payCash':/stripe|cart/i.test(p.metodo)?'payCard':'imposto'} size={16} />
               </div>
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:13, fontWeight:600 }}>{p.faturas?.bars?.nome} <span style={{ fontSize:11, color: st.tone==='green'?'var(--green)':'var(--amber)', marginLeft:6 }}>{st.label}</span></div>

@@ -29,14 +29,15 @@ import { CASH_CHIPS, cashSettle, isCashMethod, payRecordNote } from '../lib/posP
 import { printGuestReceipt } from '../lib/guestReceipt'
 import { drinkBackCommission } from '../lib/drinkBackPay'
 import PosQuick from './pos/PosQuick'
+import Icon from './ui/Icon'
 
 const SUB_TAB_IDS = [
-  { id: 'dashboard', key: 'tabDashboard', icon: '📊' },
-  { id: 'checkout', key: 'tabCheckout', icon: '🧾' },
-  { id: 'vip', key: 'tabVip', icon: '⭐' },
-  { id: 'drinkback', key: 'tabDrinkBack', icon: '💃' },
-  { id: 'prices', key: 'tabPrices', icon: '💴' },
-  { id: 'discounts', key: 'tabDiscounts', icon: '🏷️' },
+  { id: 'dashboard', key: 'tabDashboard', icon: 'dashboard' },
+  { id: 'checkout', key: 'tabCheckout', icon: 'pos' },
+  { id: 'vip', key: 'tabVip', icon: 'star' },
+  { id: 'drinkback', key: 'tabDrinkBack', icon: 'drinkback' },
+  { id: 'prices', key: 'tabPrices', icon: 'precos' },
+  { id: 'discounts', key: 'tabDiscounts', icon: 'percent' },
 ]
 
 const PAY_METHODS = [
@@ -520,7 +521,7 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
                 type="button"
                 className={`pos-chip pos-chip-cast${agentId === a.id ? ' is-on' : ''}`}
                 onClick={() => setAgentId(agentId === a.id ? '' : a.id)}
-              >💃 {a.nome}{a.comissao_pct ? ` ${a.comissao_pct}%` : ''}</button>
+              >{a.nome}{a.comissao_pct ? ` ${a.comissao_pct}%` : ''}</button>
             ))}
             <button type="button" className="pos-chip" onClick={() => setAddCastOpen(v => !v)}>{t('atomicPos.addCast')}</button>
             {!ticketReady && !agents.some(a => a.ativo !== false) && spaces.length === 0 && (
@@ -543,7 +544,7 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
                       if (v?.guest_id) setGuestId(v.guest_id)
                     }
                   }}
-                >🪑 {who ? `${s.nome} · ${who}` : s.nome}</button>
+                >{who ? `${s.nome} · ${who}` : s.nome}</button>
               )
             })}
           </div>
@@ -757,9 +758,9 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
         )}
         {(agentId || spaceId || guestId) && (
           <div className="pos-cart-ticket">
-            {agentId && <span>💃 {(agents.find(a => a.id === agentId)?.nome) || 'CAST'}</span>}
-            {spaceId && <span>🪑 {(spaces.find(s => s.id === spaceId)?.nome)}</span>}
-            {guestId && <span>🥂 {(guests.find(g => g.id === guestId)?.nome)}</span>}
+            {agentId && <span><Icon name="drinkback" size={13} /> {(agents.find(a => a.id === agentId)?.nome) || 'CAST'}</span>}
+            {spaceId && <span><Icon name="floor" size={13} /> {(spaces.find(s => s.id === spaceId)?.nome)}</span>}
+            {guestId && <span><Icon name="clientes" size={13} /> {(guests.find(g => g.id === guestId)?.nome)}</span>}
           </div>
         )}
         {cart.length === 0 && charges.lines.length === 0 ? (
@@ -1604,7 +1605,7 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
         <div className="pos-subnav">
           {tabs.map(tab => (
             <button key={tab.id} className={`pos-chip${subTab === tab.id ? ' is-on' : ''}`} onClick={() => setSubTab(tab.id)}>
-              {tab.icon} {t(`atomicPos.${tab.key}`)}
+              <Icon name={tab.icon} size={15} /> {t(`atomicPos.${tab.key}`)}
             </button>
           ))}
         </div>

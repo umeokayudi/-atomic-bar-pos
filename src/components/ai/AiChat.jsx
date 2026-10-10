@@ -39,7 +39,7 @@ function Sources({ sources }) {
  * The single chat used by the "Ask AI" panel and the AI Center.
  * ctx: { module, title, unit, period, filters, kpis, barId, days }
  */
-export default function AiChat({ ctx = {}, thread, onThreadSaved, seed = '', onSeedUsed, autoFocus = false, compact = false }) {
+export default function AiChat({ ctx = {}, thread, onThreadSaved, seed = '', seedSend = false, onSeedUsed, autoFocus = false, compact = false }) {
   const { t } = useI18n()
   const [messages, setMessages] = useState(thread?.messages || [])
   const [input, setInput] = useState('')
@@ -68,8 +68,9 @@ export default function AiChat({ ctx = {}, thread, onThreadSaved, seed = '', onS
 
   useEffect(() => {
     if (seed) {
-      setInput(seed)
       onSeedUsed?.()
+      if (seedSend) { send(seed); return }
+      setInput(seed)
       inputRef.current?.focus()
     }
   }, [seed]) // eslint-disable-line react-hooks/exhaustive-deps

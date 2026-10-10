@@ -19,7 +19,7 @@ export function AskAiButton({ className = '' }) {
 
 /** Side panel. The page underneath stays mounted, so its filters and forms are untouched. */
 export default function AskAiDrawer() {
-  const { enabled, open, closeAi, ctx, seed, setSeed } = useAiPanel()
+  const { enabled, open, closeAi, ctx, seed, seedSend, setSeed } = useAiPanel()
   const { t } = useI18n()
   const [thread, setThread] = useState({ id: 'panel', messages: [] })
   const lastModule = useRef(ctx.module)
@@ -63,7 +63,7 @@ export default function AskAiDrawer() {
           {c.filters && Object.entries(c.filters).map(([k, v]) => <span key={k} className="ui-badge">{k}: {v}</span>)}
         </div>
         <div className="ui-drawer-body ai-drawer-body">
-          <AiChat ctx={ctx} thread={thread} seed={seed} onSeedUsed={() => setSeed('')} autoFocus compact />
+          <AiChat ctx={ctx} thread={thread} seed={seed} seedSend={seedSend} onSeedUsed={() => setSeed('')} autoFocus compact />
         </div>
       </aside>
     </>

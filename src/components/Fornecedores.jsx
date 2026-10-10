@@ -6,6 +6,7 @@ import { fromZeikomi, parseSupplierPriceNotas, formatPriceChange } from '../lib/
 import { asReactText } from '../lib/errText'
 import { AdminPage, PortalSurface, PortalPills } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
+import Icon from './ui/Icon'
 
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
@@ -110,19 +111,19 @@ function SupplierList() {
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:14, fontWeight:700, marginBottom:4 }}>{s.nome}</div>
                 <div style={{ display:'flex', gap:16, fontSize:12, color:'var(--text2)', flexWrap:'wrap' }}>
-                  {s.contato && <span>👤 {s.contato}</span>}
-                  {s.telefone && <span>📞 {s.telefone}</span>}
-                  {s.email && <span>✉️ {s.email}</span>}
-                  {s.pagamento && <span>💳 {s.pagamento}</span>}
-                  <span>🚚 {s.prazo_entrega_dias}d</span>
-                  {s.pontos_pct>0 && <span style={{ color:'var(--gold)', fontWeight:600 }}>⭐ {s.pontos_pct}% points</span>}
+                  {s.contato && <span><Icon name="staff" size={13} /> {s.contato}</span>}
+                  {s.telefone && <span><Icon name="phone" size={13} /> {s.telefone}</span>}
+                  {s.email && <span>{s.email}</span>}
+                  {s.pagamento && <span><Icon name="payCard" size={13} /> {s.pagamento}</span>}
+                  <span><Icon name="entregas" size={13} /> {s.prazo_entrega_dias}d</span>
+                  {s.pontos_pct>0 && <span style={{ color:'var(--c-warning)', fontWeight:600 }}><Icon name="star" size={13} /> {s.pontos_pct}% points</span>}
                 </div>
-                {s.notas && <div style={{ fontSize:11, color:'var(--text2)', marginTop:4 }}>📝 {s.notas}</div>}
+                {s.notas && <div style={{ fontSize:11, color:'var(--text2)', marginTop:4 }}>{s.notas}</div>}
               </div>
               <div style={{ display:'flex', gap:6 }}>
-                {s.website && <a href={s.website} target="_blank" rel="noreferrer" style={{ fontSize:11, padding:'5px 10px', borderRadius:8, background:'var(--bg3)', color:'var(--c-text)', textDecoration:'none', fontWeight:600 }}>🌐 {t('common.visit')}</a>}
-                <button onClick={()=>edit(s)} style={{ padding:'5px 10px', fontSize:11, borderRadius:8, border:'1px solid var(--border)', background:'transparent', cursor:'pointer' }}>✏️</button>
-                <button onClick={()=>del(s.id)} style={{ padding:'5px 10px', fontSize:11, borderRadius:8, border:'none', background:'var(--red-bg)', color:'var(--red)', cursor:'pointer' }}>🗑</button>
+                {s.website && <a href={s.website} target="_blank" rel="noreferrer" style={{ fontSize:11, padding:'5px 10px', borderRadius:8, background:'var(--bg3)', color:'var(--c-text)', textDecoration:'none', fontWeight:600 }}>{t('common.visit')}</a>}
+                <button onClick={()=>edit(s)} style={{ padding:'5px 10px', fontSize:11, borderRadius:8, border:'1px solid var(--border)', background:'transparent', cursor:'pointer' }}><Icon name="edit" size={14} /></button>
+                <button onClick={()=>del(s.id)} style={{ padding:'5px 10px', fontSize:11, borderRadius:8, border:'none', background:'var(--red-bg)', color:'var(--red)', cursor:'pointer' }}><Icon name="trash" size={14} /></button>
               </div>
             </div>
           ))}
@@ -202,7 +203,7 @@ function SupplierPricing() {
                   </> : <div style={{ fontSize:12, color:'var(--text3)' }}>—</div>}
                   <button onClick={()=>setModal({ fornecedor_id:selSup, produto_id:p.id, preco:sp?.preco||'', url_compra:sp?.url_compra||'', notas:sp?.notas||'' })}
                     style={{ padding:'4px 10px', fontSize:11, borderRadius:6, border:'1px solid var(--border)', background:'transparent', cursor:'pointer' }}>
-                    {sp ? '✏️' : t('suppliers.addPrice')}
+                    {sp ? <Icon name="edit" size={14} label={t('common.edit')} /> : t('suppliers.addPrice')}
                   </button>
                 </div>
               )
@@ -253,7 +254,7 @@ function SmartPurchase() {
       <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>{t('suppliers.smartPurchase')}</div>
       <div style={{ fontSize:13, color:'var(--text2)', marginBottom:16 }}>{t('suppliers.compareHint')}</div>
       <div style={{ position:'relative', marginBottom:20 }}>
-        <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:'var(--text3)' }}>🔍</span>
+        <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:'var(--text3)' }}><Icon name="search" size={16} /></span>
         <input type="text" placeholder={t('suppliers.searchProduct')} value={search} onChange={e=>setSearch(e.target.value)}
           style={{ width:'100%', padding:'11px 14px 11px 36px', borderRadius:12, fontSize:14 }} />
       </div>
@@ -279,14 +280,14 @@ function SmartPurchase() {
                     <div key={pr.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 12px', marginBottom:6,
                       background:i===0?'linear-gradient(135deg,var(--green-bg),#dcfce7)':'var(--bg2)',
                       border:i===0?'1px solid #86efac':'1px solid var(--border)', borderRadius:10 }}>
-                      {i===0 && <span>🏆</span>}
+                      {i===0 && <Icon name="rewards" size={14} />}
                       <div style={{ flex:1 }}>
                         <div style={{ fontSize:13, fontWeight:700 }}>{pr.fornecedores?.nome}</div>
                         <div style={{ fontSize:11, color:'var(--text2)', display:'flex', gap:10, marginTop:2 }}>
-                          <span>🚚 {pr.fornecedores?.prazo_entrega_dias}d</span>
-                          <span>💳 {pr.fornecedores?.pagamento}</span>
-                          {pr.fornecedores?.pontos_pct>0 && <span style={{ color:'var(--gold)' }}>⭐ {pr.fornecedores.pontos_pct}%</span>}
-                          {pr.notas && <span>📝 {pr.notas}</span>}
+                          <span><Icon name="entregas" size={13} /> {pr.fornecedores?.prazo_entrega_dias}d</span>
+                          <span><Icon name="payCard" size={13} /> {pr.fornecedores?.pagamento}</span>
+                          {pr.fornecedores?.pontos_pct>0 && <span style={{ color:'var(--c-warning)' }}><Icon name="star" size={13} /> {pr.fornecedores.pontos_pct}%</span>}
+                          {pr.notas && <span>{pr.notas}</span>}
                         </div>
                       </div>
                       <div style={{ textAlign:'right' }}>

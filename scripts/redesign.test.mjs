@@ -8,6 +8,8 @@ import { buildSaleArgs, commitSaleAtomic } from '../src/lib/posCommit.js'
 import { pendingToLines, splitEvenly, tableState, tabMoney, validateMoves } from '../src/lib/comandas.js'
 import { resolveItemPrice } from '../src/lib/atomicPos.js'
 import * as fe from '../src/lib/floorEditor.js'
+import { moveItem, resolveLayout, serializeLayout } from '../src/lib/dashboardLayoutCore.js'
+import { deltaPct, niceMax, shortNum } from '../src/lib/chartMath.js'
 
 let n = 0
 const queue = []
@@ -262,6 +264,33 @@ test('floor editor: undo/redo', () => {
   assert.equal(h.present.tables.length, 2)
   assert.equal(fe.fitZoom(0, 0, base().layout), 1)
   assert.equal(fe.fitZoom(624, 424, base().layout), 1)
+})
+
+test('dashboard layout: saved order wins, new cards append, defaults hide', () => {
+  const widgets = [{ id: 'a', size: 'full' }, { id: 'b', size: 'half' }, { id: 'c', size: 'half', defaultHidden: true }]
+  const fresh = resolveLayout(widgets, null)
+  assert.deepEqual(fresh.map(i => [i.id, i.hidden, i.size]), [['a', false, 'full'], ['b', false, 'half'], ['c', true, 'half']])
+  const saved = { order: ['b', 'a', 'gone'], hidden: ['a'], sizes: { b: 'full' } }
+  const items = resolveLayout(widgets, saved)
+  assert.deepEqual(items.map(i => i.id), ['b', 'a', 'c'])
+  assert.equal(items[0].size, 'full')
+  assert.equal(items[1].hidden, true)
+  assert.equal(items[2].hidden, true, 'a card added after saving keeps its default')
+  const moved = moveItem(items, 2, 0)
+  assert.deepEqual(moved.map(i => i.id), ['c', 'b', 'a'])
+  assert.equal(moveItem(items, 0, 9), items)
+  assert.deepEqual(serializeLayout(moved).order, ['c', 'b', 'a'])
+})
+
+test('chart math: nice axis, short numbers, change vs previous', () => {
+  assert.equal(niceMax(87000), 100000)
+  assert.equal(niceMax(1200), 2000)
+  assert.equal(niceMax(0), 1)
+  assert.equal(shortNum(2500000), '2.5M')
+  assert.equal(shortNum(25000), '25k')
+  assert.equal(shortNum(1200), '1.2k')
+  assert.equal(deltaPct(112, 100), 12)
+  assert.equal(deltaPct(50, 0), null)
 })
 
 for (const [name, fn] of queue) { await fn(); n++; console.log(`ok ${n} - ${name}`) }

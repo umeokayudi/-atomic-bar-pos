@@ -173,6 +173,7 @@ export default function VendasTab() {
         </div>
 
         {loading ? <Spinner /> : filtered.length === 0 ? <Empty text={t('sales.noSales')} /> : (
+          <div className="table-scroll">
           <table>
             <thead>
               <tr><th>{t('common.date')}</th><th>{t('common.bar')}</th><th>{t('common.items')}</th><th>{t('common.total')}</th><th>{t('common.obs')}</th><th></th></tr>
@@ -197,6 +198,7 @@ export default function VendasTab() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </PortalSurface>
     </AdminPage>

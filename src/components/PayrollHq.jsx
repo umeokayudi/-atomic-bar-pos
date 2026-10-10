@@ -61,15 +61,15 @@ export default function PayrollHq() {
       {err && <p>{err}</p>}
       <PortalSurface>
         <div className="bar-add-row">
-          <input type="month" value={competence} onChange={e => setCompetence(e.target.value)} />
-          <input placeholder={t('payroll.bar')} value={barId} onChange={e => setBarId(e.target.value)} />
-          <input placeholder={t('payroll.employee')} value={employeeId} onChange={e => setEmployeeId(e.target.value)} />
-          <select value={status} onChange={e => setStatus(e.target.value)}>
+          <label className="payroll-filter">{t('payroll.month')}<input type="month" value={competence} onChange={e => setCompetence(e.target.value)} /></label>
+          <label className="payroll-filter">{t('payroll.bar')}<input placeholder={t('payroll.bar')} value={barId} onChange={e => setBarId(e.target.value)} /></label>
+          <label className="payroll-filter">{t('payroll.employee')}<input placeholder={t('payroll.employee')} value={employeeId} onChange={e => setEmployeeId(e.target.value)} /></label>
+          <label className="payroll-filter">{t('payroll.status')}<select value={status} onChange={e => setStatus(e.target.value)}>
             <option value="">{t('payroll.anyStatus')}</option>
             {['draft', 'calculated', 'approved', 'paid', 'cancelled'].map(id => (
               <option key={id} value={id}>{t(`employee.status_${id}`)}</option>
             ))}
-          </select>
+          </select></label>
         </div>
         {board?.period?.id && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>

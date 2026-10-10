@@ -12,6 +12,7 @@ import {
   statementTotals,
   groupByBar,
 } from '../lib/payrollCore'
+import Icon from './ui/Icon'
 
 const TITLES = {
   hoje: 'employee.today',
@@ -137,10 +138,10 @@ function TodayView({ t, perfil, bar, pack, missing, onTab, competence }) {
       </div>
 
       <div className="emp-quick">
-        <button type="button" onClick={() => onTab?.('pos')}><span>🧾</span>{t('employee.openTill')}</button>
-        <button type="button" onClick={() => onTab?.('pedidos')}><span>📋</span>{t('nav.myTasks')}</button>
-        <button type="button" onClick={() => onTab?.('shifts')}><span>🗓️</span>{t('nav.myShifts')}</button>
-        <button type="button" onClick={() => onTab?.('salary')}><span>💴</span>{t('nav.mySalary')}</button>
+        <button type="button" onClick={() => onTab?.('pos')}><Icon name="pos" size={18} />{t('employee.openTill')}</button>
+        <button type="button" onClick={() => onTab?.('pedidos')}><Icon name="tasks" size={18} />{t('nav.myTasks')}</button>
+        <button type="button" onClick={() => onTab?.('shifts')}><Icon name="shifts" size={18} />{t('nav.myShifts')}</button>
+        <button type="button" onClick={() => onTab?.('salary')}><Icon name="salary" size={18} />{t('nav.mySalary')}</button>
       </div>
 
       {missing ? (

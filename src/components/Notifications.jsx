@@ -187,10 +187,10 @@ export function useBarOverdueAlerts(barId) {
 }
 
 const TIPO_ICON = {
-  pedido_novo:       { icon: '🛒', color: 'var(--amber)', bg: 'var(--amber-bg)' },
-  pedido_confirmado: { icon: '✅', color: 'var(--blue)', bg: 'var(--blue-bg)' },
-  pedido_entregue:   { icon: '📦', color: 'var(--green)', bg: 'var(--green-bg)' },
-  pedido_cancelado:  { icon: '❌', color: 'var(--red)', bg: 'var(--red-bg)' },
+  pedido_novo:       { icon: 'purchases', color: 'var(--amber)', bg: 'var(--amber-bg)' },
+  pedido_confirmado: { icon: 'ok', color: 'var(--blue)', bg: 'var(--blue-bg)' },
+  pedido_entregue:   { icon: 'package', color: 'var(--green)', bg: 'var(--green-bg)' },
+  pedido_cancelado:  { icon: 'close', color: 'var(--red)', bg: 'var(--red-bg)' },
 }
 
 function timeAgo(iso, t) {
@@ -364,7 +364,7 @@ export function NotificationBell({
           {list.length === 0 && overdueCount === 0 && mismatches.length === 0 ? (
             <div className="notif-empty">{t('notifications.none')}</div>
           ) : list.map(n => {
-            const tipo = TIPO_ICON[n.tipo] || { icon: '🔔', color: 'var(--text2)', bg: 'var(--bg3)' }
+            const tipo = TIPO_ICON[n.tipo] || { icon: 'bell', color: 'var(--text2)', bg: 'var(--bg3)' }
             const tab = notifTab(n.link)
             return (
               <div
@@ -376,7 +376,7 @@ export function NotificationBell({
                   className="notif-row-hit"
                   onClick={() => { markRead(n.id); go(tab) }}
                 >
-                  <span className="notif-row-icon" style={{ background: tipo.bg }}>{tipo.icon}</span>
+                  <span className="notif-row-icon" style={{ background: tipo.bg, color: tipo.color }}><Icon name={tipo.icon} size={16} /></span>
                   <span className="notif-row-content">
                     <span className="notif-row-title">{asReactText(n.titulo)}</span>
                     {n.mensagem && <span className="notif-row-msg">{asReactText(n.mensagem)}</span>}

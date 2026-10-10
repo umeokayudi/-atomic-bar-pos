@@ -1,4 +1,7 @@
 import { useId, useState } from 'react'
+import { deltaPct, niceMax, shortNum } from '../../lib/chartMath'
+
+export { deltaPct, niceMax, shortNum }
 
 /**
  * Small chart kit in the JBM TECH reference style: light gridlines, rounded emerald columns,
@@ -7,22 +10,7 @@ import { useId, useState } from 'react'
 
 const plain = v => String(v ?? '')
 
-/** Rounded "nice" ceiling so the axis reads 0 / 25k / 50k / 75k / 100k. */
-export function niceMax(v) {
-  if (!(v > 0)) return 1
-  const p = 10 ** Math.floor(Math.log10(v))
-  const n = v / p
-  const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10
-  return step * p
-}
 
-/** Short axis numbers: 1200 → 1.2k, 2500000 → 2.5M. */
-export function shortNum(v) {
-  const a = Math.abs(v)
-  if (a >= 1e6) return `${+(v / 1e6).toFixed(a >= 1e7 ? 0 : 1)}M`
-  if (a >= 1e3) return `${+(v / 1e3).toFixed(a >= 1e4 ? 0 : 1)}k`
-  return `${Math.round(v)}`
-}
 
 function Axis({ max, ticks = 4 }) {
   return (
@@ -36,7 +24,13 @@ function Axis({ max, ticks = 4 }) {
 }
 
 /** How many labels to skip so they never collide. */
-function labelStep(n) {
+function labelStep(n, labels = []) {
+  // Long labels ("Aug 16") need twice the room, so show every other one.
+  const wide = labels.some(l => String(l ?? '').length > 4) ? 2 : 1
+  return Math.max(1, Math.ceil(baseStep(n) * wide / (n <= 4 ? 2 : 1)))
+}
+
+function baseStep(n) {
   if (n <= 8) return 1
   if (n <= 14) return 2
   if (n <= 24) return 3
@@ -53,7 +47,7 @@ export function ColumnChart({ data = [], height = 180, format = plain, highlight
   const max = niceMax(Math.max(...data.map(d => d.value || 0)))
   const peak = highlight === 'max' ? data.reduce((b, d, i) => ((d.value || 0) > (data[b].value || 0) ? i : b), 0)
     : highlight === 'last' ? data.length - 1 : highlight
-  const step = labelStep(data.length)
+  const step = labelStep(data.length, data.map(d => d.label))
   return (
     <div className="uc-chart" style={{ '--uc-h': `${height}px` }} role="img" aria-label={ariaLabel}>
       <Axis max={max} />
@@ -87,7 +81,7 @@ export function InOutChart({ data = [], height = 180, format = plain, labels = [
   const [on, setOn] = useState(null)
   if (!data.length || data.every(d => !d.in && !d.out)) return <div className="uc-empty">{empty}</div>
   const max = niceMax(Math.max(...data.map(d => Math.max(d.in || 0, d.out || 0))))
-  const step = labelStep(data.length)
+  const step = labelStep(data.length, data.map(d => d.label))
   const pct = v => Math.max(v > 0 ? 2 : 0, ((v || 0) / max) * 100)
   return (
     <div>
@@ -132,7 +126,7 @@ export function LineChart({ data = [], height = 160, format = plain, empty = '�
   const x = i => (i / (data.length - 1)) * W
   const y = v => H - ((v - lo) / (max - lo || 1)) * H
   const line = vals.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(2)},${y(v).toFixed(2)}`).join(' ')
-  const step = labelStep(data.length)
+  const step = labelStep(data.length, data.map(d => d.label))
   const last = data[data.length - 1]
   return (
     <div className="uc-chart" style={{ '--uc-h': `${height}px` }}>
@@ -254,8 +248,3 @@ export function Donut({ segments = [], format = plain, center, size = 140, empty
   )
 }
 
-/** Change vs the previous period: "+12% vs last month". Returns null when not comparable. */
-export function deltaPct(cur, prev) {
-  if (!(prev > 0) || cur == null) return null
-  return Math.round(((cur - prev) / prev) * 100)
-}

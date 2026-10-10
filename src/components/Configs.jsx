@@ -10,6 +10,7 @@ import { AdminPage, PortalSurface } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 import { canReadProductCost } from '../lib/legacyScope'
+import Icon from './ui/Icon'
 
 // ── PRODUTOS ─────────────────────────────────────────────────────────────────
 export function ProductsTab() {
@@ -119,7 +120,7 @@ export function ProductsTab() {
                       color:m>50?'var(--green)':m>30?'var(--amber)':'var(--red)'
                     }}>{m}%</td>
                     <td style={{ display:'flex', gap:4 }}>
-                      <button style={{padding:'4px 8px',fontSize:12}} onClick={()=>startEdit(p)}>✏️</button>
+                      <button style={{padding:'4px 8px',fontSize:12}} onClick={()=>startEdit(p)} aria-label={t('common.edit')}><Icon name="edit" size={14} /></button>
                       <DelBtn onClick={()=>del(p.id)} />
                     </td>
                   </tr>
@@ -691,7 +692,7 @@ export function PedidosAdminTab() {
                 </div>
                 {missingVenda[p.id]&&(
                   <div style={{marginBottom:12,padding:'10px 14px',borderRadius:10,background:'var(--red-bg)',border:'1px solid #f5c6c6',fontSize:12,color:'var(--red)'}}>
-                    ⚠️ {t('configs.saleNotRegistered')}
+                    <Icon name="warning" size={14} /> {t('configs.saleNotRegistered')}
                     <button onClick={()=>repairVenda(p)} disabled={repairing===p.id}
                       style={{marginLeft:10,padding:'4px 10px',fontSize:11,borderRadius:6,background:'var(--red)',color:'white',border:'none',fontWeight:700,cursor:'pointer'}}>
                       {repairing===p.id ? t('configs.registering') : t('configs.registerSaleNow')}
@@ -703,7 +704,7 @@ export function PedidosAdminTab() {
                     <button onClick={()=>updateStatus(p.id,'confirmado')} style={{padding:'6px 14px',fontSize:11,borderRadius:8,background:'var(--navy)',color:'var(--gold)',border:'none',fontWeight:600}}>{t('configs.confirm')}</button>
                     <button onClick={()=>updateStatus(p.id,'cancelado')} className="btn-danger" style={{padding:'6px 14px',fontSize:11,borderRadius:8}}>{t('common.cancel')}</button>
                   </>}
-                  <button onClick={async()=>{ if(!confirm('Excluir este pedido?'))return; setPedidos(prev=>prev.filter(x=>x.id!==p.id)); await supabase.from('pedidos_itens').delete().eq('pedido_id',p.id); const {data:v}=await supabase.from('vendas').select('id').eq('obs','Auto: order '+p.id.slice(0,8)).maybeSingle(); if(v){await supabase.from('vendas_itens').delete().eq('venda_id',v.id); await supabase.from('vendas').delete().eq('id',v.id);} await supabase.from('pedidos').delete().eq('id',p.id); }} style={{padding:'6px 14px',fontSize:11,borderRadius:8,background:'var(--red)',color:'white',border:'none',fontWeight:600,cursor:'pointer'}}>🗑</button>
+                  <button onClick={async()=>{ if(!confirm('Excluir este pedido?'))return; setPedidos(prev=>prev.filter(x=>x.id!==p.id)); await supabase.from('pedidos_itens').delete().eq('pedido_id',p.id); const {data:v}=await supabase.from('vendas').select('id').eq('obs','Auto: order '+p.id.slice(0,8)).maybeSingle(); if(v){await supabase.from('vendas_itens').delete().eq('venda_id',v.id); await supabase.from('vendas').delete().eq('id',v.id);} await supabase.from('pedidos').delete().eq('id',p.id); }} style={{padding:'6px 14px',fontSize:11,borderRadius:8,background:'var(--red)',color:'white',border:'none',fontWeight:600,cursor:'pointer'}}><Icon name="trash" size={14} /></button>
                   {p.status==='confirmado'&&(
                     <button onClick={()=>openChecklist(p)} style={{padding:'6px 14px',fontSize:11,borderRadius:8,background:'var(--green)',color:'white',border:'none',fontWeight:600}}>{t('configs.markDelivered')}</button>
                   )}

@@ -28,6 +28,15 @@ export default {
     w: { alerts: 'Alerts', kpis: 'Key numbers', trend: 'Billed vs purchases', topBars: 'Top bars this month', calendar: 'Calendar',
       tonight: 'Tonight at a glance', hourly: 'Revenue by hour', desk: 'Goals, alerts and team', ops: 'Floor and operations', books: 'Money this month', period: 'Purchases in the period', analytics: 'Client analytics' },
   },
+  cashflow: {
+    weeklyFlowSub: 'Money that came in and went out each week',
+    topExpenses: 'Main expenses', topExpensesSub: 'Paid to suppliers in the last 30 days', noExpenses: 'No paid purchases in the last 30 days.',
+  },
+  portal: {
+    hq: { aiSlot: "Ask about this month's books", aiSlotHint: 'Opens Ask AI with the four books above as context.' },
+    desk: { ask: 'Ask AI about tonight' },
+  },
+  payroll: { month: 'Month', status: 'Status' },
   shell: { collapseMenu: 'Collapse menu', expandMenu: 'Expand menu' },
   search: { placeholder: 'Search the system…', screen: 'Screen', bar: 'Bar', product: 'Product', supplier: 'Supplier', none: 'Nothing found.' },
   nav: {
@@ -38,6 +47,7 @@ export default {
     label: 'Theme', light: 'Light', dark: 'Dark', system: 'System', hint: 'Saved for your account on this device.',
   },
   ai: {
+    askAnything: 'Ask anything',
     attach: 'Attach', attachPhoto: 'Photo', attachFile: 'File (PDF, CSV, text)', attachVideo: 'Short video',
     attached: 'Attached files', attachRemove: 'Remove {name}', attachMaxFiles: 'Up to {n} files per message.',
     attachTooBig: 'That file is too big (max 2.5 MB). Try a smaller PDF or split the CSV.',

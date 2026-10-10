@@ -28,6 +28,15 @@ export default {
     w: { alerts: 'アラート', kpis: '主要な数字', trend: '請求と仕入', topBars: '今月の上位バー', calendar: 'カレンダー',
       tonight: '今夜のまとめ', hourly: '時間別売上', desk: '目標・アラート・チーム', ops: 'フロアと営業', books: '今月のお金', period: '期間中の仕入', analytics: '顧客分析' },
   },
+  cashflow: {
+    weeklyFlowSub: '週ごとの入金と出金',
+    topExpenses: '主な支出', topExpensesSub: '過去30日に仕入先へ支払った額', noExpenses: '過去30日に支払済みの仕入はありません。',
+  },
+  portal: {
+    hq: { aiSlot: '今月の帳簿について聞く', aiSlotHint: '上の4つの帳簿を前提に「AIに聞く」を開きます。' },
+    desk: { ask: '今夜についてAIに聞く' },
+  },
+  payroll: { month: '対象月', status: 'ステータス' },
   shell: { collapseMenu: 'メニューを閉じる', expandMenu: 'メニューを開く' },
   search: { placeholder: 'システム内を検索…', screen: '画面', bar: 'バー', product: '商品', supplier: '仕入先', none: '見つかりません。' },
   nav: {
@@ -36,6 +45,7 @@ export default {
   },
   theme: { label: 'テーマ', light: 'ライト', dark: 'ダーク', system: 'システム', hint: 'このアカウントとこの端末に保存されます。' },
   ai: {
+    askAnything: '何でも聞く',
     attach: '添付', attachPhoto: '写真', attachFile: 'ファイル（PDF・CSV・テキスト）', attachVideo: '短い動画',
     attached: '添付ファイル', attachRemove: '{name} を外す', attachMaxFiles: '1回に {n} 件まで添付できます。',
     attachTooBig: 'ファイルが大きすぎます（最大2.5MB）。小さいPDFにするかCSVを分けてください。',

@@ -6,6 +6,7 @@ import { fmtYen, fmtDate, Spinner, Empty } from './utils'
 import { AdminPage, PortalKpi, PortalSurface, PortalPills, PortalAlert } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
+import Icon from './ui/Icon'
 
 function faturaRemaining(f) {
   return Math.max(0, (+f.valor || +f.total || 0) - (+f.pago || 0))
@@ -113,12 +114,12 @@ export default function ReportsBilling({ onNav }) {
           <PortalSurface title={t('billingHub.quickLinks')}>
             <div className="billing-hub-links">
               {[
-                { id: 'faturas', icon: '💰', label: t('nav.invoices') },
-                { id: 'relatorio', icon: '📈', label: t('nav.report') },
-                { id: 'cashflow', icon: '💸', label: t('nav.cashflow') },
+                { id: 'faturas', icon: 'invoices', label: t('nav.invoices') },
+                { id: 'relatorio', icon: 'report', label: t('nav.report') },
+                { id: 'cashflow', icon: 'cashflow', label: t('nav.cashflow') },
               ].map(link => (
                 <button key={link.id} type="button" className="billing-hub-link" onClick={() => onNav?.(link.id)}>
-                  <span>{link.icon}</span>
+                  <Icon name={link.icon} size={16} />
                   <span>{link.label}</span>
                 </button>
               ))}
@@ -150,7 +151,7 @@ export default function ReportsBilling({ onNav }) {
                     </div>
                     {contacts.length > 0 ? (
                       <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 8 }}>
-                        📧 {contacts.map(c => c.email).join(', ')}
+                        {contacts.map(c => c.email).join(', ')}
                       </div>
                     ) : (
                       <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 8 }}>{t('billingHub.noClientEmail')}</div>
@@ -168,15 +169,15 @@ export default function ReportsBilling({ onNav }) {
           <PortalSurface title={t('billingHub.emailAutomation')} sub={t('billingHub.emailSub')}>
             <div className="billing-hub-status">
               <div className={`billing-hub-chip${hub?.email?.configured ? ' ok' : ' warn'}`}>
-                {hub?.email?.configured ? '✅' : '⚠️'} Resend {hub?.email?.configured ? t('billingHub.configured') : t('billingHub.notConfigured')}
+                <Icon name={hub?.email?.configured ? 'ok' : 'warning'} size={14} /> Resend {hub?.email?.configured ? t('billingHub.configured') : t('billingHub.notConfigured')}
               </div>
               <div className="billing-hub-chip">
-                📬 {t('billingHub.reportRecipients', { count: hub?.email?.reportRecipients ?? 0 })}
+                {t('billingHub.reportRecipients', { count: hub?.email?.reportRecipients ?? 0 })}
               </div>
             </div>
             <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.6, marginTop: 12 }}>
-              <div>⏰ {t('billingHub.scheduleReport')}: {hub?.email?.schedules?.report || '06:00 UTC'}</div>
-              <div>⏰ {t('billingHub.scheduleBilling')}: {hub?.email?.schedules?.billing || 'Mon/Wed/Fri 09:00 UTC'}</div>
+              <div>{t('billingHub.scheduleReport')}: {hub?.email?.schedules?.report || '06:00 UTC'}</div>
+              <div>{t('billingHub.scheduleBilling')}: {hub?.email?.schedules?.billing || 'Mon/Wed/Fri 09:00 UTC'}</div>
             </div>
             {!hub?.email?.configured && (
               <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text2)' }}>

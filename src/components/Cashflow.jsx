@@ -9,6 +9,8 @@ import MarkPaidPopup from './MarkPaidPopup'
 import OpenInvoicesList from './OpenInvoicesList'
 import { AdminPage, PortalKpi, PortalSurface, PortalPills } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
+import Icon from './ui/Icon'
+import { HBarList, InOutChart } from './ui/Charts'
 
 export default function Cashflow() {
   const { t } = useI18n()
@@ -104,7 +106,16 @@ function CashflowOverview() {
     const outAmt = compras.filter(c=>c.status_pagamento==='pago'&&(c.data_pagamento||c.data)>=s&&(c.data_pagamento||c.data)<=e).reduce((a,c)=>a+(+c.total_real||+c.total_pago||0),0)
     weeks.push({ label: start.toLocaleDateString('en-US',{month:'short',day:'numeric'}), in:inAmt, out:outAmt, net:inAmt-outAmt })
   }
-  const maxVal = Math.max(...weeks.map(w=>Math.max(w.in,w.out)), 1)
+  // Where the money went in the last 30 days, by supplier
+  const since30 = new Date(); since30.setDate(since30.getDate() - 30)
+  const since30Key = since30.toISOString().slice(0, 10)
+  const bySupplier = {}
+  for (const c of compras) {
+    if (c.status_pagamento !== 'pago' || String(c.data_pagamento || c.data || '') < since30Key) continue
+    const k = c.fornecedor || t('common.supplier')
+    bySupplier[k] = (bySupplier[k] || 0) + (+c.total_real || +c.total_pago || 0)
+  }
+  const topExpenses = Object.entries(bySupplier).map(([label, value]) => ({ label, value }))
 
   const weekAhead = []
   for (let i = 0; i < 7; i++) {
@@ -138,9 +149,9 @@ function CashflowOverview() {
   return (
     <div>
       <div className="cash-big">
-        <PortalKpi label={t('cashflow.simpleIn')} value={fmtYen(paidIn)} color="var(--green)" sub={t('cashflow.simpleInSub')} />
-        <PortalKpi label={t('cashflow.simpleOut')} value={fmtYen(paidOut)} color="var(--red)" sub={t('cashflow.simpleOutSub')} />
-        <PortalKpi label={t('cashflow.simpleNet')} value={fmtYen(netCash)} color={netCash >= 0 ? 'var(--green)' : 'var(--red)'} sub={t('cashflow.simpleNetSub')} />
+        <PortalKpi icon="trendUp" tone="success" label={t('cashflow.simpleIn')} value={fmtYen(paidIn)} color="var(--green)" sub={t('cashflow.simpleInSub')} />
+        <PortalKpi icon="trendDown" tone="danger" label={t('cashflow.simpleOut')} value={fmtYen(paidOut)} color="var(--red)" sub={t('cashflow.simpleOutSub')} />
+        <PortalKpi icon="coins" tone={netCash >= 0 ? 'success' : 'danger'} label={t('cashflow.simpleNet')} value={fmtYen(netCash)} color={netCash >= 0 ? 'var(--green)' : 'var(--red)'} sub={t('cashflow.simpleNetSub')} />
       </div>
       <p className="cash-explain">
         {netCash < 0
@@ -148,6 +159,15 @@ function CashflowOverview() {
           : t('cashflow.simpleExplainPos', { pendingIn: fmtYen(pendingIn), pendingOut: fmtYen(pendingOut) })}
         {emAnalise > 0 ? ' ' + t('cashflow.simpleExplainWaiting', { amount: fmtYen(emAnalise) }) : ''}
       </p>
+
+      <div className="ui-grid cols-2 cash-charts">
+        <PortalSurface title={t('cashflow.weeklyFlow')} sub={t('cashflow.weeklyFlowSub')}>
+          <InOutChart data={weeks} format={fmtYen} labels={[t('cashflow.inflows'), t('cashflow.outflows')]} empty={t('dash.noData')} />
+        </PortalSurface>
+        <PortalSurface title={t('cashflow.topExpenses')} sub={t('cashflow.topExpensesSub')}>
+          <HBarList items={topExpenses} format={fmtYen} empty={t('cashflow.noExpenses')} />
+        </PortalSurface>
+      </div>
 
       <PortalSurface
         title={t('cashflow.barsOweTitle', { amount: fmtYen(pendingIn) })}
@@ -191,25 +211,6 @@ function CashflowOverview() {
             })}
           </div>
         )}
-      </PortalSurface>
-
-      <PortalSurface title={t('cashflow.weeklyFlow')} style={{ marginBottom:16 }}>
-        <div style={{ display:'flex', gap:16, marginBottom:12 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:11 }}><div style={{ width:12,height:12,borderRadius:2,background:'var(--green)' }}/> {t('cashflow.inflows')}</div>
-          <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:11 }}><div style={{ width:12,height:12,borderRadius:2,background:'var(--red)' }}/> {t('cashflow.outflows')}</div>
-        </div>
-        <div style={{ display:'flex', alignItems:'flex-end', gap:8, height:120 }}>
-          {weeks.map((w,i) => (
-            <div key={i} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:2 }}>
-              <div style={{ width:'100%', display:'flex', gap:2, alignItems:'flex-end', height:90 }}>
-                <div style={{ flex:1, background:'rgba(52,199,89,0.8)', borderRadius:'3px 3px 0 0', height:Math.max(w.in/maxVal*90, w.in>0?3:0)+'px' }}/>
-                <div style={{ flex:1, background:'rgba(255,59,48,0.8)', borderRadius:'3px 3px 0 0', height:Math.max(w.out/maxVal*90, w.out>0?3:0)+'px' }}/>
-              </div>
-              <div style={{ fontSize:9, color:i===7?'var(--navy)':'var(--text3)', fontWeight:i===7?700:400, textAlign:'center' }}>{w.label}</div>
-              {w.net!==0 && <div style={{ fontSize:9, color:w.net>=0?'var(--green)':'var(--red)', fontWeight:600 }}>{w.net>=0?'+':''}{Math.round(w.net/1000)}k</div>}
-            </div>
-          ))}
-        </div>
       </PortalSurface>
 
       <AiContextPublisher screen="cashflow" ctx={{ kpis: snapshotToKpis(aiSnap) }} />
@@ -418,7 +419,7 @@ function PurchasePayments() {
               {c.status_pagamento==='pendente' && (
                 <>
                   <label style={{ padding:'5px 10px', fontSize:11, borderRadius:8, border:'1px solid var(--border)', cursor:uploading?'wait':'pointer' }}>
-                    {uploading ? '…' : `📎 ${t('common.attach')}`}
+                    {uploading ? '…' : t('common.attach')}
                     <input type="file" accept="image/*,.pdf,.json,.txt" style={{ display:'none' }} disabled={uploading}
                       onChange={e=>{ e.stopPropagation(); uploadDoc(c, e.target.files?.[0]); e.target.value='' }} />
                   </label>
@@ -426,7 +427,7 @@ function PurchasePayments() {
                 </>
               )}
               <button onClick={e=>{ e.stopPropagation(); setModal(c); setForm({ data_pagamento:c.data_pagamento||due||new Date().toISOString().slice(0,10), metodo:c.metodo_pagamento_real||'Bank Transfer', status_pagamento:c.status_pagamento||'pago' }) }}
-                style={{ padding:'5px 12px', fontSize:12, borderRadius:8, border:'1px solid var(--border)', background:'transparent', cursor:'pointer' }}>✏️ {t('common.edit')}</button>
+                style={{ padding:'5px 12px', fontSize:12, borderRadius:8, border:'1px solid var(--border)', background:'transparent', cursor:'pointer' }}>{t('common.edit')}</button>
             </div>
           </div>
         )})}
@@ -492,12 +493,12 @@ function Caixa() {
     <div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:20 }}>
         {[
-          { label: t('cashflow.totalIn'), value: fmtYen(totalIn), color: 'var(--green)', icon: '💚' },
-          { label: t('cashflow.totalOut'), value: fmtYen(totalOut), color: 'var(--red)', icon: '🔴' },
-          { label: t('cashflow.balance'), value: fmtYen(balance), color: balance >= 0 ? 'var(--green)' : 'var(--red)', icon: '💰' },
+          { label: t('cashflow.totalIn'), value: fmtYen(totalIn), color: 'var(--green)', icon: 'trendUp' },
+          { label: t('cashflow.totalOut'), value: fmtYen(totalOut), color: 'var(--red)', icon: 'trendDown' },
+          { label: t('cashflow.balance'), value: fmtYen(balance), color: balance >= 0 ? 'var(--green)' : 'var(--red)', icon: 'coins' },
         ].map(k=>(
           <div key={k.label} style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:14, padding:'16px' }}>
-            <div style={{ fontSize:22, marginBottom:4 }}>{k.icon}</div>
+            <span className="ui-kpi-icon" style={{ marginBottom:8 }}><Icon name={k.icon} size={18} /></span>
             <div style={{ fontSize:22, fontWeight:800, color:k.color }}>{k.value}</div>
             <div style={{ fontSize:11, color:'var(--text2)', textTransform:'uppercase', marginTop:4 }}>{k.label}</div>
           </div>
@@ -518,7 +519,7 @@ function Caixa() {
                 <div style={{ fontSize:13, fontWeight:600 }}>{e.descricao}</div>
                 <div style={{ fontSize:11, color:'var(--text2)' }}>{fmtDate(e.data)} · {e.metodo}</div>
               </div>
-              <button onClick={async()=>{ if(!confirm(t('common.confirmDelete')))return; await supabase.from('caixa_movimentos').delete().eq('id',e.id); setEntries(prev=>prev.filter(x=>x.id!==e.id)) }} style={{padding:'4px 8px',fontSize:11,borderRadius:6,background:'var(--red)',color:'white',border:'none',cursor:'pointer',marginRight:8}}>🗑</button>
+              <button onClick={async()=>{ if(!confirm(t('common.confirmDelete')))return; await supabase.from('caixa_movimentos').delete().eq('id',e.id); setEntries(prev=>prev.filter(x=>x.id!==e.id)) }} style={{padding:'4px 8px',fontSize:11,borderRadius:6,background:'var(--red)',color:'white',border:'none',cursor:'pointer',marginRight:8}}><Icon name="trash" size={14} /></button>
               <div style={{ fontSize:15, fontWeight:800, color:e.tipo==='entrada'?'var(--green)':'var(--red)' }}>
                 {e.tipo==='entrada'?'+':'-'}{fmtYen(e.valor)}
               </div>
