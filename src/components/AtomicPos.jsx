@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import { fmtYen, fmtDate, Spinner, SectionTitle } from './utils'
@@ -14,10 +14,10 @@ import {
   validateDiscountCode,
   pricingMapFromShots,
   isRestockPedido,
-  commitPosSale,
   lineUnitPrice,
 } from '../lib/atomicPos'
-import { syncPosStockAndReorder } from '../lib/posSupply'
+import { reorderLowStock, syncPosStockAndReorder } from '../lib/posSupply'
+import { commitSaleAtomic, newSaleKey } from '../lib/posCommit'
 import { isSupplierProduct } from './utils'
 import { includedTaxBreakdown } from '../lib/consumptionTax'
 import { tokyoMonthKey, tokyoNightKey } from '../lib/tokyo'
@@ -267,6 +267,9 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
   const [keepPourPct, setKeepPourPct] = useState('')
   const [lastSale, setLastSale] = useState(null)
   const [saleErr, setSaleErr] = useState('')
+  // One idempotency key per checkout: kept across retries of the same cart, renewed when the cart changes.
+  const saleKeyRef = useRef(newSaleKey())
+  useEffect(() => { saleKeyRef.current = newSaleKey() }, [cart])
   const [showExtras, setShowExtras] = useState(false)
   const [cat, setCat] = useState('all')
 
@@ -413,9 +416,8 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
       }),
     })
     const recordedMethod = cash?.restMethod ? `Cash+${cash.restMethod}` : payMethod
-    const result = await commitPosSale(supabase, {
+    const legacy = {
       bar,
-      cart: checkoutCart,
       payMethod: recordedMethod,
       priceType,
       vipId: priceType === 'vip' ? (vipId || guest?.vip_member_id || null) : null,
@@ -434,7 +436,39 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
         buildStockMap,
         findLowStockProducts,
       }),
+    }
+    const result = await commitSaleAtomic(supabase, {
+      key: saleKeyRef.current,
+      barId: bar.id,
+      cart: checkoutCart,
+      payMethod: recordedMethod,
+      obs,
+      agentId: agentId || null,
+      spaceId: spaceId || null,
+      vipId: legacy.vipId,
+      codeId: activeCode?.id || null,
+      commission: bottleFee,
+      pricingByProduto: pricingMapFromShots(shots),
+      legacy,
     })
+    if (result.ok && result.atomic && !result.replay) {
+      // Attribution and keep pours are not money: best effort after the sale, as before.
+      const venda = result.vendaId
+      if (guestId || openVisit?.id) supabase.from('pos_vendas').update({ guest_id: guestId || null, visit_id: openVisit?.id || null }).eq('id', venda).then(() => {}, () => {})
+      if (openVisit?.id) supabase.from('bar_visits').update({ pos_venda_id: venda }).eq('id', openVisit.id).then(() => {}, () => {})
+      if (legacy.keepPour) {
+        supabase.from('bar_bottle_keeps').select('id,remaining_pct').eq('id', legacy.keepPour.id).maybeSingle().then(({ data: keep }) => {
+          if (!keep) return
+          const remaining = Math.max(0, Math.round((+keep.remaining_pct || 0) - legacy.keepPour.pct))
+          supabase.from('bar_bottle_keeps').update({ remaining_pct: remaining, ativo: remaining > 0 }).eq('id', keep.id).then(() => {}, () => {})
+        }, () => {})
+      }
+      reorderLowStock(supabase, { bar, userId: user?.id, buildStockMap, findLowStockProducts }).catch(() => {})
+    }
+    if (result.ok) {
+      result.venda = result.venda || { id: result.vendaId, total: result.total, data: tokyoNightKey(), obs, metodo_pagamento: recordedMethod }
+      saleKeyRef.current = newSaleKey()
+    }
     setSaving(false)
     if (!result.ok) {
       setSaleErr(result.errorKey ? t(result.errorKey) : (result.error || t('atomicPos.saleStockFailed')))

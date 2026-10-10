@@ -196,6 +196,8 @@ CREATE TABLE IF NOT EXISTS public.pos_idempotency (
 ALTER TABLE public.pos_vendas ADD COLUMN IF NOT EXISTS comanda_id uuid;
 ALTER TABLE public.pos_vendas ADD COLUMN IF NOT EXISTS idempotency_key text;
 ALTER TABLE public.pos_vendas ADD COLUMN IF NOT EXISTS comissao_valor numeric DEFAULT 0;
+-- Till search by short code (e.g. "12" or "HB1"). Optional; empty keeps search by name/category.
+ALTER TABLE public.drink_menu ADD COLUMN IF NOT EXISTS codigo text;
 
 -- ─── RLS ──────────────────────────────────────────────────────────────────────────────────
 
@@ -778,7 +780,7 @@ BEGIN
   FROM jsonb_array_elements(p_items) x;
 
   INSERT INTO estoque_movimentos (produto_id, bar_id, tipo, qtd, obs, criado_por)
-  SELECT (s->>'produto_id')::uuid, v_bar, 'saida', (s->>'qtd')::numeric, 'POS caixa ' || v_id, auth.uid()
+  SELECT (s->>'produto_id')::uuid, v_bar, 'saida', (s->>'qtd')::numeric, 'POS caixa ' || left(v_id::text, 8), auth.uid()
   FROM jsonb_array_elements(COALESCE(p_stock, '[]'::jsonb)) s
   WHERE (s->>'qtd')::numeric > 0;
 

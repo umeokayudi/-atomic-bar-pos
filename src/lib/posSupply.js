@@ -256,7 +256,15 @@ export async function syncPosStockAndReorder(supabase, {
   const deducted = await deductBottlesForPosSale(supabase, {
     barId: bar.id, cart, vendaId, userId, pricingByProduto,
   })
+  const reorder = await reorderLowStock(supabase, { bar, userId, buildStockMap, findLowStockProducts })
+  return { ...deducted, ...reorder }
+}
 
+/**
+ * After stock went down: list products under their minimum and add them to the open JBM restock
+ * order (or create one). Runs after the sale is committed; a failure here never undoes the sale.
+ */
+export async function reorderLowStock(supabase, { bar, userId, buildStockMap, findLowStockProducts }) {
   const [movimentos, rR, pedR] = await Promise.all([
     fetchAllStockMovements(supabase, bar.id),
     supabase.from('estoque_regras').select('produto_id,minimo').eq('bar_id', bar.id),
@@ -310,5 +318,5 @@ export async function syncPosStockAndReorder(supabase, {
     // webhook opcional
   }
 
-  return { ...deducted, alerts, pedido, restockItems, merged }
+  return { alerts, pedido, restockItems, merged }
 }

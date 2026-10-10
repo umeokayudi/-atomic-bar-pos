@@ -205,7 +205,7 @@ await test('partial payments are idempotent and the sale waits for the full amou
   assert.equal((await one(`SELECT status, venda_id FROM pos_comandas WHERE id = $1`, [tabA])).venda_id, v1)
   assert.equal(+(await one(`SELECT total FROM pos_vendas WHERE id = $1`, [v1])).total, 5200 + service)
   assert.equal((await one(`SELECT count(*)::int n FROM pos_vendas_itens WHERE pos_venda_id = $1`, [v1])).n, items.length)
-  assert.equal((await one(`SELECT count(*)::int n FROM estoque_movimentos WHERE obs = $1`, [`POS caixa ${v1}`])).n, 1)
+  assert.equal((await one(`SELECT count(*)::int n FROM estoque_movimentos WHERE obs = $1`, [`POS caixa ${String(v1).slice(0, 8)}`])).n, 1)
 })
 
 await test('the same sale key never writes twice (double tap, retry after timeout)', async () => {

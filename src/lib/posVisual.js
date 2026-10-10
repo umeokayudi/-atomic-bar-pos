@@ -1,30 +1,31 @@
 /** Till tile look: a photo when the item has one, otherwise an icon and colour per category. */
 
 const RULES = [
-  [/beer|ビール|biru/i, '🍺', '#f5b82e', '#e08a00'],
-  [/champ|sparkl|シャンパン/i, '🍾', '#e9d8a6', '#b99a4a'],
-  [/wine|ワイン/i, '🍷', '#b0324a', '#6e1430'],
-  [/shochu|sake|焼酎|酎ハイ|hai\b/i, '🍶', '#7fb7d9', '#3c7fae'],
-  [/tequila|mezcal|テキーラ/i, '🌵', '#8dc26f', '#3f8a3a'],
-  [/vodka|ウォッカ/i, '🍸', '#9fc5f8', '#4a78c2'],
-  [/gin|ジン/i, '🍸', '#86d3c4', '#2f8f80'],
-  [/rum|ラム/i, '🍹', '#f29b6b', '#c4512b'],
-  [/whisk|bourbon|scotch|ウイスキー|hennessy|cognac|brandy/i, '🥃', '#d9a35f', '#8a5420'],
-  [/liqueur|リキュール|cocktail|カクテル/i, '🍹', '#e58fb8', '#a8467a'],
-  [/shot|ショット/i, '🔥', '#ff8f6b', '#c73a2a'],
-  [/soft|juice|cola|soda|water|tea|coffee|ソフト|ジュース|お茶/i, '🥤', '#7fd1e6', '#2f8fae'],
-  [/food|snack|フード/i, '🍟', '#f2c46d', '#c48a1f'],
+  [/beer|ビール|biru/i, '🍺', '#f5b82e', '#e08a00', 'catBeer'],
+  [/champ|sparkl|シャンパン/i, '🍾', '#e9d8a6', '#b99a4a', 'catWine'],
+  [/wine|ワイン/i, '🍷', '#b0324a', '#6e1430', 'catWine'],
+  [/shochu|sake|焼酎|酎ハイ|hai\b/i, '🍶', '#7fb7d9', '#3c7fae', 'catSake'],
+  [/tequila|mezcal|テキーラ/i, '🌵', '#8dc26f', '#3f8a3a', 'catSpirit'],
+  [/vodka|ウォッカ/i, '🍸', '#9fc5f8', '#4a78c2', 'catCocktail'],
+  [/gin|ジン/i, '🍸', '#86d3c4', '#2f8f80', 'catCocktail'],
+  [/rum|ラム/i, '🍹', '#f29b6b', '#c4512b', 'catCocktail'],
+  [/whisk|bourbon|scotch|ウイスキー|hennessy|cognac|brandy/i, '🥃', '#d9a35f', '#8a5420', 'catSpirit'],
+  [/liqueur|リキュール|cocktail|カクテル/i, '🍹', '#e58fb8', '#a8467a', 'catCocktail'],
+  [/shot|ショット/i, '🔥', '#ff8f6b', '#c73a2a', 'catShot'],
+  [/soft|juice|cola|soda|water|tea|coffee|ソフト|ジュース|お茶/i, '🥤', '#7fd1e6', '#2f8fae', 'catSoft'],
+  [/food|snack|フード/i, '🍟', '#f2c46d', '#c48a1f', 'catFood'],
 ]
 
-const FALLBACK = ['🍸', '#b8b8d9', '#5b5b8f']
+const FALLBACK = ['🍸', '#9fb8ad', '#4d6b61', 'catCocktail']
 
 export function itemVisual(item = {}) {
   const text = `${item.categoria || ''} ${item.nome || ''}`
   const hit = RULES.find(([re]) => re.test(item.categoria || '')) || RULES.find(([re]) => re.test(text))
-  const [, emoji, from, to] = hit || [null, ...FALLBACK]
+  const [, emoji, from, to, icon] = hit || [null, ...FALLBACK]
   return {
     image: item.imagem_url || item.image_url || null,
     emoji,
+    icon,
     background: `linear-gradient(135deg, ${from}, ${to})`,
   }
 }

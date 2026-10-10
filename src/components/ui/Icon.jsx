@@ -8,7 +8,8 @@ import {
   ZoomIn, ZoomOut, Maximize2, Move, Square, Circle, RectangleHorizontal, LayoutGrid, Map as MapIcon,
   Send, Bot, History, Lightbulb, Workflow, AlertTriangle, CheckCircle2, Info, ChevronRight,
   ChevronLeft, ChevronDown, Megaphone, Briefcase, Heart, Filter, RefreshCw, ImageOff, Split,
-  Merge, MoveRight, HandCoins, Lock, Keyboard, LogOut,
+  Merge, MoveRight, HandCoins, Lock, Keyboard, LogOut, Beer, Martini, CupSoda, Flame, UtensilsCrossed,
+  Grape, Brush, CalendarClock, RotateCcw, Hourglass, Pencil, Smartphone, Eye, Users as People, Wine as WineGlass,
 } from 'lucide-react'
 
 /** One name → one vector icon. Screens ask for a semantic name, never an emoji. */
@@ -34,6 +35,14 @@ const ICONS = {
   back: ChevronLeft, down: ChevronDown, filter: Filter, refresh: RefreshCw, noImage: ImageOff,
   split: Split, merge: Merge, transfer: MoveRight, partialPay: HandCoins, lock: Lock, keyboard: Keyboard,
   signOut: LogOut,
+  star: Star, edit: Pencil, eye: Eye, reopen: RotateCcw, people: People, phone: Smartphone,
+  // table states
+  stFree: CheckCircle2, stAwaitingOrder: Hourglass, stConsuming: GlassWater, stOccupied: People,
+  stAwaitingPayment: HandCoins, stReserved: CalendarClock, stCleaning: Brush,
+  // till tiles without a photo
+  catBeer: Beer, catWine: WineGlass, catCocktail: Martini, catSoft: CupSoda, catShot: Flame, catFood: UtensilsCrossed,
+  catSpirit: GlassWater, catSake: Grape,
+  payCash: Banknote, payCard: CreditCard, payPhone: Smartphone,
 }
 
 export default function Icon({ name, size = 18, strokeWidth = 1.8, className = '', label, ...rest }) {
