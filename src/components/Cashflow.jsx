@@ -6,6 +6,7 @@ import { uploadCobrancaDoc, buildCobrancaDocument, downloadTextFile } from '../l
 import JbmHoldingPanel from './JbmHoldingPanel'
 import CashflowAi from './CashflowAi'
 import MarkPaidPopup from './MarkPaidPopup'
+import OpenInvoicesList from './OpenInvoicesList'
 import { AdminPage, PortalKpi, PortalSurface, PortalPills } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
 
@@ -59,23 +60,24 @@ function CashflowOverview() {
     const [fR, cR, pR, foR] = await Promise.all([
       supabase.from('faturas').select('*, bars(nome)').order('data_vencimento'),
       supabase.from('compras').select('*').order('data'),
-      supabase.from('fatura_pagamentos').select('valor,confirmado,metodo,data').eq('confirmado', false),
+      supabase.from('fatura_pagamentos').select('id,fatura_id,valor,confirmado,metodo,data'),
       supabase.from('fornecedores').select('nome,pagamento'),
     ])
     setData({
       faturas: fR.data||[],
       compras: cR.data||[],
-      pagamentosPendentes: pR.data||[],
+      pagamentos: pR.data||[],
       fornecedores: foR.data||[],
     })
     setLoading(false)
   }
   if (loading) return <Spinner text={t('common.loading')} />
 
-  const { faturas, compras, pagamentosPendentes = [], fornecedores = [] } = data
+  const { faturas, compras, pagamentos = [], fornecedores = [] } = data
   const today = new Date().toISOString().slice(0,10)
   const pendingSplit = splitPendingCompras(compras, fornecedores)
   const faturaSplit = splitPendingFaturas(faturas, today)
+  const pagamentosPendentes = pagamentos.filter(p => !p.confirmado)
 
   // Entradas = valor já recebido dos bars (parcial ou total), não só fatura "paga"
   const paidIn = faturas.reduce((a, f) => a + (+f.pago || 0), 0)
@@ -86,47 +88,37 @@ function CashflowOverview() {
   const paidOut = compras.filter(c => c.status_pagamento === 'pago').reduce((a, c) => a + (+c.total_real || +c.total_pago || 0), 0)
   const pendingOut = pendingSplit.pendingTotal
   const overdueOut = pendingSplit.overdueTotal
-  const futureOut = pendingSplit.futureTotal
 
   const netCash = paidIn - paidOut
-  const projectedNet = (paidIn + pendingIn) - (paidOut + pendingOut)
+  const openFaturas = faturas.filter(f => f.status !== 'pago' && Math.max(0, (+f.total || +f.valor || 0) - (+f.pago || 0)) > 0)
+  const openCompras = [...pendingSplit.overdue, ...(pendingSplit.noDue || []), ...(pendingSplit.future || [])]
 
-  // Last 8 weeks cashflow
+  // Last 8 weeks: money in by the date each confirmed payment arrived
   const weeks = []
   for (let i=7; i>=0; i--) {
     const end = new Date(); end.setDate(end.getDate()-i*7)
     const start = new Date(end); start.setDate(start.getDate()-6)
     const s = start.toISOString().slice(0,10)
     const e = end.toISOString().slice(0,10)
-    const inAmt = faturas.filter(f=>f.status==='pago'&&f.data_vencimento>=s&&f.data_vencimento<=e).reduce((a,f)=>a+(+f.valor||0),0)
-    const outAmt = compras.filter(c=>(c.data_pagamento||c.data)>=s&&(c.data_pagamento||c.data)<=e).reduce((a,c)=>a+(+c.total_pago||0),0)
+    const inAmt = pagamentos.filter(p=>p.confirmado&&p.data>=s&&p.data<=e).reduce((a,p)=>a+(+p.valor||0),0)
+    const outAmt = compras.filter(c=>c.status_pagamento==='pago'&&(c.data_pagamento||c.data)>=s&&(c.data_pagamento||c.data)<=e).reduce((a,c)=>a+(+c.total_real||+c.total_pago||0),0)
     weeks.push({ label: start.toLocaleDateString('en-US',{month:'short',day:'numeric'}), in:inAmt, out:outAmt, net:inAmt-outAmt })
   }
   const maxVal = Math.max(...weeks.map(w=>Math.max(w.in,w.out)), 1)
-
-  const next30 = []
-  for (let i=0; i<30; i++) {
-    const d = new Date(); d.setDate(d.getDate()+i)
-    const ds = d.toISOString().slice(0,10)
-    const inAmt = faturas.filter(f=>f.status!=='pago'&&f.data_vencimento===ds).reduce((a,f)=>a+((+f.valor||0)-(+f.pago||0)),0)
-    const pagMap = pagamentoMap(fornecedores)
-    const outAmt = compras.filter(c=>{
-      if (c.status_pagamento !== 'pendente') return false
-      const due = compraDueDate(c, pagamentoFor(c.fornecedor, pagMap))
-      return due === ds
-    }).reduce((a,c)=>a+(+c.total_real||+c.total_pago||0),0)
-    if (inAmt>0||outAmt>0) next30.push({ date:ds, in:inAmt, out:outAmt })
-  }
 
   const weekAhead = []
   for (let i = 0; i < 7; i++) {
     const d = new Date(); d.setDate(d.getDate() + i)
     weekAhead.push(d.toISOString().slice(0, 10))
   }
-  const weekItems = next30.filter(d => weekAhead.includes(d.date))
-  const weekText = weekItems.length
-    ? weekItems.map(d => `${fmtDate(d.date)}: ${d.in ? `in ${fmtYen(d.in)}` : ''}${d.in && d.out ? ' · ' : ''}${d.out ? `out ${fmtYen(d.out)}` : ''}`).join('\n')
-    : ''
+  const pagMap = pagamentoMap(fornecedores)
+  const weekText = weekAhead.map(ds => {
+    const inAmt = openFaturas.filter(f => f.data_vencimento === ds).reduce((a, f) => a + Math.max(0, (+f.total || +f.valor || 0) - (+f.pago || 0)), 0)
+    const outAmt = compras.filter(c => c.status_pagamento === 'pendente' && compraDueDate(c, pagamentoFor(c.fornecedor, pagMap)) === ds)
+      .reduce((a, c) => a + (+c.total_real || +c.total_pago || 0), 0)
+    if (!inAmt && !outAmt) return ''
+    return `${fmtDate(ds)}: ${inAmt ? `in ${fmtYen(inAmt)}` : ''}${inAmt && outAmt ? ' · ' : ''}${outAmt ? `out ${fmtYen(outAmt)}` : ''}`
+  }).filter(Boolean).join('\n')
   const collectText = faturaSplit.overdue.length
     ? faturaSplit.overdue.map(f => `${f.bars?.nome || 'Bar'}: ${fmtYen(f.amount)} (due ${fmtDate(f.dueDate)})`).join('\n')
     : ''
@@ -145,76 +137,61 @@ function CashflowOverview() {
 
   return (
     <div>
-      <CashflowAi snapshot={aiSnap} />
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))', gap:12, marginBottom:20 }}>
-        {[
-          { label: t('cashflow.receivedBars'), value: fmtYen(paidIn), color: 'var(--green)', sub: t('cashflow.receivedBarsSub') },
-          { label: t('cashflow.paidSuppliers'), value: fmtYen(paidOut), color: 'var(--red)', sub: t('cashflow.paidSuppliersSub') },
-          { label: t('cashflow.netCash'), value: fmtYen(netCash), color: netCash >= 0 ? 'var(--green)' : 'var(--red)', sub: t('cashflow.netCashSub') },
-          { label: t('cashflow.toReceive'), value: fmtYen(pendingIn), color: 'var(--amber)', sub: t('cashflow.toReceiveSub') },
-          ...(faturaSplit.overdueTotal > 0 ? [{ label: t('cashflow.overdueInvoices'), value: fmtYen(faturaSplit.overdueTotal), color: 'var(--red)', sub: t('cashflow.overdueInvoicesSub', { count: faturaSplit.overdue.length }) }] : []),
-          ...(emAnalise > 0 ? [{ label: t('cashflow.underReview'), value: fmtYen(emAnalise), color: 'var(--amber)', sub: t('cashflow.underReviewSub') }] : []),
-          ...(overdueOut > 0 ? [{ label: t('cashflow.toPayOverdue'), value: fmtYen(overdueOut), color: 'var(--red)', sub: t('cashflow.toPayOverdueSub') }] : []),
-          ...(futureOut > 0 ? [{ label: t('cashflow.toPay'), value: fmtYen(futureOut), color: 'var(--amber)', sub: t('cashflow.toPaySub') }] : []),
-        ].map(k=>(
-          <PortalKpi key={k.label} label={k.label} value={k.value} color={k.color} sub={k.sub} />
-        ))}
+      <div className="cash-big">
+        <PortalKpi label={t('cashflow.simpleIn')} value={fmtYen(paidIn)} color="var(--green)" sub={t('cashflow.simpleInSub')} />
+        <PortalKpi label={t('cashflow.simpleOut')} value={fmtYen(paidOut)} color="var(--red)" sub={t('cashflow.simpleOutSub')} />
+        <PortalKpi label={t('cashflow.simpleNet')} value={fmtYen(netCash)} color={netCash >= 0 ? 'var(--green)' : 'var(--red)'} sub={t('cashflow.simpleNetSub')} />
       </div>
+      <p className="cash-explain">
+        {netCash < 0
+          ? t('cashflow.simpleExplainNeg', { paidOut: fmtYen(paidOut), paidIn: fmtYen(paidIn), pendingIn: fmtYen(pendingIn) })
+          : t('cashflow.simpleExplainPos', { pendingIn: fmtYen(pendingIn), pendingOut: fmtYen(pendingOut) })}
+        {emAnalise > 0 ? ' ' + t('cashflow.simpleExplainWaiting', { amount: fmtYen(emAnalise) }) : ''}
+      </p>
 
-      {faturaSplit.overdue.length > 0 && (
-        <PortalSurface title={t('cashflow.overdueInvoicesTitle')} style={{ marginBottom: 16, borderColor: 'rgba(239,68,68,0.35)' }}>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {faturaSplit.overdue.map(f => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setPayItem({ type: 'fatura', id: f.id, label: f.bars?.nome || t('common.bar'), amount: f.amount, dueDate: f.dueDate, paid: false })}
-                style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 12, padding: '10px 14px', minWidth: 160, textAlign: 'left', cursor: 'pointer' }}
-              >
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)' }}>{t('cashflow.toReceiveOverdue')}</div>
-                <div style={{ fontSize: 14, fontWeight: 800 }}>{fmtYen(f.amount)}</div>
-                <div style={{ fontSize: 12, fontWeight: 600 }}>{f.bars?.nome || t('common.bar')}</div>
-                <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 4 }}>{t('common.expiredOn', { date: fmtDate(f.dueDate) })}</div>
-                <div style={{ fontSize: 10, color: 'var(--navy)', marginTop: 6, fontWeight: 700 }}>{t('payMark.tap')}</div>
-              </button>
-            ))}
-          </div>
-        </PortalSurface>
-      )}
+      <PortalSurface
+        title={t('cashflow.barsOweTitle', { amount: fmtYen(pendingIn) })}
+        sub={t('cashflow.barsOweSub')}
+        style={{ marginBottom: 16 }}
+      >
+        <OpenInvoicesList
+          faturas={openFaturas}
+          pagamentos={pagamentos}
+          onOpen={f => setPayItem({ type: 'fatura', id: f.id })}
+          emptyText={t('cashflow.barsOweNone')}
+        />
+      </PortalSurface>
 
-      {pendingSplit.overdue.length > 0 && (
-        <PortalSurface title={t('cashflow.overduePaymentsTitle')} style={{ marginBottom: 16, borderColor: 'rgba(239,68,68,0.35)' }}>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {pendingSplit.overdue.map(c => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setPayItem({ type: 'compra', id: c.id, label: c.fornecedor || t('common.supplier'), amount: c.amount, dueDate: c.dueDate, paid: false })}
-                style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 12, padding: '10px 14px', minWidth: 160, textAlign: 'left', cursor: 'pointer' }}
-              >
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)' }}>{t('cashflow.toPayOverdueLabel')}</div>
-                <div style={{ fontSize: 14, fontWeight: 800 }}>{fmtYen(c.amount)}</div>
-                <div style={{ fontSize: 12, fontWeight: 600 }}>{c.fornecedor || t('common.supplier')}</div>
-                <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 4 }}>{t('common.expiredOn', { date: fmtDate(c.dueDate) })}</div>
-                <div style={{ fontSize: 10, color: 'var(--navy)', marginTop: 6, fontWeight: 700 }}>{t('payMark.tap')}</div>
-              </button>
-            ))}
-          </div>
-        </PortalSurface>
-      )}
-
-      {netCash < 0 && pendingIn > Math.abs(netCash) && (
-        <PortalSurface title={t('cashflow.whyNegative')} style={{ marginBottom: 16 }}>
-          <p style={{ fontSize: 13, color: 'var(--text2)', margin: 0, lineHeight: 1.55 }}>
-            {t('cashflow.whyNegativeBody', {
-              paidOut: fmtYen(paidOut),
-              paidIn: fmtYen(paidIn),
-              pendingIn: fmtYen(pendingIn),
-              emAnalise: emAnalise > 0 ? t('cashflow.emAnaliseSuffix', { amount: fmtYen(emAnalise) }) : '',
+      <PortalSurface title={t('cashflow.weOweTitle', { amount: fmtYen(pendingOut) })} sub={t('cashflow.weOweSub')} style={{ marginBottom: 16 }}>
+        {openCompras.length === 0 ? (
+          <div style={{ fontSize: 13, color: 'var(--text3)' }}>{t('cashflow.weOweNone')}</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {openCompras.map(c => {
+              const late = c.dueDate && c.dueDate < today
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setPayItem({ type: 'compra', id: c.id, label: c.fornecedor || t('common.supplier'), amount: c.amount, dueDate: c.dueDate, paid: false })}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 12, border: '1px solid', borderColor: late ? 'rgba(239,68,68,0.45)' : 'var(--border)', background: 'var(--bg2)', cursor: 'pointer', textAlign: 'left', font: 'inherit', color: 'inherit' }}
+                >
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>{c.fornecedor || t('common.supplier')}</div>
+                    <div style={{ fontSize: 11, color: late ? 'var(--red)' : 'var(--text2)', fontWeight: late ? 700 : 400 }}>
+                      {c.dueDate ? (late ? t('common.expiredOn', { date: fmtDate(c.dueDate) }) : t('cashflow.dueOnDate', { date: fmtDate(c.dueDate) })) : fmtDate(c.data)}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--red)' }}>{fmtYen(c.amount)}</div>
+                    <div style={{ fontSize: 10, color: 'var(--navy)', fontWeight: 700 }}>{t('payMark.tap')}</div>
+                  </div>
+                </button>
+              )
             })}
-          </p>
-        </PortalSurface>
-      )}
+          </div>
+        )}
+      </PortalSurface>
 
       <PortalSurface title={t('cashflow.weeklyFlow')} style={{ marginBottom:16 }}>
         <div style={{ display:'flex', gap:16, marginBottom:12 }}>
@@ -235,28 +212,7 @@ function CashflowOverview() {
         </div>
       </PortalSurface>
 
-      {next30.length>0 && (
-        <PortalSurface title={t('cashflow.next30Days')} style={{ marginBottom:16 }}>
-          {next30.map((d,i)=>(
-            <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 0', borderBottom:'1px solid var(--border)', fontSize:13 }}>
-              <span style={{ color:'var(--text2)' }}>{fmtDate(d.date)}</span>
-              <div style={{ display:'flex', gap:16 }}>
-                {d.in>0&&<span style={{ color:'var(--green)', fontWeight:600 }}>+{fmtYen(d.in)}</span>}
-                {d.out>0&&<span style={{ color:'var(--red)', fontWeight:600 }}>-{fmtYen(d.out)}</span>}
-              </div>
-            </div>
-          ))}
-        </PortalSurface>
-      )}
-
-      <PortalSurface title={t('cashflow.projectedPosition')} style={{ background:'var(--navy)', color:'white', border:'none' }}>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-          <div><div style={{ fontSize:11, color:'rgba(255,255,255,0.6)', marginBottom:4 }}>{t('cashflow.expectedReceive')}</div><div style={{ fontSize:18, fontWeight:800, color:'#34c759' }}>{fmtYen(pendingIn)}</div></div>
-          <div><div style={{ fontSize:11, color:'rgba(255,255,255,0.6)', marginBottom:4 }}>{t('cashflow.overduePlusPay')}</div><div style={{ fontSize:18, fontWeight:800, color:'#ff6b6b' }}>{fmtYen(pendingOut)}</div><div style={{ fontSize:10, color:'rgba(255,255,255,0.45)', marginTop:4 }}>{overdueOut > 0 ? t('cashflow.overdueAmount', { amount: fmtYen(overdueOut) }) : ''}{overdueOut > 0 && futureOut > 0 ? ' · ' : ''}{futureOut > 0 ? t('cashflow.futureAmount', { amount: fmtYen(futureOut) }) : ''}</div></div>
-          <div><div style={{ fontSize:11, color:'rgba(255,255,255,0.6)', marginBottom:4 }}>{t('cashflow.projectedNet')}</div><div style={{ fontSize:20, fontWeight:800, color:projectedNet>=0?'var(--gold)':'#ff3b30' }}>{fmtYen(projectedNet)}</div></div>
-          <div><div style={{ fontSize:11, color:'rgba(255,255,255,0.6)', marginBottom:4 }}>{t('cashflow.currentNetCash')}</div><div style={{ fontSize:20, fontWeight:800, color:netCash>=0?'var(--gold)':'#ff3b30' }}>{fmtYen(netCash)}</div></div>
-        </div>
-      </PortalSurface>
+      <CashflowAi snapshot={aiSnap} />
       {payItem && <MarkPaidPopup item={payItem} onClose={() => setPayItem(null)} onSaved={load} />}
     </div>
   )
@@ -265,93 +221,41 @@ function CashflowOverview() {
 function MoneyIn() {
   const { t } = useI18n()
   const [faturas, setFaturas] = useState([])
+  const [pagamentos, setPagamentos] = useState([])
   const [loading, setLoading] = useState(true)
+  const [showPaid, setShowPaid] = useState(false)
   const [payItem, setPayItem] = useState(null)
   useEffect(() => { load(); const iv=setInterval(load,30000); return ()=>clearInterval(iv) }, [])
   async function load() {
-    const { data } = await supabase.from('faturas').select('*, bars(nome)').order('data_vencimento',{ascending:false})
-    setFaturas(data||[]); setLoading(false)
+    const [fR, pR] = await Promise.all([
+      supabase.from('faturas').select('*, bars(nome)').order('data_vencimento',{ascending:false}),
+      supabase.from('fatura_pagamentos').select('id,fatura_id,valor,confirmado,metodo,data'),
+    ])
+    setFaturas(fR.data||[]); setPagamentos(pR.data||[]); setLoading(false)
   }
   if (loading) return <Spinner text={t('common.loading')} />
-  const today = new Date().toISOString().slice(0, 10)
-  const faturaSplit = splitPendingFaturas(faturas, today)
-  const total = faturas.reduce((a,f)=>a+(+f.valor||0),0)
-  const paid = faturas.filter(f=>f.status==='pago').reduce((a,f)=>a+(+f.valor||0),0)
+  const total = faturas.reduce((a,f)=>a+(+f.total||+f.valor||0),0)
+  const received = faturas.reduce((a,f)=>a+(+f.pago||0),0)
+  const open = faturas.filter(f => f.status !== 'pago' && (+f.total||+f.valor||0) - (+f.pago||0) > 0)
+  const paid = faturas.filter(f => !open.includes(f))
   return (
     <div>
-      {faturaSplit.overdue.length > 0 && (
-        <PortalSurface title={t('cashflow.overdueInvoicesShort')} style={{ marginBottom: 16, borderColor: 'rgba(239,68,68,0.35)' }}>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-            {faturaSplit.overdue.map(f => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setPayItem({ type: 'fatura', id: f.id, label: f.bars?.nome || 'Bar', amount: f.amount, dueDate: f.dueDate, paid: false })}
-                style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 12, padding: '10px 14px', minWidth: 160, textAlign: 'left', cursor: 'pointer' }}
-              >
-                <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--red)' }}>{fmtYen(f.amount)}</div>
-                <div style={{ fontSize: 12, fontWeight: 600 }}>{f.bars?.nome || 'Bar'}</div>
-                <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 4 }}>Venceu {fmtDate(f.dueDate)}</div>
-                <div style={{ fontSize: 10, color: 'var(--navy)', marginTop: 6, fontWeight: 700 }}>{t('payMark.tap')}</div>
-              </button>
-            ))}
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text2)' }}>
-            {t('cashflow.totalOverdue', { amount: fmtYen(faturaSplit.overdueTotal) })}
-          </div>
+      <div className="cash-big" style={{ marginBottom: 20 }}>
+        <PortalKpi label={t('cashflow.totalInvoiced')} value={fmtYen(total)} color="var(--navy)" />
+        <PortalKpi label={t('ledger.received')} value={fmtYen(received)} color="var(--green)" />
+        <PortalKpi label={t('ledger.left')} value={fmtYen(Math.max(0, total - received))} color={total - received > 0 ? 'var(--red)' : 'var(--green)'} />
+      </div>
+      <PortalSurface title={t('cashflow.barsOweTitle', { amount: fmtYen(Math.max(0, total - received)) })} sub={t('cashflow.barsOweSub')} style={{ marginBottom: 16 }}>
+        <OpenInvoicesList faturas={open} pagamentos={pagamentos} onOpen={f => setPayItem({ type: 'fatura', id: f.id })} emptyText={t('cashflow.barsOweNone')} />
+      </PortalSurface>
+      {paid.length > 0 && (
+        <PortalSurface
+          title={t('cashflow.paidInvoices', { count: paid.length })}
+          headerRight={<button type="button" onClick={() => setShowPaid(x => !x)} style={{ fontSize: 12, border: '1px solid var(--border)', background: 'transparent', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>{showPaid ? t('invoices.hideDeliveries') : t('invoices.showDeliveries')}</button>}
+        >
+          {showPaid && <OpenInvoicesList faturas={paid} pagamentos={pagamentos} onOpen={f => setPayItem({ type: 'fatura', id: f.id })} emptyText="" />}
         </PortalSurface>
       )}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:20 }}>
-        {[
-          { label: t('cashflow.totalInvoiced'), value: fmtYen(total), color: 'var(--navy)' },
-          { label: t('cashflow.received'), value: fmtYen(paid), color: 'var(--green)' },
-          { label: t('cashflow.open'), value: fmtYen(total - paid), color: total - paid > 0 ? 'var(--amber)' : 'var(--green)' },
-          ...(faturaSplit.overdueTotal > 0 ? [{ label: t('cashflow.overdueShort'), value: fmtYen(faturaSplit.overdueTotal), color: 'var(--red)' }] : []),
-        ].map(k=>(
-          <div key={k.label} style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:14, padding:'14px' }}>
-            <div style={{ fontSize:22, fontWeight:800, color:k.color }}>{k.value}</div>
-            <div style={{ fontSize:11, color:'var(--text2)', textTransform:'uppercase', letterSpacing:'0.05em', marginTop:4 }}>{k.label}</div>
-          </div>
-        ))}
-      </div>
-      <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-        {faturas.map(f=>{
-          const pct = f.valor>0?Math.round((f.pago||0)/f.total*100):0
-          const isOverdue = f.status!=='pago'&&f.data_vencimento&&f.data_vencimento<today
-          return (
-            <div
-              key={f.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => f.status !== 'pago' && setPayItem({
-                type: 'fatura',
-                id: f.id,
-                label: f.bars?.nome,
-                amount: Math.max(0, (+f.total || +f.valor || 0) - (+f.pago || 0)),
-                dueDate: f.data_vencimento,
-                paid: f.status === 'pago',
-              })}
-              style={{ background:'var(--bg2)', border:'1px solid', borderColor: isOverdue ? 'rgba(239,68,68,0.45)' : 'var(--border)', borderRadius:12, padding:'14px 16px', cursor: f.status !== 'pago' ? 'pointer' : 'default' }}
-            >
-              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
-                <div>
-                  <div style={{ fontSize:13, fontWeight:700 }}>{f.bars?.nome}</div>
-                  <div style={{ fontSize:11, color:'var(--text2)' }}>{t('cashflow.dueLabel', { date: fmtDate(f.data_vencimento) })}</div>
-                </div>
-                <div style={{ textAlign:'right' }}>
-                  <div style={{ fontSize:15, fontWeight:800 }}>{fmtYen(f.total||0)}</div>
-                  <span style={{ fontSize:11, fontWeight:700, color:f.status==='pago'?'var(--green)':isOverdue?'var(--red)':'var(--amber)' }}>
-                    {f.status==='pago' ? t('status.pago') : isOverdue ? t('status.atrasada') : t('status.pendente')}
-                  </span>
-                </div>
-              </div>
-              <div style={{ height:4, background:'var(--bg3)', borderRadius:2, overflow:'hidden' }}>
-                <div style={{ height:'100%', width:pct+'%', background:f.status==='pago'?'var(--green)':'var(--gold)', borderRadius:2 }}/>
-              </div>
-            </div>
-          )
-        })}
-      </div>
       {payItem && <MarkPaidPopup item={payItem} onClose={() => setPayItem(null)} onSaved={load} />}
     </div>
   )
