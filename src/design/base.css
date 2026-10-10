@@ -735,3 +735,57 @@ html .uc-dot, html .uc-col { min-height: 0 !important; min-width: 0 !important; 
 @media (max-width: 520px) {
   html .portal-hero-grid > .portal-hero-card:first-child ~ .portal-kpi-card:last-child:nth-child(even) { grid-column: 1 / -1; }
 }
+
+/* Goal hero (bar home desk + goals screen): light card like the reference, not navy */
+html .goal-hero {
+  background: var(--c-surface); color: var(--c-text); border: 1px solid var(--c-border); border-radius: 16px; box-shadow: none;
+}
+html .goal-hero-kicker { color: var(--c-accent); font-size: 12px; letter-spacing: .06em; }
+html .goal-hero-value { font-size: clamp(24px, 4vw, 34px); letter-spacing: -.02em; }
+html .goal-hero-goal, html .goal-shifts em { color: var(--c-text-2); }
+html .goal-shifts .is-now strong { color: var(--c-accent); }
+html .goal-modes button { background: var(--c-surface); color: var(--c-text-2); border: 1px solid var(--c-border); font-weight: 600; }
+html .goal-modes button.is-on, html .desk-goal .goal-modes button.is-on { background: var(--c-accent); color: var(--c-on-accent); border-color: transparent; }
+html .desk-goal .goal-modes button { background: var(--c-surface); color: var(--c-text-2); border-color: var(--c-border); }
+html .desk-goal .house-text { color: var(--c-accent); }
+html .desk-ai-line { color: var(--c-text-2); }
+html .goal-meter i { background: var(--c-surface-2); }
+html .goal-meter b { background: var(--c-accent); }
+html .goal-meter b.is-hit { background: var(--c-success); }
+html .desk-bday { background: var(--c-warning-bg); color: var(--c-warning); }
+html .goal-chart { margin-top: 8px; }
+html .desk { margin: 0; }
+
+.portal-hero-grid.is-three { grid-template-columns: 1.2fr 1fr 1fr; }
+@media (max-width: 900px) { .portal-hero-grid.is-three { grid-template-columns: 1fr 1fr !important; } .portal-hero-grid.is-three > .portal-hero-card { grid-column: 1 / -1; } }
+.dash-line { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--c-border); font-size: 13px; }
+.dash-line:last-child { border-bottom: 0; }
+.dash-line span { color: var(--c-text-2); }
+html .easy-dash-alert, html .easy-dash-ok { margin-top: 12px; }
+.easy-dash-alert-title { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; margin-bottom: 6px; }
+html .easy-dash-ok { display: flex; align-items: center; gap: 8px; background: var(--c-success-bg); color: var(--c-success); }
+html .easy-dash-alert { background: var(--c-warning-bg); color: var(--c-warning); border-color: color-mix(in srgb, var(--c-warning) 25%, transparent); }
+.hq-dash .dash-cell > .dash-body > .home-band { margin: 0; }
+
+/* "Tonight" action tiles: icon squares instead of emoji */
+html .hq-action { background: var(--c-surface); border: 1px solid var(--c-border); box-shadow: none; }
+html .hq-action:hover { border-color: var(--c-accent); }
+html .hq-action-icon, html .easy-dash .hq-action-icon {
+  width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 0;
+  background: var(--c-accent-soft); color: var(--c-accent);
+}
+html .goal-chart { max-height: 200px; }
+@media (min-width: 900px) {
+  html .desk { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  html .desk > .desk-goal, html .desk > .desk-alarm, html .desk > :not(.desk-card) { grid-column: 1 / -1; }
+}
+
+/* Legacy light-only tints → theme tokens (they glared in the dark theme) */
+html .ops-kpi.is-warn, html .desk-alarm, html .desk-alert.is-bad, html .bill-match.is-off { background: var(--c-danger-bg); border-color: color-mix(in srgb, var(--c-danger) 35%, transparent); }
+html .desk-alert.is-bad { color: var(--c-danger); }
+html .notif-overdue-kind, html .ff-badge.ff-exception, html .ff-badge.ff-issue { background: var(--c-danger-bg); color: var(--c-danger); }
+html .floor-stale-banner, html .floor-stale-badge { background: var(--c-warning-bg); color: var(--c-warning); }
+html .upload-zone:hover { border-color: var(--c-accent); background: var(--c-accent-soft); }
+html .cash-ai-assistant { background: var(--c-surface-2); }
+html .ff-badge { background: var(--c-surface-2); color: var(--c-text-2); }
+html .ops-kpi:hover { border-color: var(--c-accent); }

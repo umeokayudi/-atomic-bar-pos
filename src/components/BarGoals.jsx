@@ -45,15 +45,15 @@ function Bars({ rows, goalKey = 'goal', labelKey = 'label' }) {
   const goal = rows.find(r => r[goalKey] > 0)?.[goalKey] || 0
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="goal-chart" role="img">
-      {goal > 0 && <line x1={pad} x2={w - pad} y1={y(goal)} y2={y(goal)} stroke="var(--gold)" strokeDasharray="5 4" strokeWidth="2" />}
+      {goal > 0 && <line x1={pad} x2={w - pad} y1={y(goal)} y2={y(goal)} stroke="var(--c-warning)" strokeDasharray="5 4" strokeWidth="2" />}
       {rows.map((r, i) => {
         const top = y(r.sales || 0)
         const height = Math.max(0, h - 22 - top)
         const hit = goal > 0 && r.sales >= goal
         return (
           <g key={r.date || r.hour || i}>
-            <rect x={pad + i * bw + 6} y={top} width={Math.max(8, bw - 12)} height={height} rx="5" fill={hit ? 'var(--green)' : '#8eb7ff'} />
-            <text x={pad + i * bw + bw / 2} y={h - 6} textAnchor="middle" fill="rgba(255,255,255,0.72)" fontSize="11">
+            <rect x={pad + i * bw + 6} y={top} width={Math.max(8, bw - 12)} height={height} rx="5" fill={hit ? 'var(--c-success)' : 'var(--c-accent)'} fillOpacity={hit ? 1 : 0.55} />
+            <text x={pad + i * bw + bw / 2} y={h - 6} textAnchor="middle" fill="var(--c-text-3)" fontSize="11">
               {r[labelKey] || String(r.date || '').slice(8)}
             </text>
           </g>

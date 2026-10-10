@@ -15,25 +15,26 @@ import { costAccessForRole } from '../lib/access'
 import { fetchHqSnapshot } from '../lib/hqSnapshot'
 import { useI18n } from '../lib/i18n'
 import HqAiDock from './HqAiDock'
+import Icon from './ui/Icon'
 import BarOpsGlance from './BarOpsGlance'
 import { buildBarOpsGlance } from '../lib/barOpsGlance'
 import { birthdayThisMonth, decorateSpaces } from '../lib/barCrm'
 
 const ACTIONS = [
-  { id: 'pos', icon: '🧾', labelKey: 'portal.home.goPos', hintKey: 'portal.home.goPosHint' },
-  { id: 'pedidos', icon: '🛒', labelKey: 'portal.home.goOrders', hintKey: 'portal.home.goOrdersHint' },
-  { id: 'espacos', icon: '🪑', labelKey: 'portal.home.goFloor', hintKey: 'portal.home.goFloorHint' },
-  { id: 'clientes', icon: '🥂', labelKey: 'portal.home.goGuests', hintKey: 'portal.home.goGuestsHint' },
-  { id: 'ponto', icon: '🕒', labelKey: 'portal.home.goClock', hintKey: 'portal.home.goClockHint' },
-  { id: 'fechamento', icon: '📒', labelKey: 'portal.home.goClose', hintKey: 'portal.home.goCloseHint' },
-  { id: 'staff', icon: '👤', labelKey: 'nav.portalTeam', hintKey: 'portal.home.goStaffHint' },
-  { id: 'estoque', icon: '🍾', labelKey: 'nav.portalInventory' },
-  { id: 'faturas', icon: '📄', labelKey: 'nav.portalInvoices' },
+  { id: 'pos', icon: 'pos', labelKey: 'portal.home.goPos', hintKey: 'portal.home.goPosHint' },
+  { id: 'pedidos', icon: 'purchases', labelKey: 'portal.home.goOrders', hintKey: 'portal.home.goOrdersHint' },
+  { id: 'espacos', icon: 'floor', labelKey: 'portal.home.goFloor', hintKey: 'portal.home.goFloorHint' },
+  { id: 'clientes', icon: 'clientes', labelKey: 'portal.home.goGuests', hintKey: 'portal.home.goGuestsHint' },
+  { id: 'ponto', icon: 'clock', labelKey: 'portal.home.goClock', hintKey: 'portal.home.goClockHint' },
+  { id: 'fechamento', icon: 'fechamento', labelKey: 'portal.home.goClose', hintKey: 'portal.home.goCloseHint' },
+  { id: 'staff', icon: 'staff', labelKey: 'nav.portalTeam', hintKey: 'portal.home.goStaffHint' },
+  { id: 'estoque', icon: 'estoque', labelKey: 'nav.portalInventory' },
+  { id: 'faturas', icon: 'invoices', labelKey: 'nav.portalInvoices' },
 ]
 
 function BookCard({ kicker, value, hint, tone = 'navy', active, onClick }) {
   const tones = {
-    navy: { bg: 'linear-gradient(135deg, var(--navy) 0%, #002855 100%)', color: 'white', hint: 'rgba(255,255,255,0.75)', border: 'none' },
+    navy: { bg: 'linear-gradient(135deg, var(--c-accent-2) 0%, color-mix(in srgb, var(--c-accent) 70%, var(--c-chrome)) 100%)', color: 'white', hint: 'rgba(255,255,255,0.8)', border: 'none' },
     light: { bg: 'var(--bg2)', color: 'var(--c-text)', hint: 'var(--text2)', border: '1px solid var(--border)' },
     green: { bg: 'var(--bg2)', color: 'var(--green)', hint: 'var(--text2)', border: '1px solid rgba(52,199,89,0.25)' },
     amber: { bg: 'var(--bg2)', color: 'var(--amber)', hint: 'var(--text2)', border: '1px solid rgba(255,159,10,0.28)' },
@@ -85,7 +86,7 @@ export function BarCommandActions({ onTab, ids }) {
     <div className="hq-actions" style={{ '--hq-cols': list.length }}>
       {list.map(a => (
         <button key={a.id} type="button" className="hq-action" data-hq-action={a.id} onClick={() => onTab?.(a.id)}>
-          <span className="hq-action-icon">{a.icon}</span>
+          <span className="hq-action-icon"><Icon name={a.icon} size={20} /></span>
           <span>{t(a.labelKey)}</span>
           {a.hintKey && <span className="hq-action-hint">{t(a.hintKey)}</span>}
         </button>
@@ -261,7 +262,7 @@ export default function BarCostsTab({ bar, onTab }) {
           <div className="hq-sub">{t('portal.costs.subtitle')}</div>
         </div>
         <button type="button" onClick={syncNow} disabled={busy} className="btn-primary hq-sync">
-          {busy ? t('common.wait') : `🔄 ${t('portal.hq.syncNow')}`}
+          {busy ? t('common.wait') : t('portal.hq.syncNow')}
         </button>
       </div>
       {err && <div style={{ color: 'var(--red)', marginBottom: 12 }}>{asReactText(err)}</div>}

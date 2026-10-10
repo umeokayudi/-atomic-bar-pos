@@ -81,6 +81,28 @@ function filterRows(rows, params) {
   return out
 }
 
+/** /api/bar/hq-sync (lite): tonight's till tickets spread over the evening, plus the same night last week. */
+function hqSnapshot() {
+  const tickets = []
+  const now = new Date()
+  const stamp = (daysAgo, hour, min) => {
+    const d = new Date(now.getTime() - daysAgo * 86400000)
+    const ymd = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo' }).format(d)
+    return `${ymd}T${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}:00+09:00`
+  }
+  const plan = [[19, 2], [20, 4], [21, 7], [22, 9], [23, 6], [0, 3]]
+  for (const [daysAgo, scale] of [[0, 1], [7, 0.8]]) {
+    plan.forEach(([hour, n]) => {
+      for (let k = 0; k < Math.round(n * scale); k++) {
+        const back = hour < 6 ? daysAgo - 1 : daysAgo
+        const at = stamp(back, hour, (k * 11) % 60)
+        tickets.push({ id: `t${daysAgo}-${hour}-${k}`, data: at.slice(0, 10), criado_em: at, total: 3800 + ((hour + k) % 5) * 1200, obs: '', metodo_pagamento: k % 3 ? 'Card' : 'Cash' })
+      }
+    })
+  }
+  return { books: {}, pos: { salesCount: tickets.length, till: tickets.reduce((a, x) => a + x.total, 0), tickets, history: tickets }, payroll: [], jbm: {} }
+}
+
 /** /api/dashboard computed from the fixtures with the same helpers the real endpoint uses. */
 function dashboardPayload() {
   const now = new Date()
@@ -149,6 +171,9 @@ async function mock(page, who) {
     }
     if (req.method() === 'GET' && (path === '/api/time-clock' || path === '/api/bar/time-clock')) {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ punches: PUNCHES, adicional_noturno: true }) })
+    }
+    if (req.method() === 'GET' && path === '/api/bar/hq-sync') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(hqSnapshot()) })
     }
     if (path === '/api/dashboard') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(dashboardPayload()) })

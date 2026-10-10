@@ -5,11 +5,13 @@ import Icon from './Icon'
 
 /**
  * Configurable dashboard. Each widget: { id, title, icon?, size: 'full'|'half', defaultHidden?, empty?, render() }.
+ * Pass `layout` (from useDashboardLayout) when the page needs to know what is visible.
  * "Customize" lets the person show/hide cards, drag or arrow them into order and pick full or half width.
  */
-export default function DashboardGrid({ id, widgets }) {
+export default function DashboardGrid({ id, widgets, layout }) {
   const { t } = useI18n()
-  const { items, toggle, setSize, move, reset } = useDashboardLayout(id, widgets)
+  const own = useDashboardLayout(id, widgets)
+  const { items, toggle, setSize, move, reset } = layout || own
   const [editing, setEditing] = useState(false)
   const [dragFrom, setDragFrom] = useState(null)
   const [dragOver, setDragOver] = useState(null)
