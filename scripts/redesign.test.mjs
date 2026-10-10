@@ -18,6 +18,7 @@ import { goalGuide, goalHours, personalGoalSource } from '../src/lib/goalDefinit
 import { notificationToOrder, openForStaff, orderStats, orderToNotification } from '../src/lib/staffOrders.js'
 import { cartAdd, cartBump, cartTotals } from '../src/lib/quickCart.js'
 import { seatSpots } from '../src/lib/floor3d.js'
+import { openOrders, receivedByProduct, receivedTimeline, restockSuggestions, supplyOverview } from '../src/lib/drinkSupply.js'
 
 let n = 0
 const queue = []
@@ -429,6 +430,31 @@ test('floor plan save without the migration: keeps ids, maps new sectors, drops 
   assert.equal(st.tables.at(-1).nome, '2', 'walls do not break table numbering')
   assert.equal(st.tables[1].altura, 16, 'thin walls are allowed')
   assert.deepEqual(fe.validateLayout(fe.addTable(st, 'wall', { nome: 'Wall' })), [], 'two walls may share a name')
+})
+
+test('drink supply: one list of what arrived, open orders late first, restock skips what is on order', () => {
+  const pedidos = [
+    { id: 'aaaaaaaa-1', status: 'entregue', data_pedido: '2026-10-01', total_estimado: 9000, pedidos_itens: [{ id: 'i1', qtd: 3, preco_unitario: 3000, produtos: { nome: 'Gin' } }] },
+    { id: 'bbbbbbbb-2', status: 'entregue', data_pedido: '2026-10-03', data_entrega_prevista: '2026-10-04', total_estimado: 5000, pedidos_itens: [] },
+    { id: 'cccccccc-3', status: 'confirmado', data_pedido: '2026-10-08', data_entrega_prevista: '2026-10-12', pedidos_itens: [{ id: 'i2', produto_id: 'p1', qtd: 6 }] },
+    { id: 'dddddddd-4', status: 'pendente', data_pedido: '2026-10-02', data_entrega_prevista: '2026-10-05', pedidos_itens: [] },
+    { id: 'eeeeeeee-5', status: 'cancelado', data_pedido: '2026-09-20', pedidos_itens: [] },
+  ]
+  const notes = [{ id: 'n1', data: '2026-10-02', total: 9900, obs: 'Auto: order aaaaaaaa', vendas_itens: [{ id: 'v1', qtd: 3, preco_unitario: 3300, produtos: { nome: 'Gin' } }] }]
+  const rows = receivedTimeline({ pedidos, notes })
+  assert.deepEqual(rows.map(r => [r.kind, r.date]), [['order', '2026-10-04'], ['note', '2026-10-02'], ['cancelled', '2026-09-20']])
+  assert.equal(rows[1].order.id, 'aaaaaaaa-1', 'the note is joined to its order, which is not listed twice')
+  assert.equal(receivedTimeline({ pedidos, notes, month: '2026-09' }).length, 1)
+  assert.deepEqual(openOrders(pedidos, '2026-10-10').map(p => [p.id, p.late]), [['dddddddd-4', true], ['cccccccc-3', false]])
+  const restock = restockSuggestions([
+    { id: 'p1', nome: 'Gin', hasCount: true, stock: 1, minimo: 6, preco_venda: 3000 },
+    { id: 'p2', nome: 'Rum', hasCount: true, stock: 0, minimo: 4, preco_venda: 2500 },
+    { id: 'p3', nome: 'Beer', hasCount: true, stock: 20, minimo: 4 },
+  ], pedidos)
+  assert.deepEqual(restock.map(r => [r.produto_id, r.qtd]), [['p2', 8]], 'gin is already on an open order')
+  const o = supplyOverview({ pedidos, notes, restock, today: '2026-10-10', month: '2026-10' })
+  assert.deepEqual([o.toOrder, o.onTheWay, o.late, o.nextArrival, o.receivedCount, o.receivedTotal], [1, 2, 1, '2026-10-12', 2, 14900])
+  assert.deepEqual(receivedByProduct(rows), [{ nome: 'Gin', qtd: 3, total: 9900 }])
 })
 
 for (const [name, fn] of queue) { await fn(); n++; console.log(`ok ${n} - ${name}`) }

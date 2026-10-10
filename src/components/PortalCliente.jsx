@@ -549,81 +549,6 @@ function nightHours(hours) {
 }
 
 
-// ── DELIVERIES ────────────────────────────────────────────────────────────────
-function DeliveriesTab({ bar }) {
-  const { t } = useI18n()
-  const [vendas, setVendas] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
-
-  useEffect(() => { load() }, [bar])
-
-  async function load() {
-    const { data } = await supabase.from('vendas').select('*, vendas_itens(*, produtos(*))').eq('bar_id', bar.id).order('data', { ascending: false })
-    setVendas(filterSupplierVendas(data || []))
-    setLoading(false)
-  }
-
-  const filtered = vendas.filter(v => {
-    const d = v.data || v.data_venda || ''
-    if (dateFrom && d < dateFrom) return false
-    if (dateTo && d > dateTo) return false
-    if (search) {
-      const s = search.toLowerCase()
-      const hasItem = (v.vendas_itens || []).some(it => it.produtos?.nome?.toLowerCase().includes(s))
-      if (!hasItem && !d.includes(s)) return false
-    }
-    return true
-  })
-
-  const total = filtered.reduce((a, v) => a + (+v.total || 0), 0)
-
-  if (loading) return <Spinner text={t('portal.deliveries.loading')} />
-
-  return (
-    <div className="fade-in">
-      <SectionTitle sub={t('portal.deliveries.subtitle')}>{t('portal.deliveries.title')}</SectionTitle>
-
-      <RangeCalendar from={dateFrom} to={dateTo} onChange={(a, b) => { setDateFrom(a); setDateTo(b) }} />
-
-      <input
-        type="text"
-        placeholder={t('portal.deliveries.search')}
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        style={{ width: '100%', borderRadius: 10, padding: '9px 12px', fontSize: 13, marginBottom: 14 }}
-      />
-
-      <section className="bill-match is-match" style={{ marginBottom: 14 }}>
-        <h3>{t('portal.deliveries.checkTitle')}</h3>
-        <div className="bill-match-row"><span>{t('portal.deliveries.count', { count: filtered.length })}</span><b>{t('portal.deliveries.arrived')}</b></div>
-        <div className="bill-match-row"><span>{t('common.total')}</span><b>{fmtYen(total)}</b></div>
-      </section>
-
-      {filtered.length === 0
-        ? <Empty text={t('portal.deliveries.empty')} />
-        : filtered.map(v => (
-          <div key={v.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px', marginBottom: 10 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-              <span style={{ fontWeight: 700, fontSize: 14 }}>{fmtDate(v.data || v.data_venda)}</span>
-              <span style={{ fontWeight: 800, color: 'var(--c-text)', fontSize: 15 }}>{fmtYen(v.total)}</span>
-            </div>
-            {(v.vendas_itens || []).map(it => (
-              <div key={it.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text2)', marginBottom: 4 }}>
-                <span>{it.produtos?.nome} × {it.qtd}</span>
-                <span>{fmtYen((it.preco_unitario || 0) * it.qtd)}</span>
-              </div>
-            ))}
-          </div>
-        ))
-      }
-    </div>
-  )
-}
-
-
 // ── INVENTORY ────────────────────────────────────────────────────────────────
 function InventoryTab({ bar, onOrder }) {
   const { t } = useI18n()
@@ -1969,7 +1894,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   const location = useLocation()
   const navigate = useNavigate()
   // Tabs reachable by URL (/bar/<tab>): the role's menu plus staff self-service sections.
-  const allowedTabs = [...NAV_GROUPS.flatMap(g => g.items.map(n => n.id)), ...DOCK.map(d => d.id), 'hoje', 'profile', 'shifts', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary', 'equipe']
+  const allowedTabs = [...NAV_GROUPS.flatMap(g => g.items.map(n => n.id)), ...DOCK.map(d => d.id), 'hoje', 'profile', 'shifts', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary', 'equipe', 'entregas']
   const tab = tabFromPath(location.pathname, 'bar', allowedTabs, defaultBarTab(perfil?.role))
   const [opened, setOpened] = useState(() => new Set([tab]))
   const [menuOpen, setMenuOpen] = useState(false)
@@ -2144,8 +2069,8 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         {tab==='espacos'   && canManageBarTeam(perfil?.role) && <TabHold><BarSpacesTab bar={bar} onTab={selectTab} /></TabHold>}
         {tab==='vip'       && canManageBarTeam(perfil?.role) && <TabHold><BarVipTab bar={bar} onTab={selectTab} /></TabHold>}
         {tab==='ordens'    && canManageBarTeam(perfil?.role) && <TabHold><StaffOrdersTab bar={bar} /></TabHold>}
-        {tab==='pedidos'   && canPlaceDrinkOrders(perfil?.role) && <TabHold><BarOrdersTab bar={bar} /></TabHold>}
-        {tab==='entregas'  && canManageBarTeam(perfil?.role) && <DeliveriesTab bar={bar} />}
+        {tab==='pedidos'   && canPlaceDrinkOrders(perfil?.role) && <TabHold><BarOrdersTab bar={bar} manager={canManageBarTeam(perfil?.role)} /></TabHold>}
+        {tab==='entregas'  && canManageBarTeam(perfil?.role) && <TabHold><BarOrdersTab bar={bar} section="received" /></TabHold>}
         {tab==='estoque'   && canManageBarTeam(perfil?.role) && <InventoryTab bar={bar} onOrder={()=>selectTab('pedidos')} />}
         {tab==='precos'    && canManageBarTeam(perfil?.role) && <PrecosCardapioTab bar={bar} />}
         {tab==='faturas'   && canManageBarTeam(perfil?.role) && <FaturasTab bar={bar} />}

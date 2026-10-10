@@ -64,6 +64,8 @@ const staffOrders = [
 
 const vendas = []
 for (let i = 0; i < 160; i++) vendas.push({ id: `v${i}`, bar_id: i % 3 ? BAR.id : BAR2.id, total: 20000 + (i % 7) * 4500, data: day(i % 170), obs: 'JBM supply', criado_em: day(i % 170) })
+vendas[1] = { ...vendas[1], data: day(2), total: 26400, obs: 'Auto: order p1', vendas_itens: [{ id: 'vi1', qtd: 4, preco_unitario: 3300, produtos: { id: 'pr1', nome: 'Tanqueray Gin' } }, { id: 'vi2', qtd: 24, preco_unitario: 550, produtos: { id: 'pr4', nome: 'Asahi Super Dry' } }] }
+vendas[2] = { ...vendas[2], vendas_itens: [{ id: 'vi3', qtd: 2, preco_unitario: 18000, produtos: { id: 'pr7', nome: 'Hakushu 12' } }] }
 
 export const TABLES = {
   bars: [BAR, BAR2],
@@ -81,7 +83,27 @@ export const TABLES = {
     { id: 'f1', bar_id: BAR.id, total: 180000, pago: 60000, status: 'parcial', vencimento: day(10), data_emissao: day(40) },
     { id: 'f2', bar_id: BAR2.id, total: 95000, pago: 0, status: 'pendente', vencimento: day(-12), data_emissao: day(5) },
   ],
-  pedidos: [{ id: 'p1', bar_id: BAR.id, status: 'entregue', data_pedido: day(3) }, { id: 'p2', bar_id: BAR2.id, status: 'entregue', data_pedido: day(30) }],
+  pedidos: [
+    { id: 'p1', bar_id: BAR.id, status: 'entregue', data_pedido: day(3), criado_em: day(3), total_estimado: 26400, pedidos_itens: [{ id: 'pi1', produto_id: 'pr1', qtd: 4, preco_unitario: 3300, produtos: { nome: 'Tanqueray Gin' } }, { id: 'pi2', produto_id: 'pr4', qtd: 24, preco_unitario: 550, produtos: { nome: 'Asahi Super Dry' } }] },
+    { id: 'p2', bar_id: BAR2.id, status: 'entregue', data_pedido: day(30) },
+    { id: 'aaaa1111-p', bar_id: BAR.id, status: 'confirmado', data_pedido: day(1), criado_em: day(1), data_entrega_prevista: day(-2), total_estimado: 41800, pedidos_itens: [{ id: 'pi3', produto_id: 'pr2', qtd: 6, preco_unitario: 4200, produtos: { nome: 'Jameson' } }, { id: 'pi4', produto_id: 'pr5', qtd: 12, preco_unitario: 1383, produtos: { nome: 'Wilkinson Tonic' } }] },
+    { id: 'bbbb2222-p', bar_id: BAR.id, status: 'pendente', data_pedido: day(4), criado_em: day(4), data_entrega_prevista: day(1), total_estimado: 12600, obs: 'Deliver before 17:00 please', pedidos_itens: [{ id: 'pi5', produto_id: 'pr3', qtd: 3, preco_unitario: 4200, produtos: { nome: 'Moët Impérial' } }] },
+  ],
+  produtos_public: [
+    { id: 'pr1', nome: 'Tanqueray Gin', categoria: 'Gin', volume_ml: 750, preco_venda: 3300, ativo: true },
+    { id: 'pr2', nome: 'Jameson', categoria: 'Whisky', volume_ml: 700, preco_venda: 4200, ativo: true },
+    { id: 'pr3', nome: 'Moët Impérial', categoria: 'Champagne', volume_ml: 750, preco_venda: 4200, ativo: true },
+    { id: 'pr4', nome: 'Asahi Super Dry', categoria: 'Beer', volume_ml: 350, preco_venda: 550, ativo: true },
+    { id: 'pr5', nome: 'Wilkinson Tonic', categoria: 'Soda', volume_ml: 500, preco_venda: 1383, ativo: true },
+    { id: 'pr6', nome: 'Grey Goose', categoria: 'Vodka', volume_ml: 700, preco_venda: 4800, ativo: true },
+    { id: 'pr7', nome: 'Hakushu 12', categoria: 'Japanese Whisky', volume_ml: 700, preco_venda: 18000, ativo: true },
+  ],
+  estoque_regras: [{ bar_id: BAR.id, produto_id: 'pr1', minimo: 4 }, { bar_id: BAR.id, produto_id: 'pr6', minimo: 3 }, { bar_id: BAR.id, produto_id: 'pr7', minimo: 2 }],
+  estoque_movimentos: [
+    { id: 'em1', bar_id: BAR.id, produto_id: 'pr6', tipo: 'entrada', qtd: 4 }, { id: 'em2', bar_id: BAR.id, produto_id: 'pr6', tipo: 'saida', qtd: 3 },
+    { id: 'em3', bar_id: BAR.id, produto_id: 'pr7', tipo: 'entrada', qtd: 2 }, { id: 'em4', bar_id: BAR.id, produto_id: 'pr7', tipo: 'saida', qtd: 2 },
+    { id: 'em5', bar_id: BAR.id, produto_id: 'pr1', tipo: 'saida', qtd: 3 },
+  ],
   marketing_campaigns: [
     { id: 'm1', bar_id: BAR.id, nome: 'Happy hour weekdays', canal: 'in_store', status: 'running', inicio: day(14), fim: day(-14), oferta: '2nd highball half price 18–20h', objetivo: '+15% weekday sales', orcamento: 30000 },
     { id: 'm2', bar_id: null, nome: 'Autumn gin menu', canal: 'instagram', status: 'scheduled', inicio: day(-7), fim: day(-30), produtos: 'Gin Tonic, Gin Fizz', orcamento: 50000 },

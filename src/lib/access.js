@@ -43,8 +43,7 @@ const GERENTE_NAV = [
   { id: 'inicio', labelKey: 'nav.portalHome', icon: '🏠' },
   { id: 'pos', labelKey: 'nav.portalPos', icon: '🧾' },
   { id: 'mesas', labelKey: 'nav.mesas', icon: '🗺' },
-  { id: 'pedidos', labelKey: 'nav.portalOrders', icon: '🛒' },
-  { id: 'entregas', labelKey: 'nav.portalDeliveries', icon: '📦' },
+  { id: 'pedidos', labelKey: 'nav.supply', icon: '🛒' },
   { id: 'faturas', labelKey: 'nav.portalInvoices', icon: '📄' },
   { id: 'espacos', labelKey: 'nav.portalSpaces', icon: '🪑' },
   { id: 'vip', labelKey: 'nav.vip', icon: '👑' },
@@ -80,8 +79,8 @@ const GERENTE_NAV = [
 const NAV_GROUPS = [
   { id: 'intelligence', labelKey: 'navArea.intelligence', ids: ['ia'] },
   { id: 'overview', labelKey: 'navArea.overview', ids: ['inicio'] },
-  { id: 'operation', labelKey: 'navArea.operation', ids: ['pos', 'mesas', 'pedidos', 'entregas', 'espacos', 'vip', 'ponto', 'fechamento'] },
-  { id: 'supply', labelKey: 'navArea.supply', ids: ['estoque', 'precos', 'fornecedor', 'parceiro'] },
+  { id: 'operation', labelKey: 'navArea.operation', ids: ['pos', 'mesas', 'espacos', 'vip', 'ponto', 'fechamento'] },
+  { id: 'supply', labelKey: 'navArea.supply', ids: ['pedidos', 'estoque', 'precos', 'fornecedor', 'parceiro'] },
   { id: 'finance', labelKey: 'navArea.finance', ids: ['faturas', 'pagamentos', 'custos', 'recibos', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'] },
   { id: 'people', labelKey: 'navArea.people', ids: ['staff', 'ordens', 'salarios', 'metas', 'drinkback'] },
   { id: 'growth', labelKey: 'navArea.growth', ids: ['clientes', 'eventos', 'marketing', 'consultoria'] },
@@ -97,7 +96,7 @@ const STAFF_NAV = [
   { id: 'ponto', labelKey: 'nav.portalClock', icon: '🕒' },
   { id: 'pos', labelKey: 'nav.portalPos', icon: '🧾' },
   { id: 'mesas', labelKey: 'nav.mesas', icon: '🗺' },
-  { id: 'pedidos', labelKey: 'nav.portalOrders', icon: '🛒' },
+  { id: 'pedidos', labelKey: 'nav.supply', icon: '🛒' },
   { id: 'shifts', labelKey: 'nav.myShifts', icon: '🗓️' },
   { id: 'goals', labelKey: 'nav.myGoals', icon: '🎯' },
   { id: 'result', labelKey: 'nav.myResult', icon: '📈' },
@@ -142,14 +141,14 @@ export function primaryDockForRole(role) {
       { id: 'hoje', icon: '☀️', labelKey: 'nav.myToday' },
       { id: 'ponto', icon: '🕒', labelKey: 'nav.portalClock' },
       { id: 'pos', icon: '🧾', labelKey: 'nav.portalPos' },
-      { id: 'pedidos', icon: '🛒', labelKey: 'nav.portalOrders' },
+      { id: 'pedidos', icon: '🛒', labelKey: 'nav.supply' },
     ]
   }
   return [
     { id: 'inicio', icon: '🏠', labelKey: 'nav.portalHome' },
     { id: 'pos', icon: '🧾', labelKey: 'nav.portalPos' },
     { id: 'mesas', icon: '🗺', labelKey: 'nav.mesas' },
-    { id: 'pedidos', icon: '🛒', labelKey: 'nav.portalOrders' },
+    { id: 'pedidos', icon: '🛒', labelKey: 'nav.supply' },
     { id: 'ponto', icon: '🕒', labelKey: 'nav.portalClock' },
   ]
 }
