@@ -18,6 +18,8 @@ import { goalGuide, goalHours, personalGoalSource } from '../src/lib/goalDefinit
 import { notificationToOrder, openForStaff, orderStats, orderToNotification } from '../src/lib/staffOrders.js'
 import { cartAdd, cartBump, cartTotals } from '../src/lib/quickCart.js'
 import { seatSpots } from '../src/lib/floor3d.js'
+import { areaOpen, hashPin, pinMatches, publicLock, signUnlock, validPin, verifyUnlock } from '../api/_barVault.js'
+import { areaForTab } from '../src/lib/vault.js'
 import { fixedMonthCost, paymentAgenda } from '../src/lib/barClose.js'
 import { openOrders, receivedByProduct, receivedTimeline, restockSuggestions, supplyOverview } from '../src/lib/drinkSupply.js'
 
@@ -474,6 +476,34 @@ test('bar costs: power counts in its own month, dated bills land on their pay da
   assert.ok(!byId.energia, 'no undated power left over')
   assert.deepEqual([byId.v1.date, byId.variavel.amount], ['2026-10-15', 5000])
   assert.deepEqual([byId.aluguel.metodo, byId.aluguel.tab], ['transfer', 'fixo'])
+})
+
+test('owner PIN: salted, never public, unlock token bound to bar, user and time', () => {
+  assert.ok(validPin('1234') && validPin('12345678') && !validPin('123') && !validPin('12a4'))
+  const a = hashPin('2580')
+  const b = hashPin('2580')
+  assert.notEqual(a.hash, b.hash, 'salted')
+  const row = { pin_hash: a.hash, pin_salt: a.salt, areas: ['money'], minutes: 15 }
+  assert.ok(pinMatches('2580', row) && !pinMatches('2581', row) && !pinMatches('', row))
+  const pub = publicLock(row)
+  assert.deepEqual(pub, { enabled: true, hasPin: true, areas: ['money'], minutes: 15 })
+  assert.ok(!JSON.stringify(pub).includes(a.hash) && !JSON.stringify(pub).includes(a.salt))
+  const now = Date.now()
+  const { token } = signUnlock({ barId: 'B', uid: 'U', minutes: 15, now })
+  assert.ok(verifyUnlock(token, { barId: 'B', uid: 'U' }))
+  assert.equal(verifyUnlock(token, { barId: 'B2', uid: 'U' }), null, 'other bar')
+  assert.equal(verifyUnlock(token, { barId: 'B', uid: 'X' }), null, 'other user')
+  assert.equal(verifyUnlock(token, { barId: 'B', uid: 'U', now: now + 16 * 60000 }), null, 'expired')
+  const [p, body, sig] = token.split('.')
+  const forged = Buffer.from(JSON.stringify({ b: 'B', u: 'U', exp: now + 9e9 })).toString('base64url')
+  assert.equal(verifyUnlock(`${p}.${forged}.${sig}`, { barId: 'B', uid: 'U' }), null, 'tampered')
+  assert.ok(body)
+  const req = tok => ({ headers: tok ? { 'x-bar-unlock': tok } : {} })
+  assert.equal(areaOpen(req(), row, 'money', { barId: 'B', uid: 'U' }), false)
+  assert.equal(areaOpen(req(token), row, 'money', { barId: 'B', uid: 'U' }), true)
+  assert.equal(areaOpen(req(), row, 'payroll', { barId: 'B', uid: 'U' }), true, 'payroll not locked here')
+  assert.equal(areaOpen(req(), null, 'money', { barId: 'B' }), true, 'no PIN set')
+  assert.deepEqual(['cartao', 'fechamento', 'salarios', 'staff', 'pedidos'].map(areaForTab), ['money', 'money', 'payroll', 'payroll', null])
 })
 
 for (const [name, fn] of queue) { await fn(); n++; console.log(`ok ${n} - ${name}`) }

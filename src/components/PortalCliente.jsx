@@ -41,6 +41,7 @@ import { sameWeekdaySales } from '../lib/barClose'
 import AutoReorder from './AutoReorder'
 import BillMatch from './BillMatch'
 import RangeCalendar from './RangeCalendar'
+import { useVaultLock } from './VaultGate'
 import AutoClose from './AutoClose'
 const ClientAnalyticsTab = lazy(() => import('./ClientAnalyticsTab'))
 const PortalRecibosTab = lazy(() => import('./PortalRecibosTab'))
@@ -79,6 +80,7 @@ import { booksAreSeparate } from '../lib/costBooks'
 import { asReactText } from '../lib/errText'
 import { NotificationBell, useBarOverdueAlerts } from './Notifications'
 const BarOrdersTab = lazy(() => import('./BarOrdersTab'))
+const VaultSettings = lazy(() => import('./VaultSettings'))
 const DashboardCalendar = lazy(() => import('./DashboardCalendar'))
 
 function TabHold({ children }) {
@@ -1894,7 +1896,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   const location = useLocation()
   const navigate = useNavigate()
   // Tabs reachable by URL (/bar/<tab>): the role's menu plus staff self-service sections.
-  const allowedTabs = [...NAV_GROUPS.flatMap(g => g.items.map(n => n.id)), ...DOCK.map(d => d.id), 'hoje', 'profile', 'shifts', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary', 'equipe', 'entregas', 'energia', 'aluguel']
+  const allowedTabs = [...NAV_GROUPS.flatMap(g => g.items.map(n => n.id)), ...DOCK.map(d => d.id), 'hoje', 'profile', 'shifts', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary', 'equipe', 'entregas', 'energia', 'aluguel', 'senha']
   const tab = tabFromPath(location.pathname, 'bar', allowedTabs, defaultBarTab(perfil?.role))
   const [opened, setOpened] = useState(() => new Set([tab]))
   const [menuOpen, setMenuOpen] = useState(false)
@@ -1902,7 +1904,9 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   const { t } = useI18n()
   const overdueAlerts = useBarOverdueAlerts(bar?.id)
   const { setCtx: setAiCtx } = useAiPanel()
-  const aiOn = isGerente(perfil?.role) && BAR_ADMIN_TABS.has(tab)
+  // Money and payroll screens can sit behind the owner's PIN (checked by /api/bar-staff); Ask AI waits for it too.
+  const vault = useVaultLock(isGerente(perfil?.role) ? tab : null)
+  const aiOn = isGerente(perfil?.role) && BAR_ADMIN_TABS.has(tab) && !vault.locked
   const rail = useSidebarCollapse()
   const navLabel = id => NAV_GROUPS.flatMap(g => g.items).find(n => n.id === id)?.labelKey
 
@@ -2042,6 +2046,9 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
           <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
         </WorkspaceChrome>
         {perfil?.role === 'bar_staff' && <Suspense fallback={null}><StaffAlerts /></Suspense>}
+        {vault.locked ? vault.gate : (<>
+        {vault.strip}
+        {tab==='senha' && isGerente(perfil?.role) && <TabHold><VaultSettings /></TabHold>}
         {tab==='custos'    && isGerente(perfil?.role) && <BarCostsTab bar={bar} onTab={selectTab} />}
         {tab==='metas' && canManageBarTeam(perfil?.role) && <TabHold><BarGoalsTab bar={bar} /></TabHold>}
         {['hoje', 'profile', 'shifts', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary'].includes(tab) && perfil?.role === 'bar_staff' && <TabHold><EmployeeDesk section={tab} bar={bar} onTab={selectTab} /></TabHold>}
@@ -2079,6 +2086,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         {tab==='mesas'     && posAccess !== 'none' && <TabHold><FloorScreen bar={bar} onOpenTill={() => selectTab('pos')} /></TabHold>}
         {tab==='marketing' && canManageBarTeam(perfil?.role) && <TabHold><MarketingHub barId={bar.id} /></TabHold>}
         {tab==='consultoria' && canManageBarTeam(perfil?.role) && <TabHold><ConsultingHub barId={bar.id} /></TabHold>}
+        </>)}
       </main>
       {aiOn && <AskAiDrawer />}
       {DOCK.length > 0 && (

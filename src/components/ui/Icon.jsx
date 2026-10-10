@@ -36,7 +36,7 @@ const ICONS = {
   rect: RectangleHorizontal, map: MapIcon, send: Send, bot: Bot, history: History, idea: Lightbulb,
   automation: Workflow, warning: AlertTriangle, ok: CheckCircle2, info: Info, next: ChevronRight,
   back: ChevronLeft, down: ChevronDown, filter: Filter, refresh: RefreshCw, noImage: ImageOff,
-  split: Split, merge: Merge, transfer: MoveRight, partialPay: HandCoins, lock: Lock, keyboard: Keyboard,
+  split: Split, merge: Merge, transfer: MoveRight, partialPay: HandCoins, lock: Lock, senha: Lock, keyboard: Keyboard,
   signOut: LogOut, panelClose: PanelLeftClose, panelOpen: PanelLeftOpen, grip: GripVertical, hide: EyeOff,
   attach: Paperclip, image: ImageIcon, fileDoc: FileDoc, video: Video,
   customize: LayoutTemplate, up: ArrowUp, downArrow: ArrowDown,
