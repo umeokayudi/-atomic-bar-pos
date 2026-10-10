@@ -15,6 +15,7 @@
     "test:payroll": "node scripts/payroll.test.mjs",
     "test:pos": "node scripts/posFloor.test.mjs",
     "test:ledger": "node scripts/faturaLedger.test.mjs",
+    "test:ai": "node scripts/aiActions.test.mjs",
     "test:pos:pg": "node scripts/posFloor.pg.test.mjs"
   },
   "dependencies": {

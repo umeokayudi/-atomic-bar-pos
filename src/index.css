@@ -5141,3 +5141,27 @@ button.pq-charge {
   .emp-hero-cta { width: 100%; }
   .emp-hero-title { font-size: 22px; }
 }
+
+/* AI action proposals: shown under the AI reply, written only on Confirm */
+.ai-act-list { display: flex; flex-direction: column; gap: 8px; align-self: stretch; }
+.ai-act-card {
+  border: 1px solid var(--gold);
+  background: var(--gold-bg);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--text);
+}
+.ai-act-card.is-done { border-color: var(--green); background: var(--green-bg); }
+.ai-act-card.is-bad { border-color: var(--red); background: var(--red-bg); }
+.ai-act-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text2); margin-bottom: 4px; }
+.ai-act-title { font-weight: 700; margin-bottom: 4px; }
+.ai-act-lines { margin: 0 0 6px; padding-left: 18px; line-height: 1.5; }
+.ai-act-note { font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+.ai-act-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.ai-act-buttons .btn-primary { min-height: 40px; padding: 0 14px; border-radius: 10px; font-size: 13px; }
+.ai-act-cancel {
+  min-height: 40px; padding: 0 14px; border-radius: 10px; font-size: 13px;
+  border: 1px solid var(--border2); background: var(--bg2); color: var(--text); cursor: pointer;
+}
+.ai-act-hint { font-size: 11px; color: var(--text2); margin: 2px 0 8px; }

@@ -1,5 +1,17 @@
 /** English UI strings — JBM Drinks */
 export default {
+  aiAct: {
+    hint: 'Ask it to do something, e.g. "order 6 Jameson for Atomic". Nothing is saved until you press Confirm.',
+    confirm: 'Confirm and save',
+    cancel: 'Cancel',
+    saving: 'Saving...',
+    done: 'Saved',
+    cancelled: 'Cancelled, nothing saved',
+    cannot: 'Cannot do this',
+    failed: 'Not saved',
+    needsConfirm: 'Check before saving',
+    offline: 'AI actions are not available right now: {error}',
+  },
   common: {
     loading: 'Loading...',
     wait: 'Please wait...',
