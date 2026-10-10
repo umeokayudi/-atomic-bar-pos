@@ -1136,3 +1136,21 @@ html .sdr-row-main { width: 100%; display: grid; grid-template-columns: 36px min
 .ggd-how { margin: 0; font-size: 12px; line-height: 1.45; color: var(--c-text-2); }
 .emp-goal-how { display: flex; gap: 5px; align-items: flex-start; margin: 6px 0 0; font-size: 12px; color: var(--c-text-2); }
 .emp-goal-how .ui-icon { margin-top: 2px; flex-shrink: 0; }
+
+/* Room pieces on the plan: walls, doors, stage, plants, sofas */
+.fe-add.is-room { padding-left: 8px; border-left: 1px solid var(--c-border); }
+.fe-table.is-decor { gap: 0; padding: 0; }
+.fe-table.is-wall { border: 0; border-radius: 2px; background: var(--fe-color, #8f8a82); }
+.fe-table.is-door { border: 2px dashed var(--fe-color, #b08a5a); border-radius: 2px; background: color-mix(in srgb, var(--fe-color, #b08a5a) 18%, transparent); }
+.fe-table.is-wall .fe-table-name, .fe-table.is-door .fe-table-name { display: none; }
+.fe-table.is-stage { border-style: solid; border-color: var(--fe-color, #4a3f5c); background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--fe-color, #4a3f5c) 22%, var(--c-surface)) 0 10px, color-mix(in srgb, var(--fe-color, #4a3f5c) 12%, var(--c-surface)) 10px 20px); }
+.fe-table.is-plant { border-radius: 50%; border-color: var(--fe-color, #3f8a4f); background: radial-gradient(circle, color-mix(in srgb, var(--fe-color, #3f8a4f) 55%, transparent) 30%, color-mix(in srgb, var(--fe-color, #3f8a4f) 20%, var(--c-surface)) 70%); }
+.fe-table.is-plant .fe-table-name { display: none; }
+.fe-table.is-sofa { border-radius: 18px 18px 8px 8px; border-top-width: 10px; }
+.floor-live .fe-table.is-decor { cursor: default; pointer-events: none; }
+.floor-planonly { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 12px; }
+.fe-swatch-custom { position: relative; display: grid; place-items: center; overflow: hidden; cursor: pointer; background: conic-gradient(#e55, #ec5, #5c7, #5ae, #a6e, #e55); color: #fff; }
+.fe-swatch-custom input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.f3-table.is-decor .f3-top { border-width: 0; background: color-mix(in srgb, var(--f3-color) 80%, #fff); }
+.f3-table.is-door .f3-top { background: repeating-linear-gradient(90deg, var(--f3-color) 0 6px, transparent 6px 10px); }
+.f3-label.is-static { cursor: default; }

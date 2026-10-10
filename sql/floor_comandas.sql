@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS public.floor_tables (
   layout_id uuid NOT NULL REFERENCES public.floor_layouts(id) ON DELETE CASCADE,
   sector_id uuid REFERENCES public.floor_sectors(id) ON DELETE SET NULL,
   nome text NOT NULL,
-  forma text NOT NULL DEFAULT 'square' CHECK (forma IN ('round', 'square', 'rect', 'bar')),
+  forma text NOT NULL DEFAULT 'square' CHECK (forma IN ('round', 'square', 'rect', 'bar', 'sofa', 'wall', 'door', 'stage', 'plant')),
   x numeric NOT NULL DEFAULT 40,
   y numeric NOT NULL DEFAULT 40,
   largura numeric NOT NULL DEFAULT 90 CHECK (largura > 0),

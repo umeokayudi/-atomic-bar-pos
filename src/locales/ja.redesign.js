@@ -240,6 +240,9 @@ export default {
     },
   },
   floor: {
+    addRoom: '部屋のパーツを追加', customColor: '好きな色',
+    planOnly: 'フロア図は保存でき、今すぐ使えます。テーブルで伝票を開くにはデータベース更新（sql/floor_comandas.sql）が必要です。それまではレジを使ってください。',
+    planOnlyTable: '{n}席。このテーブルで伝票を開くにはデータベース更新が必要です。今はレジを使ってください。',
     view3d: '3D表示', camera: 'カメラ', cam: { persp: '斜め', front: '正面', top: '真上' }, turnLeft: '左に回す', turnRight: '右に回す', preview3d: '3Dプレビュー',
     view3dHint: 'ドラッグで回転・傾き。テーブル・席・壁は図面の実寸で表示します。',
     sub: '開いている伝票 {tabs}件 · 現在のテーブル合計 {amount}', missing: 'フロアレイアウトと共有伝票には Supabase で sql/floor_comandas.sql の適用が必要です（まずステージングで）。既存の7テーブルは最初のレイアウトにコピーされます。それまでは何も保存されません。',
@@ -250,7 +253,7 @@ export default {
     pickTab: 'このテーブルには複数の伝票があります。どれを開きますか？', openTab: 'このテーブルで伝票を開く',
     reserve: '予約にする', unreserve: '予約を解除', cleaning: '清掃中にする', cleaned: '清掃完了',
     noLayout: 'フロアレイアウトはまだありません。', createFirst: '最初のレイアウトを作成', layout: 'レイアウト', active: '使用中',
-    addTable: 'テーブル追加', shape: { round: '丸', square: '四角', rect: '長方形', bar: 'カウンター' }, shapeLabel: '形',
+    addTable: 'テーブル追加', shape: { round: '丸', square: '四角', rect: '長方形', bar: 'カウンター', sofa: 'ソファ', wall: '壁', door: 'ドア', stage: 'ステージ', plant: '植物' }, shapeLabel: '形',
     undo: '元に戻す', redo: 'やり直す', zoomIn: '拡大', zoomOut: '縮小', fit: '画面に合わせる', grid: 'グリッドに合わせる',
     save: 'レイアウトを保存', savedShort: '保存済み', saved: 'レイアウトを保存しました。', reload: '再読み込み（変更を破棄）',
     errStale: '別の端末で先に保存されました。再読み込みして相手の変更を確認してから、もう一度変更してください。',

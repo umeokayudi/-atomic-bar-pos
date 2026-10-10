@@ -18,6 +18,8 @@ const tables = [
   ['1', 'square', 60, 60, 100, 100, 4], ['2', 'square', 220, 60, 100, 100, 4], ['3', 'round', 380, 60, 100, 100, 4],
   ['VIP 1', 'rect', 60, 240, 160, 100, 6], ['VIP 2', 'rect', 260, 240, 160, 100, 6], ['VIP 3', 'rect', 460, 240, 160, 100, 6],
   ['Counter', 'bar', 560, 60, 260, 70, 8],
+  ['Sofa', 'sofa', 660, 300, 200, 80, 4], ['Wall', 'wall', 0, 200, 40, 16, 0], ['Door', 'door', 400, 404, 90, 16, 0],
+  ['Plant', 'plant', 840, 20, 50, 50, 0], ['Stage', 'stage', 660, 170, 200, 100, 0],
 ].map(([nome, forma, x, y, largura, altura, capacidade], i) => ({
   id: `00000000-0000-4000-8000-0000000f00${i}`, bar_id: BAR.id, layout_id: 'L1', nome, forma, x, y, largura, altura, rotacao: 0, capacidade,
   cor: null, sector_id: i >= 3 && i < 6 ? 'S1' : null, estado_manual: i === 2 ? 'reserved' : null, ativo: true,

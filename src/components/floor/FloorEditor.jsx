@@ -3,13 +3,15 @@ import { supabase } from '../../lib/supabase'
 import { useI18n } from '../../lib/i18n'
 import { floorApi, isConflict } from '../../lib/comandas'
 import {
-  SHAPES, TABLE_COLORS, addSector, addTable, createHistory, duplicateTable, fitZoom, isDirty, pushHistory, redo,
+  MIN_SIZE, SHAPES, TABLE_COLORS, addSector, isDecor, addTable, createHistory, duplicateTable, fitZoom, isDirty, pushHistory, redo,
   removeSector, removeTable, toSavePayload, undo, updateTable, validateLayout,
 } from '../../lib/floorEditor'
 import Icon from '../ui/Icon'
 import Floor3D from './Floor3D'
 
-const SHAPE_ICON = { round: 'circle', square: 'square', rect: 'rect', bar: 'move' }
+const SHAPE_ICON = { round: 'circle', square: 'square', rect: 'rect', bar: 'move', sofa: 'sofa', wall: 'wall', door: 'door', stage: 'stage', plant: 'plant' }
+const TABLE_SHAPES = Object.keys(SHAPES).filter(f => !isDecor(f))
+const ROOM_SHAPES = Object.keys(SHAPES).filter(isDecor)
 
 /**
  * Visual floor editor. Drag to move, corner handle to resize, arrows to nudge (Alt = 1px),
@@ -101,7 +103,7 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
     if (Math.abs(dx) + Math.abs(dy) > 2) d.moved = true
     const patch = d.mode === 'move'
       ? { x: d.x + dx / zoom, y: d.y + dy / zoom }
-      : { largura: Math.max(40, d.w + dx / zoom), altura: Math.max(40, d.h + dy / zoom) }
+      : { largura: Math.max(MIN_SIZE, d.w + dx / zoom), altura: Math.max(MIN_SIZE, d.h + dy / zoom) }
     setHist(h => ({ ...h, present: updateTable(h.present, d.id, patch, { grid }) }))
   }
   function onUp() {
@@ -192,9 +194,8 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
     if (!nome) return
     setBusy(true)
     try {
-      const { data, error } = await supabase.from('floor_layouts').insert({ bar_id: state.layout.bar_id, nome, ativo: false }).select('id').single()
-      if (error) throw error
-      await onLayoutsChanged?.(data.id)
+      const id = await floorApi.create(supabase, { barId: state.layout.bar_id, nome })
+      await onLayoutsChanged?.(id)
     } catch (e) { setMsg({ tone: 'danger', text: t('floor.errSave', { error: e.message }) }) } finally { setBusy(false) }
   }
 
@@ -215,8 +216,15 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
           </select>
         </label>
         <div className="ui-row fe-add" role="group" aria-label={t('floor.addTable')}>
-          {Object.keys(SHAPES).map(f => (
+          {TABLE_SHAPES.map(f => (
             <button key={f} type="button" className="ui-btn is-sm" onClick={() => commit(s => addTable(s, f))} title={t(`floor.shape.${f}`)}>
+              <Icon name={SHAPE_ICON[f]} size={14} /> <span className="fe-add-label">{t(`floor.shape.${f}`)}</span>
+            </button>
+          ))}
+        </div>
+        <div className="ui-row fe-add is-room" role="group" aria-label={t('floor.addRoom')}>
+          {ROOM_SHAPES.map(f => (
+            <button key={f} type="button" className="ui-btn is-sm is-ghost" onClick={() => commit(s => addTable(s, f, { nome: t(`floor.shape.${f}`) }))} title={t(`floor.shape.${f}`)}>
               <Icon name={SHAPE_ICON[f]} size={14} /> <span className="fe-add-label">{t(`floor.shape.${f}`)}</span>
             </button>
           ))}
@@ -269,17 +277,17 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
                     tabIndex={0}
                     aria-pressed={state.selected === tb.id}
                     aria-label={t('floor.tableAria', { name: tb.nome, n: tb.capacidade })}
-                    className={`fe-table is-${tb.forma}${state.selected === tb.id ? ' is-selected' : ''}${tb.ativo === false ? ' is-off' : ''}`}
+                    className={`fe-table is-${tb.forma}${isDecor(tb.forma) ? ' is-decor' : ''}${state.selected === tb.id ? ' is-selected' : ''}${tb.ativo === false ? ' is-off' : ''}`}
                     style={{
                       left: tb.x, top: tb.y, width: tb.largura, height: tb.altura,
                       transform: tb.rotacao ? `rotate(${tb.rotacao}deg)` : undefined,
-                      '--fe-color': tb.cor || sector?.cor || 'var(--c-accent)',
+                      '--fe-color': tb.cor || (isDecor(tb.forma) ? undefined : sector?.cor || 'var(--c-accent)'),
                     }}
                     onPointerDown={e => startDrag(e, tb, 'move')}
                     onFocus={() => state.selected !== tb.id && select(tb.id)}
                   >
                     <span className="fe-table-name">{tb.nome}</span>
-                    <span className="fe-table-cap"><Icon name="people" size={11} /> {tb.capacidade}</span>
+                    {!isDecor(tb.forma) && <span className="fe-table-cap"><Icon name="people" size={11} /> {tb.capacidade}</span>}
                     {busyHere && <span className="fe-table-busy" title={t('floor.hasOpenTab')}><Icon name="lock" size={11} /></span>}
                     {state.selected === tb.id && (
                       <span className="fe-resize" onPointerDown={e => startDrag(e, tb, 'resize')} aria-hidden="true" />
@@ -327,6 +335,11 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
                       className={`fe-swatch${c ? '' : ' is-none'}`} style={c ? { background: c } : undefined}
                       onClick={() => commit(s => updateTable(s, sel.id, { cor: c }))} />
                   ))}
+                  <label className="fe-swatch fe-swatch-custom" title={t('floor.customColor')}>
+                    <Icon name="palette" size={14} />
+                    <input type="color" value={/^#[0-9a-f]{6}$/i.test(sel.cor || '') ? sel.cor : '#3f7f67'} aria-label={t('floor.customColor')}
+                      onChange={e => commit(s => updateTable(s, sel.id, { cor: e.target.value }))} />
+                  </label>
                 </div>
               </div>
               <label className="ui-field"><span>{t('floor.sector')}</span>

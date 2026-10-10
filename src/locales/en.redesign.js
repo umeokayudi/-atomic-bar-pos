@@ -247,6 +247,9 @@ export default {
     },
   },
   floor: {
+    addRoom: 'Add part of the room', customColor: 'Any colour',
+    planOnly: 'The floor plan is saved and works now. Opening tabs on a table needs the database update (sql/floor_comandas.sql); until then use the till.',
+    planOnlyTable: '{n} seats. Opening a tab on this table needs the database update; use the till for now.',
     view3d: '3D view', camera: 'Camera', cam: { persp: 'Angle', front: 'Front', top: 'Top' }, turnLeft: 'Turn left', turnRight: 'Turn right', preview3d: '3D preview',
     view3dHint: 'Drag to turn and tilt. Tables, seats and walls are drawn to the real size of the plan.',
     sub: '{tabs} open tabs · {amount} on the tables now', missing: 'Floor plans and shared tabs need sql/floor_comandas.sql applied in Supabase (staging first). The 7 existing tables will be copied into the first layout; nothing is stored until then.',
@@ -257,7 +260,7 @@ export default {
     pickTab: 'This table has more than one tab. Which one?', openTab: 'Open tab on this table',
     reserve: 'Mark reserved', unreserve: 'Clear reservation', cleaning: 'Mark cleaning', cleaned: 'Cleaning done',
     noLayout: 'No floor layout yet.', createFirst: 'Create the first layout', layout: 'Layout', active: 'in use',
-    addTable: 'Add a table', shape: { round: 'Round', square: 'Square', rect: 'Rectangle', bar: 'Counter' }, shapeLabel: 'Shape',
+    addTable: 'Add a table', shape: { round: 'Round', square: 'Square', rect: 'Rectangle', bar: 'Counter', sofa: 'Sofa', wall: 'Wall', door: 'Door', stage: 'Stage', plant: 'Plant' }, shapeLabel: 'Shape',
     undo: 'Undo', redo: 'Redo', zoomIn: 'Zoom in', zoomOut: 'Zoom out', fit: 'Fit to screen', grid: 'Snap to grid',
     save: 'Save layout', savedShort: 'Saved', saved: 'Layout saved.', reload: 'Reload (drops my changes)',
     errStale: 'Someone saved this layout on another device first. Reload to see their version, then redo your change.',

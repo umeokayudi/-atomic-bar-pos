@@ -5,7 +5,7 @@ import {
 } from '../src/lib/growth.js'
 import { buildCatalog, searchCatalog, toggleFavorite } from '../src/lib/posCatalog.js'
 import { buildSaleArgs, commitSaleAtomic } from '../src/lib/posCommit.js'
-import { pendingToLines, splitEvenly, tableState, tabMoney, validateMoves } from '../src/lib/comandas.js'
+import { planSaveRows, pendingToLines, splitEvenly, tableState, tabMoney, validateMoves } from '../src/lib/comandas.js'
 import { resolveItemPrice } from '../src/lib/atomicPos.js'
 import * as fe from '../src/lib/floorEditor.js'
 import { moveItem, resolveLayout, serializeLayout } from '../src/lib/dashboardLayoutCore.js'
@@ -413,6 +413,22 @@ test('3D floor seats: count follows capacity, counters seat one side', () => {
   const bar = seatSpots('bar', 200, 60, 4)
   assert.ok(bar.every(s => s.y > 60), 'counter seats sit in front of the counter')
   assert.equal(seatSpots('square', 80, 80, 99).length, 16, 'capped')
+})
+
+test('floor plan save without the migration: keeps ids, maps new sectors, drops removed rows', () => {
+  let n = 0
+  const rows = planSaveRows({
+    layoutId: 'L', sectors: [{ id: 's1', nome: 'VIP', ordem: 0 }, { key: 'tmp-a', nome: 'Terrace', ordem: 1 }],
+    tables: [{ id: 't1', nome: '1', forma: 'round', capacidade: 4, sector_id: 's1' }, { nome: 'Wall', forma: 'wall', sector_key: 'tmp-a' }],
+  }, { barId: 'B', oldSectorIds: ['s1', 's9'], oldTableIds: ['t1', 't8'], makeId: () => `new${++n}` })
+  assert.deepEqual(rows.sectors.map(x => [x.id, x.bar_id, x.layout_id]), [['s1', 'B', 'L'], ['new1', 'B', 'L']])
+  assert.deepEqual(rows.tables.map(x => [x.id, x.sector_id, x.capacidade]), [['t1', 's1', 4], ['new2', 'new1', 0]])
+  assert.ok(!('sector_key' in rows.tables[1]))
+  assert.deepEqual([rows.dropSectors, rows.dropTables], [['s9'], ['t8']])
+  const st = fe.addTable(fe.addTable({ layout: { largura: 900, altura: 500 }, tables: [{ id: 'a', nome: '1', forma: 'square', x: 0, y: 0, largura: 90, altura: 90 }], sectors: [] }, 'wall', { nome: 'Wall' }), 'square')
+  assert.equal(st.tables.at(-1).nome, '2', 'walls do not break table numbering')
+  assert.equal(st.tables[1].altura, 16, 'thin walls are allowed')
+  assert.deepEqual(fe.validateLayout(fe.addTable(st, 'wall', { nome: 'Wall' })), [], 'two walls may share a name')
 })
 
 for (const [name, fn] of queue) { await fn(); n++; console.log(`ok ${n} - ${name}`) }

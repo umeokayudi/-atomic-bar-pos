@@ -30,6 +30,9 @@ export const LIVE_TABLES = [
   'bar_goals',
   'bar_events',
   'bar_day_sheet',
+  'floor_layouts',
+  'floor_sectors',
+  'floor_tables',
 ]
 
 const locks = new Map()

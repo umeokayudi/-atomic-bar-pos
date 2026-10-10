@@ -3,9 +3,11 @@ import { useI18n } from '../../lib/i18n'
 import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
 import { SEAT, seatSpots } from '../../lib/floor3d'
+import { isDecor } from '../../lib/floorEditor'
 
 // Heights in plan units (the plan is roughly 1 unit = 1 cm).
-const TABLE_H = { round: 34, square: 34, rect: 34, bar: 52 }
+const TABLE_H = { round: 34, square: 34, rect: 34, bar: 52, sofa: 26, wall: 120, door: 3, stage: 22, plant: 70 }
+const DECOR_COLOR = { wall: '#9a958c', door: '#b08a5a', stage: '#4a3f5c', plant: '#3f8a4f' }
 const SEAT_H = 22
 const WALL_H = 46
 const VIEWS = {
@@ -110,19 +112,22 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
             const w = +tb.largura
             const d = +tb.altura
             const h = TABLE_H[tb.forma] || 34
-            const color = tb.cor || sectorColor(tb.sector_id) || 'var(--c-accent)'
-            const seats = seatSpots(tb.forma, w, d, tb.capacidade)
+            const decor = isDecor(tb.forma)
+            const color = tb.cor || DECOR_COLOR[tb.forma] || sectorColor(tb.sector_id) || 'var(--c-accent)'
+            const seats = decor || tb.forma === 'sofa' ? [] : seatSpots(tb.forma, w, d, tb.capacidade)
+            const round = tb.forma === 'round' || tb.forma === 'plant'
             const label = live ? `${tb.nome}: ${t(`tabs.state.${tb.state}`)}${tb.open?.length ? `, ${fmtYen(tb.money.total)}` : ''}` : t('floor.tableAria', { name: tb.nome, n: tb.capacidade })
             return (
               <div
                 key={tb.id}
-                className={`f3-table is-${tb.forma}${live ? ` st-${tb.state}` : ''}${tb.ativo === false ? ' is-off' : ''}`}
-                style={{ left: +tb.x, top: +tb.y, width: w, height: d, transform: tb.rotacao ? `rotateZ(${tb.rotacao}deg)` : undefined, ...(live ? null : { '--f3-color': color }) }}
+                className={`f3-table is-${tb.forma}${decor ? ' is-decor' : ''}${live && !decor ? ` st-${tb.state}` : ''}${tb.ativo === false ? ' is-off' : ''}`}
+                style={{ left: +tb.x, top: +tb.y, width: w, height: d, transform: tb.rotacao ? `rotateZ(${tb.rotacao}deg)` : undefined, ...(live && !decor ? null : { '--f3-color': color }) }}
               >
                 {seats.map((s, i) => (
                   <Box key={i} className="f3-seat" w={SEAT} d={SEAT} h={SEAT_H} round={tb.forma === 'round'} style={{ left: s.x, top: s.y }} />
                 ))}
-                <Box w={w} d={d} h={h} round={tb.forma === 'round'} className="f3-surface">
+                <Box w={w} d={d} h={h} round={round} className="f3-surface">
+                  {decor ? (tb.forma === 'stage' && <span className="f3-label is-static" style={{ transform: `rotateZ(${-(cam.spin + (+tb.rotacao || 0))}deg)` }}><strong>{tb.nome}</strong></span>) : (
                   <button
                     type="button"
                     className="f3-label"
@@ -134,6 +139,7 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
                     <strong>{tb.nome}</strong>
                     {live ? <small>{t(`tabs.state.${tb.state}`)}{tb.open?.length ? ` · ${fmtYen(tb.money.total)}` : ''}</small> : <small>{t('tabs.people', { n: tb.capacidade })}</small>}
                   </button>
+                  )}
                 </Box>
               </div>
             )

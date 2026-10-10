@@ -8,9 +8,17 @@ export const SHAPES = {
   square: { largura: 90, altura: 90, capacidade: 4 },
   rect: { largura: 160, altura: 90, capacidade: 6 },
   bar: { largura: 260, altura: 70, capacidade: 8 },
+  sofa: { largura: 200, altura: 80, capacidade: 4 },
+  wall: { largura: 300, altura: 16, capacidade: 0 },
+  door: { largura: 90, altura: 16, capacidade: 0 },
+  stage: { largura: 300, altura: 150, capacidade: 0 },
+  plant: { largura: 50, altura: 50, capacidade: 0 },
 }
+/** Pieces of the room that are not tables: no tab, no seats, not counted in the service view. */
+export const DECOR = new Set(['wall', 'door', 'stage', 'plant'])
+export const isDecor = forma => DECOR.has(forma)
 export const GRID = 10
-export const MIN_SIZE = 40
+export const MIN_SIZE = 10
 export const TABLE_COLORS = ['', '#3F7F67', '#83B7A0', '#C9A15B', '#B5655B', '#5B7FB5', '#8A6BB5', '#6B7A75']
 
 export const isTemp = id => String(id || '').startsWith('tmp-')
@@ -60,8 +68,9 @@ export function overlaps(a, b, pad = 0) {
 export function addTable(state, forma = 'square', extra = {}) {
   const dims = SHAPES[forma] || SHAPES.square
   const spot = freeSpot(state.tables, state.layout, dims.largura, dims.altura)
+  const seats = state.tables.filter(t => !isDecor(t.forma))
   const table = clampTable({
-    id: tempId(), nome: nextTableName(state.tables), forma, ...dims, ...spot, rotacao: 0, cor: '', sector_id: null, ativo: true, ...extra,
+    id: tempId(), nome: nextTableName(seats), forma, ...dims, ...spot, rotacao: 0, cor: '', sector_id: null, ativo: true, ...extra,
   }, state.layout)
   return { ...state, tables: [...state.tables, table], selected: table.id }
 }
@@ -140,7 +149,7 @@ export function toSavePayload(state) {
 /** Problems to fix before saving (names must be unique and present). Returns error keys. */
 export function validateLayout(state) {
   const errors = []
-  const names = state.tables.filter(t => t.ativo !== false).map(t => String(t.nome || '').trim().toLowerCase())
+  const names = state.tables.filter(t => t.ativo !== false && !isDecor(t.forma)).map(t => String(t.nome || '').trim().toLowerCase())
   if (names.some(n => !n)) errors.push('floor.errNoName')
   if (new Set(names).size !== names.length) errors.push('floor.errDupName')
   return errors

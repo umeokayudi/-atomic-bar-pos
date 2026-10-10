@@ -49,6 +49,8 @@ const PAGES = [
   { who: MANAGER, path: '/bar/mesas', name: 'bar-floor' },
   { who: MANAGER, path: '/bar/mesas', name: 'bar-floor-edit', edit: true },
   { who: MANAGER, path: '/bar/mesas', name: 'bar-floor-3d', radio: /^3D$/ },
+  { who: MANAGER, path: '/bar/mesas', name: 'bar-floor-planonly', missing: ['pos_comandas'] },
+  { who: MANAGER, path: '/bar/mesas', name: 'bar-floor-planonly-edit', missing: ['pos_comandas'], edit: true },
   { who: MANAGER, path: '/bar/mesas', name: 'bar-floor-edit-3d', edit: true, click: /3D preview/ },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos' },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-counter', click: /Counter/ },
@@ -136,7 +138,7 @@ function fakeJwt(user) {
   return `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: user.id, role: 'authenticated', email: user.email, exp: Math.floor(Date.now() / 1000) + 86400 })}.sig`
 }
 
-async function mock(page, who) {
+async function mock(page, who, missing = []) {
   const user = { id: who.id, email: who.email, aud: 'authenticated', role: 'authenticated', user_metadata: { nome: who.nome }, app_metadata: {} }
   await page.route(/supabase\.co\/auth\/v1\//, route => {
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(route.request().url().includes('/user') ? user : { access_token: fakeJwt(who), token_type: 'bearer', expires_in: 86400, refresh_token: 'r', user }) })
@@ -150,6 +152,9 @@ async function mock(page, who) {
     const req = route.request()
     const url = new URL(req.url())
     const table = url.pathname.split('/rest/v1/')[1]
+    if (missing.includes(table)) {
+      return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 'PGRST205', message: `Could not find the table 'public.${table}' in the schema cache` }) })
+    }
     const rows = table in TABLES ? filterRows(TABLES[table], url.searchParams) : []
     const single = /vnd\.pgrst\.object/.test(req.headers().accept || '')
     if (req.method() !== 'GET' && req.method() !== 'HEAD') {
@@ -205,7 +210,7 @@ async function main() {
           const errors = []
           page.on('pageerror', e => errors.push(String(e.message || e)))
           page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|ERR_|WebSocket|realtime|503/i.test(m.text())) errors.push(m.text()) })
-          await mock(page, pg.who)
+          await mock(page, pg.who, pg.missing)
           const session = { access_token: fakeJwt(pg.who), token_type: 'bearer', expires_in: 86400, expires_at: Math.floor(Date.now() / 1000) + 86400, refresh_token: 'r', user: { id: pg.who.id, email: pg.who.email, aud: 'authenticated', role: 'authenticated', user_metadata: {}, app_metadata: {} } }
           await page.addInitScript(rail => { if (rail) localStorage.setItem('jbm_sidebar_collapsed', '1') }, !!pg.rail)
           await page.addInitScript(([s, th]) => {

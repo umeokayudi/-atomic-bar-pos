@@ -20,6 +20,8 @@ function sendResult(res, result) {
 const SECRET_TABLES = new Set(['bar_logins', 'bar_sessions'])
 const PG_MENU_TABLES = new Set(['drink_menu', 'bar_pricing', 'bars'])
 const GERENTE_WRITE = new Set(['bar_overhead', 'bar_hq_meta'])
+// The floor plan is drawn by the owner/manager; everyone at the bar can read it.
+const FLOOR_WRITE = new Set(['floor_layouts', 'floor_sectors', 'floor_tables'])
 
 function bodyOf(req) {
   return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
@@ -121,6 +123,12 @@ export default async function handler(req, res) {
       const role = auth.perfil?.role
       if (role !== 'cliente' && role !== 'gerente') {
         return res.status(403).json({ error: 'Only the manager can write HQ books' })
+      }
+    }
+    if (FLOOR_WRITE.has(table) && (body.mode || 'select') !== 'select') {
+      const role = auth.perfil?.role
+      if (!['cliente', 'gerente', 'admin', 'jbm'].includes(role)) {
+        return res.status(403).json({ error: 'Only the manager can change the floor plan' })
       }
     }
 

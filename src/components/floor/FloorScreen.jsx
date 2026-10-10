@@ -4,8 +4,8 @@ import { useI18n } from '../../lib/i18n'
 import { useAuth } from '../Auth'
 import { useAiPageContext } from '../../lib/aiPanel'
 import { DEFAULT_POS_SETTINGS, settingsFromRow } from '../../lib/nightTicket'
-import { TABLE_STATES, floorApi, floorAvailable, loadOpenTabs, loadTabHistory, newKey, tableState, tabMoney, tabsApi } from '../../lib/comandas'
-import { fitZoom } from '../../lib/floorEditor'
+import { TABLE_STATES, floorApi, floorAvailable, floorPlanAvailable, loadOpenTabs, loadTabHistory, newKey, tableState, tabMoney, tabsApi } from '../../lib/comandas'
+import { fitZoom, isDecor } from '../../lib/floorEditor'
 import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
 import Floor3D from './Floor3D'
@@ -31,6 +31,7 @@ export default function FloorScreen({ bar, onOpenTill }) {
   const { perfil } = useAuth()
   const canEdit = ['admin', 'jbm', 'cliente', 'gerente'].includes(perfil?.role)
   const [avail, setAvail] = useState(null)
+  const [planOnly, setPlanOnly] = useState(false)
   const [mode, setMode] = useState('service')
   const [view, setView] = useState('plan')
   const [layouts, setLayouts] = useState([])
@@ -54,18 +55,27 @@ export default function FloorScreen({ bar, onOpenTill }) {
   }, [bar.id])
 
   const refresh = useCallback(async () => {
+    if (planOnly) { setNow(Date.now()); return }
     try {
       setTabs(await loadOpenTabs(supabase, bar.id))
       setNow(Date.now())
     } catch (e) { setErr(t('tabs.errGeneric', { error: e.message })) }
-  }, [bar.id, t])
+  }, [bar.id, t, planOnly])
 
   useEffect(() => {
     let alive = true
     floorAvailable(supabase, bar.id).then(async ok => {
       if (!alive) return
+      if (!ok) {
+        // No shared tabs yet: the plan itself still works from the bar live-store.
+        const plan = await floorPlanAvailable(supabase, bar.id).catch(() => false)
+        if (!alive) return
+        setPlanOnly(plan)
+        setAvail(plan)
+        if (plan) await loadLayouts().catch(e => setErr(e.message))
+        return
+      }
       setAvail(ok)
-      if (!ok) return
       await loadLayouts()
       await refresh()
       supabase.from('pos_settings').select('*').eq('bar_id', bar.id).maybeSingle()
@@ -88,7 +98,7 @@ export default function FloorScreen({ bar, onOpenTill }) {
 
   // Live refresh: Supabase Realtime when the table is published, polling always as a fallback.
   useEffect(() => {
-    if (!avail) return undefined
+    if (!avail || planOnly) return undefined
     const tick = () => { if (document.visibilityState === 'visible') refresh() }
     const id = setInterval(tick, POLL_MS)
     let channel = null
@@ -104,9 +114,10 @@ export default function FloorScreen({ bar, onOpenTill }) {
       document.removeEventListener('visibilitychange', tick)
       if (channel) supabase.removeChannel(channel)
     }
-  }, [avail, bar.id, refresh])
+  }, [avail, planOnly, bar.id, refresh])
 
-  const live = useMemo(() => tables.filter(x => x.ativo !== false).map(tb => {
+  const decor = useMemo(() => tables.filter(x => x.ativo !== false && isDecor(x.forma)), [tables])
+  const live = useMemo(() => tables.filter(x => x.ativo !== false && !isDecor(x.forma)).map(tb => {
     const open = tabs.filter(c => c.table_id === tb.id)
     const state = tableState(tb, tabs, now)
     const money = open.reduce((a, c) => {
@@ -157,6 +168,8 @@ export default function FloorScreen({ bar, onOpenTill }) {
   }
 
   function onTable(tb) {
+    if (isDecor(tb.forma)) return
+    if (planOnly) { setOpening({ ...tb, planOnly: true }); return }
     if (tb.open.length === 1) { setPanel(tb.open[0].id); return }
     if (tb.open.length > 1) { setOpening({ ...tb, pick: true }); return }
     setOpening({ ...tb, nome: '', pessoas: Math.min(tb.capacidade || 2, 2) })
@@ -193,6 +206,7 @@ export default function FloorScreen({ bar, onOpenTill }) {
           </div>
         )}
       </div>
+      {planOnly && <div className="ui-card desk-note floor-planonly"><Icon name="info" size={15} /> {t('floor.planOnly')}</div>}
       {err && <div className="ui-error fe-msg" role="alert"><Icon name="warning" />{err}<button type="button" className="ui-btn is-sm" onClick={() => setErr('')}>{t('common.close')}</button></div>}
 
       {layouts.length === 0 && (
@@ -201,9 +215,11 @@ export default function FloorScreen({ bar, onOpenTill }) {
           <div className="ui-empty-title">{t('floor.noLayout')}</div>
           {canEdit && (
             <button type="button" className="ui-btn is-primary" onClick={async () => {
-              const { data, error } = await supabase.from('floor_layouts').insert({ bar_id: bar.id, nome: t('floor.newLayoutDefault'), ativo: true }).select('id').single()
-              if (error) setErr(error.message)
-              else { await loadLayouts(data.id); setMode('edit') }
+              try {
+                const id = await floorApi.create(supabase, { barId: bar.id, nome: t('floor.newLayoutDefault'), ativo: true })
+                await loadLayouts(id)
+                setMode('edit')
+              } catch (e) { setErr(e.message) }
             }}><Icon name="plus" size={16} /> {t('floor.createFirst')}</button>
           )}
         </div>
@@ -243,6 +259,12 @@ export default function FloorScreen({ bar, onOpenTill }) {
             <div className="floor-viewport" ref={viewRef}>
               <div className="fe-canvas" style={{ width: +layout.largura * zoom, height: +layout.altura * zoom }}>
                 <div className="fe-plane floor-live" style={{ width: +layout.largura, height: +layout.altura, transform: `scale(${zoom})` }}>
+                  {decor.map(tb => (
+                    <div key={tb.id} className={`fe-table is-${tb.forma} is-decor`} aria-hidden="true"
+                      style={{ left: +tb.x, top: +tb.y, width: +tb.largura, height: +tb.altura, transform: tb.rotacao ? `rotate(${tb.rotacao}deg)` : undefined, '--fe-color': tb.cor || undefined }}>
+                      <span className="fe-table-name">{tb.nome}</span>
+                    </div>
+                  ))}
                   {live.map(tb => (
                     <button
                       key={tb.id}
@@ -261,7 +283,7 @@ export default function FloorScreen({ bar, onOpenTill }) {
               </div>
             </div>
           ) : view === '3d' ? (
-            <Floor3D layout={layout} tables={live} onTable={onTable} live />
+            <Floor3D layout={layout} tables={[...decor, ...live]} onTable={onTable} live />
           ) : (
             <ul className="floor-list">
               {live.map(tb => (
@@ -326,7 +348,9 @@ export default function FloorScreen({ bar, onOpenTill }) {
               <button type="button" className="ui-btn is-ghost is-icon" onClick={() => setOpening(null)} aria-label={t('common.close')}><Icon name="close" /></button>
             </div>
             <div className="ui-drawer-body growth-form">
-              {opening.pick ? (
+              {opening.planOnly ? (
+                <p className="ui-muted">{t('floor.planOnlyTable', { n: opening.capacidade || 0 })}</p>
+              ) : opening.pick ? (
                 <>
                   <p className="ui-muted">{t('floor.pickTab')}</p>
                   {opening.open.map(c => (
@@ -344,7 +368,7 @@ export default function FloorScreen({ bar, onOpenTill }) {
                   <button type="submit" className="ui-btn is-primary is-lg"><Icon name="plus" size={16} /> {t('floor.openTab')}</button>
                 </form>
               )}
-              {!opening.pick && (
+              {!opening.pick && !opening.planOnly && (
                 <div className="ui-row floor-manual">
                   <button type="button" className="ui-btn" aria-pressed={opening.estado_manual === 'reserved'} onClick={() => setManual(opening, opening.estado_manual === 'reserved' ? null : 'reserved')}>
                     <Icon name="stReserved" size={14} /> {opening.estado_manual === 'reserved' ? t('floor.unreserve') : t('floor.reserve')}
