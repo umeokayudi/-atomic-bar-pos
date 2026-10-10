@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmtYen, fmtDate, Spinner, Empty, filterSupplierVendas } from './utils'
 import { PageHeader, PortalKpi, PortalSurface, PortalPills, PortalAlert } from './ui/PageLayout'
-import { pagamentoStatus, pagamentosPendentes, totalPagamentosPendentes, pagamentoEmAnalise } from '../lib/faturaPagamentos'
+import { pagamentoStatus, pagamentosPendentes, totalPagamentosPendentes } from '../lib/faturaPagamentos'
+import { confirmFaturaPayment } from '../lib/faturaLedger'
 import { useI18n } from '../lib/i18n'
 import MarkPaidPopup from './MarkPaidPopup'
 
@@ -112,11 +113,7 @@ function Overview() {
               <div style={{ display:'flex', gap:8, alignItems:'center' }}>
                 {p.comprovante_url && <a href={p.comprovante_url} target="_blank" rel="noreferrer" style={{ fontSize:12, color:'var(--navy)', fontWeight:600, padding:'5px 10px', borderRadius:8, border:'1px solid var(--border)', background:'white', textDecoration:'none' }}>{t('invoices.receiptLink')}</a>}
                 <button onClick={async()=>{
-                  const f = p.faturas
-                  const totalFatura = +f.total || +f.valor || 0
-                  const newPago = (+f.pago||0)+(+p.valor||0)
-                  await supabase.from('fatura_pagamentos').update({ confirmado:true, confirmado_em:new Date().toISOString() }).eq('id',p.id)
-                  await supabase.from('faturas').update({ pago:newPago, status:newPago>=totalFatura?'pago':'parcial' }).eq('id',f.id)
+                  try { await confirmFaturaPayment(supabase, p) } catch (e) { alert(e.message) }
                   load()
                 }} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'none', background:'#16a34a', color:'white', cursor:'pointer', fontWeight:700 }}>{t('invoices.confirmCredit')}</button>
               </div>
@@ -203,8 +200,6 @@ function InvoiceList() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [customDue, setCustomDue] = useState('')
-  const [payModal, setPayModal] = useState(null)
-  const [payForm, setPayForm] = useState({ valor:'', metodo:'Cash', notas:'', emAnalise:false })
   const [saving, setSaving] = useState(false)
   const [selBar, setSelBar] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
@@ -231,25 +226,6 @@ function InvoiceList() {
     const total = vendas.filter(v=>v.bar_id===selBar&&v.data>=period.start&&v.data<=period.end).reduce((a,v)=>a+(+v.total||0),0)
     await supabase.from('faturas').insert({ bar_id:selBar, valor:total, data_emissao:period.start, periodo_inicio:period.start, periodo_fim:period.end, data_vencimento:venc, total, pago:0, status:'pendente' })
     setSaving(false); setShowForm(false); load()
-  }
-  async function registerPayment() {
-    if (!payForm.valor||!payModal) return; setSaving(true)
-    const valor = +payForm.valor
-    const emAnalise = payForm.emAnalise || pagamentoEmAnalise({ metodo: payForm.metodo })
-    await supabase.from('fatura_pagamentos').insert({
-      fatura_id: payModal.id,
-      valor,
-      metodo: payForm.metodo,
-      notas: payForm.notas,
-      data: new Date().toISOString().slice(0, 10),
-      confirmado: !emAnalise,
-      confirmado_em: emAnalise ? null : new Date().toISOString(),
-    })
-    if (!emAnalise) {
-      const newPago = (payModal.pago||0)+valor
-      await supabase.from('faturas').update({ pago:newPago, status:newPago>=payModal.valor?'pago':'parcial' }).eq('id',payModal.id)
-    }
-    setSaving(false); setPayModal(null); setPayForm({ valor:'', metodo:'Cash', notas:'', emAnalise:false }); load()
   }
   async function generateRyoshusho(fatura) {
     setSaving(true)
@@ -304,11 +280,11 @@ function InvoiceList() {
       {filtered.length===0 ? <Empty text={t('invoices.noInvoices')} icon="🧾" /> : (
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
           {filtered.map(f => {
-            const remaining = (f.total||0)-(f.pago||0)
+            const remaining = Math.max(0,(+f.total||+f.valor||0)-(+f.pago||0))
             const pendingPay = pagamentosPendentes(allPagamentos, f.id)
             const pendingTotal = totalPagamentosPendentes(allPagamentos, f.id)
-            const pct = f.valor>0?Math.round((f.pago||0)/f.total*100):0
-            const isOverdue = f.status==='pendente'&&new Date(f.data_vencimento)<new Date()
+            const pct = (+f.total||+f.valor)>0?Math.min(100,Math.round((+f.pago||0)/(+f.total||+f.valor)*100)):0
+            const isOverdue = f.status!=='pago'&&remaining>0&&new Date(f.data_vencimento)<new Date()
             const periodStart = f.periodo_inicio || f.data_emissao
             const periodEnd = f.periodo_fim || f.data_vencimento
             const periodVendas = vendas.filter(v=>v.bar_id===f.bar_id&&v.data>=periodStart&&v.data<=periodEnd)
@@ -318,7 +294,7 @@ function InvoiceList() {
                   <div style={{ display:'flex', justifyContent:'space-between', marginBottom:10 }}>
                     <div>
                       <div style={{ fontSize:14, fontWeight:700 }}>{f.bars?.nome}</div>
-                      <div style={{ fontSize:12, color:'var(--text2)' }}>{fmtDate(f.data_emissao)} → {fmtDate(f.data_vencimento)} · Vence {fmtDate(f.data_vencimento)}</div>
+                      <div style={{ fontSize:12, color:'var(--text2)' }}>{fmtDate(f.data_emissao)} → {fmtDate(f.data_vencimento)} · {t('cashflow.dueOnDate', { date: fmtDate(f.data_vencimento) })}</div>
                     </div>
                     <div style={{ textAlign:'right' }}>
                       <span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:f.status==='pago'?'#f0fdf4':isOverdue?'#fef2f2':'#EAF0FA', color:f.status==='pago'?'var(--green)':isOverdue?'var(--red)':'var(--navy)' }}>
@@ -343,8 +319,7 @@ function InvoiceList() {
                     </div>
                   )}
                   <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                    {f.status!=='pago'&&<button onClick={()=>setPayItem({ type: 'fatura', id: f.id, label: f.bars?.nome, amount: remaining, dueDate: f.data_vencimento, paid: false })} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'none', background:'#16a34a', color:'white', cursor:'pointer', fontWeight:600 }}>{t('payMark.paid')}</button>}
-                    {f.status!=='pago'&&<button onClick={()=>setPayModal(f)} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'none', background:'var(--navy)', color:'white', cursor:'pointer', fontWeight:600 }}>{t('invoices.registerPayment')}</button>}
+                    <button onClick={()=>setPayItem({ type: 'fatura', id: f.id })} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'none', background:f.status==='pago'?'transparent':'var(--navy)', color:f.status==='pago'?'var(--navy)':'white', outline:f.status==='pago'?'1px solid var(--border)':'none', cursor:'pointer', fontWeight:600 }}>{f.status==='pago' ? t('ledger.open') : t('ledger.record')}</button>
                     {f.status==='pago'&&!f.ryoshusho_id&&<button onClick={()=>generateRyoshusho(f)} disabled={saving} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'none', background:'var(--gold)', color:'white', cursor:'pointer', fontWeight:600 }}>{t('invoices.generateRyoshusho')}</button>}
                     {f.ryoshusho_id&&<span style={{ fontSize:12, color:'var(--green)', fontWeight:600, padding:'6px 0' }}>{t('invoices.ryoshushoIssued')}</span>}
                     {periodVendas.length>0&&<button onClick={()=>setExpanded(expanded===f.id?null:f.id)} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'1px solid var(--border)', background:'transparent', cursor:'pointer' }}>
@@ -378,29 +353,6 @@ function InvoiceList() {
         </div>
       )}
 
-      {payModal&&(
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
-          <div style={{ background:'var(--bg2)', borderRadius:20, padding:'28px', width:'100%', maxWidth:400, boxShadow:'0 24px 60px rgba(0,0,0,0.3)' }}>
-            <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>{payModal.bars?.nome}</div>
-            <div style={{ fontSize:12, color:'var(--text2)', marginBottom:20 }}>
-              {t('invoices.paymentModalTotal', { total: fmtYen(payModal.total || payModal.valor), remaining: fmtYen((+payModal.total || +payModal.valor || 0) - (+payModal.pago || 0)) })}
-            </div>
-            <div style={{ marginBottom:12 }}><label className="form-label">{t('invoices.paymentAmount')}</label><input type="number" value={payForm.valor} onChange={e=>setPayForm({...payForm,valor:e.target.value})} autoFocus /></div>
-            <div style={{ marginBottom:12 }}><label className="form-label">{t('invoices.paymentMethod')}</label><select value={payForm.metodo} onChange={e=>setPayForm({...payForm,metodo:e.target.value, emAnalise:pagamentoEmAnalise({ metodo:e.target.value })?true:payForm.emAnalise})}>{['Cash','Transfer','Stripe','Card'].map(m=><option key={m}>{m}</option>)}</select></div>
-            <div style={{ marginBottom:12 }}>
-              <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
-                <input type="checkbox" checked={payForm.emAnalise} onChange={e=>setPayForm({...payForm, emAnalise:e.target.checked})} />
-                {t('invoices.paymentUnderReview')}
-              </label>
-            </div>
-            <div style={{ marginBottom:20 }}><label className="form-label">{t('common.notes')}</label><input value={payForm.notas} onChange={e=>setPayForm({...payForm,notas:e.target.value})} placeholder={t('invoices.paymentNotesPlaceholder')} /></div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:8 }}>
-              <button onClick={()=>setPayModal(null)} style={{ padding:'11px', borderRadius:12, border:'1px solid var(--border)', background:'transparent', cursor:'pointer' }}>{t('common.cancel')}</button>
-              <button className="btn-primary" onClick={registerPayment} disabled={saving||!payForm.valor} style={{ padding:'11px', borderRadius:12 }}>{saving ? t('common.saving') : t('invoices.registerPayment')}</button>
-            </div>
-          </div>
-        </div>
-      )}
       {payItem && <MarkPaidPopup item={payItem} onClose={() => setPayItem(null)} onSaved={load} />}
     </div>
   )

@@ -3,6 +3,7 @@ import { fmtYen, fmtDate } from './utils'
 import { savePaidMark } from '../lib/markPaid'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
+import InvoicePaymentsModal from './InvoicePaymentsModal'
 
 function todayStr() {
   const d = new Date()
@@ -10,6 +11,12 @@ function todayStr() {
 }
 
 export default function MarkPaidPopup({ item, onClose, onSaved }) {
+  // Bar invoices can be paid in parts: open the payment log instead of a paid/unpaid toggle.
+  if (item?.type === 'fatura') return <InvoicePaymentsModal faturaId={item.id} onClose={onClose} onSaved={onSaved} />
+  return <SupplierPaidPopup item={item} onClose={onClose} onSaved={onSaved} />
+}
+
+function SupplierPaidPopup({ item, onClose, onSaved }) {
   const { t } = useI18n()
   const [paid, setPaid] = useState(item?.paid ? false : true)
   const [date, setDate] = useState(item?.paidDate || todayStr())
