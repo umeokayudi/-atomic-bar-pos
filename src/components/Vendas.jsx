@@ -168,8 +168,8 @@ export default function VendasTab() {
           </div>
         }
       >
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:14 }}>
-          <PortalKpi label={t('sales.totalSold')} value={fmtYen(totalReceita)} color="var(--blue)" />
+        <div className="portal-hero-grid" style={{ marginBottom:14 }}>
+          <PortalKpi icon="coins" label={t('sales.totalSold')} value={fmtYen(totalReceita)} color="var(--blue)" />
         </div>
 
         {loading ? <Spinner /> : filtered.length === 0 ? <Empty text={t('sales.noSales')} /> : (
