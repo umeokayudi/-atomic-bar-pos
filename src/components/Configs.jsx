@@ -10,6 +10,7 @@ import { AdminPage, PortalSurface } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 import { canReadProductCost } from '../lib/legacyScope'
+import Icon from './ui/Icon'
 
 // ── PRODUTOS ─────────────────────────────────────────────────────────────────
 export function ProductsTab() {
@@ -119,7 +120,7 @@ export function ProductsTab() {
                       color:m>50?'var(--green)':m>30?'var(--amber)':'var(--red)'
                     }}>{m}%</td>
                     <td style={{ display:'flex', gap:4 }}>
-                      <button style={{padding:'4px 8px',fontSize:12}} onClick={()=>startEdit(p)}>✏️</button>
+                      <button style={{padding:'4px 8px',fontSize:12}} onClick={()=>startEdit(p)} aria-label={t('common.edit')}><Icon name="edit" size={14} /></button>
                       <DelBtn onClick={()=>del(p.id)} />
                     </td>
                   </tr>
@@ -140,7 +141,7 @@ export function BarsTab() {
   const [vendas,  setSales]  = useState([])
   const [loading, setLoading] = useState(true)
   const [nome, setName] = useState('')
-  const [cor,  setColor]  = useState('#185FA5')
+  const [cor,  setColor]  = useState('var(--blue)')
 
   useEffect(() => { load() }, [])
   async function load() {
@@ -156,7 +157,7 @@ export function BarsTab() {
   async function add() {
     if (!nome) return
     await supabase.from('bars').insert({ nome, cor })
-    setName(''); setColor('#185FA5'); load()
+    setName(''); setColor('var(--blue)'); load()
   }
 
   async function del(id) {
@@ -313,17 +314,17 @@ export function UsuariosTab() {
       }
     >
 
-      {err && <div style={{background:'#fef2f2',color:'#b91c1c',border:'1px solid #fecaca',borderRadius:8,padding:'10px 16px',marginBottom:16,fontSize:13}}>{asReactText(err)}</div>}
+      {err && <div style={{background:'var(--red-bg)',color:'#b91c1c',border:'1px solid #fecaca',borderRadius:8,padding:'10px 16px',marginBottom:16,fontSize:13}}>{asReactText(err)}</div>}
       {msg && <div style={{background:'var(--green-bg)',color:'var(--green)',borderRadius:8,padding:'10px 16px',marginBottom:16,fontSize:13}}>{msg}</div>}
 
       {bars.length === 0 && (
-        <div style={{background:'#FDF3E0',border:'1px solid #f0d080',borderRadius:8,padding:'12px 16px',marginBottom:16,fontSize:13,color:'#8A5A00'}}>
+        <div style={{background:'var(--amber-bg)',border:'1px solid #f0d080',borderRadius:8,padding:'12px 16px',marginBottom:16,fontSize:13,color:'var(--amber)'}}>
           {t('configs.noBarsWarning')}
         </div>
       )}
 
       {showNew && (
-        <PortalSurface title={t('configs.createPortalLogin')} sub={t('configs.createPortalSub')} style={{marginBottom:20,background:'var(--bg2)',border:'1px solid rgba(193,156,86,0.2)'}}>
+        <PortalSurface title={t('configs.createPortalLogin')} sub={t('configs.createPortalSub')} style={{marginBottom:20,background:'var(--bg2)',border:'1px solid color-mix(in srgb, var(--gold) 20%, transparent)'}}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
             <input className="input" placeholder={t('configs.fullName')} value={form.nome} onChange={e=>setForm({...form,nome:e.target.value})}/>
             <input className="input" placeholder={t('auth.email')} type="email" value={newEmail} onChange={e=>setNewEmail(e.target.value)}/>
@@ -616,10 +617,10 @@ export function PedidosAdminTab() {
   }
 
   const STATUS_MAP={
-    pendente:{label:'Pendente',color:'#8A5A00',bg:'#FDF3E0'},
-    confirmado:{label:'Confirmado',color:'#1A4E8A',bg:'#EAF0FA'},
-    entregue:{label:'Entregue',color:'#1A7A5E',bg:'#EAF5F0'},
-    cancelado:{label:'Cancelado',color:'#C0392B',bg:'#FBEAEA'},
+    pendente:{label:'Pendente',color:'var(--amber)',bg:'var(--amber-bg)'},
+    confirmado:{label:'Confirmado',color:'var(--blue)',bg:'var(--blue-bg)'},
+    entregue:{label:'Entregue',color:'var(--green)',bg:'var(--green-bg)'},
+    cancelado:{label:'Cancelado',color:'var(--red)',bg:'var(--red-bg)'},
   }
   const filtered=filterStatus?pedidos.filter(p=>p.status===filterStatus):pedidos
   const pendentes=pedidos.filter(p=>p.status==='pendente').length
@@ -690,10 +691,10 @@ export function PedidosAdminTab() {
                   ))}
                 </div>
                 {missingVenda[p.id]&&(
-                  <div style={{marginBottom:12,padding:'10px 14px',borderRadius:10,background:'#FBEAEA',border:'1px solid #f5c6c6',fontSize:12,color:'#7f1d1d'}}>
-                    ⚠️ {t('configs.saleNotRegistered')}
+                  <div style={{marginBottom:12,padding:'10px 14px',borderRadius:10,background:'var(--red-bg)',border:'1px solid #f5c6c6',fontSize:12,color:'var(--red)'}}>
+                    <Icon name="warning" size={14} /> {t('configs.saleNotRegistered')}
                     <button onClick={()=>repairVenda(p)} disabled={repairing===p.id}
-                      style={{marginLeft:10,padding:'4px 10px',fontSize:11,borderRadius:6,background:'#7f1d1d',color:'white',border:'none',fontWeight:700,cursor:'pointer'}}>
+                      style={{marginLeft:10,padding:'4px 10px',fontSize:11,borderRadius:6,background:'var(--red)',color:'white',border:'none',fontWeight:700,cursor:'pointer'}}>
                       {repairing===p.id ? t('configs.registering') : t('configs.registerSaleNow')}
                     </button>
                   </div>
@@ -703,7 +704,7 @@ export function PedidosAdminTab() {
                     <button onClick={()=>updateStatus(p.id,'confirmado')} style={{padding:'6px 14px',fontSize:11,borderRadius:8,background:'var(--navy)',color:'var(--gold)',border:'none',fontWeight:600}}>{t('configs.confirm')}</button>
                     <button onClick={()=>updateStatus(p.id,'cancelado')} className="btn-danger" style={{padding:'6px 14px',fontSize:11,borderRadius:8}}>{t('common.cancel')}</button>
                   </>}
-                  <button onClick={async()=>{ if(!confirm('Excluir este pedido?'))return; setPedidos(prev=>prev.filter(x=>x.id!==p.id)); await supabase.from('pedidos_itens').delete().eq('pedido_id',p.id); const {data:v}=await supabase.from('vendas').select('id').eq('obs','Auto: order '+p.id.slice(0,8)).maybeSingle(); if(v){await supabase.from('vendas_itens').delete().eq('venda_id',v.id); await supabase.from('vendas').delete().eq('id',v.id);} await supabase.from('pedidos').delete().eq('id',p.id); }} style={{padding:'6px 14px',fontSize:11,borderRadius:8,background:'#7f1d1d',color:'white',border:'none',fontWeight:600,cursor:'pointer'}}>🗑</button>
+                  <button onClick={async()=>{ if(!confirm('Excluir este pedido?'))return; setPedidos(prev=>prev.filter(x=>x.id!==p.id)); await supabase.from('pedidos_itens').delete().eq('pedido_id',p.id); const {data:v}=await supabase.from('vendas').select('id').eq('obs','Auto: order '+p.id.slice(0,8)).maybeSingle(); if(v){await supabase.from('vendas_itens').delete().eq('venda_id',v.id); await supabase.from('vendas').delete().eq('id',v.id);} await supabase.from('pedidos').delete().eq('id',p.id); }} style={{padding:'6px 14px',fontSize:11,borderRadius:8,background:'var(--red)',color:'white',border:'none',fontWeight:600,cursor:'pointer'}}><Icon name="trash" size={14} /></button>
                   {p.status==='confirmado'&&(
                     <button onClick={()=>openChecklist(p)} style={{padding:'6px 14px',fontSize:11,borderRadius:8,background:'var(--green)',color:'white',border:'none',fontWeight:600}}>{t('configs.markDelivered')}</button>
                   )}
@@ -716,12 +717,12 @@ export function PedidosAdminTab() {
       {checklistPedido&&(
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
           <div style={{background:'var(--bg2)',borderRadius:16,padding:'28px 28px 24px',width:'100%',maxWidth:480,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
-            <div style={{fontSize:16,fontWeight:800,color:'var(--navy)',marginBottom:4}}>{t('configs.deliveryChecklist')}</div>
+            <div style={{fontSize:16,fontWeight:800,color:'var(--c-text)',marginBottom:4}}>{t('configs.deliveryChecklist')}</div>
             <div style={{fontSize:12,color:'var(--text3)',marginBottom:20}}>{checklistPedido.bars?.nome} &mdash; {t('configs.markEachItem')}</div>
             {(checklistPedido.pedidos_itens||[]).map(it=>(
               <div key={it.id} onClick={()=>setCheckedItems(prev=>({...prev,[it.id]:!prev[it.id]}))}
                 style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',borderRadius:10,marginBottom:8,cursor:'pointer',
-                  background:checkedItems[it.id]?'#f0fdf4':'var(--bg3)',
+                  background:checkedItems[it.id]?'var(--green-bg)':'var(--bg3)',
                   border:checkedItems[it.id]?'1.5px solid var(--green)':'1.5px solid var(--border)',transition:'all 0.15s'}}>
                 <div style={{width:22,height:22,borderRadius:6,flexShrink:0,
                   background:checkedItems[it.id]?'var(--green)':'var(--bg2)',

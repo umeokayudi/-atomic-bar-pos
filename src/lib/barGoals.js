@@ -88,7 +88,7 @@ function monthCost(hq, registry, monthKey) {
   const wages = Math.round(+hq?.books?.staff?.amount || (hq?.payroll || []).reduce((a, r) => a + (+r.pay || 0), 0))
   const reg = (kind) => (registry || []).reduce((a, r) => {
     if (r.kind !== kind) return a
-    if (kind === 'variavel' && r.month_key && r.month_key !== monthKey) return a
+    if ((kind === 'variavel' || kind === 'energia') && r.month_key && r.month_key !== monthKey) return a
     return a + Math.round(+r.amount || 0)
   }, 0)
   const rent = reg('aluguel') || Math.round(+hq?.books?.rent?.amount || hq?.rent?.amount || 0)

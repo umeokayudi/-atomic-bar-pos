@@ -64,7 +64,7 @@ function NotaBlock({ compra, onChanged }) {
           }}
         >
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>{compra.fornecedor || '—'}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--c-text)' }}>{compra.fornecedor || '—'}</div>
             <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>
               {fmtDate(compra.data)} · {t('comprasNotas.itemsCount', { count: itens.length })}
               {compra.status_pagamento === 'pendente' && ` · ${t('comprasNotas.pending')}`}

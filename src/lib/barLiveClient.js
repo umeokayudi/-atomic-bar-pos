@@ -25,6 +25,9 @@ export const LIVE_TABLES = new Set([
   'pos_settings',
   'bar_people',
   'bar_registry',
+  'floor_layouts',
+  'floor_sectors',
+  'floor_tables',
 ])
 
 const selectCache = new Map()

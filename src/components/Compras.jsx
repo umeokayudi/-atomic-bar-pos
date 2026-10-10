@@ -12,6 +12,7 @@ import { SupplierPricePanel } from './SupplierPriceCheck'
 import PurchaseCashflowAdvisor from './PurchaseCashflowAdvisor'
 import { AdminPage, PortalSurface, PortalKpi } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
+import Icon from './ui/Icon'
 
 export default function ComprasTab() {
   const { t } = useI18n()
@@ -186,7 +187,7 @@ export default function ComprasTab() {
           {imgSrc
             ? <img src={imgSrc} alt="nota" style={{ maxHeight: 160, maxWidth: '100%', borderRadius: 8 }} />
             : <>
-                <div style={{ fontSize: 40, marginBottom: 8 }}>📄</div>
+                <span className="ui-empty-icon" style={{ margin: '0 auto 8px' }}><Icon name="fileDoc" size={22} /></span>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{t('purchases.tapToSelect')}</div>
                 <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4 }}>
                   {t('purchases.aiExtractHint')}
@@ -201,7 +202,7 @@ export default function ComprasTab() {
             marginTop: 12, background: 'var(--bg3)', borderRadius: 8,
             padding: '10px 14px', fontSize: 13
           }}>
-            ✅ <strong>{scanned.fornecedor}</strong>
+            <Icon name="ok" size={14} /> <strong>{scanned.fornecedor}</strong>
             {' · '}{t('purchases.scannedItems', { count: scanned.itens?.length || 0 })}
             {' · '}{t('purchases.scannedPaid', { amount: fmtYen(scanned.total_pago || 0) })}
             {scanned.desconto_pontos > 0 && ` · ${t('purchases.pointsDiscountShort', { amount: fmtYen(scanned.desconto_pontos) })}`}
@@ -365,7 +366,7 @@ export default function ComprasTab() {
                   <td style={{ fontWeight:700 }}>{fmtYen(c.total_real)}</td>
                   <td>{+c.pontos_ganhos > 0 ? `+${c.pontos_ganhos}${c.tipo_ponto?' ('+c.tipo_ponto+')':''}` : '—'}</td>
                   <td>{c.data_pagamento ? fmtDate(c.data_pagamento) : '—'}</td>
-                  <td>{c.foto_url ? <a href={c.foto_url} target="_blank" style={{fontSize:11}}>📷</a> : '—'}</td>
+                  <td>{c.foto_url ? <a href={c.foto_url} target="_blank" rel="noreferrer" aria-label="photo"><Icon name="image" size={15} /></a> : '—'}</td>
                   <td>{(c.compras_itens || []).length}</td>
                   <td><DelBtn onClick={() => deleteCompra(c.id)} /></td>
                 </tr>

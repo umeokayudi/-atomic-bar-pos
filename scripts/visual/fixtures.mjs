@@ -1,0 +1,152 @@
+/** Fictional data for the visual checks only. Nothing here is read by the app in production. */
+export const BAR = { id: '00000000-0000-4000-8000-0000000000b1', nome: 'Bar Demo', cor: '#3F7F67', criado_em: '2026-01-01T00:00:00Z' }
+export const BAR2 = { id: '00000000-0000-4000-8000-0000000000b2', nome: 'Lounge Demo', cor: '#C9A15B', criado_em: '2026-01-01T00:00:00Z' }
+export const ADMIN = { id: '00000000-0000-4000-8000-00000000a001', nome: 'Admin Demo', role: 'admin', bar_id: null, email: 'admin@example.com' }
+export const MANAGER = { id: '00000000-0000-4000-8000-00000000a002', nome: 'Gerente Demo', role: 'gerente', bar_id: BAR.id, email: 'gerente@example.com' }
+export const STAFF = { id: 'st1', nome: 'Aiko Tanaka', role: 'bar_staff', bar_id: BAR.id, email: 'aiko@example.com' }
+
+const day = n => { const d = new Date(Date.now() - n * 86400000); return d.toISOString().slice(0, 10) }
+const ago = m => new Date(Date.now() - m * 60000).toISOString()
+
+const drinks = [
+  ['Highball', 'Whisky', 800, 'HB'], ['Gin Tonic', 'Gin', 900, '12'], ['Mojito', 'Cocktail', 1000, '13'], ['Draft beer', 'Beer', 700, 'BR'],
+  ['Lemon sour', 'Shochu', 650, '21'], ['Red wine', 'Wine', 900, 'RW'], ['Cola', 'Soft drink', 400, ''], ['Oolong tea', 'Soft drink', 400, ''],
+  ['Margarita', 'Tequila', 1100, '31'], ['Moscow mule', 'Vodka', 950, '32'], ['Cuba libre', 'Rum', 900, '33'], ['Nachos', 'Food', 800, 'F1'],
+].map(([nome, categoria, preco_venda, codigo], i) => ({ id: `00000000-0000-4000-8000-0000000d00${String(i).padStart(2, '0')}`, bar_id: BAR.id, nome, categoria, preco_venda, codigo, preco_desconto: Math.round(preco_venda / 2) }))
+
+const tables = [
+  ['1', 'square', 60, 60, 100, 100, 4], ['2', 'square', 220, 60, 100, 100, 4], ['3', 'round', 380, 60, 100, 100, 4],
+  ['VIP 1', 'rect', 60, 240, 160, 100, 6], ['VIP 2', 'rect', 260, 240, 160, 100, 6], ['VIP 3', 'rect', 460, 240, 160, 100, 6],
+  ['Counter', 'bar', 560, 60, 260, 70, 8],
+  ['Sofa', 'sofa', 660, 300, 200, 80, 4], ['Wall', 'wall', 0, 200, 40, 16, 0], ['Door', 'door', 400, 404, 90, 16, 0],
+  ['Plant', 'plant', 840, 20, 50, 50, 0], ['Stage', 'stage', 660, 170, 200, 100, 0],
+].map(([nome, forma, x, y, largura, altura, capacidade], i) => ({
+  id: `00000000-0000-4000-8000-0000000f00${i}`, bar_id: BAR.id, layout_id: 'L1', nome, forma, x, y, largura, altura, rotacao: 0, capacidade,
+  cor: null, sector_id: i >= 3 && i < 6 ? 'S1' : null, estado_manual: i === 2 ? 'reserved' : null, ativo: true,
+}))
+
+const tab = (id, nome, table, minutes, items, status = 'open', pays = []) => ({
+  id, bar_id: BAR.id, table_id: table, mesa_nome: tables.find(t => t.id === table)?.nome || null, nome, status, pessoas: 3,
+  service_pct: 10, aberta_em: ago(minutes), versao: 3, responsavel_nome: 'Gerente Demo',
+  _items: items.map(([d, q, mAgo], j) => ({ id: `${id}-i${j}`, comanda_id: id, bar_id: BAR.id, drink_menu_id: drinks[d].id, nome: drinks[d].nome, categoria: drinks[d].categoria, qtd: q, preco_unitario: drinks[d].preco_venda, preco_lista: drinks[d].preco_venda, tipo_preco: 'regular', desconto_valor: 0, criado_em: ago(mAgo) })),
+  _pays: pays.map((v, j) => ({ id: `${id}-p${j}`, comanda_id: id, bar_id: BAR.id, valor: v, metodo: 'Cash', criado_em: ago(5) })),
+})
+const tabs = [
+  tab('00000000-0000-4000-8000-0000000c0001', 'Mesa 1', tables[0].id, 50, [[0, 2, 40], [1, 1, 20]]),
+  tab('00000000-0000-4000-8000-0000000c0002', 'Tanaka', tables[3].id, 95, [[2, 3, 90], [5, 1, 80]]),
+  tab('00000000-0000-4000-8000-0000000c0003', 'Mesa 2', tables[1].id, 6, []),
+  tab('00000000-0000-4000-8000-0000000c0004', 'Suzuki', tables[4].id, 120, [[8, 2, 100], [11, 1, 100]], 'awaiting_payment', [1500]),
+  tab('00000000-0000-4000-8000-0000000c0005', 'Walk-in', null, 15, [[3, 2, 10]]),
+]
+
+const spaces = [
+  { id: 'sp1', bar_id: BAR.id, nome: '個室 VIP 1', tipo: 'vip_room', zona: 'vip', capacidade: 6, ordem: 1, ativo: true },
+  { id: 'sp2', bar_id: BAR.id, nome: '個室 VIP 2', tipo: 'vip_room', zona: 'vip', capacidade: 8, ordem: 2, ativo: true },
+  { id: 'sp3', bar_id: BAR.id, nome: 'Counter 1', tipo: 'counter', zona: 'counter', capacidade: 1, ordem: 3, ativo: true },
+]
+const guests = [{ id: 'g1', bar_id: BAR.id, nome: 'Tanaka-sama', ativo: true }, { id: 'g2', bar_id: BAR.id, nome: 'Mr. Smith', ativo: true }]
+const visits = [
+  { id: 'vi1', bar_id: BAR.id, space_id: 'sp1', status: 'seated', party_size: 4, inicio: ago(80), fim: null, guest_id: 'g1', host_nome: 'Aiko Tanaka', bar_guests: { nome: 'Tanaka-sama' } },
+  { id: 'vi2', bar_id: BAR.id, space_id: 'sp2', status: 'done', party_size: 6, inicio: ago(60 * 26), fim: ago(60 * 23), guest_id: 'g2', host_nome: 'Lucia Sato', bar_guests: { nome: 'Mr. Smith' } },
+  { id: 'vi3', bar_id: BAR.id, space_id: 'sp1', status: 'done', party_size: 2, inicio: ago(60 * 50), fim: ago(60 * 49), guest_id: null, host_nome: '', bar_guests: null },
+]
+const posSales = [
+  { id: 'ps1', bar_id: BAR.id, total: 18400, space_id: 'sp1', visit_id: 'vi1', criado_em: ago(30), data: day(0), obs: 'Cast: Aiko Tanaka\nRoomMin: 10000' },
+  { id: 'ps2', bar_id: BAR.id, total: 46200, space_id: 'sp2', visit_id: 'vi2', criado_em: ago(60 * 23 + 5), data: day(1), obs: 'Cast: Lucia Sato\nRoomMin: 10000' },
+  { id: 'ps3', bar_id: BAR.id, total: 10000, space_id: 'sp1', visit_id: 'vi3', criado_em: ago(60 * 49 + 2), data: day(2), obs: 'RoomMin: 10000' },
+  { id: 'ps4', bar_id: BAR.id, total: 3200, space_id: 'sp3', visit_id: null, criado_em: ago(45), data: day(0), obs: '' },
+]
+const staffOrders = [
+  { id: 'so1', bar_id: BAR.id, staff_id: 'st1', staff_nome: 'Aiko Tanaka', from_id: MANAGER.id, from_nome: 'Gerente Demo', mensagem: 'VIP 1 needs ice and two clean glasses now', prioridade: 'urgent', status: 'sent', criado_em: ago(3) },
+  { id: 'so2', bar_id: BAR.id, staff_id: 'st2', staff_nome: 'Ken Mori', from_id: MANAGER.id, from_nome: 'Gerente Demo', mensagem: 'Restock the beer fridge before 21:00', prioridade: 'normal', status: 'seen', due_at: ago(-40), criado_em: ago(25), seen_at: ago(20) },
+  { id: 'so3', bar_id: BAR.id, staff_id: 'st3', staff_nome: 'Lucia Sato', from_id: MANAGER.id, from_nome: 'Gerente Demo', mensagem: 'Greet the Smith party at the door', prioridade: 'normal', status: 'done', criado_em: ago(90), done_at: ago(70) },
+]
+
+const vendas = []
+for (let i = 0; i < 160; i++) vendas.push({ id: `v${i}`, bar_id: i % 3 ? BAR.id : BAR2.id, total: 20000 + (i % 7) * 4500, data: day(i % 170), obs: 'JBM supply', criado_em: day(i % 170) })
+vendas[1] = { ...vendas[1], data: day(2), total: 26400, obs: 'Auto: order p1', vendas_itens: [{ id: 'vi1', qtd: 4, preco_unitario: 3300, produtos: { id: 'pr1', nome: 'Tanqueray Gin' } }, { id: 'vi2', qtd: 24, preco_unitario: 550, produtos: { id: 'pr4', nome: 'Asahi Super Dry' } }] }
+vendas[2] = { ...vendas[2], vendas_itens: [{ id: 'vi3', qtd: 2, preco_unitario: 18000, produtos: { id: 'pr7', nome: 'Hakushu 12' } }] }
+
+export const TABLES = {
+  bars: [BAR, BAR2],
+  perfis: [ADMIN, MANAGER, { ...STAFF }],
+  drink_menu: drinks,
+  floor_layouts: [{ id: 'L1', bar_id: BAR.id, nome: 'Salão', ativo: true, largura: 900, altura: 420, versao: 3, criado_em: '2026-10-01T00:00:00Z' }],
+  floor_sectors: [{ id: 'S1', bar_id: BAR.id, layout_id: 'L1', nome: 'VIP', cor: '#C9A15B', ordem: 0 }],
+  floor_tables: tables,
+  pos_comandas: tabs.map(({ _items, _pays, ...t }) => t),
+  pos_comanda_itens: tabs.flatMap(t => t._items),
+  pos_comanda_pagamentos: tabs.flatMap(t => t._pays),
+  pos_comanda_eventos: [{ id: 'e1', comanda_id: tabs[0].id, bar_id: BAR.id, tipo: 'opened', dados: {}, criado_em: ago(50) }, { id: 'e2', comanda_id: tabs[0].id, bar_id: BAR.id, tipo: 'items_added', dados: {}, criado_em: ago(40) }],
+  vendas,
+  faturas: [
+    { id: 'f1', bar_id: BAR.id, total: 180000, pago: 60000, status: 'parcial', vencimento: day(10), data_emissao: day(40) },
+    { id: 'f2', bar_id: BAR2.id, total: 95000, pago: 0, status: 'pendente', vencimento: day(-12), data_emissao: day(5) },
+  ],
+  pedidos: [
+    { id: 'p1', bar_id: BAR.id, status: 'entregue', data_pedido: day(3), criado_em: day(3), total_estimado: 26400, pedidos_itens: [{ id: 'pi1', produto_id: 'pr1', qtd: 4, preco_unitario: 3300, produtos: { nome: 'Tanqueray Gin' } }, { id: 'pi2', produto_id: 'pr4', qtd: 24, preco_unitario: 550, produtos: { nome: 'Asahi Super Dry' } }] },
+    { id: 'p2', bar_id: BAR2.id, status: 'entregue', data_pedido: day(30) },
+    { id: 'aaaa1111-p', bar_id: BAR.id, status: 'confirmado', data_pedido: day(1), criado_em: day(1), data_entrega_prevista: day(-2), total_estimado: 41800, pedidos_itens: [{ id: 'pi3', produto_id: 'pr2', qtd: 6, preco_unitario: 4200, produtos: { nome: 'Jameson' } }, { id: 'pi4', produto_id: 'pr5', qtd: 12, preco_unitario: 1383, produtos: { nome: 'Wilkinson Tonic' } }] },
+    { id: 'bbbb2222-p', bar_id: BAR.id, status: 'pendente', data_pedido: day(4), criado_em: day(4), data_entrega_prevista: day(1), total_estimado: 12600, obs: 'Deliver before 17:00 please', pedidos_itens: [{ id: 'pi5', produto_id: 'pr3', qtd: 3, preco_unitario: 4200, produtos: { nome: 'Moët Impérial' } }] },
+  ],
+  produtos_public: [
+    { id: 'pr1', nome: 'Tanqueray Gin', categoria: 'Gin', volume_ml: 750, preco_venda: 3300, ativo: true },
+    { id: 'pr2', nome: 'Jameson', categoria: 'Whisky', volume_ml: 700, preco_venda: 4200, ativo: true },
+    { id: 'pr3', nome: 'Moët Impérial', categoria: 'Champagne', volume_ml: 750, preco_venda: 4200, ativo: true },
+    { id: 'pr4', nome: 'Asahi Super Dry', categoria: 'Beer', volume_ml: 350, preco_venda: 550, ativo: true },
+    { id: 'pr5', nome: 'Wilkinson Tonic', categoria: 'Soda', volume_ml: 500, preco_venda: 1383, ativo: true },
+    { id: 'pr6', nome: 'Grey Goose', categoria: 'Vodka', volume_ml: 700, preco_venda: 4800, ativo: true },
+    { id: 'pr7', nome: 'Hakushu 12', categoria: 'Japanese Whisky', volume_ml: 700, preco_venda: 18000, ativo: true },
+  ],
+  estoque_regras: [{ bar_id: BAR.id, produto_id: 'pr1', minimo: 4 }, { bar_id: BAR.id, produto_id: 'pr6', minimo: 3 }, { bar_id: BAR.id, produto_id: 'pr7', minimo: 2 }],
+  estoque_movimentos: [
+    { id: 'em1', bar_id: BAR.id, produto_id: 'pr6', tipo: 'entrada', qtd: 4 }, { id: 'em2', bar_id: BAR.id, produto_id: 'pr6', tipo: 'saida', qtd: 3 },
+    { id: 'em3', bar_id: BAR.id, produto_id: 'pr7', tipo: 'entrada', qtd: 2 }, { id: 'em4', bar_id: BAR.id, produto_id: 'pr7', tipo: 'saida', qtd: 2 },
+    { id: 'em5', bar_id: BAR.id, produto_id: 'pr1', tipo: 'saida', qtd: 3 },
+  ],
+  marketing_campaigns: [
+    { id: 'm1', bar_id: BAR.id, nome: 'Happy hour weekdays', canal: 'in_store', status: 'running', inicio: day(14), fim: day(-14), oferta: '2nd highball half price 18–20h', objetivo: '+15% weekday sales', orcamento: 30000 },
+    { id: 'm2', bar_id: null, nome: 'Autumn gin menu', canal: 'instagram', status: 'scheduled', inicio: day(-7), fim: day(-30), produtos: 'Gin Tonic, Gin Fizz', orcamento: 50000 },
+  ],
+  consulting_plans: [{ id: 'cp1', bar_id: BAR.id, titulo: 'Lift weekday nights', diagnostico: 'Weekends are full; Monday–Wednesday sell 40% less. Stock outs on gin twice last month.', status: 'active', baseline: { revenue: 410000, salesCount: 18, receivable: 150000, overdue: 0 }, baseline_em: day(45), criado_em: day(45) }],
+  consulting_tasks: [
+    { id: 'ct1', plan_id: 'cp1', bar_id: BAR.id, titulo: 'Weekday happy hour', responsavel: 'Gerente Demo', prazo: day(-5), prioridade: 'high', status: 'doing', kpi: 'weekday sales' },
+    { id: 'ct2', plan_id: 'cp1', bar_id: BAR.id, titulo: 'Gin minimum stock 6', responsavel: 'JBM', prazo: day(2), prioridade: 'medium', status: 'todo', kpi: 'stock outs' },
+    { id: 'ct3', plan_id: 'cp1', bar_id: BAR.id, titulo: 'New menu photos', responsavel: 'Gerente Demo', prazo: day(20), prioridade: 'low', status: 'done' },
+  ],
+  pos_settings: [{ bar_id: BAR.id, service_pct: 10, room_min: 10000, set_minutes: 60, set_price: 0 }],
+  bar_spaces: spaces,
+  bar_guests: guests,
+  bar_visits: visits,
+  pos_vendas: posSales,
+  staff_orders: staffOrders,
+}
+
+/** /api/bar-staff GET: team, registry (suppliers, rent, power...), goals, events, day sheets. */
+export const BAR_STAFF = {
+  staff: [
+    { id: 'st1', nome: 'Aiko Tanaka', role: 'bar_staff', cargo: 'Bartender', salario_hora: 1600, drink_back: true, comissao_pct: 10, dias: ['Fri', 'Sat'], idiomas: ['JA', 'EN'], aniversario: '1998-10-20', source: 'house' },
+    { id: 'st2', nome: 'Ken Mori', role: 'bar_staff', cargo: 'Floor', salario_hora: 1300, drink_back: false, comissao_pct: 0, dias: ['Thu', 'Fri', 'Sat'], idiomas: ['JA'], source: 'house' },
+    { id: 'st3', nome: 'Lucia Sato', role: 'bar_staff', cargo: 'Cast', salario_mes: 220000, drink_back: true, comissao_pct: 15, dias: ['Wed', 'Fri'], idiomas: ['PT', 'JA'], source: 'house' },
+  ],
+  people: [],
+  registry: [
+    { id: 'rg1', kind: 'aluguel', nome: 'Shibuya Realty', cargo: 'Mr. Ito', contato: '03-1234-5678', amount: 180000, vence_dia: 25, metodo: 'transfer' },
+    { id: 'rg2', kind: 'energia', nome: 'Tokyo Power', amount: 32000, vence_dia: 10 },
+    { id: 'rg3', kind: 'fornecedor', nome: 'Sake Wholesale', detalhe: 'Sake, shochu', contato: '03-9999-0000' },
+    { id: 'rg4', kind: 'fixo', nome: 'Internet', amount: 6000, vence_dia: 5 },
+    { id: 'rg5', kind: 'cartao', nome: 'Square', maquina: 'Square Terminal', local: 'Counter', pct: 3.25, prazo_dias: 1, vence_dia: 0, conta: 'MUFG Shibuya', bandeiras: ['visa', 'master', 'jcb', 'amex', 'ic'] },
+    { id: 'rg6', kind: 'cartao', nome: 'AirPAY', maquina: 'AirPAY reader', local: 'VIP rooms', pct: 3.24, prazo_dias: 0, vence_dia: 25, amount: 0, conta: 'MUFG Shibuya', bandeiras: ['visa', 'master', 'qr'] },
+    { id: 'rg7', kind: 'variavel', nome: 'Ice machine repair', amount: 18000, recorrente: false, month_key: new Date().toISOString().slice(0, 7), data_pagamento: new Date().toISOString().slice(0, 10), metodo: 'cash' },
+  ],
+  goals: { noite: 150000, hora: 20000, semana: 800000, turno: 90000, lucro: 400000, mes: 3200000, abre: 20, fecha: 5, corta: 0, pessoas: [] },
+  events: [],
+  sheets: [],
+  bar: { id: BAR.id, nome: BAR.nome, geofence_m: 150, tabletPaired: false },
+}
+
+export const PUNCHES = [
+  { id: 'pu1', bar_id: BAR.id, staff_id: 'st1', tipo: 'in', criado_em: ago(240), punched_at: ago(240) },
+  { id: 'pu2', bar_id: BAR.id, staff_id: 'st2', tipo: 'in', criado_em: ago(200), punched_at: ago(200) },
+  { id: 'pu3', bar_id: BAR.id, staff_id: 'st2', tipo: 'out', criado_em: ago(20), punched_at: ago(20) },
+]

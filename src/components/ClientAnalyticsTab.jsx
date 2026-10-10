@@ -15,7 +15,7 @@ import {
 } from '../lib/clientAnalytics'
 import { useI18n } from '../lib/i18n'
 
-const CAT_COLORS = ['#001028', '#2563eb', '#c19c56', '#1a6b4a', '#8b5cf6', '#dc2626', '#0891b2', '#ea580c']
+const CAT_COLORS = ['#001028', 'var(--blue)', 'var(--gold)', 'var(--green)', '#8b5cf6', 'var(--red)', '#0891b2', '#ea580c']
 
 function DualBarChart({ labels, seriesA, seriesB, names, selectedIndex, onSelect, height = 120 }) {
   const max = Math.max(...seriesA, ...seriesB, 1)
@@ -220,7 +220,7 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
           </select>
           <button type="button" onClick={exportProducts} style={{
             padding: '8px 14px', borderRadius: 10, border: '1px solid var(--border)',
-            background: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            background: 'var(--bg2)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
           }}>
             {t('portal.analytics.exportCsv')}
           </button>
@@ -242,7 +242,7 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
             sub: jbmMom !== null
               ? t('portal.analytics.vsPrevMonth', { dir: jbmMom >= 0 ? '↑' : '↓', pct: Math.abs(jbmMom) })
               : t('portal.analytics.itemsCount', { count: monthStats.itemCount }),
-            color: 'var(--navy)',
+            color: 'var(--c-text)',
           },
           {
             label: t('portal.analytics.posRevenue'),
@@ -319,7 +319,7 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
                 width: '100%', textAlign: 'left', marginBottom: 12, padding: '10px 12px',
                 borderRadius: 10, cursor: 'pointer',
                 border: catFilter === c.categoria ? '2px solid var(--navy)' : '1px solid var(--border)',
-                background: catFilter === c.categoria ? '#EAF0FA' : 'white',
+                background: catFilter === c.categoria ? 'var(--blue-bg)' : 'white',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
@@ -358,7 +358,7 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
 
       {/* Simulator */}
       <div style={{
-        background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+        background: 'linear-gradient(135deg, var(--amber-bg) 0%, var(--amber-bg) 100%)',
         border: '1px solid #fcd34d', borderRadius: 16, padding: '20px 24px', marginBottom: 16,
       }}>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{t('portal.analytics.purchaseSimulator')}</div>
@@ -379,7 +379,7 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
             <input type="range" min={1} max={48} value={simQty} onChange={e => setSimQty(+e.target.value)} style={{ width: '100%', marginTop: 8 }} />
           </div>
           {simResult && (
-            <div style={{ background: 'white', borderRadius: 12, padding: '12px 14px', border: '1px solid var(--border)' }}>
+            <div style={{ background: 'var(--bg2)', borderRadius: 12, padding: '12px 14px', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: 11, color: 'var(--text2)' }}>{t('portal.analytics.projection')}</div>
               <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--green)' }}>{fmtYen(simResult.posTotal)}</div>
               <div style={{ fontSize: 11, marginTop: 4 }}>
@@ -402,7 +402,7 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
             count: missingPricing.length,
             amount: fmtYen(missingPricing.reduce((a, p) => a + p.jbmTotal, 0)),
           })}</strong>
-          <button type="button" onClick={() => onTab?.('pos')} style={{ marginLeft: 8, border: 'none', background: 'transparent', color: 'var(--navy)', fontWeight: 700, cursor: 'pointer' }}>
+          <button type="button" onClick={() => onTab?.('pos')} style={{ marginLeft: 8, border: 'none', background: 'transparent', color: 'var(--c-text)', fontWeight: 700, cursor: 'pointer' }}>
             {t('portal.analytics.registerPrices')}
           </button>
         </div>
@@ -443,7 +443,7 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
                       onClick={() => setExpandedProduct(expandedProduct === p.nome ? null : p.nome)}
                       style={{
                         borderBottom: '1px solid var(--border)', cursor: 'pointer',
-                        background: expandedProduct === p.nome ? 'rgba(193,156,86,0.06)' : 'transparent',
+                        background: expandedProduct === p.nome ? 'color-mix(in srgb, var(--gold) 6%, transparent)' : 'transparent',
                       }}
                     >
                       <td style={{ padding: '10px', fontWeight: 600 }}>
@@ -462,7 +462,7 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
                         })}>
                           <span style={{
                             padding: '3px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                            background: p.roiPct > 150 ? '#f0fdf4' : '#fffbeb',
+                            background: p.roiPct > 150 ? 'var(--green-bg)' : 'var(--amber-bg)',
                             color: p.roiPct > 150 ? 'var(--green)' : 'var(--amber)',
                           }}>
                             {p.roiPct}%

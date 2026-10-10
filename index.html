@@ -3,7 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#001028" />
+    <meta name="theme-color" content="#101B19" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>JBM</title>
@@ -12,10 +15,17 @@
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <script>
       (function () {
-        var t = localStorage.getItem('jbm_drinks_theme') || 'modern';
+        var t = 'system';
+        try { t = localStorage.getItem('jbm_drinks_theme') || 'system'; } catch (e) {}
         if (t === 'light') t = 'modern';
         if (t === 'dark') t = 'classic';
-        var lang = localStorage.getItem('jbm_drinks_lang') === 'ja' ? 'ja' : 'en';
+        if (t !== 'modern' && t !== 'classic') {
+          t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'classic' : 'modern';
+        }
+        var tc = document.querySelector('meta[name="theme-color"]');
+        if (tc) tc.setAttribute('content', t === 'classic' ? '#101B19' : '#F4F7F5');
+        var lang = 'en';
+        try { lang = localStorage.getItem('jbm_drinks_lang') === 'ja' ? 'ja' : 'en'; } catch (e) {}
         var w = window.innerWidth;
         var h = window.innerHeight;
         var screenShort = Math.min((window.screen && window.screen.width) || w, (window.screen && window.screen.height) || h);

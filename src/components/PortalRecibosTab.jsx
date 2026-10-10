@@ -108,7 +108,7 @@ export default function PortalRecibosTab({ bar }) {
               }}
             >
               <div style={{ flex: 1, minWidth: 180 }}>
-                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)' }}>{fmtYen(item.valor)}</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--c-text)' }}>{fmtYen(item.valor)}</div>
                 <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4 }}>
                   {t('portal.paidOn', { date: fmtDate(item.data), method: item.metodo })}
                 </div>
@@ -136,7 +136,7 @@ export default function PortalRecibosTab({ bar }) {
                     borderRadius: 10,
                     border: 'none',
                     background: 'var(--gold)',
-                    color: 'var(--navy)',
+                    color: 'var(--c-on-accent)',
                     cursor: 'pointer',
                     fontWeight: 700,
                     whiteSpace: 'nowrap',

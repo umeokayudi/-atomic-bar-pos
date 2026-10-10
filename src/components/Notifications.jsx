@@ -7,6 +7,7 @@ import { splitPendingCompras, splitPendingFaturas } from '../lib/compraPagamento
 import { filterJbmDrinksFaturas, faturaRemaining } from '../lib/barPortal'
 import { billChecks } from '../lib/billMatch'
 import { filterSupplierVendas } from './utils'
+import Icon from './ui/Icon'
 import { useI18n } from '../lib/i18n'
 import { asReactText } from '../lib/errText'
 import { canLoadOverdueAlerts } from '../lib/legacyScope'
@@ -186,10 +187,10 @@ export function useBarOverdueAlerts(barId) {
 }
 
 const TIPO_ICON = {
-  pedido_novo:       { icon: '🛒', color: '#8A5A00', bg: '#FDF3E0' },
-  pedido_confirmado: { icon: '✅', color: '#1A4E8A', bg: '#EAF0FA' },
-  pedido_entregue:   { icon: '📦', color: '#1A7A5E', bg: '#EAF5F0' },
-  pedido_cancelado:  { icon: '❌', color: '#C0392B', bg: '#FBEAEA' },
+  pedido_novo:       { icon: 'purchases', color: 'var(--amber)', bg: 'var(--amber-bg)' },
+  pedido_confirmado: { icon: 'ok', color: 'var(--blue)', bg: 'var(--blue-bg)' },
+  pedido_entregue:   { icon: 'package', color: 'var(--green)', bg: 'var(--green-bg)' },
+  pedido_cancelado:  { icon: 'close', color: 'var(--red)', bg: 'var(--red-bg)' },
 }
 
 function timeAgo(iso, t) {
@@ -363,7 +364,7 @@ export function NotificationBell({
           {list.length === 0 && overdueCount === 0 && mismatches.length === 0 ? (
             <div className="notif-empty">{t('notifications.none')}</div>
           ) : list.map(n => {
-            const tipo = TIPO_ICON[n.tipo] || { icon: '🔔', color: 'var(--text2)', bg: 'var(--bg3)' }
+            const tipo = TIPO_ICON[n.tipo] || { icon: 'bell', color: 'var(--text2)', bg: 'var(--bg3)' }
             const tab = notifTab(n.link)
             return (
               <div
@@ -375,7 +376,7 @@ export function NotificationBell({
                   className="notif-row-hit"
                   onClick={() => { markRead(n.id); go(tab) }}
                 >
-                  <span className="notif-row-icon" style={{ background: tipo.bg }}>{tipo.icon}</span>
+                  <span className="notif-row-icon" style={{ background: tipo.bg, color: tipo.color }}><Icon name={tipo.icon} size={16} /></span>
                   <span className="notif-row-content">
                     <span className="notif-row-title">{asReactText(n.titulo)}</span>
                     {n.mensagem && <span className="notif-row-msg">{asReactText(n.mensagem)}</span>}
@@ -412,7 +413,7 @@ export function NotificationBell({
         aria-haspopup="dialog"
         aria-label={badgeCount > 0 ? t('notifications.badgeCount', { count: badgeCount }) : t('notifications.title')}
       >
-        🔔
+        <Icon name="bell" size={18} />
         {badgeCount > 0 && (
           <span className="notif-badge">{badgeCount > 9 ? '9+' : badgeCount}</span>
         )}

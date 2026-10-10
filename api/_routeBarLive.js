@@ -3,6 +3,7 @@
 import { tryDrinksAdminClient, createStaffUserClient } from './_supabaseAdmin.js'
 import { handleCorsPreflight, setCorsHeaders } from './_cors.js'
 import { LIVE_TABLES, ensureBarLiveReady, runLiveOp } from './_barLiveStore.js'
+import { areaOpen, loadLock } from './_barVault.js'
 import { resolveBarActor } from './_barLaneAuth.js'
 import { errText } from '../src/lib/errText.js'
 
@@ -17,9 +18,13 @@ function sendResult(res, result) {
   return res.status(200).json({ data: result.data, error: null })
 }
 
-const SECRET_TABLES = new Set(['bar_logins', 'bar_sessions'])
+const SECRET_TABLES = new Set(['bar_logins', 'bar_sessions', 'bar_locks'])
+// Raw rows behind the owner's PIN: cost registry (money) and pay per person (payroll). The app reads them via /api/bar-staff.
+const VAULT_TABLES = { bar_registry: 'money', staff_extras: 'payroll' }
 const PG_MENU_TABLES = new Set(['drink_menu', 'bar_pricing', 'bars'])
 const GERENTE_WRITE = new Set(['bar_overhead', 'bar_hq_meta'])
+// The floor plan is drawn by the owner/manager; everyone at the bar can read it.
+const FLOOR_WRITE = new Set(['floor_layouts', 'floor_sectors', 'floor_tables'])
 
 function bodyOf(req) {
   return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
@@ -117,10 +122,22 @@ export default async function handler(req, res) {
     if (!LIVE_TABLES.includes(table) && !PG_MENU_TABLES.has(table)) {
       return res.status(400).json({ error: 'Unknown table' })
     }
+    if (VAULT_TABLES[table]) {
+      const lock = await loadLock(db, auth.perfil?.bar_id)
+      if (!areaOpen(req, lock, VAULT_TABLES[table], { barId: auth.perfil?.bar_id, uid: auth.user?.id || '' })) {
+        return res.status(423).json({ error: 'Locked: enter the PIN first', locked: VAULT_TABLES[table] })
+      }
+    }
     if (GERENTE_WRITE.has(table) && (body.mode || 'select') !== 'select') {
       const role = auth.perfil?.role
       if (role !== 'cliente' && role !== 'gerente') {
         return res.status(403).json({ error: 'Only the manager can write HQ books' })
+      }
+    }
+    if (FLOOR_WRITE.has(table) && (body.mode || 'select') !== 'select') {
+      const role = auth.perfil?.role
+      if (!['cliente', 'gerente', 'admin', 'jbm'].includes(role)) {
+        return res.status(403).json({ error: 'Only the manager can change the floor plan' })
       }
     }
 

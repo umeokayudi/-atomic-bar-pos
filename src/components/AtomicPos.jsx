@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import PhotoField from './ui/PhotoField'
 import { useAuth } from './Auth'
 import { fmtYen, fmtDate, Spinner, SectionTitle } from './utils'
 import {
@@ -14,10 +15,10 @@ import {
   validateDiscountCode,
   pricingMapFromShots,
   isRestockPedido,
-  commitPosSale,
   lineUnitPrice,
 } from '../lib/atomicPos'
-import { syncPosStockAndReorder } from '../lib/posSupply'
+import { reorderLowStock, syncPosStockAndReorder } from '../lib/posSupply'
+import { commitSaleAtomic, newSaleKey } from '../lib/posCommit'
 import { isSupplierProduct } from './utils'
 import { includedTaxBreakdown } from '../lib/consumptionTax'
 import { tokyoMonthKey, tokyoNightKey } from '../lib/tokyo'
@@ -28,15 +29,16 @@ import { summarizeNight, reconcileNight, nightWindow, closeVariance, saleOnNight
 import { CASH_CHIPS, cashSettle, isCashMethod, payRecordNote } from '../lib/posPay'
 import { printGuestReceipt } from '../lib/guestReceipt'
 import { drinkBackCommission } from '../lib/drinkBackPay'
-import PosFloor from './PosFloor'
+import PosQuick from './pos/PosQuick'
+import Icon from './ui/Icon'
 
 const SUB_TAB_IDS = [
-  { id: 'dashboard', key: 'tabDashboard', icon: '📊' },
-  { id: 'checkout', key: 'tabCheckout', icon: '🧾' },
-  { id: 'vip', key: 'tabVip', icon: '⭐' },
-  { id: 'drinkback', key: 'tabDrinkBack', icon: '💃' },
-  { id: 'prices', key: 'tabPrices', icon: '💴' },
-  { id: 'discounts', key: 'tabDiscounts', icon: '🏷️' },
+  { id: 'dashboard', key: 'tabDashboard', icon: 'dashboard' },
+  { id: 'checkout', key: 'tabCheckout', icon: 'pos' },
+  { id: 'vip', key: 'tabVip', icon: 'star' },
+  { id: 'drinkback', key: 'tabDrinkBack', icon: 'drinkback' },
+  { id: 'prices', key: 'tabPrices', icon: 'precos' },
+  { id: 'discounts', key: 'tabDiscounts', icon: 'percent' },
 ]
 
 const PAY_METHODS = [
@@ -51,9 +53,9 @@ function SetupBanner({ onRefresh }) {
   useEffect(() => { checkPosSchema(supabase).then(setSetup) }, [])
   if (!setup || setup.ready) return null
   return (
-    <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 12, padding: 16, marginBottom: 20, fontSize: 13 }}>
+    <div style={{ background: 'var(--amber-bg)', border: '1px solid #fcd34d', borderRadius: 12, padding: 16, marginBottom: 20, fontSize: 13 }}>
       <strong>{t('atomicPos.setupRequired')}</strong>
-      <p style={{ margin: '8px 0', color: '#92400e' }}>
+      <p style={{ margin: '8px 0', color: 'var(--amber)' }}>
         {t('atomicPos.setupHint')}
       </p>
       <button onClick={onRefresh} style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12 }}>{t('atomicPos.checkAgain')}</button>
@@ -267,6 +269,9 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
   const [keepPourPct, setKeepPourPct] = useState('')
   const [lastSale, setLastSale] = useState(null)
   const [saleErr, setSaleErr] = useState('')
+  // One idempotency key per checkout: kept across retries of the same cart, renewed when the cart changes.
+  const saleKeyRef = useRef(newSaleKey())
+  useEffect(() => { saleKeyRef.current = newSaleKey() }, [cart])
   const [showExtras, setShowExtras] = useState(false)
   const [cat, setCat] = useState('all')
 
@@ -413,9 +418,8 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
       }),
     })
     const recordedMethod = cash?.restMethod ? `Cash+${cash.restMethod}` : payMethod
-    const result = await commitPosSale(supabase, {
+    const legacy = {
       bar,
-      cart: checkoutCart,
       payMethod: recordedMethod,
       priceType,
       vipId: priceType === 'vip' ? (vipId || guest?.vip_member_id || null) : null,
@@ -434,7 +438,39 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
         buildStockMap,
         findLowStockProducts,
       }),
+    }
+    const result = await commitSaleAtomic(supabase, {
+      key: saleKeyRef.current,
+      barId: bar.id,
+      cart: checkoutCart,
+      payMethod: recordedMethod,
+      obs,
+      agentId: agentId || null,
+      spaceId: spaceId || null,
+      vipId: legacy.vipId,
+      codeId: activeCode?.id || null,
+      commission: bottleFee,
+      pricingByProduto: pricingMapFromShots(shots),
+      legacy,
     })
+    if (result.ok && result.atomic && !result.replay) {
+      // Attribution and keep pours are not money: best effort after the sale, as before.
+      const venda = result.vendaId
+      if (guestId || openVisit?.id) supabase.from('pos_vendas').update({ guest_id: guestId || null, visit_id: openVisit?.id || null }).eq('id', venda).then(() => {}, () => {})
+      if (openVisit?.id) supabase.from('bar_visits').update({ pos_venda_id: venda }).eq('id', openVisit.id).then(() => {}, () => {})
+      if (legacy.keepPour) {
+        supabase.from('bar_bottle_keeps').select('id,remaining_pct').eq('id', legacy.keepPour.id).maybeSingle().then(({ data: keep }) => {
+          if (!keep) return
+          const remaining = Math.max(0, Math.round((+keep.remaining_pct || 0) - legacy.keepPour.pct))
+          supabase.from('bar_bottle_keeps').update({ remaining_pct: remaining, ativo: remaining > 0 }).eq('id', keep.id).then(() => {}, () => {})
+        }, () => {})
+      }
+      reorderLowStock(supabase, { bar, userId: user?.id, buildStockMap, findLowStockProducts }).catch(() => {})
+    }
+    if (result.ok) {
+      result.venda = result.venda || { id: result.vendaId, total: result.total, data: tokyoNightKey(), obs, metodo_pagamento: recordedMethod }
+      saleKeyRef.current = newSaleKey()
+    }
     setSaving(false)
     if (!result.ok) {
       setSaleErr(result.errorKey ? t(result.errorKey) : (result.error || t('atomicPos.saleStockFailed')))
@@ -486,7 +522,7 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
                 type="button"
                 className={`pos-chip pos-chip-cast${agentId === a.id ? ' is-on' : ''}`}
                 onClick={() => setAgentId(agentId === a.id ? '' : a.id)}
-              >💃 {a.nome}{a.comissao_pct ? ` ${a.comissao_pct}%` : ''}</button>
+              >{a.nome}{a.comissao_pct ? ` ${a.comissao_pct}%` : ''}</button>
             ))}
             <button type="button" className="pos-chip" onClick={() => setAddCastOpen(v => !v)}>{t('atomicPos.addCast')}</button>
             {!ticketReady && !agents.some(a => a.ativo !== false) && spaces.length === 0 && (
@@ -509,7 +545,7 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
                       if (v?.guest_id) setGuestId(v.guest_id)
                     }
                   }}
-                >🪑 {who ? `${s.nome} · ${who}` : s.nome}</button>
+                >{who ? `${s.nome} · ${who}` : s.nome}</button>
               )
             })}
           </div>
@@ -723,9 +759,9 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
         )}
         {(agentId || spaceId || guestId) && (
           <div className="pos-cart-ticket">
-            {agentId && <span>💃 {(agents.find(a => a.id === agentId)?.nome) || 'CAST'}</span>}
-            {spaceId && <span>🪑 {(spaces.find(s => s.id === spaceId)?.nome)}</span>}
-            {guestId && <span>🥂 {(guests.find(g => g.id === guestId)?.nome)}</span>}
+            {agentId && <span><Icon name="drinkback" size={13} /> {(agents.find(a => a.id === agentId)?.nome) || 'CAST'}</span>}
+            {spaceId && <span><Icon name="floor" size={13} /> {(spaces.find(s => s.id === spaceId)?.nome)}</span>}
+            {guestId && <span><Icon name="clientes" size={13} /> {(guests.find(g => g.id === guestId)?.nome)}</span>}
           </div>
         )}
         {cart.length === 0 && charges.lines.length === 0 ? (
@@ -997,7 +1033,7 @@ function PosPricesTab({ bar, drinks, onRefresh }) {
   const [priceMode, setPriceMode] = useState('menu')
   const [produtos, setProdutos] = useState([])
   const [pricing, setPricing] = useState({})
-  const [form, setForm] = useState({ nome: '', categoria: 'Custom', preco_venda: '', custo: '', preco_desconto: '500' })
+  const [form, setForm] = useState({ nome: '', categoria: 'Custom', preco_venda: '', custo: '', preco_desconto: '500', imagem_url: '' })
   const [shotForm, setShotForm] = useState({ produto_id: '', drinks: '16', preco: '' })
   const [editId, setEditId] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -1025,9 +1061,11 @@ function PosPricesTab({ bar, drinks, onRefresh }) {
       preco_desconto: +form.preco_desconto || 500,
       custom: true,
     }
+    // Only sent when filled, so saving still works before sql/pos_start.sql adds the column.
+    if (form.imagem_url?.trim()) payload.imagem_url = form.imagem_url.trim()
     if (editId) await supabase.from('drink_menu').update(payload).eq('id', editId)
     else await supabase.from('drink_menu').insert(payload)
-    setForm({ nome: '', categoria: 'Custom', preco_venda: '', custo: '', preco_desconto: '500' })
+    setForm({ nome: '', categoria: 'Custom', preco_venda: '', custo: '', preco_desconto: '500', imagem_url: '' })
     setEditId(null)
     setSaving(false)
     onRefresh()
@@ -1068,6 +1106,9 @@ function PosPricesTab({ bar, drinks, onRefresh }) {
               <input placeholder={t('atomicPos.costYen')} type="number" value={form.custo} onChange={e => setForm({ ...form, custo: e.target.value })} />
               <input placeholder={t('atomicPos.vipYen')} type="number" value={form.preco_desconto} onChange={e => setForm({ ...form, preco_desconto: e.target.value })} />
               <button className="btn-primary" onClick={saveDrink} disabled={saving}>{editId ? t('common.save') : t('common.add')}</button>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <PhotoField value={form.imagem_url || ''} onChange={url => setForm(f => ({ ...f, imagem_url: url }))} scope="menu" name={form.nome} />
+              </div>
             </div>
           </div>
           <table style={{ width: '100%', fontSize: 13 }}>
@@ -1079,7 +1120,7 @@ function PosPricesTab({ bar, drinks, onRefresh }) {
                   <td>{fmtYen(d.preco_venda)}</td>
                   <td style={{ color: 'var(--gold)' }}>{fmtYen(d.preco_desconto || 500)}</td>
                   <td>{Math.round((d.margem || 0) * 100)}%</td>
-                  <td><button onClick={() => { setEditId(d.id); setForm({ nome: d.nome, categoria: d.categoria, preco_venda: d.preco_venda, custo: d.custo, preco_desconto: d.preco_desconto || 500 }) }} style={{ fontSize: 11 }}>{t('common.edit')}</button></td>
+                  <td><button onClick={() => { setEditId(d.id); setForm({ nome: d.nome, categoria: d.categoria, preco_venda: d.preco_venda, custo: d.custo, preco_desconto: d.preco_desconto || 500, imagem_url: d.imagem_url || '' }) }} style={{ fontSize: 11 }}>{t('common.edit')}</button></td>
                 </tr>
               ))}
             </tbody>
@@ -1329,7 +1370,7 @@ function PosDashboardTab({ bar, todaySales, salesList, onOrder }) {
           </div>
           {onOrder && (
             <button onClick={onOrder} style={{
-              background: 'white', color: 'var(--navy)', border: 'none', borderRadius: 12,
+              background: 'var(--bg2)', color: 'var(--c-text)', border: 'none', borderRadius: 12,
               padding: '10px 18px', fontWeight: 700, fontSize: 12, cursor: 'pointer',
             }}>
               {t('atomicPos.seeJbmOrders')}
@@ -1340,7 +1381,7 @@ function PosDashboardTab({ bar, todaySales, salesList, onOrder }) {
 
       {lowStock.length > 0 && (
         <div style={{
-          background: 'linear-gradient(135deg,#ff9500 0%,#ff6b00 100%)',
+          background: 'linear-gradient(135deg,var(--amber) 0%,#ff6b00 100%)',
           borderRadius: 16, padding: '16px 20px', marginBottom: 20,
           display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
         }}>
@@ -1354,7 +1395,7 @@ function PosDashboardTab({ bar, todaySales, salesList, onOrder }) {
           </div>
           {onOrder && (
             <button onClick={onOrder} style={{
-              background: 'white', color: '#ff6b00', border: 'none', borderRadius: 12,
+              background: 'var(--bg2)', color: '#ff6b00', border: 'none', borderRadius: 12,
               padding: '10px 18px', fontWeight: 700, fontSize: 12, cursor: 'pointer',
             }}>
               {t('atomicPos.reorderJbm')}
@@ -1437,9 +1478,9 @@ function PosDrinkBackTab({ bar, onUpdate }) {
 
   if (!schemaOk) {
     return (
-      <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 12, padding: 16, fontSize: 13 }}>
+      <div style={{ background: 'var(--amber-bg)', border: '1px solid #fcd34d', borderRadius: 12, padding: 16, fontSize: 13 }}>
         <strong>{t('atomicPos.drinkBackSetup')}</strong>
-        <p style={{ margin: '8px 0', color: '#92400e' }}>{t('atomicPos.drinkBackSetupHint')}</p>
+        <p style={{ margin: '8px 0', color: 'var(--amber)' }}>{t('atomicPos.drinkBackSetupHint')}</p>
       </div>
     )
   }
@@ -1492,13 +1533,15 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
   const [todaySales, setTodaySales] = useState({ count: 0, total: 0 })
   const [salesList, setSalesList] = useState([])
   const [posErr, setPosErr] = useState('')
+  const [catalogErr, setCatalogErr] = useState('')
   const [loading, setLoading] = useState(true)
   const [classicTill, setClassicTill] = useState(false)
 
   useEffect(() => { init() }, [bar])
 
-  async function init() {
-    setLoading(true)
+  async function init({ quiet = false } = {}) {
+    // A refresh after a sale keeps the till on screen; only the first load shows the spinner.
+    if (!quiet) setLoading(true)
     const nightKey = tokyoNightKey()
     const from = prevTokyoDateKey(nightKey)
     const salesSelect = 'total,refunded,card_fee,card_fee_reversed,criado_em,data,metodo_pagamento,obs,drink_back_agent_id'
@@ -1518,6 +1561,7 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
     setReady(schema.ready)
     if (dR.error) setPosErr(dR.error.message || t('atomicPos.tillLoadError'))
     else if (sR.error) setPosErr(sR.error.message || t('atomicPos.tillLoadError'))
+    setCatalogErr(dR.error?.message || sR.error?.message || '')
     setDrinks(dR.error ? [] : (dR.data || []))
     setShots(sR.error ? [] : (sR.data || []))
     setDiscountCodes(cR.data || [])
@@ -1542,13 +1586,14 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
     <div className={`fade-in pos-shell${access === 'cashier' ? ' pos-kiosk' : ''}`}>
       <SetupBanner onRefresh={init} />
 
+      {access !== 'cashier' && (
       <div className="pos-head">
         <div>
           <div className="pos-head-title">{access === 'cashier' ? t('atomicPos.tillTitle') : t('atomicPos.title')}</div>
           <div className="pos-head-sub">{access === 'cashier' ? t('atomicPos.tillSubtitle') : t('atomicPos.subtitle')}</div>
           <div className="pos-head-bar">{t('atomicPos.thisTill', { name: bar.nome || 'Atomic' })}</div>
           {access === 'cashier' && (
-            <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 6 }}>{t('atomicPos.tillOnly')}</div>
+            <div className="pos-head-only">{t('atomicPos.tillOnly')}</div>
           )}
         </div>
         <div className="pos-head-today">
@@ -1557,12 +1602,13 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
           <div className="pos-head-count">{posErr ? t('atomicPos.tillLoadError') : t('atomicPos.salesCount', { count: todaySales.count })}</div>
         </div>
       </div>
+      )}
 
       {tabs.length > 1 && (
         <div className="pos-subnav">
           {tabs.map(tab => (
             <button key={tab.id} className={`pos-chip${subTab === tab.id ? ' is-on' : ''}`} onClick={() => setSubTab(tab.id)}>
-              {tab.icon} {t(`atomicPos.${tab.key}`)}
+              <Icon name={tab.icon} size={15} /> {t(`atomicPos.${tab.key}`)}
             </button>
           ))}
         </div>
@@ -1600,13 +1646,14 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
               {access !== 'cashier' && (
                 <button type="button" className="pos-chip" onClick={() => setClassicTill(true)}>{t('posFloor.classic')}</button>
               )}
-              <PosFloor
+              <PosQuick
                 bar={bar}
                 drinks={drinks}
                 shots={shots}
                 agents={drinkBackAgents}
-                catalogError={posErr}
-                onSale={init}
+                todaySales={todaySales}
+                catalogError={catalogErr}
+                onSale={() => init({ quiet: true })}
               />
             </>
           )}

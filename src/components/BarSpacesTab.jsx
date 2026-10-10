@@ -23,6 +23,7 @@ import { tokyoMonthKey, tokyoNightKey } from '../lib/tokyo'
 import { addDays } from '../lib/barClose'
 import { monthBounds } from '../lib/barCalendar'
 import RangeCalendar from './RangeCalendar'
+import { PageHeader } from './ui/PageLayout'
 
 function typeLabel(t, tipo) {
   const row = SPACE_TYPES.find(x => x.id === tipo)
@@ -34,7 +35,7 @@ function zoneTitle(t, zona) {
   return key ? t(key) : zona
 }
 
-export default function BarSpacesTab({ bar }) {
+export default function BarSpacesTab({ bar, onTab }) {
   const { t } = useI18n()
   const { user } = useAuth()
   const [ready, setReady] = useState(null)
@@ -307,8 +308,7 @@ export default function BarSpacesTab({ bar }) {
 
   return (
     <div className="fade-in floor-page">
-      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>{t('spaces.title')}</div>
-      <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16 }}>{t('spaces.subtitle')}</div>
+      <PageHeader title={t('spaces.title')} subtitle={t('spaces.subtitle')} />
       {loadErr && <div className="pos-sale-err" style={{ marginBottom: 12 }}>{asReactText(loadErr)}</div>}
 
       {staleVisits.length > 0 && (
@@ -346,7 +346,7 @@ export default function BarSpacesTab({ bar }) {
       <div className="floor-kpis">
         {[
           { label: t('spaces.total'), value: floor.length },
-          { label: t('spaces.seated'), value: seated, color: 'var(--navy)' },
+          { label: t('spaces.seated'), value: seated, color: 'var(--c-text)' },
           { label: t('spaces.reserved'), value: reserved, color: 'var(--gold, #b8860b)' },
           { label: t('spaces.free'), value: free, color: 'var(--green)' },
         ].map(k => (
@@ -385,29 +385,10 @@ export default function BarSpacesTab({ bar }) {
           {t('spaces.addVip')}
         </button>
         {!vipRooms.length && <div className="house-empty">{t('spaces.vip.empty')}</div>}
-        {!!vipRooms.length && (
-          <div className="vip-room-grid">
-            <article className="vip-room-card is-total">
-              <h3>{t('spaces.vip.allRooms')}</h3>
-              <div><span>{t('spaces.vip.times')}</span><b>{vip.totals.times}</b></div>
-              <div><span>{t('spaces.vip.hours')}</span><b>{formatVisitDuration(vip.totals.minutes)}</b></div>
-              <div><span>{t('spaces.vip.capacity')}</span><b>{t('spaces.vip.capacityLine', { pct: vip.totals.capacityPct, seats: vip.totals.seats })}</b></div>
-              <div><span>{t('spaces.vip.revenue')}</span><b>{fmtYen(vip.totals.revenue)}</b></div>
-            </article>
-            {vip.rows.map(row => (
-              <article key={row.id} className="vip-room-card">
-                <h3>{row.nome}</h3>
-                <div><span>{t('spaces.vip.times')}</span><b>{row.times}</b></div>
-                <div><span>{t('spaces.vip.hours')}</span><b>{formatVisitDuration(row.minutes)}</b></div>
-                <div>
-                  <span>{t('spaces.vip.capacity')}</span>
-                  <b>{t('spaces.vip.capacityLine', { pct: row.capacityPct, seats: row.seats })}</b>
-                  <em>{t('spaces.vip.capacitySub', { party: row.partyAvg, seats: row.seats })}</em>
-                </div>
-                <div><span>{t('spaces.vip.revenue')}</span><b>{fmtYen(row.revenue)}</b></div>
-              </article>
-            ))}
-          </div>
+        {!!vipRooms.length && onTab && (
+          <button type="button" className="ui-btn is-primary" onClick={() => onTab('vip')}>
+            {t('vip.open', { count: vipRooms.length })}
+          </button>
         )}
       </section>
 

@@ -118,7 +118,7 @@ function taxRate(registry) {
 export function fixedMonthCost(registry, hq, monthKey) {
   const sum = (kind) => (registry || []).reduce((a, r) => {
     if (r.kind !== kind) return a
-    if (kind === 'variavel' && r.month_key && r.month_key !== monthKey) return a
+    if ((kind === 'variavel' || kind === 'energia') && r.month_key && r.month_key !== monthKey) return a
     return a + Math.round(+r.amount || 0)
   }, 0)
   const rentReg = sum('aluguel')
@@ -249,8 +249,13 @@ export function paymentAgenda({
   }
   push({ id: 'salario', kind: 'salario', amount: costs.wages, day: goals.dia_salario || 25, tab: 'salarios' })
   push({ id: 'drink', kind: 'drink', amount: comm, day: goals.dia_drink || 10, tab: 'pagamentos' })
-  push({ id: 'aluguel', kind: 'aluguel', amount: costs.rent, day: (registry.find(r => r.kind === 'aluguel' && r.vence_dia) || {}).vence_dia || 1, tab: 'aluguel' })
-  push({ id: 'energia', kind: 'energia', amount: costs.energy, day: (registry.find(r => r.kind === 'energia' && r.vence_dia) || {}).vence_dia || 1, tab: 'energia' })
+  push({ id: 'aluguel', kind: 'aluguel', amount: costs.rent, day: (registry.find(r => r.kind === 'aluguel' && r.vence_dia) || {}).vence_dia || 1, metodo: (registry.find(r => r.kind === 'aluguel' && r.metodo) || {}).metodo || '', tab: 'fixo' })
+  // Power is a monthly bill now (variable costs): each bill on its own pay date when it has one.
+  const thisMonth = r => !r.month_key || r.month_key === monthKey
+  const paidOnDate = r => /^\d{4}-\d{2}-\d{2}$/.test(String(r.data_pagamento || ''))
+  const energyDated = (registry || []).filter(r => r.kind === 'energia' && thisMonth(r) && paidOnDate(r) && +r.amount)
+  for (const r of energyDated) push({ id: r.id, kind: 'energia', title: r.nome, amount: Math.round(+r.amount), date: r.data_pagamento, metodo: r.metodo || '', tab: 'variavel' })
+  push({ id: 'energia', kind: 'energia', amount: costs.energy - energyDated.reduce((a, r) => a + Math.round(+r.amount), 0), day: (registry.find(r => r.kind === 'energia' && r.vence_dia) || {}).vence_dia || 1, tab: 'variavel' })
   push({ id: 'contador', kind: 'contador', amount: costs.accountant, day: (registry.find(r => r.kind === 'contador' && r.vence_dia) || {}).vence_dia || 1, tab: 'contador' })
   const monthSales = monthTickets.reduce((a, s) => a + (+s.total || 0), 0)
   for (const r of registry || []) {
@@ -258,10 +263,12 @@ export function paymentAgenda({
     const amount = Math.round(monthSales * (+r.pct || 0) / 100) + Math.round(+r.amount || 0)
     push({ id: r.id, kind: 'imposto', title: r.nome, amount, day: r.vence_dia || 15, tab: 'imposto' })
   }
-  push({ id: 'variavel', kind: 'variavel', amount: costs.variable, day: goals.dia_mes || 1, tab: 'variavel' })
+  const variableDated = (registry || []).filter(r => r.kind === 'variavel' && thisMonth(r) && paidOnDate(r) && +r.amount)
+  for (const r of variableDated) push({ id: r.id, kind: 'variavel', title: r.nome, amount: Math.round(+r.amount), date: r.data_pagamento, metodo: r.metodo || '', tab: 'variavel' })
+  push({ id: 'variavel', kind: 'variavel', amount: costs.variable - variableDated.reduce((a, r) => a + Math.round(+r.amount), 0), day: goals.dia_mes || 1, tab: 'variavel' })
   for (const r of registry || []) {
     if (r.kind !== 'fixo' || !(+r.amount)) continue
-    push({ id: r.id, kind: 'fixo', title: r.nome, amount: Math.round(+r.amount || 0), day: r.vence_dia || 1, tab: 'fixo' })
+    push({ id: r.id, kind: 'fixo', title: r.nome, amount: Math.round(+r.amount || 0), day: r.vence_dia || 1, metodo: r.metodo || '', tab: 'fixo' })
   }
   for (const f of invoices || []) {
     if (f.status === 'pago') continue

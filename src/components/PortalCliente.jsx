@@ -1,9 +1,17 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import Icon, { hasIcon } from './ui/Icon'
+import PhotoField from './ui/PhotoField'
+import { SidebarCollapseButton, useSidebarCollapse } from '../lib/sidebarCollapse'
+import { BAR_ADMIN_TABS, aiModuleForTab, pathForTab, tabFromPath } from '../lib/navigation'
+import { useAiPanel } from '../lib/aiPanel'
+import AskAiDrawer, { AskAiButton } from './ai/AskAiDrawer'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import { callGeminiChat, imageDataUrlToParts, parseJsonFromAI } from '../lib/ai'
 import { LogoSidebar } from './Logo'
-import { MobileTopBar, ShellOverlay, WorkspaceChrome, useMobileMenuLock } from './MobileShell'
+import { MobileTopBar, ShellOverlay, WorkspaceChrome, TopbarUser, useMobileMenuLock } from './MobileShell'
+import GlobalSearch from './GlobalSearch'
 import { fmtYen, fmtDate, Spinner, Empty, SectionTitle, isSupplierProduct, filterSupplierVendas, roleLabel } from './utils'
 import {
   filterJbmDrinksFaturas,
@@ -23,13 +31,24 @@ import {
   projectItemRevenue,
 } from '../lib/clientAnalytics'
 import BarDesk from './BarDesk'
+import DashboardGrid from './ui/DashboardGrid'
+import { ColumnChart, RankList, deltaPct } from './ui/Charts'
+import { PageHeader, PortalHero, PortalKpi, PortalPills, PortalSurface, WelcomeHeader } from './ui/PageLayout'
+import { useDashboardLayout } from '../lib/dashboardLayout'
+import { aggregateHourlySales, computeDayMetrics } from '../lib/atomicPos'
+import { nightKeyOfSale } from '../lib/nightClose'
+import { sameWeekdaySales } from '../lib/barClose'
 import AutoReorder from './AutoReorder'
 import BillMatch from './BillMatch'
 import RangeCalendar from './RangeCalendar'
+import { useVaultLock } from './VaultGate'
 import AutoClose from './AutoClose'
 const ClientAnalyticsTab = lazy(() => import('./ClientAnalyticsTab'))
 const PortalRecibosTab = lazy(() => import('./PortalRecibosTab'))
-const PortalClienteAI = lazy(() => import('./PortalClienteAI'))
+const AiCenter = lazy(() => import('./ai/AiCenter'))
+const FloorScreen = lazy(() => import('./floor/FloorScreen'))
+const MarketingHub = lazy(() => import('./growth/MarketingHub'))
+const ConsultingHub = lazy(() => import('./growth/ConsultingHub'))
 const AtomicPosPanel = lazy(() => import('./AtomicPos'))
 const TimeClockPanel = lazy(() => import('./TimeClock'))
 const BarTeamTab = lazy(() => import('./BarTeamTab'))
@@ -40,13 +59,17 @@ const BarEventsTab = lazy(() => import('./BarEvents'))
 const BarFinance = lazy(() => import('./BarFinance'))
 const BarGuestsTab = lazy(() => import('./BarGuestsTab'))
 const BarSpacesTab = lazy(() => import('./BarSpacesTab'))
+const BarVipTab = lazy(() => import('./BarVipTab'))
+const StaffOrdersTab = lazy(() => import('./StaffOrdersTab'))
+const StaffAlerts = lazy(() => import('./StaffAlerts'))
+const EmployeeDesk = lazy(() => import('./EmployeeDesk'))
 import { fetchAllStockMovements } from '../lib/posSupply'
 import { coalesceStockMoves, decorateStockList, deliveryNoteMoves, posPourMoves, stockFlow, stockGlance } from '../lib/barStock'
 import { groupedNavForRole, primaryDockForRole, defaultBarTab, posAccessForRole, canManageBarTeam, isGerente, costAccessForRole, canPlaceDrinkOrders } from '../lib/access'
 import { isTillKiosk, isClockKiosk, loginDoorFromHash, setDoorHash, doorAllowsRole } from '../lib/barDoors'
 import UiPrefsPanel from './UiPrefsPanel'
 import { useI18n } from '../lib/i18n'
-import { tokyoMonthKey } from '../lib/tokyo'
+import { tokyoMonthKey, tokyoNightKey } from '../lib/tokyo'
 import { buildBarCalendarEvents, dateInRange, invoiceInRange } from '../lib/barCalendar'
 import { birthdayThisMonth, decorateSpaces } from '../lib/barCrm'
 import BarCostsTab, { CostBooksHero, loadCostBooks, BarCommandActions } from './BarCostsTab'
@@ -57,6 +80,7 @@ import { booksAreSeparate } from '../lib/costBooks'
 import { asReactText } from '../lib/errText'
 import { NotificationBell, useBarOverdueAlerts } from './Notifications'
 const BarOrdersTab = lazy(() => import('./BarOrdersTab'))
+const VaultSettings = lazy(() => import('./VaultSettings'))
 const DashboardCalendar = lazy(() => import('./DashboardCalendar'))
 
 function TabHold({ children }) {
@@ -70,25 +94,13 @@ import {
 } from '../lib/ryoshushoPrint'
 
 // ── HOME ──────────────────────────────────────────────────────────────────────
-function EasyMoneyCard({ kicker, value, hint, tone = 'navy', children }) {
-  const tones = {
-    navy: { bg: 'linear-gradient(135deg, var(--navy) 0%, #002855 100%)', color: 'white', hint: 'rgba(255,255,255,0.75)' },
-    light: { bg: 'var(--bg2)', color: 'var(--navy)', hint: 'var(--text2)', border: '1px solid var(--border)' },
-    green: { bg: 'var(--bg2)', color: 'var(--green)', hint: 'var(--text2)', border: '1px solid rgba(52,199,89,0.25)' },
-  }
-  const s = tones[tone] || tones.navy
-  return (
-    <div className="easy-dash-card" style={{
-      background: s.bg, color: s.color, border: s.border || 'none',
-      borderRadius: 20, padding: '22px 24px',
-    }}>
-      <div className="easy-dash-kicker">{kicker}</div>
-      <div className="easy-dash-value">{asReactText(value)}</div>
-      {hint && <div className="easy-dash-hint" style={{ color: s.hint }}>{asReactText(hint)}</div>}
-      {children}
-    </div>
-  )
-}
+/** Bar home cards: id, default width, hidden by default. Titles and content live in HomeTab. */
+const HOME_WIDGET_META = [
+  ['actions', 'full'], ['tonight', 'full'], ['hourly', 'half'], ['spend', 'half'], ['desk', 'full'], ['ops', 'full'],
+  ['books', 'full'], ['calendar', 'full'], ['period', 'full', true], ['topCost', 'half', true], ['topVolume', 'half', true],
+  ['margins', 'half', true], ['economics', 'full', true], ['recent', 'half', true], ['analytics', 'full', true],
+].map(([id, size, defaultHidden]) => ({ id, size, defaultHidden: !!defaultHidden }))
+const ITEM_WIDGETS = new Set(['topCost', 'topVolume', 'margins', 'economics'])
 
 function HomeTab({ bar, onTab }) {
   const { t } = useI18n()
@@ -112,8 +124,9 @@ function HomeTab({ bar, onTab }) {
   const [floorGlance, setFloorGlance] = useState(null)
   const [loading] = useState(false)
   const [periodo,     setPeriodo]     = useState('30')
-  const [chartMonth,  setChartMonth]   = useState(null)
-  const [showMore,    setShowMore]    = useState(false)
+  const layout = useDashboardLayout('bar-home', HOME_WIDGET_META)
+  // Product-level cards need the delivery lines (up to 600 rows): load them only when one is on screen.
+  const showMore = layout.items.some(i => !i.hidden && ITEM_WIDGETS.has(i.id))
   const [calMonth,    setCalMonth]    = useState(() => tokyoMonthKey())
 
   function sinceKey() {
@@ -213,9 +226,7 @@ function HomeTab({ bar, onTab }) {
   const totalPrev  = vendasPrev.reduce((a,v) => a+(+v.total||0), 0)
   const growth     = totalPrev > 0 ? Math.round((totalPeriod-totalPrev)/totalPrev*100) : null
 
-  const { labels: monthLabels, values: monthlyData, keys: monthKeys } = monthlySpendSeries(vendas, 6)
-  const chartMonthKey = chartMonth !== null ? monthKeys[chartMonth] : mes
-  const chartMonthStats = analyzePurchases(itens, pricingMap, { monthKey: chartMonthKey })
+  const { labels: monthLabels, values: monthlyData } = monthlySpendSeries(vendas, 6)
 
   // Top products by revenue
   const prodMap = {}
@@ -234,17 +245,33 @@ function HomeTab({ bar, onTab }) {
 
   const ativos  = pedidos.filter(p=>p.status==='pendente'||p.status==='confirmado')
 
-  const maxMonth = Math.max(...monthlyData, 1)
+  const byName = {}
+  itens.filter(it => it.vendas?.data >= cutoffStr).forEach(it => {
+    const nome = it.produtos?.nome || '?'
+    if (!byName[nome]) byName[nome] = { nome, qtd: 0, jbmTotal: 0, posTotal: 0, margin: 0, source: 'pos' }
+    const r = projectItemRevenue(it, pricingMap)
+    byName[nome].qtd += +it.qtd || 0
+    byName[nome].jbmTotal += r.jbmTotal
+    byName[nome].posTotal += r.posTotal
+    byName[nome].margin += r.margin
+    if (r.source === 'estimate') byName[nome].source = 'estimate'
+  })
+  const economics = Object.values(byName)
+    .map(p => ({
+      ...p,
+      marginPct: p.posTotal > 0 ? Math.round(p.margin / p.posTotal * 100) : 0,
+      costPerUnit: p.qtd > 0 ? Math.round(p.jbmTotal / p.qtd) : 0,
+      posPerUnit: p.qtd > 0 ? Math.round(p.posTotal / p.qtd) : 0,
+    }))
+    .filter(p => p.posTotal > 0)
+    .sort((a, b) => b.margin - a.margin)
+    .slice(0, 12)
 
   if (loading) return <Spinner text={t('portal.home.loading')} />
 
   const deliveriesLabel = account.deliveries === 1
     ? t('portal.home.deliveriesThisMonth', { count: account.deliveries })
     : t('portal.home.deliveriesThisMonthPlural', { count: account.deliveries })
-
-  const growthSub = growth !== null
-    ? (growth >= 0 ? t('portal.home.growthUp', { pct: growth }) : t('portal.home.growthDown', { pct: growth }))
-    : null
 
   const tableHeaders = [
     t('portal.home.tableProduct'),
@@ -267,463 +294,260 @@ function HomeTab({ bar, onTab }) {
     attentionItems.push({ tab: 'clientes', text: t('portal.home.birthdaysMonth', { count: floorGlance.birthdays }) })
   }
 
-  return (
-    <div className="fade-in portal-page easy-dash hq-dash">
-      <div className="hq-top">
-        <div>
-          <div className="hq-title">{bar.nome}</div>
-          <div className="hq-sub">{t('portal.home.atAGlance')}</div>
+  const tonightKey = tokyoNightKey()
+  const tonightRows = (posTickets || []).filter(x => nightKeyOfSale(x) === tonightKey)
+  const lastNightKey = tonightRows.length ? tonightKey : [...new Set((posTickets || []).map(nightKeyOfSale).filter(Boolean))].sort().pop()
+  const shownNight = (posTickets || []).filter(x => nightKeyOfSale(x) === lastNightKey)
+  const night = computeDayMetrics(tonightRows)
+  const weekAgo = sameWeekdaySales(posTickets, tonightKey)
+  const hourlyCols = nightHours(aggregateHourlySales(shownNight))
+  const periodChips = (
+    <PortalPills
+      options={[['7', '7d'], ['30', '30d'], ['90', '90d'], ['365', '1y']]}
+      value={periodo}
+      onChange={setPeriodo}
+    />
+  )
+
+  const widgets = [
+    {
+      id: 'actions', title: t('portal.home.doTonight'), icon: 'next', size: 'full',
+      render: () => (
+        <section className="home-band">
+          <div className="hq-actions-label">{t('portal.home.doTonight')}</div>
+          <BarCommandActions onTab={onTab} ids={['pos', 'pedidos', 'espacos', 'clientes', 'ponto', 'fechamento']} />
+        </section>
+      ),
+    },
+    {
+      id: 'tonight', title: t('dash.w.tonight'), icon: 'pos', size: 'full',
+      render: () => (
+        <div className="portal-hero-grid is-four">
+          <PortalKpi icon="sales" label={t('dash.salesTonight')} value={fmtYen(night.total)}
+            delta={deltaPct(weekAgo.now, weekAgo.before)} deltaLabel={t('dash.vsLastWeekDay')} onClick={() => onTab('pos')} />
+          <PortalKpi icon="pos" tone="info" label={t('dash.tickets')} value={night.count} sub={t('dash.ticketsSub')} />
+          <PortalKpi icon="coins" tone="success" label={t('dash.avgTicket')} value={fmtYen(night.ticketMedio)} />
+          <PortalKpi icon="clock" tone="warning" label={t('dash.peakHour')} value={night.peakHour?.total > 0 ? night.peakHour.label : '—'}
+            sub={night.peakHour?.total > 0 ? fmtYen(night.peakHour.total) : t('dash.noSalesYet')} />
         </div>
-      </div>
-
-      <section className="home-band">
-        <div className="hq-actions-label">{t('portal.home.doTonight')}</div>
-        <BarCommandActions onTab={onTab} ids={['pos', 'pedidos', 'espacos', 'clientes', 'ponto', 'fechamento']} />
-      </section>
-
-      <BarDesk
-        bar={bar}
-        hq={hq}
-        tickets={posTickets}
-        invoices={faturas}
-        openOrders={ativos.length}
-        floor={floorGlance}
-        onTab={onTab}
-      />
-
-      <Suspense fallback={null}>
-        <DashboardCalendar
-          events={buildBarCalendarEvents({ invoices: faturas, orders: pedidos, notes: vendas, tickets: posTickets })}
-          onNav={onTab}
-          month={calMonth}
-          onMonthChange={setCalMonth}
-          sub={t('portal.home.calSub')}
-        />
-      </Suspense>
-
-      <section className="home-band">
-      <BarOpsGlance
-        glance={buildBarOpsGlance({
-          hq,
-          floor: floorGlance,
-          openOrders: ativos.length,
-          posTickets,
-          posMonthFallback: posMonthTotal,
-          account,
-          invoices: faturas,
-        })}
-        onTab={onTab}
-      />
-      </section>
-
-      <section className="home-band home-band-books">
+      ),
+    },
+    {
+      id: 'hourly', title: t('dash.w.hourly'), icon: 'result', size: 'half',
+      render: () => (
+        <PortalSurface title={t('dash.w.hourly')} sub={lastNightKey && lastNightKey !== tonightKey ? t('dash.lastNight', { date: fmtDate(lastNightKey) }) : t('dash.tonight')}>
+          <ColumnChart data={hourlyCols} format={fmtYen} empty={t('dash.noSalesYet')} ariaLabel={t('dash.w.hourly')} />
+        </PortalSurface>
+      ),
+    },
+    {
+      id: 'spend', title: t('portal.home.monthlySpend'), icon: 'purchases', size: 'half',
+      render: () => (
+        <PortalSurface title={t('portal.home.monthlySpend')} sub={t('dash.spendSub')}>
+          <ColumnChart
+            data={monthlyData.map((v, i) => ({ label: monthLabels[i], value: v }))}
+            format={fmtYen} highlight="last" empty={t('portal.home.noDeliveriesYet')}
+          />
+        </PortalSurface>
+      ),
+    },
+    {
+      id: 'desk', title: t('dash.w.desk'), icon: 'goals', size: 'full',
+      render: () => (
+        <BarDesk bar={bar} hq={hq} tickets={posTickets} invoices={faturas} openOrders={ativos.length} floor={floorGlance} onTab={onTab} />
+      ),
+    },
+    {
+      id: 'ops', title: t('dash.w.ops'), icon: 'floor', size: 'full',
+      render: () => (
+        <section className="home-band">
+          <BarOpsGlance
+            glance={buildBarOpsGlance({ hq, floor: floorGlance, openOrders: ativos.length, posTickets, posMonthFallback: posMonthTotal, account, invoices: faturas })}
+            onTab={onTab}
+          />
+        </section>
+      ),
+    },
+    {
+      id: 'books', title: t('dash.w.books'), icon: 'custos', size: 'full',
+      render: () => (
+        <section className="home-band home-band-books">
           {costBooks ? (
             <CostBooksHero books={costBooks} access={access} onSelect={() => onTab('custos')} />
           ) : (
-            <div className="portal-grid-hero easy-dash-story" style={{ display:'grid', gridTemplateColumns:'1.1fr 1fr 1fr', gap:14, marginBottom:16 }}>
-        <EasyMoneyCard
-          kicker={t('portal.home.payJbm')}
-          value={fmtYen(account.contaMes)}
-          hint={t('portal.home.payJbmHint')}
-          tone="navy"
-        >
-          <div style={{ fontSize:12, opacity:0.8, marginTop:10 }}>
-            {deliveriesLabel}
-            {account.growth !== null && (
-              <span style={{ marginLeft:8, color: account.growth >= 0 ? '#6ee7b7' : '#fca5a5', fontWeight:700 }}>
-                {t('portal.home.vsPrevMonth', { dir: account.growth >= 0 ? '↑' : '↓', pct: Math.abs(account.growth) })}
-              </span>
-            )}
-          </div>
-        </EasyMoneyCard>
-
-        <EasyMoneyCard
-          kicker={t('portal.home.barSold')}
-          value={fmtYen(posMonthTotal != null ? posMonthTotal : monthProjection.posTotal)}
-          hint={posMonthTotal != null ? t('portal.home.barSoldHint') : t('portal.home.sellAtBarPrice', { pct: monthProjection.posCoveragePct })}
-          tone="light"
-        >
-          {monthProjection.estimatedSharePct > 0 && posMonthTotal == null && (
-            <div style={{ marginTop:12, fontSize:11, color:'var(--amber)', fontWeight:600 }}>
-              {t('portal.home.estimated', { pct: monthProjection.estimatedSharePct })}
+            <div className="portal-hero-grid is-three">
+              <PortalHero
+                label={t('portal.home.payJbm')}
+                value={fmtYen(account.contaMes)}
+                sub={<>{t('portal.home.payJbmHint')} · {deliveriesLabel}</>}
+              />
+              <PortalKpi
+                icon="pos" label={t('portal.home.barSold')}
+                value={fmtYen(posMonthTotal != null ? posMonthTotal : monthProjection.posTotal)}
+                sub={posMonthTotal != null ? t('portal.home.barSoldHint') : t('portal.home.sellAtBarPrice', { pct: monthProjection.posCoveragePct })}
+                hint={monthProjection.estimatedSharePct > 0 && posMonthTotal == null ? t('portal.home.estimated', { pct: monthProjection.estimatedSharePct }) : null}
+              />
+              <PortalKpi
+                icon="piggy" tone="success" label={t('portal.home.youKeep')}
+                value={fmtYen(monthProjection.margin)} color="var(--green)"
+                sub={t('portal.home.marginOnPos', { pct: monthProjection.marginPct })}
+              />
             </div>
           )}
-        </EasyMoneyCard>
-
-        <EasyMoneyCard
-          kicker={t('portal.home.youKeep')}
-          value={fmtYen(monthProjection.margin)}
-          hint={t('portal.home.youKeepHint')}
-          tone="green"
+          {attentionItems.length > 0 ? (
+            <div className="easy-dash-alert">
+              <div className="easy-dash-alert-title"><Icon name="warning" size={15} /> {t('portal.home.needsAttention')}</div>
+              {attentionItems.map(item => (
+                <button key={item.tab} type="button" onClick={() => onTab(item.tab)} className="easy-dash-alert-item">
+                  {item.text}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="easy-dash-ok"><Icon name="ok" size={15} /> {t('portal.home.allClear')}</div>
+          )}
+        </section>
+      ),
+    },
+    {
+      id: 'calendar', title: t('dash.w.calendar'), icon: 'shifts', size: 'full',
+      render: () => (
+        <Suspense fallback={null}>
+          <DashboardCalendar
+            events={buildBarCalendarEvents({ invoices: faturas, orders: pedidos, notes: vendas, tickets: posTickets })}
+            onNav={onTab}
+            month={calMonth}
+            onMonthChange={setCalMonth}
+            sub={t('portal.home.calSub')}
+          />
+        </Suspense>
+      ),
+    },
+    {
+      id: 'period', title: t('dash.w.period'), icon: 'report', size: 'full', defaultHidden: true,
+      render: () => (
+        <PortalSurface title={t('dash.w.period')} headerRight={periodChips}>
+          <div className="portal-hero-grid is-four">
+            <PortalKpi icon="purchases" label={t('portal.home.totalSpend')} value={fmtYen(totalPeriod)} delta={growth} deltaLabel={t('dash.vsPrevPeriod')} deltaGood="down" />
+            <PortalKpi icon="entregas" tone="info" label={t('common.deliveries')} value={vendasPeriod.length} sub={t('portal.home.inDays', { days: periodo })} />
+            <PortalKpi icon="coins" tone="success" label={t('portal.home.avgPerDelivery')} value={fmtYen(avgOrder)} sub={t('portal.home.perDelivery')} />
+            <PortalKpi icon="orders" tone={ativos.length ? 'warning' : 'success'} label={t('portal.home.activeOrders')} value={ativos.length}
+              sub={ativos.length > 0 ? ativos.map(p => t(`orderStatus.${p.status}`)).join(', ') : t('portal.home.allOk')} onClick={() => onTab('pedidos')} />
+          </div>
+        </PortalSurface>
+      ),
+    },
+    {
+      id: 'topCost', title: t('portal.home.topByCost'), icon: 'products', size: 'half', defaultHidden: true,
+      render: () => (
+        <PortalSurface title={t('portal.home.topByCost')} sub={t('portal.home.whatYouSpent', { days: periodo })} headerRight={periodChips}>
+          <RankList items={topRevenue.map(([label, value]) => ({ label, value }))} format={fmtYen} empty={t('common.noData')} />
+        </PortalSurface>
+      ),
+    },
+    {
+      id: 'topVolume', title: t('portal.home.topByVolume'), icon: 'package', size: 'half', defaultHidden: true,
+      render: () => (
+        <PortalSurface title={t('portal.home.topByVolume')} sub={t('portal.home.lastDays', { days: periodo })} headerRight={periodChips}>
+          <RankList items={topVolume.map(([label, value]) => ({ label, value }))} format={v => `${v} ${t('portal.home.units')}`} empty={t('common.noData')} />
+        </PortalSurface>
+      ),
+    },
+    {
+      id: 'margins', title: t('portal.home.topMarginTitle'), icon: 'percent', size: 'half', defaultHidden: true,
+      render: () => (
+        <PortalSurface
+          title={t('portal.home.topMarginTitle')}
+          sub={t('portal.home.topMarginSub', { days: periodo })}
+          headerRight={<button type="button" className="ui-btn is-sm" onClick={() => onTab('precos')}>{t('portal.home.editPrices')}</button>}
         >
-          <div style={{ fontSize:12, color:'var(--text2)', marginTop:8 }}>
-            {t('portal.home.marginOnPos', { pct: monthProjection.marginPct })}
-          </div>
-          <div style={{ marginTop:12, height:6, background:'var(--bg3)', borderRadius:3, overflow:'hidden' }}>
-            <div style={{ height:'100%', width:Math.min(monthProjection.marginPct,100)+'%', background:'var(--green)', borderRadius:3 }}/>
-          </div>
-        </EasyMoneyCard>
-      </div>
-      )}
-
-      {attentionItems.length > 0 ? (
-        <div className="easy-dash-alert">
-          <div style={{ fontSize:11, fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:8 }}>{t('portal.home.needsAttention')}</div>
-          {attentionItems.map(item => (
-            <button key={item.tab} type="button" onClick={() => onTab(item.tab)} className="easy-dash-alert-item">
-              {item.text}
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="easy-dash-ok">{t('portal.home.allClear')}</div>
-      )}
-      </section>
-
-      <button type="button" className="easy-dash-more" onClick={() => setShowMore(v => !v)}>
-        {showMore ? t('portal.home.hideDetails') : t('portal.home.showDetails')}
-      </button>
-
-      {showMore && (
-        <div className="easy-dash-details">
-      <div className="hq-filters">
-        <div className="hq-filter-group">
-          <span className="hq-filter-label">{t('portal.home.filterWindow')}</span>
-          {[['7', '7d'], ['30', '30d'], ['90', '90d'], ['365', '1y']].map(([v, l]) => (
-            <button key={v} type="button" className={`hq-chip${periodo === v ? ' is-on' : ''}`} onClick={() => setPeriodo(v)}>{l}</button>
-          ))}
-        </div>
-        <div className="hq-panel-hint" style={{ margin: 0 }}>{t('portal.home.windowHint')}</div>
-      </div>
-
-      {/* Spend chart — clickable */}
-      <div style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:16, padding:'20px 24px', marginBottom:16 }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, flexWrap:'wrap', gap:8 }}>
-          <div>
-            <div style={{ fontSize:14, fontWeight:700 }}>{t('portal.home.monthlySpend')}</div>
-            <div style={{ fontSize:11, color:'var(--text2)', marginTop:4 }}>{t('portal.home.clickMonth', { month: chartMonthKey })}</div>
-          </div>
-          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-            <div style={{ fontSize:13, fontWeight:800, color:'var(--navy)' }}>{fmtYen(chartMonthStats.jbmTotal)}</div>
-          </div>
-        </div>
-        <div style={{ display:'flex', alignItems:'flex-end', gap:8, height:100 }}>
-          {monthlyData.map((v,i) => {
-            const pct = Math.max(v/maxMonth*100, v>0?4:0)
-            const isSelected = chartMonth === i || (chartMonth === null && i === 5)
-            return (
-              <button key={i} type="button" onClick={()=>setChartMonth(i)} style={{
-                flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4,
-                background:'transparent', border:'none', cursor:'pointer', padding:0,
-                opacity: chartMonth === null || chartMonth === i ? 1 : 0.5,
-              }}>
-                <div style={{ fontSize:10, color:'var(--text2)', fontWeight:600 }}>
-                  {v>0 ? (v>=10000 ? Math.round(v/1000)+'k' : fmtYen(v)) : ''}
-                </div>
-                <div style={{
-                  width:'100%', height:pct+'%', minHeight:v>0?4:0,
-                  background:isSelected?'var(--navy)':'var(--border)',
-                  borderRadius:'6px 6px 0 0', transition:'height 0.3s, background 0.2s',
-                  position:'relative'
-                }}>
-                  {isSelected && v>0 && <div style={{ position:'absolute', inset:0, background:'linear-gradient(180deg,rgba(255,255,255,0.15) 0%,transparent 100%)', borderRadius:'6px 6px 0 0' }}/>}
-                </div>
-                <div style={{ fontSize:10, color:isSelected?'var(--navy)':'var(--text3)', fontWeight:isSelected?700:400 }}>{monthLabels[i]}</div>
-              </button>
-            )
-          })}
-        </div>
-        {chartMonthStats.jbmTotal > 0 && (
-          <div style={{ marginTop:16, padding:'12px 14px', background:'var(--bg3)', borderRadius:12, display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, fontSize:12 }}>
-            <div><span style={{ color:'var(--text2)', fontSize:10, display:'block' }}>{t('portal.home.posProjection')}</span><strong style={{ color:'var(--navy)' }}>{fmtYen(chartMonthStats.posTotal)}</strong></div>
-            <div><span style={{ color:'var(--text2)', fontSize:10, display:'block' }}>{t('portal.home.projProfit')}</span><strong style={{ color:'var(--green)' }}>{fmtYen(chartMonthStats.margin)}</strong></div>
-            <div><span style={{ color:'var(--text2)', fontSize:10, display:'block' }}>ROI</span><strong>{chartMonthStats.roiPct}%</strong></div>
-          </div>
-        )}
-      </div>
-
-      {/* Top products */}
-      <div className="portal-grid-2" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:16 }}>
-        {/* By revenue */}
-        <div style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:16, padding:'20px 24px' }}>
-          <div style={{ fontSize:14, fontWeight:700, marginBottom:4 }}>{t('portal.home.topByCost')}</div>
-          <div style={{ fontSize:11, color:'var(--text2)', marginBottom:16 }}>{t('portal.home.whatYouSpent', { days: periodo })}</div>
-          {topRevenue.length === 0
-            ? <Empty text={t('common.noData')} icon="📊" />
-            : topRevenue.map(([nome,val], i) => {
-              const pct = val/topRevenue[0][1]*100
-              return (
-                <div key={nome} style={{ marginBottom:12 }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:4 }}>
-                    <span style={{ fontWeight:i===0?700:500, color:i===0?'var(--navy)':'var(--text)' }}>
-                      {i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} {nome}
-                    </span>
-                    <span style={{ fontWeight:600 }}>{fmtYen(val)}</span>
-                  </div>
-                  <div style={{ height:4, background:'var(--bg3)', borderRadius:2, overflow:'hidden' }}>
-                    <div style={{ height:'100%', width:pct+'%', background:'var(--navy)', borderRadius:2 }}/>
-                  </div>
-                </div>
-              )
-            })
-          }
-        </div>
-
-        {/* By volume */}
-        <div style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:16, padding:'20px 24px' }}>
-          <div style={{ fontSize:14, fontWeight:700, marginBottom:4 }}>{t('portal.home.topByVolume')}</div>
-          <div style={{ fontSize:11, color:'var(--text2)', marginBottom:16 }}>{t('portal.home.lastDays', { days: periodo })}</div>
-          {topVolume.length === 0
-            ? <Empty text={t('common.noData')} icon="📊" />
-            : topVolume.map(([nome,vol], i) => {
-              const pct = vol/topVolume[0][1]*100
-              return (
-                <div key={nome} style={{ marginBottom:12 }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:4 }}>
-                    <span style={{ fontWeight:i===0?700:500, color:i===0?'var(--navy)':'var(--text)' }}>
-                      {i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} {nome}
-                    </span>
-                    <span style={{ fontWeight:600, color:'var(--text2)' }}>{vol} {t('portal.home.units')}</span>
-                  </div>
-                  <div style={{ height:4, background:'var(--bg3)', borderRadius:2, overflow:'hidden' }}>
-                    <div style={{ height:'100%', width:pct+'%', background:'var(--gold)', borderRadius:2 }}/>
-                  </div>
-                </div>
-              )
-            })
-          }
-        </div>
-      </div>
-
-      {/* Top margin — projected from POS pricing */}
-      {topMargin.length > 0 && (
-        <div style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:16, padding:'20px 24px', marginBottom:16 }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
-            <div>
-              <div style={{ fontSize:14, fontWeight:700, marginBottom:4 }}>{t('portal.home.topMarginTitle')}</div>
-              <div style={{ fontSize:11, color:'var(--text2)' }}>{t('portal.home.topMarginSub', { days: periodo })}</div>
-            </div>
-            <button onClick={()=>onTab('precos')} style={{ fontSize:11, padding:'6px 12px', borderRadius:8, border:'1px solid var(--border)', background:'white', cursor:'pointer', fontWeight:600 }}>
-              {t('portal.home.editPrices')}
-            </button>
-          </div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))', gap:10 }}>
-            {topMargin.map((p,i) => (
-              <div key={p.nome} style={{
-                background:i===0?'linear-gradient(135deg,var(--navy),#2563eb)':'var(--bg3)',
-                borderRadius:12, padding:'14px',
-                border:i===0?'none':'1px solid var(--border)'
-              }}>
-                <div style={{ fontSize:11, marginBottom:4 }}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '}</div>
-                <div style={{ fontSize:11, fontWeight:600, color:i===0?'white':'var(--text)', marginBottom:6, lineHeight:1.3, minHeight:28 }}>
-                  {p.nome.length > 22 ? p.nome.slice(0,20)+'…' : p.nome}
-                </div>
-                <div style={{ fontSize:17, fontWeight:800, color:i===0?'#34c759':'var(--green)' }}>{fmtYen(p.margin)}</div>
-                <div style={{ fontSize:10, color:i===0?'rgba(255,255,255,0.6)':'var(--text2)', marginTop:4 }}>
-                  {p.marginPct}% · ROI {p.roiPct}{p.source === 'estimate' ? ' · ~' : ''}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Drink Economics — POS prices from bar_pricing */}
-      {(() => {
-        const byName = {}
-        itens.filter(it => it.vendas?.data >= cutoffStr).forEach(it => {
-          const nome = it.produtos?.nome || '?'
-          if (!byName[nome]) byName[nome] = { nome, qtd: 0, jbmTotal: 0, posTotal: 0, margin: 0, source: 'pos' }
-          const r = projectItemRevenue(it, pricingMap)
-          byName[nome].qtd += +it.qtd || 0
-          byName[nome].jbmTotal += r.jbmTotal
-          byName[nome].posTotal += r.posTotal
-          byName[nome].margin += r.margin
-          if (r.source === 'estimate') byName[nome].source = 'estimate'
-        })
-        const rows = Object.values(byName)
-          .map(p => ({
-            ...p,
-            marginPct: p.posTotal > 0 ? Math.round(p.margin / p.posTotal * 100) : 0,
-            costPerUnit: p.qtd > 0 ? Math.round(p.jbmTotal / p.qtd) : 0,
-            posPerUnit: p.qtd > 0 ? Math.round(p.posTotal / p.qtd) : 0,
-          }))
-          .filter(p => p.posTotal > 0)
-          .sort((a, b) => b.margin - a.margin)
-          .slice(0, 12)
-
-        if (rows.length === 0) return null
-        return (
-          <div style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:16, padding:'20px 24px', marginBottom:16 }}>
-            <div style={{ fontSize:14, fontWeight:700, marginBottom:4 }}>{t('portal.home.detailTitle')}</div>
-            <div style={{ fontSize:11, color:'var(--text2)', marginBottom:16 }}>
-              {t('portal.home.detailSub', { days: periodo })}
-            </div>
-            <div style={{ overflowX:'auto' }}>
-              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
-                <thead>
-                  <tr style={{ borderBottom:'2px solid var(--border)' }}>
-                    {tableHeaders.map(h => (
-                      <th key={h || 'empty'} style={{ padding:'8px 10px', textAlign:'left', fontSize:11, fontWeight:700, color:'var(--text2)', textTransform:'uppercase', letterSpacing:'0.05em', whiteSpace:'nowrap' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
+          <RankList
+            items={topMargin.map(p => ({ label: p.nome, value: p.margin, sub: `${p.marginPct}% · ROI ${p.roiPct}${p.source === 'estimate' ? ' · ~' : ''}` }))}
+            format={fmtYen} max={6} empty={t('common.noData')}
+          />
+        </PortalSurface>
+      ),
+    },
+    {
+      id: 'economics', title: t('portal.home.detailTitle'), icon: 'scale', size: 'full', defaultHidden: true,
+      render: () => (
+        <PortalSurface title={t('portal.home.detailTitle')} sub={t('portal.home.detailSub', { days: periodo })} headerRight={periodChips}>
+          {economics.length === 0 ? <Empty text={t('common.noData')} /> : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="ui-table is-stack">
+                <thead><tr>{tableHeaders.map((h, i) => <th key={h || `e${i}`} className={i ? 'num' : ''}>{h}</th>)}</tr></thead>
                 <tbody>
-                  {rows.map((r,i) => (
-                    <tr key={r.nome} style={{ borderBottom:'1px solid var(--border)', background:i===0?'rgba(193,156,86,0.04)':'transparent' }}>
-                      <td style={{ padding:'10px', fontWeight:i===0?700:500 }}>{r.source==='estimate'?'~ ':''}{r.nome}</td>
-                      <td style={{ padding:'10px', textAlign:'right' }}>{r.qtd}</td>
-                      <td style={{ padding:'10px', textAlign:'right', color:'var(--red)' }}>{fmtYen(r.jbmTotal)}</td>
-                      <td style={{ padding:'10px', textAlign:'right' }}>{fmtYen(r.posPerUnit)}</td>
-                      <td style={{ padding:'10px', textAlign:'right', fontWeight:700, color:'var(--green)' }}>{fmtYen(r.margin)}</td>
-                      <td style={{ padding:'10px', textAlign:'right' }}>
-                        <span style={{
-                          padding:'3px 8px', borderRadius:20, fontSize:11, fontWeight:700,
-                          background: r.marginPct>60?'#f0fdf4':r.marginPct>40?'#fffbeb':'#fef2f2',
-                          color: r.marginPct>60?'var(--green)':r.marginPct>40?'var(--amber)':'var(--red)'
-                        }}>{r.marginPct}%</span>
+                  {economics.map(r => (
+                    <tr key={r.nome}>
+                      <td data-label={tableHeaders[0]}><strong>{r.source === 'estimate' ? '~ ' : ''}{r.nome}</strong></td>
+                      <td className="num" data-label={tableHeaders[1]}>{r.qtd}</td>
+                      <td className="num" data-label={tableHeaders[2]}>{fmtYen(r.jbmTotal)}</td>
+                      <td className="num" data-label={tableHeaders[3]}>{fmtYen(r.posPerUnit)}</td>
+                      <td className="num" data-label={tableHeaders[4]} style={{ color: 'var(--green)', fontWeight: 700 }}>{fmtYen(r.margin)}</td>
+                      <td className="num" data-label={tableHeaders[5]}>
+                        <span className={`ui-badge ${r.marginPct > 60 ? 'is-success' : r.marginPct > 40 ? 'is-warning' : 'is-danger'}`}>{r.marginPct}%</span>
                       </td>
-                      <td style={{ padding:'10px', textAlign:'right', fontSize:11, color:'var(--navy)', fontWeight:700 }}>{fmtYen(r.posTotal)}</td>
+                      <td className="num" data-label={t('portal.home.posProjection')}>{fmtYen(r.posTotal)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
-        )
-      })()}
-
-      {/* Quick actions + recent */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:12 }}>
-        <div style={{ background:'var(--navy)', borderRadius:16, padding:'20px 24px', display:'flex', flexDirection:'column', gap:10 }}>
-          <div style={{ fontSize:14, fontWeight:700, color:'white', marginBottom:4 }}>{t('portal.home.quickActions')}</div>
-          {[
-            { label:t('portal.home.openPos'), icon:'🧾', tab:'pos' },
-            { label:t('portal.home.openGuests'), icon:'🥂', tab:'clientes' },
-            { label:t('portal.home.openFloor'), icon:'🪑', tab:'espacos' },
-            { label:t('portal.home.newOrder'), icon:'🛒', tab:'pedidos' },
-            { label:t('portal.home.viewDeliveries'), icon:'📦', tab:'entregas' },
-            { label:t('portal.home.viewInventory'), icon:'📊', tab:'estoque' },
-          ].map(a => (
-            <button key={a.tab} onClick={()=>onTab(a.tab)} style={{
-              background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.15)',
-              borderRadius:10, padding:'10px 14px', color:'white', fontSize:13,
-              fontWeight:600, cursor:'pointer', textAlign:'left', display:'flex', alignItems:'center', gap:8
-            }}><span>{a.icon}</span>{a.label}</button>
-          ))}
-        </div>
-
-        <div style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:16, padding:'20px 24px' }}>
-          <div style={{ fontSize:14, fontWeight:700, marginBottom:14 }}>{t('portal.home.recentDeliveries')}</div>
+          )}
+        </PortalSurface>
+      ),
+    },
+    {
+      id: 'recent', title: t('portal.home.recentDeliveries'), icon: 'entregas', size: 'half', defaultHidden: true,
+      render: () => (
+        <PortalSurface title={t('portal.home.recentDeliveries')}>
           {vendas.length === 0
             ? <Empty text={t('portal.home.noDeliveriesYet')} />
-            : vendas.slice(-8).reverse().map(v => (
-              <div key={v.id} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px solid var(--border)', fontSize:13 }}>
-                <span style={{ color:'var(--text2)' }}>{fmtDate(v.data)}</span>
-                <span style={{ fontWeight:600 }}>{fmtYen(v.total)}</span>
-              </div>
-            ))
-          }
-        </div>
-      </div>
-
-          <div className="portal-grid-4" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:20 }}>
-            {[
-              { label:t('portal.home.totalSpend'), value:fmtYen(totalPeriod), sub: growthSub, subColor:growth>=0?'var(--green)':'var(--red)', color:'var(--navy)' },
-              { label:t('common.deliveries'), value:vendasPeriod.length, sub:t('portal.home.inDays', { days: periodo }), color:'var(--blue)' },
-              { label:t('portal.home.avgPerDelivery'), value:fmtYen(avgOrder), sub:t('portal.home.perDelivery'), color:'var(--green)' },
-              { label:t('portal.home.activeOrders'), value:ativos.length, sub:ativos.length>0?ativos.map(p=>t(`orderStatus.${p.status}`)).join(', '):t('portal.home.allOk'), color:ativos.length>0?'var(--gold)':'var(--green)' },
-            ].map(k => (
-              <div key={k.label} style={{
-                background:'var(--bg2)', border:'1px solid var(--border)',
-                borderRadius:16, padding:'16px 18px'
-              }}>
-                <div style={{ fontSize:10, color:'var(--text2)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:8, fontWeight:600 }}>{k.label}</div>
-                <div style={{ fontSize:22, fontWeight:800, color:k.color, lineHeight:1 }}>{k.value}</div>
-                {k.sub && <div style={{ fontSize:11, color:k.subColor||'var(--text2)', marginTop:6, fontWeight:k.subColor?600:400 }}>{k.sub}</div>}
+            : vendas.slice(0, 8).map(v => (
+              <div key={v.id} className="dash-line">
+                <span>{fmtDate(v.data)}</span>
+                <strong>{fmtYen(v.total)}</strong>
               </div>
             ))}
-          </div>
-          <Suspense fallback={null}><ClientAnalyticsTab bar={bar} onTab={onTab} /></Suspense>
-        </div>
-      )}
+        </PortalSurface>
+      ),
+    },
+    {
+      id: 'analytics', title: t('dash.w.analytics'), icon: 'crm', size: 'full', defaultHidden: true,
+      render: () => <Suspense fallback={null}><ClientAnalyticsTab bar={bar} onTab={onTab} /></Suspense>,
+    },
+  ]
+
+  return (
+    <div className="fade-in portal-page easy-dash hq-dash">
+      <DashboardGrid id="bar-home" widgets={widgets} layout={layout} renderHead={customize => (
+        <WelcomeHeader
+          kicker={`${bar.nome} · ${t('portal.home.atAGlance')}`}
+          name={perfil?.nome || ''}
+          greet={(part, name) => t(name ? `welcome.${part}` : `welcome.${part}Plain`, { name })}
+          lead={t('welcome.barLead')}
+          actions={(
+            <>
+              <button type="button" className="ui-btn is-primary is-sm" onClick={() => onTab?.('pos')}><Icon name="pos" size={15} /> {t('welcome.openTill')}</button>
+              <button type="button" className="ui-btn is-sm" onClick={() => onTab?.('fechamento')}><Icon name="fechamento" size={15} /> {t('welcome.closeNight')}</button>
+              {customize}
+            </>
+          )}
+        />
+      )} />
     </div>
   )
 }
 
-
-// ── DELIVERIES ────────────────────────────────────────────────────────────────
-function DeliveriesTab({ bar }) {
-  const { t } = useI18n()
-  const [vendas, setVendas] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
-
-  useEffect(() => { load() }, [bar])
-
-  async function load() {
-    const { data } = await supabase.from('vendas').select('*, vendas_itens(*, produtos(*))').eq('bar_id', bar.id).order('data', { ascending: false })
-    setVendas(filterSupplierVendas(data || []))
-    setLoading(false)
-  }
-
-  const filtered = vendas.filter(v => {
-    const d = v.data || v.data_venda || ''
-    if (dateFrom && d < dateFrom) return false
-    if (dateTo && d > dateTo) return false
-    if (search) {
-      const s = search.toLowerCase()
-      const hasItem = (v.vendas_itens || []).some(it => it.produtos?.nome?.toLowerCase().includes(s))
-      if (!hasItem && !d.includes(s)) return false
-    }
-    return true
-  })
-
-  const total = filtered.reduce((a, v) => a + (+v.total || 0), 0)
-
-  if (loading) return <Spinner text={t('portal.deliveries.loading')} />
-
-  return (
-    <div className="fade-in">
-      <SectionTitle sub={t('portal.deliveries.subtitle')}>{t('portal.deliveries.title')}</SectionTitle>
-
-      <RangeCalendar from={dateFrom} to={dateTo} onChange={(a, b) => { setDateFrom(a); setDateTo(b) }} />
-
-      <input
-        type="text"
-        placeholder={t('portal.deliveries.search')}
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        style={{ width: '100%', borderRadius: 10, padding: '9px 12px', fontSize: 13, marginBottom: 14 }}
-      />
-
-      <section className="bill-match is-match" style={{ marginBottom: 14 }}>
-        <h3>{t('portal.deliveries.checkTitle')}</h3>
-        <div className="bill-match-row"><span>{t('portal.deliveries.count', { count: filtered.length })}</span><b>{t('portal.deliveries.arrived')}</b></div>
-        <div className="bill-match-row"><span>{t('common.total')}</span><b>{fmtYen(total)}</b></div>
-      </section>
-
-      {filtered.length === 0
-        ? <Empty text={t('portal.deliveries.empty')} />
-        : filtered.map(v => (
-          <div key={v.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px', marginBottom: 10 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-              <span style={{ fontWeight: 700, fontSize: 14 }}>{fmtDate(v.data || v.data_venda)}</span>
-              <span style={{ fontWeight: 800, color: 'var(--navy)', fontSize: 15 }}>{fmtYen(v.total)}</span>
-            </div>
-            {(v.vendas_itens || []).map(it => (
-              <div key={it.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text2)', marginBottom: 4 }}>
-                <span>{it.produtos?.nome} × {it.qtd}</span>
-                <span>{fmtYen((it.preco_unitario || 0) * it.qtd)}</span>
-              </div>
-            ))}
-          </div>
-        ))
-      }
-    </div>
-  )
+/** Night-bar hours: start at noon so a 20:00–05:00 night reads left to right, trimmed to the hours with sales. */
+function nightHours(hours) {
+  const order = [...hours.slice(12), ...hours.slice(0, 12)]
+  const first = order.findIndex(h => h.total > 0)
+  if (first < 0) return []
+  const last = order.length - 1 - [...order].reverse().findIndex(h => h.total > 0)
+  const from = Math.max(0, Math.min(first, last - 5))
+  const to = Math.min(order.length - 1, Math.max(last, from + 5))
+  return order.slice(from, to + 1).map(h => ({ label: `${String(h.hour).padStart(2, '0')}h`, value: h.total, tip: `${h.label} · ${fmtYen(h.total)} · ${h.count}` }))
 }
 
 
@@ -819,64 +643,38 @@ function InventoryTab({ bar, onOrder }) {
       {/* Search bar - added after loading check in render */}
 
   return (
-    <div className="fade-in" style={{ maxWidth:800 }}>
+    <div className="fade-in" style={{ maxWidth:1000 }}>
+      <PageHeader title={t('nav.portalInventory')} subtitle={t('portal.inventory.fromDeliveries')} />
 
-      {/* Alert banners */}
-      {critical.length > 0 && (
-        <div style={{
-          background:'linear-gradient(135deg,#ff3b30 0%,#c0392b 100%)',
-          borderRadius:20, padding:'20px 24px', marginBottom:12,
-          display:'flex', justifyContent:'space-between', alignItems:'center',
-          boxShadow:'0 8px 32px rgba(255,59,48,0.3)'
-        }}>
-          <div>
-            <div style={{ fontSize:17, fontWeight:700, color:'white', marginBottom:6 }}>
-              🚨 {t('portal.inventory.outOfStock', { count: critical.length })}
-            </div>
-            <div style={{ fontSize:13, color:'rgba(255,255,255,0.85)', lineHeight:1.5 }}>
-              {critical.map(p => p.nome).join('  ·  ')}
-            </div>
-          </div>
-          <button onClick={onOrder} style={{
-            background:'white', color:'#ff3b30', border:'none',
-            borderRadius:14, padding:'12px 22px', fontWeight:700,
-            fontSize:13, cursor:'pointer', flexShrink:0, marginLeft:16,
-            boxShadow:'0 2px 8px rgba(0,0,0,0.1)'
-          }}>{t('portal.inventory.orderNow')}</button>
-        </div>
-      )}
+      <div className="portal-hero-grid is-three-even">
+        <PortalKpi icon="package" label={t('portal.inventory.totalProducts')} value={glance.total} />
+        <PortalKpi icon="warning" tone={critical.length > 0 ? 'danger' : low.length > 0 ? 'warning' : 'success'}
+          label={t('portal.inventory.needAttention')} value={glance.needAttention}
+          color={critical.length>0?'var(--red)':low.length>0?'var(--amber)':'var(--green)'} />
+        <PortalKpi icon="ok" tone="success" label={t('portal.inventory.wellStocked')} value={glance.wellStocked} color="var(--green)" />
+      </div>
 
-      {low.length > 0 && (
-        <div style={{
-          background:'linear-gradient(135deg,#ff9500 0%,#e67e22 100%)',
-          borderRadius:20, padding:'20px 24px', marginBottom:12,
-          display:'flex', justifyContent:'space-between', alignItems:'center',
-          boxShadow:'0 8px 32px rgba(255,149,0,0.25)'
-        }}>
-          <div>
-            <div style={{ fontSize:17, fontWeight:700, color:'white', marginBottom:6 }}>
-              ⚠️ {t('portal.inventory.runningLow', { count: low.length })}
-            </div>
-            <div style={{ fontSize:13, color:'rgba(255,255,255,0.85)', lineHeight:1.5 }}>
-              {low.map(p => t('portal.inventory.leftMin', { name: p.nome, stock: p.stock, min: p.minimo })).join('  ·  ')}
-            </div>
+      {[
+        critical.length > 0 && { tone: 'danger', icon: 'warning', title: t('portal.inventory.outOfStock', { count: critical.length }), body: critical.map(p => p.nome).join('  ·  ') },
+        low.length > 0 && { tone: 'warning', icon: 'warning', title: t('portal.inventory.runningLow', { count: low.length }), body: low.map(p => t('portal.inventory.leftMin', { name: p.nome, stock: p.stock, min: p.minimo })).join('  ·  ') },
+      ].filter(Boolean).map(b => (
+        <div key={b.tone} className={`ui-banner is-${b.tone}`}>
+          <span className="ui-banner-icon"><Icon name={b.icon} size={18} /></span>
+          <div className="ui-banner-main">
+            <strong>{b.title}</strong>
+            <span>{b.body}</span>
           </div>
-          <button onClick={onOrder} style={{
-            background:'white', color:'#ff9500', border:'none',
-            borderRadius:14, padding:'12px 22px', fontWeight:700,
-            fontSize:13, cursor:'pointer', flexShrink:0, marginLeft:16,
-            boxShadow:'0 2px 8px rgba(0,0,0,0.1)'
-          }}>{t('portal.inventory.orderNow')}</button>
+          <button type="button" className="ui-btn is-primary is-sm" onClick={onOrder}>{t('portal.inventory.orderNow')}</button>
         </div>
-      )}
+      ))}
 
       <AutoReorder bar={bar} products={list} orders={orders} />
 
       {/* Search */}
       <div style={{ position:'relative', marginBottom:16 }}>
-        <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', fontSize:16, color:'var(--text3)' }}>🔍</span>
+        <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', color:'var(--text3)', display:'flex' }}><Icon name="search" size={16} /></span>
         <input
-          type="text" placeholder={t('portal.inventory.search')}
+          type="search" aria-label={t('portal.inventory.search')} placeholder={t('portal.inventory.search')}
           value={search} onChange={e=>setSearch(e.target.value)}
           style={{ width:'100%', padding:'11px 14px 11px 40px', borderRadius:12, fontSize:14 }}
         />
@@ -887,24 +685,6 @@ function InventoryTab({ bar, onOrder }) {
           }}>✕</button>
         )}
       </div>
-      {/* Summary */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, margin:'20px 0' }}>
-        {[
-          { label:t('portal.inventory.totalProducts'), value:glance.total, icon:'📦', color:'var(--navy)' },
-          { label:t('portal.inventory.needAttention'), value:glance.needAttention, icon:critical.length>0?'🚨':'⚠️', color:critical.length>0?'#ff3b30':low.length>0?'#ff9500':'var(--green)' },
-          { label:t('portal.inventory.wellStocked'), value:glance.wellStocked, icon:'✅', color:'#34c759' },
-        ].map(s => (
-          <div key={s.label} style={{
-            background:'var(--bg2)', border:'1px solid var(--border)',
-            borderRadius:16, padding:'16px', textAlign:'center'
-          }}>
-            <div style={{ fontSize:22, marginBottom:6 }}>{s.icon}</div>
-            <div style={{ fontSize:26, fontWeight:800, color:s.color }}>{s.value}</div>
-            <div style={{ fontSize:11, color:'var(--text2)', marginTop:3, textTransform:'uppercase', letterSpacing:'0.05em' }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
-      <div className="stock-from-hint">{t('portal.inventory.fromDeliveries')}</div>
       <div className="stock-from-hint">{t('portal.inventory.flowHint', { in: flow.delivered, out: flow.poured })}</div>
       {unknownCount > 0 && (
         <div className="stock-from-hint">
@@ -925,7 +705,7 @@ function InventoryTab({ bar, onOrder }) {
             {filtered.filter(p=>p.categoria===cat).map(p => {
               const isCrit = p.crit
               const isLow  = p.low
-              const dotColor = isCrit ? '#ff3b30' : isLow ? '#ff9500' : p.good ? '#34c759' : '#c5c5c7'
+              const dotColor = isCrit ? 'var(--red)' : isLow ? 'var(--amber)' : p.good ? 'var(--green)' : '#c5c5c7'
               const pct = p.hasCount && p.minimo > 0 ? Math.min(p.stock / p.minimo * 100, 100) : null
               return (
                 <div key={p.id} style={{
@@ -1003,7 +783,7 @@ function InventoryTab({ bar, onOrder }) {
           }}>
             <div style={{ fontSize:18, fontWeight:800, marginBottom:4 }}>{selectedProd.nome}</div>
             <div style={{ fontSize:13, color:'var(--text2)', marginBottom:24 }}>
-              {t('portal.inventory.currentStock')}: <strong style={{ color:'var(--navy)' }}>{selectedProd.stock}</strong>
+              {t('portal.inventory.currentStock')}: <strong style={{ color:'var(--c-text)' }}>{selectedProd.stock}</strong>
               {selectedProd.minimo>0 && <span> · {t('portal.inventory.minLabel')}: <strong>{selectedProd.minimo}</strong></span>}
             </div>
 
@@ -1017,7 +797,7 @@ function InventoryTab({ bar, onOrder }) {
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
               <button onClick={()=>doMove(selected,'entrada')} disabled={saving} style={{
                 padding:'14px', borderRadius:14, border:'none',
-                background:'linear-gradient(135deg,#34c759,#30b350)',
+                background:'linear-gradient(135deg,var(--green),#30b350)',
                 color:'white', fontSize:14, fontWeight:700, cursor:'pointer',
                 boxShadow:'0 4px 12px rgba(52,199,89,0.3)'
               }}>
@@ -1025,7 +805,7 @@ function InventoryTab({ bar, onOrder }) {
               </button>
               <button onClick={()=>doMove(selected,'saida')} disabled={saving} style={{
                 padding:'14px', borderRadius:14, border:'none',
-                background:'linear-gradient(135deg,#ff9500,#e67e22)',
+                background:'linear-gradient(135deg,var(--amber),#e67e22)',
                 color:'white', fontSize:14, fontWeight:700, cursor:'pointer',
                 boxShadow:'0 4px 12px rgba(255,149,0,0.3)'
               }}>
@@ -1127,7 +907,7 @@ function PricingTab({ bar }) {
 
       {/* Search */}
       <div style={{ position:'relative', marginBottom:16 }}>
-        <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', fontSize:16, color:'var(--text3)' }}>🔍</span>
+        <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', fontSize:16, color:'var(--text3)' }}><Icon name="search" size={16} /></span>
         <input type="text" placeholder={t('portal.pricing.search')} value={search}
           onChange={e => setSearch(e.target.value)}
           style={{ width:'100%', padding:'11px 14px 11px 40px', borderRadius:12, fontSize:14 }}
@@ -1139,12 +919,12 @@ function PricingTab({ bar }) {
       {configured.length > 0 && (
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:20 }}>
           {[
-            { label:t('portal.pricing.avgMargin'), value: Math.round(configured.filter(p=>p.margem!==null).reduce((a,p)=>a+p.margem,0)/configured.filter(p=>p.margem!==null).length||0)+'%', color:'var(--green)', icon:'📈' },
-            { label:t('portal.pricing.bestMargin'), value: configured.filter(p=>p.margem!==null).sort((a,b)=>b.margem-a.margem)[0]?.nome?.split(' ')[0]||'—', color:'var(--navy)', icon:'🏆' },
-            { label:t('portal.pricing.notSet'), value: notConfigured.length, color: notConfigured.length>0?'var(--amber)':'var(--green)', icon:'⚙️' },
+            { label:t('portal.pricing.avgMargin'), value: Math.round(configured.filter(p=>p.margem!==null).reduce((a,p)=>a+p.margem,0)/configured.filter(p=>p.margem!==null).length||0)+'%', color:'var(--green)', icon:'trendUp' },
+            { label:t('portal.pricing.bestMargin'), value: configured.filter(p=>p.margem!==null).sort((a,b)=>b.margem-a.margem)[0]?.nome?.split(' ')[0]||'—', color:'var(--c-text)', icon:'rewards' },
+            { label:t('portal.pricing.notSet'), value: notConfigured.length, color: notConfigured.length>0?'var(--amber)':'var(--green)', icon:'settings' },
           ].map(s => (
             <div key={s.label} style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:14, padding:'14px 16px', display:'flex', alignItems:'center', gap:12 }}>
-              <span style={{ fontSize:22 }}>{s.icon}</span>
+              <span className="ui-kpi-icon"><Icon name={s.icon} size={18} /></span>
               <div>
                 <div style={{ fontSize:18, fontWeight:800, color:s.color }}>{s.value}</div>
                 <div style={{ fontSize:11, color:'var(--text2)', textTransform:'uppercase', letterSpacing:'0.05em' }}>{s.label}</div>
@@ -1170,7 +950,7 @@ function PricingTab({ bar }) {
                 }}>
                   {/* Status */}
                   <div style={{ width:8, height:8, borderRadius:'50%', flexShrink:0,
-                    background: !isSet ? 'var(--text3)' : p.margem > 60 ? '#34c759' : p.margem > 40 ? '#ff9500' : 'var(--red)',
+                    background: !isSet ? 'var(--text3)' : p.margem > 60 ? 'var(--green)' : p.margem > 40 ? 'var(--amber)' : 'var(--red)',
                     boxShadow: isSet && p.margem > 60 ? '0 0 8px rgba(52,199,89,0.5)' : 'none'
                   }}/>
 
@@ -1187,11 +967,11 @@ function PricingTab({ bar }) {
                   {isSet && (
                     <>
                       <div style={{ textAlign:'center', minWidth:64 }}>
-                        <div style={{ fontSize:15, fontWeight:800, color:'var(--navy)' }}>{fmtYen(p.preco)}</div>
+                        <div style={{ fontSize:15, fontWeight:800, color:'var(--c-text)' }}>{fmtYen(p.preco)}</div>
                         <div style={{ fontSize:9, color:'var(--text2)', textTransform:'uppercase', marginTop:1 }}>{t('portal.pricing.priceDrink')}</div>
                       </div>
                       <div style={{ textAlign:'center', minWidth:54 }}>
-                        <div style={{ fontSize:15, fontWeight:800, color:p.margem>60?'#34c759':p.margem>40?'#ff9500':'var(--red)' }}>{p.margem}%</div>
+                        <div style={{ fontSize:15, fontWeight:800, color:p.margem>60?'var(--green)':p.margem>40?'var(--amber)':'var(--red)' }}>{p.margem}%</div>
                         <div style={{ fontSize:9, color:'var(--text2)', textTransform:'uppercase', marginTop:1 }}>{t('portal.pricing.margin')}</div>
                       </div>
                       <div style={{ textAlign:'center', minWidth:70 }}>
@@ -1263,13 +1043,13 @@ function PricingTab({ bar }) {
                   </div>
                   <div style={{ display:'flex', justifyContent:'space-between', fontSize:14, fontWeight:700 }}>
                     <span>Revenue/bottle</span>
-                    <span style={{ color:'var(--navy)' }}>{fmtYen(Math.round(form.drinks * form.preco))}</span>
+                    <span style={{ color:'var(--c-text)' }}>{fmtYen(Math.round(form.drinks * form.preco))}</span>
                   </div>
                   <div style={{ marginTop:8, height:4, background:'var(--border)', borderRadius:2, overflow:'hidden' }}>
                     <div style={{
                       height:'100%', borderRadius:2,
                       width: Math.min(Math.round((form.preco - selectedProd.preco_venda/form.drinks)/form.preco*100), 100) + '%',
-                      background: Math.round((form.preco - selectedProd.preco_venda/form.drinks)/form.preco*100) > 60 ? '#34c759' : '#ff9500'
+                      background: Math.round((form.preco - selectedProd.preco_venda/form.drinks)/form.preco*100) > 60 ? 'var(--green)' : 'var(--amber)'
                     }}/>
                   </div>
                   <div style={{ fontSize:11, color:'var(--text2)', marginTop:4, textAlign:'right' }}>
@@ -1313,7 +1093,7 @@ function MenuTab({ bar }) {
   const [editId,   setEditId]   = useState(null)
 
   const [ingredientes, setIngredientes] = useState([]) // {nome, volume_garrafa, preco_garrafa, ml_no_drink}
-  const emptyForm = { nome:'', categoria:'Custom', receita:'', copo:'', preco_venda:'', custo:'', preco_desconto:'', notas:'' }
+  const emptyForm = { nome:'', categoria:'Custom', receita:'', copo:'', preco_venda:'', custo:'', preco_desconto:'', notas:'', imagem_url:'' }
   const emptyIng  = { nome:'', volume_garrafa: '', preco_garrafa: '', ml_no_drink: '' }
   const [form, setForm] = useState(emptyForm)
 
@@ -1352,6 +1132,8 @@ function MenuTab({ bar }) {
       notas: form.notas || '',
       custom: true
     }
+    // Only send the photo when there is one: databases without pos_start.sql have no imagem_url column yet.
+    if (form.imagem_url?.trim()) payload.imagem_url = form.imagem_url.trim()
     if (editId) {
       await supabase.from('drink_menu').update(payload).eq('id', editId)
     } else {
@@ -1373,7 +1155,7 @@ function MenuTab({ bar }) {
 
   function startEdit(d) {
     setForm({ nome:d.nome, categoria:d.categoria, receita:d.receita||'', copo:d.copo||'',
-      preco_venda:d.preco_venda, custo:d.custo, preco_desconto:d.preco_desconto||500, notas:d.notas||'' })
+      preco_venda:d.preco_venda, custo:d.custo, preco_desconto:d.preco_desconto||500, notas:d.notas||'', imagem_url:d.imagem_url||'' })
     setEditId(d.id)
     setShowAdd(true)
   }
@@ -1424,7 +1206,7 @@ function MenuTab({ bar }) {
 
       {/* Add/Edit form */}
       {showAdd && (
-        <div style={{ background:'var(--bg2)', border:'2px solid rgba(193,156,86,0.3)', borderRadius:16, padding:'24px', marginBottom:20 }}>
+        <div style={{ background:'var(--bg2)', border:'2px solid color-mix(in srgb, var(--gold) 30%, transparent)', borderRadius:16, padding:'24px', marginBottom:20 }}>
           <div style={{ fontSize:15, fontWeight:700, marginBottom:16 }}>{editId ? t('portal.menu.editDrink') : t('portal.menu.addCustom')}</div>
 
           <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:12, marginBottom:12 }}>
@@ -1451,6 +1233,11 @@ function MenuTab({ bar }) {
             </div>
           </div>
 
+          <div style={{ marginBottom:12 }}>
+            <label className="form-label">{t('photo.label')}</label>
+            <PhotoField value={form.imagem_url || ''} onChange={url => setForm(f => ({ ...f, imagem_url: url }))} scope={bar.id} name={form.nome} />
+          </div>
+
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:12 }}>
             <div>
               <label className="form-label">{t('portal.menu.salePrice')}</label>
@@ -1469,15 +1256,15 @@ function MenuTab({ bar }) {
           {/* Live margin preview */}
           {liveMargin !== null && (
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
-              <div style={{ padding:'12px 16px', borderRadius:12, background: liveMargin>70?'#f0fdf4':'#fffbeb', border:'1px solid', borderColor:liveMargin>70?'#86efac':'#fcd34d' }}>
+              <div style={{ padding:'12px 16px', borderRadius:12, background: liveMargin>70?'var(--green-bg)':'var(--amber-bg)', border:'1px solid', borderColor:liveMargin>70?'#86efac':'#fcd34d' }}>
                 <div style={{ fontSize:11, color:'var(--text2)', marginBottom:4, textTransform:'uppercase', letterSpacing:'0.05em' }}>Regular margin</div>
-                <div style={{ fontSize:22, fontWeight:800, color:liveMargin>70?'#16a34a':'#d97706' }}>{liveMargin}%</div>
+                <div style={{ fontSize:22, fontWeight:800, color:liveMargin>70?'var(--green)':'#d97706' }}>{liveMargin}%</div>
                 <div style={{ fontSize:11, color:'var(--text2)' }}>¥{Math.round(+form.preco_venda - +form.custo).toLocaleString()} profit/drink</div>
               </div>
               {liveMarginVip !== null && (
-                <div style={{ padding:'12px 16px', borderRadius:12, background:liveMarginVip>50?'#fdf8ec':'#fef2f2', border:'1px solid', borderColor:liveMarginVip>50?'var(--gold)':'#fca5a5' }}>
+                <div style={{ padding:'12px 16px', borderRadius:12, background:liveMarginVip>50?'#fdf8ec':'var(--red-bg)', border:'1px solid', borderColor:liveMarginVip>50?'var(--gold)':'#fca5a5' }}>
                   <div style={{ fontSize:11, color:'var(--text2)', marginBottom:4, textTransform:'uppercase', letterSpacing:'0.05em' }}>VIP margin</div>
-                  <div style={{ fontSize:22, fontWeight:800, color:liveMarginVip>50?'var(--gold)':'#dc2626' }}>{liveMarginVip}%</div>
+                  <div style={{ fontSize:22, fontWeight:800, color:liveMarginVip>50?'var(--gold)':'var(--red)' }}>{liveMarginVip}%</div>
                   <div style={{ fontSize:11, color:'var(--text2)' }}>¥{Math.round(+form.preco_desconto - +form.custo).toLocaleString()} profit/drink</div>
                 </div>
               )}
@@ -1510,7 +1297,7 @@ function MenuTab({ bar }) {
                       ))}
                     </select>
                     <button onClick={()=>setIngredientes(ingredientes.filter((_,i)=>i!==idx))}
-                      style={{ padding:'6px', borderRadius:6, border:'none', background:'#fef2f2', color:'var(--red)', cursor:'pointer', fontSize:13 }}>✕</button>
+                      style={{ padding:'6px', borderRadius:6, border:'none', background:'var(--red-bg)', color:'var(--red)', cursor:'pointer', fontSize:13 }}>✕</button>
                   </div>
                   {selProd && (
                     <div style={{ display:'flex', alignItems:'center', gap:12 }}>
@@ -1542,7 +1329,7 @@ function MenuTab({ bar }) {
               const margem = form.preco_venda > 0 ? Math.round((+form.preco_venda-autoCost)/+form.preco_venda*100) : null
               return (
                 <div style={{ padding:'10px 14px', background:'var(--bg3)', borderRadius:10, fontSize:13, display:'flex', gap:20 }}>
-                  <span>🧮 Auto cost: <strong style={{color:'var(--red)'}}>¥{autoCost.toLocaleString()}</strong></span>
+                  <span><Icon name="contador" size={14} /> Auto cost: <strong style={{color:'var(--red)'}}>¥{autoCost.toLocaleString()}</strong></span>
                   {margem!==null && <span>Margin: <strong style={{color:margem>70?'var(--green)':'var(--amber)'}}>{margem}%</strong></span>}
                   {form.preco_venda && <span>Profit: <strong style={{color:'var(--green)'}}>¥{(+form.preco_venda-autoCost).toLocaleString()}</strong></span>}
                 </div>
@@ -1574,12 +1361,12 @@ function MenuTab({ bar }) {
           <div style={{ fontSize:11, color:'var(--text2)', marginTop:2 }}>across all drinks</div>
         </div>
         <div style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:14, padding:'14px 16px' }}>
-          <div style={{ fontSize:10, color:'var(--text2)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>Best margin 🏆</div>
+          <div style={{ fontSize:10, color:'var(--text2)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>Best margin</div>
           <div style={{ fontSize:13, fontWeight:700 }}>{topDrink?.nome}</div>
           <div style={{ fontSize:13, color:'var(--green)', fontWeight:700 }}>{topDrink ? Math.round(topDrink.margem*100)+'%' : ''}</div>
         </div>
         <div style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:14, padding:'14px 16px' }}>
-          <div style={{ fontSize:10, color:'var(--text2)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>Watch out ⚠️</div>
+          <div style={{ fontSize:10, color:'var(--text2)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>Watch out</div>
           <div style={{ fontSize:13, fontWeight:700 }}>{lowDrink?.nome}</div>
           <div style={{ fontSize:13, color:'var(--red)', fontWeight:700 }}>{lowDrink ? Math.round(lowDrink.margem*100)+'%' : ''}</div>
         </div>
@@ -1588,7 +1375,7 @@ function MenuTab({ bar }) {
       {/* Search + sort */}
       <div style={{ display:'flex', gap:8, marginBottom:12 }}>
         <div style={{ position:'relative', flex:1 }}>
-          <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:'var(--text3)' }}>🔍</span>
+          <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:'var(--text3)' }}><Icon name="search" size={16} /></span>
           <input type="text" placeholder="Search drink or ingredient..." value={search}
             onChange={e=>setSearch(e.target.value)}
             style={{ width:'100%', padding:'10px 12px 10px 36px', borderRadius:10, fontSize:13 }}
@@ -1631,8 +1418,8 @@ function MenuTab({ bar }) {
         {filtered.map(d => {
           const margPct = Math.round(d.margem * 100)
           const vipMarg = d.preco_desconto && d.custo ? Math.round((d.preco_desconto - d.custo) / d.preco_desconto * 100) : null
-          const margColor = margPct >= 85 ? '#34c759' : margPct >= 70 ? '#ff9500' : '#ff3b30'
-          const vipColor  = vipMarg !== null ? (vipMarg >= 50 ? '#f59e0b' : '#ff3b30') : 'var(--text3)'
+          const margColor = margPct >= 85 ? 'var(--green)' : margPct >= 70 ? 'var(--amber)' : 'var(--red)'
+          const vipColor  = vipMarg !== null ? (vipMarg >= 50 ? '#f59e0b' : 'var(--red)') : 'var(--text3)'
           return (
             <div key={d.id} style={{
               display:'grid', gridTemplateColumns:'1fr 80px 70px 70px 64px 64px 64px',
@@ -1644,7 +1431,7 @@ function MenuTab({ bar }) {
               <div>
                 <div style={{ fontSize:13, fontWeight:600 }}>{d.nome} {d.custom && <span style={{ fontSize:10, color:'var(--gold)', fontWeight:700 }}>CUSTOM</span>}</div>
                 <div style={{ fontSize:11, color:'var(--text2)', marginTop:1 }}>{d.receita} {d.copo ? '· '+d.copo : ''}</div>
-                {d.notas && <div style={{ fontSize:11, color:'var(--gold)', marginTop:1 }}>📝 {d.notas}</div>}
+                {d.notas && <div style={{ fontSize:11, color:'var(--c-text-2)', marginTop:1 }}>{d.notas}</div>}
               </div>
               <div style={{ textAlign:'right', fontSize:13, fontWeight:700 }}>¥{d.preco_venda.toLocaleString()}</div>
               <div style={{ textAlign:'right', fontSize:12, color:'var(--red)' }}>¥{d.custo.toLocaleString()}</div>
@@ -1658,8 +1445,8 @@ function MenuTab({ bar }) {
                 <span style={{ fontSize:12, fontWeight:700, color:vipColor }}>{vipMarg !== null ? vipMarg+'%' : '—'}</span>
               </div>
               <div style={{ display:'flex', gap:4, justifyContent:'flex-end' }}>
-                <button onClick={()=>startEdit(d)} style={{ padding:'4px 8px', fontSize:11, borderRadius:6, border:'1px solid var(--border)', background:'transparent', cursor:'pointer', color:'var(--text2)' }}>✏️</button>
-                <button onClick={()=>deleteDrink(d.id)} style={{ padding:'4px 8px', fontSize:11, borderRadius:6, border:'none', background:'#fef2f2', cursor:'pointer', color:'var(--red)' }}>🗑</button>
+                <button onClick={()=>startEdit(d)} style={{ padding:'4px 8px', fontSize:11, borderRadius:6, border:'1px solid var(--border)', background:'transparent', cursor:'pointer', color:'var(--text2)' }}><Icon name="edit" size={14} /></button>
+                <button onClick={()=>deleteDrink(d.id)} style={{ padding:'4px 8px', fontSize:11, borderRadius:6, border:'none', background:'var(--red-bg)', cursor:'pointer', color:'var(--red)' }}><Icon name="trash" size={14} /></button>
               </div>
             </div>
           )
@@ -1819,7 +1606,7 @@ function FaturasTab({ bar }) {
   if (loading) return <Spinner text={t('portal.invoices.loading')} />
   return (
     <div className="fade-in portal-page" style={{ maxWidth:860 }}>
-      <SectionTitle sub={t('portal.invoices.subtitle')}>{t('portal.invoices.title')}</SectionTitle>
+      <PageHeader title={t('portal.invoices.title')} subtitle={t('portal.invoices.subtitle')} />
       <RangeCalendar from={dateFrom} to={dateTo} onChange={(a, b) => { setDateFrom(a); setDateTo(b) }} />
       <BillMatch orders={ordersInRange} notes={notesInRange} invoices={filtered} monthKey={activeMonth} variant="slip" />
       <div className="ar-war">
@@ -1862,19 +1649,19 @@ function FaturasTab({ bar }) {
         )}
       </div>
       {overdue.length>0 && (
-        <div style={{ background:"linear-gradient(135deg,#ff3b30,#c0392b)", borderRadius:16, padding:"16px 20px", marginBottom:16 }}>
+        <div style={{ background:"linear-gradient(135deg,var(--red),#c0392b)", borderRadius:16, padding:"16px 20px", marginBottom:16 }}>
           <div style={{ fontSize:15, fontWeight:700, color:"white" }}>{t('portal.invoices.overdueAlert', { count: overdue.length })}</div>
         </div>
       )}
       <div className="portal-grid-4" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:20 }}>
         {[
-          { label:t('portal.invoices.pending'), value:fmtYen(totalPending), color:totalPending>0?"var(--red)":"var(--green)", icon:"⏳" },
-          { label:t('portal.invoices.totalPaid'), value:fmtYen(filtered.reduce((a,f)=>a+faturaPago(f),0)), color:"var(--green)", icon:"✅" },
-          { label:t('portal.invoices.overdue'), value:overdue.length, color:overdue.length>0?"var(--red)":"var(--green)", icon:"🚨" },
-          { label:t('portal.invoices.avgMonthly'), value:fmtYen(avgMonthly), color:"var(--navy)", icon:"📊" },
+          { label:t('portal.invoices.pending'), value:fmtYen(totalPending), color:totalPending>0?"var(--red)":"var(--green)", icon:"stAwaitingOrder" },
+          { label:t('portal.invoices.totalPaid'), value:fmtYen(filtered.reduce((a,f)=>a+faturaPago(f),0)), color:"var(--green)", icon:"ok" },
+          { label:t('portal.invoices.overdue'), value:overdue.length, color:overdue.length>0?"var(--red)":"var(--green)", icon:"warning" },
+          { label:t('portal.invoices.avgMonthly'), value:fmtYen(avgMonthly), color:"var(--navy)", icon:"report" },
         ].map(k=>(
           <div key={k.label} style={{ background:"var(--bg2)", border:"1px solid var(--border)", borderRadius:14, padding:"14px" }}>
-            <div style={{ fontSize:18, marginBottom:4 }}>{k.icon}</div>
+            <span className="ui-kpi-icon" style={{ marginBottom:8 }}><Icon name={k.icon} size={18} /></span>
             <div style={{ fontSize:18, fontWeight:800, color:k.color, lineHeight:1 }}>{k.value}</div>
             <div style={{ fontSize:10, color:"var(--text2)", textTransform:"uppercase", marginTop:4 }}>{k.label}</div>
           </div>
@@ -1902,7 +1689,7 @@ function FaturasTab({ bar }) {
             const fp = pagamentos.filter(p=>p.fatura_id===f.id&&!p.confirmado)
             return (
               <div key={f.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderBottom:"1px solid var(--border)" }}>
-                <div style={{ width:44, height:44, borderRadius:12, background:daysLeft<=5?"#fef2f2":"#f0fdf4", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                <div style={{ width:44, height:44, borderRadius:12, background:daysLeft<=5?"var(--red-bg)":"var(--green-bg)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                   <div style={{ fontSize:16, fontWeight:800, color:daysLeft<=5?"var(--red)":"var(--green)", lineHeight:1 }}>{daysLeft}</div>
                   <div style={{ fontSize:9, color:"var(--text2)", textTransform:"uppercase" }}>{t('portal.invoices.days')}</div>
                 </div>
@@ -1942,7 +1729,7 @@ function FaturasTab({ bar }) {
                     {f.obs && <div style={{ fontSize:11, color:"var(--text3)", marginTop:2 }}>{f.obs}</div>}
                   </div>
                   <div style={{ textAlign:"right" }}>
-                    <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:f.status==="pago"?"#f0fdf4":isOverdue?"#fef2f2":"#EAF0FA", color:f.status==="pago"?"var(--green)":isOverdue?"var(--red)":"var(--navy)" }}>
+                    <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:f.status==="pago"?"var(--green-bg)":isOverdue?"var(--red-bg)":"var(--blue-bg)", color:f.status==="pago"?"var(--green)":isOverdue?"var(--red)":"var(--navy)" }}>
                       {f.status==="pago"?t('portal.invoices.statusPaid'):isOverdue?t('portal.invoices.statusOverdue'):t('portal.invoices.statusPending')}
                     </span>
                     <div style={{ fontSize:16, fontWeight:800, color:"var(--navy)", marginTop:4 }}>{fmtYen(total)}</div>
@@ -1956,7 +1743,7 @@ function FaturasTab({ bar }) {
                   {remaining>0&&<span style={{ color:"var(--red)", fontWeight:600 }}>{t('portal.invoices.remaining', { amount: fmtYen(remaining) })}</span>}
                 </div>
                 {pendingP.length>0&&(
-                  <div style={{ background:"#fffbeb", border:"1px solid #fcd34d", borderRadius:8, padding:"8px 12px", marginBottom:8, fontSize:12 }}>
+                  <div style={{ background:"var(--amber-bg)", border:"1px solid #fcd34d", borderRadius:8, padding:"8px 12px", marginBottom:8, fontSize:12 }}>
                     {t('portal.invoices.paymentsAwaiting', { count: pendingP.length, amount: fmtYen(pendingP.reduce((a,p)=>a+p.valor,0)) })}
                   </div>
                 )}
@@ -2015,7 +1802,7 @@ function FaturasTab({ bar }) {
                 {image?(
                   <div>
                     {image.startsWith('data:application/pdf') ? (
-                      <div style={{ fontSize:48, marginBottom:8 }}>📄</div>
+                      <span className="ui-empty-icon" style={{ margin:'0 auto 8px' }}><Icon name="fileDoc" size={22} /></span>
                     ) : (
                       <img src={image} alt="comprovante" style={{ maxHeight:150, maxWidth:"100%", borderRadius:8, marginBottom:8 }} />
                     )}
@@ -2023,7 +1810,7 @@ function FaturasTab({ bar }) {
                   </div>
                 ):(
                   <div>
-                    <div style={{ fontSize:24, marginBottom:4 }}>📷</div>
+                    <span className="ui-empty-icon" style={{ margin:'0 auto 6px' }}><Icon name="image" size={20} /></span>
                     <div style={{ fontSize:13, fontWeight:600 }}>{t('portal.invoices.uploadPhotoPdf')}</div>
                     <div style={{ fontSize:11, color:"var(--text2)" }}>{t('portal.invoices.aiExtractHint')}</div>
                   </div>
@@ -2085,15 +1872,15 @@ function PrecosCardapioTab({ bar }) {
     <div className="fade-in portal-page">
       <div style={{ display:'flex', gap:8, marginBottom:20, flexWrap:'wrap' }}>
         {[
-          { id:'precos', label:t('portal.home.posPricesTab'), icon:'💰' },
-          { id:'cardapio', label:t('portal.home.menuTab'), icon:'🍹' },
+          { id:'precos', label:t('portal.home.posPricesTab'), icon:'precos' },
+          { id:'cardapio', label:t('portal.home.menuTab'), icon:'catCocktail' },
         ].map(item => (
           <button key={item.id} onClick={()=>setSub(item.id)} style={{
             padding:'10px 18px', borderRadius:12, fontSize:13, fontWeight:700, cursor:'pointer',
             border: sub===item.id ? '2px solid var(--navy)' : '1px solid var(--border)',
             background: sub===item.id ? 'var(--navy)' : 'var(--bg2)',
             color: sub===item.id ? 'white' : 'var(--text)',
-          }}>{item.icon} {item.label}</button>
+          }}><Icon name={item.icon} size={15} /> {item.label}</button>
         ))}
       </div>
       {sub === 'precos' ? <PricingTab bar={bar} /> : <MenuTab bar={bar} />}
@@ -2106,12 +1893,27 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   const { perfil } = useAuth()
   const NAV_GROUPS = groupedNavForRole(perfil?.role)
   const DOCK = primaryDockForRole(perfil?.role)
-  const [tab, setTab] = useState(() => defaultBarTab(perfil?.role))
-  const [opened, setOpened] = useState(() => new Set([defaultBarTab(perfil?.role)]))
+  const location = useLocation()
+  const navigate = useNavigate()
+  // Tabs reachable by URL (/bar/<tab>): the role's menu plus staff self-service sections.
+  const allowedTabs = [...NAV_GROUPS.flatMap(g => g.items.map(n => n.id)), ...DOCK.map(d => d.id), 'hoje', 'profile', 'shifts', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary', 'equipe', 'entregas', 'energia', 'aluguel', 'senha']
+  const tab = tabFromPath(location.pathname, 'bar', allowedTabs, defaultBarTab(perfil?.role))
+  const [opened, setOpened] = useState(() => new Set([tab]))
   const [menuOpen, setMenuOpen] = useState(false)
   const [door, setDoor] = useState(() => loginDoorFromHash())
   const { t } = useI18n()
   const overdueAlerts = useBarOverdueAlerts(bar?.id)
+  const { setCtx: setAiCtx } = useAiPanel()
+  // Money and payroll screens can sit behind the owner's PIN (checked by /api/bar-staff); Ask AI waits for it too.
+  const vault = useVaultLock(isGerente(perfil?.role) ? tab : null)
+  const aiOn = isGerente(perfil?.role) && BAR_ADMIN_TABS.has(tab) && !vault.locked
+  const rail = useSidebarCollapse()
+  const navLabel = id => NAV_GROUPS.flatMap(g => g.items).find(n => n.id === id)?.labelKey
+
+  useEffect(() => {
+    setOpened(prev => (prev.has(tab) ? prev : new Set([...prev, tab])))
+    setAiCtx({ module: aiModuleForTab(tab), screen: tab, title: t(navLabel(tab) || 'nav.portalHome'), unit: bar?.nome, barId: bar?.id })
+  }, [tab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useMobileMenuLock(menuOpen)
 
@@ -2123,13 +1925,8 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
 
   function selectTab(id) {
     const next = id === 'equipe' || id === 'casa' ? 'staff' : id === 'outro' ? 'fixo' : id
-    setTab(next)
-    setOpened(prev => {
-      if (prev.has(next)) return prev
-      const copy = new Set(prev)
-      copy.add(next)
-      return copy
-    })
+    // The hash keeps the login door (pos / clock / gerente); the path carries the screen.
+    if (next !== tab) navigate({ pathname: pathForTab('bar', next), hash: location.hash })
     setMenuOpen(false)
   }
 
@@ -2186,40 +1983,60 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         onToggle={() => setMenuOpen(o => !o)}
         title={<div className="logo-mobile-header"><span style={{ fontSize: 14, fontWeight: 800, color: 'white' }}>{bar.nome}</span></div>}
       >
+        {aiOn && <AskAiButton />}
         <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
       </MobileTopBar>
 
-      <aside className={`sidebar${menuOpen ? ' open' : ''}`}>
+      <aside className={`sidebar${menuOpen ? ' open' : ''}${rail.collapsed ? ' is-collapsed' : ''}`}>
         <div className="sidebar-brand">
           <LogoSidebar />
+          {rail.allowed && <SidebarCollapseButton collapsed={rail.collapsed} onToggle={rail.toggle} />}
         </div>
         <nav className="sidebar-nav">
           {NAV_GROUPS.map(g => (
             <div key={g.id} className="nav-group">
               {g.labelKey && <div className="nav-group-label">{t(g.labelKey)}</div>}
               {g.items.map(n => (
-                <button key={n.id} onClick={() => selectTab(n.id)} className={`nav-item ${tab===n.id?'active':''}`}>
-                  <span>{n.icon}</span>
-                  <span>{t(n.labelKey)}</span>
+                <button key={n.id} onClick={() => selectTab(n.id)} className={`nav-item ${tab===n.id?'active':''}`} aria-current={tab===n.id ? 'page' : undefined} title={rail.collapsed ? t(n.labelKey) : undefined} aria-label={rail.collapsed ? t(n.labelKey) : undefined}>
+                  <Icon name={hasIcon(n.id) ? n.id : 'info'} size={18} />
+                  <span className="nav-label" style={{ fontSize: 13 }}>{t(n.labelKey)}</span>
                 </button>
               ))}
             </div>
           ))}
         </nav>
         <div className="sidebar-footer">
+          <div className="sidebar-footer-details">
           <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.06em'}}>{t('shell.clientPortal')}</div>
           <div style={{fontSize:13,fontWeight:700,color:'var(--gold)',marginBottom:2}}>{bar.nome}</div>
           <div style={{fontSize:12,fontWeight:700,color:'rgba(255,255,255,0.85)',marginBottom:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{perfil?.nome || ''}</div>
-          <div style={{fontSize:10,color:'rgba(193,156,86,0.75)',marginBottom:12}}>{perfil?.role ? roleLabel(perfil.role) : ''}</div>
+          <div style={{fontSize:10,color:'color-mix(in srgb, var(--gold) 75%, transparent)',marginBottom:12}}>{perfil?.role ? roleLabel(perfil.role) : ''}</div>
           <div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginBottom:10,lineHeight:1.5}}>
             {t(footerKey)}
           </div>
-          <button onClick={signOut} className="sidebar-signout">{t('common.signOut')}</button>
+          </div>
+          <button onClick={signOut} className="sidebar-signout" title={rail.collapsed ? `${bar.nome} · ${t('common.signOut')}` : undefined} aria-label={t('common.signOut')}><Icon name="signOut" size={15} className="sidebar-signout-icon" /><span className="nav-label">{t('common.signOut')}</span></button>
         </div>
       </aside>
       <main className="app-main app-main-wide">
         <AutoClose bar={bar} />
-        <WorkspaceChrome>
+        <WorkspaceChrome
+          start={<GlobalSearch
+            screens={NAV_GROUPS.flatMap(g => g.items).map(n => ({ id: n.id, label: t(n.labelKey), icon: hasIcon(n.id) ? n.id : 'info' }))}
+            loadRecords={async () => {
+              const ids = new Set(NAV_GROUPS.flatMap(g => g.items).map(n => n.id))
+              const out = []
+              if (ids.has('precos')) {
+                const { data } = await supabase.from('drink_menu').select('id,nome,categoria').eq('bar_id', bar.id).limit(400)
+                ;(data || []).forEach(d => out.push({ key: `d-${d.id}`, label: d.nome, sub: d.categoria || t('search.product'), icon: 'precos', tab: 'precos' }))
+              }
+              return out
+            }}
+            onGo={selectTab}
+          />}
+          end={<TopbarUser name={perfil?.nome || ''} role={`${bar.nome}${perfil?.role ? ` · ${roleLabel(perfil.role)}` : ''}`} />}
+        >
+          {aiOn && <AskAiButton />}
           <UiPrefsPanel compact />
           {isGerente(perfil?.role) && (
             <button type="button" className="chrome-till" onClick={() => { setDoorHash('pos'); setDoor('pos') }}>
@@ -2228,8 +2045,13 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
           )}
           <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
         </WorkspaceChrome>
+        {perfil?.role === 'bar_staff' && <Suspense fallback={null}><StaffAlerts /></Suspense>}
+        {vault.locked ? vault.gate : (<>
+        {vault.strip}
+        {tab==='senha' && isGerente(perfil?.role) && <TabHold><VaultSettings /></TabHold>}
         {tab==='custos'    && isGerente(perfil?.role) && <BarCostsTab bar={bar} onTab={selectTab} />}
         {tab==='metas' && canManageBarTeam(perfil?.role) && <TabHold><BarGoalsTab bar={bar} /></TabHold>}
+        {['hoje', 'profile', 'shifts', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary'].includes(tab) && perfil?.role === 'bar_staff' && <TabHold><EmployeeDesk section={tab} bar={bar} onTab={selectTab} /></TabHold>}
         {tab==='eventos' && canManageBarTeam(perfil?.role) && <TabHold><BarEventsTab bar={bar} /></TabHold>}
         {['fechamento', 'pagamentos', 'salarios'].some(id => opened.has(id)) && canManageBarTeam(perfil?.role) && (
           <div hidden={!['fechamento', 'pagamentos', 'salarios'].includes(tab)}>
@@ -2251,25 +2073,32 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         {tab==='drinkback' && canManageBarTeam(perfil?.role) && <TabHold><DrinkBackTab bar={bar} /></TabHold>}
         {tab==='equipe'    && canManageBarTeam(perfil?.role) && <TabHold><BarTeamTab bar={bar} /></TabHold>}
         {tab==='clientes'  && canManageBarTeam(perfil?.role) && <TabHold><BarGuestsTab bar={bar} /></TabHold>}
-        {tab==='espacos'   && canManageBarTeam(perfil?.role) && <TabHold><BarSpacesTab bar={bar} /></TabHold>}
-        {tab==='pedidos'   && canPlaceDrinkOrders(perfil?.role) && <TabHold><BarOrdersTab bar={bar} /></TabHold>}
-        {tab==='entregas'  && canManageBarTeam(perfil?.role) && <DeliveriesTab bar={bar} />}
+        {tab==='espacos'   && canManageBarTeam(perfil?.role) && <TabHold><BarSpacesTab bar={bar} onTab={selectTab} /></TabHold>}
+        {tab==='vip'       && canManageBarTeam(perfil?.role) && <TabHold><BarVipTab bar={bar} onTab={selectTab} /></TabHold>}
+        {tab==='ordens'    && canManageBarTeam(perfil?.role) && <TabHold><StaffOrdersTab bar={bar} /></TabHold>}
+        {tab==='pedidos'   && canPlaceDrinkOrders(perfil?.role) && <TabHold><BarOrdersTab bar={bar} manager={canManageBarTeam(perfil?.role)} /></TabHold>}
+        {tab==='entregas'  && canManageBarTeam(perfil?.role) && <TabHold><BarOrdersTab bar={bar} section="received" /></TabHold>}
         {tab==='estoque'   && canManageBarTeam(perfil?.role) && <InventoryTab bar={bar} onOrder={()=>selectTab('pedidos')} />}
         {tab==='precos'    && canManageBarTeam(perfil?.role) && <PrecosCardapioTab bar={bar} />}
         {tab==='faturas'   && canManageBarTeam(perfil?.role) && <FaturasTab bar={bar} />}
         {tab==='recibos'  && canManageBarTeam(perfil?.role) && <TabHold><PortalRecibosTab bar={bar} /></TabHold>}
-        {tab==='ia'       && canManageBarTeam(perfil?.role) && <TabHold><PortalClienteAI bar={bar} /></TabHold>}
+        {tab==='ia'       && canManageBarTeam(perfil?.role) && <TabHold><AiCenter bar={bar} /></TabHold>}
+        {tab==='mesas'     && posAccess !== 'none' && <TabHold><FloorScreen bar={bar} onOpenTill={() => selectTab('pos')} /></TabHold>}
+        {tab==='marketing' && canManageBarTeam(perfil?.role) && <TabHold><MarketingHub barId={bar.id} /></TabHold>}
+        {tab==='consultoria' && canManageBarTeam(perfil?.role) && <TabHold><ConsultingHub barId={bar.id} /></TabHold>}
+        </>)}
       </main>
+      {aiOn && <AskAiDrawer />}
       {DOCK.length > 0 && (
         <nav className="easy-dock" aria-label={t('nav.portalHome')}>
           {DOCK.map(d => (
             <button key={d.id} type="button" className={tab===d.id ? 'is-on' : ''} onClick={() => selectTab(d.id)}>
-              <span className="easy-dock-icon">{d.icon}</span>
+              <span className="easy-dock-icon"><Icon name={hasIcon(d.id) ? d.id : 'info'} size={20} /></span>
               <span>{t(d.labelKey)}</span>
             </button>
           ))}
           <button type="button" className={!dockOn || menuOpen ? 'is-on' : ''} onClick={() => setMenuOpen(o => !o)}>
-            <span className="easy-dock-icon">☰</span>
+            <span className="easy-dock-icon"><Icon name="menu" size={20} /></span>
             <span>{t('nav.more')}</span>
           </button>
         </nav>

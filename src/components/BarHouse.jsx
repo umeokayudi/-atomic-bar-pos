@@ -16,17 +16,48 @@ const EMPTY_PERSON = {
   cargo: '', dias: [], idiomas: [], estilo: '', contato: '', notas: '', aniversario: '',
 }
 
+const METODO_KEYS = ['transfer', 'debit', 'card', 'cash', 'konbini', 'other']
+const BANDEIRA_KEYS = ['visa', 'master', 'jcb', 'amex', 'diners', 'unionpay', 'ic', 'qr']
+
+// Power is a variable cost (the bill changes every month) and rent a fixed one; both keep their own kind so
+// the close and the payment agenda still find them, they just live on the Variable and Fixed pages.
 const REGISTERS = [
   { kind: 'fornecedor', title: 'suppliers', body: 'suppliersBody', fields: ['nome', 'detalhe', 'contato', 'email', 'notas'], detalheLabel: 'supplies', profile: ['cargo', 'dias', 'idiomas'], cargoLabel: 'category', daysLabel: 'deliveryDays' },
   { kind: 'parceiro', title: 'partners', body: 'partnersBody', fields: ['nome', 'detalhe', 'endereco', 'contato', 'email', 'estilo', 'notas'], nomeLabel: 'partnerName', detalheLabel: 'theirBars', brings: true, profile: [] },
-  { kind: 'cartao', title: 'card', body: 'cardBody', fields: ['nome', 'cargo', 'contato', 'email', 'pct', 'prazo_dias', 'vence_dia', 'notas'], nomeLabel: 'company', cargoLabel: 'contactPerson', profile: [] },
-  { kind: 'energia', title: 'power', body: 'powerBody', fields: ['nome', 'cargo', 'contato', 'email', 'amount', 'vence_dia', 'notas'], nomeLabel: 'company', cargoLabel: 'contactPerson', profile: [] },
-  { kind: 'aluguel', title: 'rent', body: 'rentBody', fields: ['nome', 'cargo', 'contato', 'email', 'endereco', 'amount', 'vence_dia', 'notas'], nomeLabel: 'agency', cargoLabel: 'contactPerson', profile: [] },
-  { kind: 'fixo', title: 'fixedCosts', body: 'fixedBody', fields: ['nome', 'amount', 'contato', 'vence_dia', 'notas'], profile: [] },
-  { kind: 'variavel', title: 'variableCosts', body: 'variableBody', fields: ['nome', 'amount', 'contato', 'notas'], profile: [], month: true },
-  { kind: 'contador', title: 'accountant', body: 'accountantBody', fields: ['nome', 'cargo', 'contato', 'email', 'amount', 'vence_dia', 'notas'], nomeLabel: 'office', cargoLabel: 'contactPerson', profile: [] },
-  { kind: 'imposto', title: 'tax', body: 'taxBody', fields: ['nome', 'pct', 'amount', 'vence_dia', 'notas'], nomeLabel: 'taxName', profile: [] },
+  { kind: 'cartao', title: 'card', body: 'cardBody', fields: ['nome', 'maquina', 'local', 'pct', 'prazo_dias', 'vence_dia', 'amount', 'conta', 'cargo', 'contato', 'email', 'notas'], nomeLabel: 'company', cargoLabel: 'contactPerson', amountLabel: 'machineFee', dueLabel: 'payoutDay', profile: [], bandeiras: true },
+  {
+    kind: 'fixo', title: 'fixedCosts', body: 'fixedBody', profile: [], pay: true,
+    types: [
+      { kind: 'aluguel', fields: ['nome', 'amount', 'vence_dia', 'cargo', 'contato', 'email', 'endereco', 'notas'], nomeLabel: 'agency', cargoLabel: 'contactPerson' },
+      { kind: 'fixo', fields: ['nome', 'amount', 'vence_dia', 'contato', 'notas'] },
+    ],
+  },
+  {
+    kind: 'variavel', title: 'variableCosts', body: 'variableBody', profile: [], month: true, pay: true, payDate: true,
+    types: [
+      { kind: 'energia', fields: ['nome', 'amount', 'cargo', 'contato', 'email', 'notas'], nomeLabel: 'company', cargoLabel: 'contactPerson' },
+      { kind: 'variavel', fields: ['nome', 'amount', 'contato', 'notas'] },
+    ],
+  },
+  { kind: 'contador', title: 'accountant', body: 'accountantBody', fields: ['nome', 'cargo', 'contato', 'email', 'amount', 'vence_dia', 'notas'], nomeLabel: 'office', cargoLabel: 'contactPerson', profile: [], pay: true },
+  { kind: 'imposto', title: 'tax', body: 'taxBody', fields: ['nome', 'pct', 'amount', 'vence_dia', 'notas'], nomeLabel: 'taxName', profile: [], pay: true },
 ]
+
+/** Old /bar/energia and /bar/aluguel links open the page the cost now lives on. */
+export const HOUSE_SECTION_ALIAS = { energia: 'variavel', aluguel: 'fixo' }
+
+function typeOf(spec, kind) {
+  return (spec.types || []).find(x => x.kind === kind) || null
+}
+
+function rowsFor(spec, registry) {
+  const kinds = new Set((spec.types || []).map(x => x.kind).concat(spec.kind))
+  return (registry || []).filter(r => (
+    kinds.has(r.kind)
+    || (spec.kind === 'fixo' && r.kind === 'outro' && r.recorrente !== false)
+    || (spec.kind === 'variavel' && r.kind === 'outro' && r.recorrente === false)
+  ))
+}
 
 function asList(value) {
   if (Array.isArray(value)) return value.filter(Boolean)
@@ -63,14 +94,15 @@ function personFrom(row, source) {
 function blankRegistry(kind) {
   return {
     id: '', kind, nome: '', contato: '', email: '', endereco: '', detalhe: '', amount: '', pct: '', vence_dia: '', prazo_dias: '',
-    recorrente: kind !== 'variavel', month_key: tokyoMonthKey(),
+    recorrente: kind !== 'variavel' && kind !== 'energia', month_key: tokyoMonthKey(),
+    metodo: '', data_pagamento: '', maquina: '', local: '', conta: '', bandeiras: [],
     cargo: '', dias: [], idiomas: [], estilo: '', notas: '',
   }
 }
 
 function haystack(row, t) {
   return [
-    row.nome, row.cargo, row.estilo, row.detalhe, row.contato, row.email, row.endereco, row.notas,
+    row.nome, row.cargo, row.estilo, row.detalhe, row.contato, row.email, row.endereco, row.notas, row.maquina, row.local, row.conta,
     named(t, 'cargo', row.cargo), named(t, 'estilo', row.estilo),
     ...asList(row.dias).map(d => named(t, 'day', d)),
     ...asList(row.idiomas).map(d => named(t, 'lang', d)),
@@ -217,23 +249,49 @@ function ProfileFields({ form, setForm, profile, cargoLabel, daysLabel }) {
   )
 }
 
+/** When and how a cost is paid, or when a card machine pays out. */
+function PayLine({ row, spec }) {
+  const { t } = useI18n()
+  const parts = []
+  if (row.kind === 'cartao') {
+    if (row.maquina) parts.push(row.maquina)
+    if (row.local) parts.push(t('house.usedAtValue', { place: row.local }))
+    if (+row.vence_dia) parts.push(t('house.paysOutDay', { day: row.vence_dia }))
+    if (row.conta) parts.push(t('house.intoAccount', { account: row.conta }))
+    const brands = asList(row.bandeiras).map(b => named(t, 'bandeira', b))
+    if (brands.length) parts.push(brands.join(', '))
+  } else if (spec.pay) {
+    if (row.data_pagamento) parts.push(t('house.paidOn', { date: String(row.data_pagamento).slice(0, 10) }))
+    else if (+row.vence_dia) parts.push(t('house.dueEvery', { day: row.vence_dia }))
+    if (row.metodo) parts.push(named(t, 'metodo', row.metodo))
+    if (!row.data_pagamento && !+row.vence_dia && !row.metodo) parts.push(t('house.payMissing'))
+  }
+  if (!parts.length) return null
+  return <div className={`house-meta house-pay${spec.pay && !row.metodo && !row.data_pagamento && !+row.vence_dia ? ' is-missing' : ''}`}>{parts.join(' · ')}</div>
+}
+
 function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
   const { t } = useI18n()
   const [form, setForm] = useState(null)
   const filter = useListFilter(rows)
-  const label = (field) => {
-    if (field === 'nome') return t(`house.${spec.nomeLabel || 'name'}`)
+  const fieldSpec = (kind) => typeOf(spec, kind) || spec
+  const label = (field, kind = form?.kind) => {
+    const fs = fieldSpec(kind)
+    if (field === 'nome') return t(`house.${fs.nomeLabel || spec.nomeLabel || 'name'}`)
     if (field === 'detalhe') return t(`house.${spec.detalheLabel || 'note'}`)
     if (field === 'contato') return t('house.phone')
-    if (field === 'cargo') return t(`house.${spec.cargoLabel || 'job'}`)
+    if (field === 'cargo') return t(`house.${fs.cargoLabel || spec.cargoLabel || 'job'}`)
     if (field === 'email') return t('house.email')
     if (field === 'aniversario') return t('house.birthday')
     if (field === 'endereco') return t(spec.kind === 'parceiro' ? 'house.positioning' : 'house.address')
     if (field === 'estilo') return t('house.weHelp')
     if (field === 'notas') return t(spec.kind === 'parceiro' ? 'house.theyHelp' : 'house.notes')
     if (field === 'pct') return t('house.fee')
-    if (field === 'amount') return t('house.monthlyAmount')
-    if (field === 'vence_dia') return t('house.dueDay')
+    if (field === 'amount') return t(`house.${spec.amountLabel || (spec.month ? 'billAmount' : 'monthlyAmount')}`)
+    if (field === 'vence_dia') return t(`house.${spec.dueLabel || 'dueDay'}`)
+    if (field === 'maquina') return t('house.machine')
+    if (field === 'local') return t('house.usedAt')
+    if (field === 'conta') return t('house.payoutAccount')
     if (field === 'prazo_dias') return t('house.settleDays')
     if (field === 'recorrente') return t('house.repeats')
     return field
@@ -251,14 +309,16 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
         <div key={row.id} className="house-card">
           <div>
             <strong>{row.nome}</strong>
+            {(spec.types || []).length > 1 && <span className="house-tag is-strong house-type">{t(`house.type.${row.kind === 'outro' ? spec.kind : row.kind}`)}</span>}
             <div className="house-meta">
               {+row.pct ? `${row.pct}%` : ''}
               {row.kind === 'cartao' && +row.prazo_dias ? `${+row.pct ? ' · ' : ''}${t('house.settlesIn', { days: row.prazo_dias })}` : ''}
               {+row.pct && +row.amount ? ' · ' : ''}
               {+row.amount ? fmtYen(row.amount) : ''}
               {(row.kind === 'fixo' || (row.kind === 'outro' && row.recorrente !== false)) ? `${(+row.pct || +row.amount) ? ' · ' : ''}${t('house.repeats')}` : ''}
-              {(row.kind === 'variavel' || (row.kind === 'outro' && row.recorrente === false)) ? `${(+row.pct || +row.amount) ? ' · ' : ''}${row.month_key || ''}` : ''}
+              {(row.kind === 'variavel' || (row.kind === 'outro' && row.recorrente === false) || (row.kind === 'energia' && row.month_key)) ? `${(+row.pct || +row.amount) ? ' · ' : ''}${row.month_key || ''}` : ''}
             </div>
+            <PayLine row={row} spec={spec} />
             {row.kind === 'parceiro' ? (
               <>
                 <div className="house-meta">
@@ -272,7 +332,6 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
           <div className="house-actions">
             <button type="button" className="house-text" onClick={() => setForm({
               id: row.id,
-              kind: spec.kind,
               nome: row.nome || '',
               contato: row.contato || '',
               email: row.email || '',
@@ -290,6 +349,13 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
               estilo: row.estilo || '',
               notas: row.notas || '',
               aniversario: String(row.aniversario || '').slice(0, 10),
+              metodo: row.metodo || '',
+              data_pagamento: String(row.data_pagamento || '').slice(0, 10),
+              maquina: row.maquina || '',
+              local: row.local || '',
+              conta: row.conta || '',
+              bandeiras: asList(row.bandeiras),
+              kind: row.kind === 'outro' ? spec.kind : row.kind,
             })}>{t('house.edit')}</button>
             <button type="button" className="house-text" disabled={busy} onClick={() => onDelete(row.id)}>{t('house.remove')}</button>
           </div>
@@ -297,7 +363,17 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
       ))}
       {form ? (
         <div className="house-editor">
-          {spec.fields.map(field => (
+          {(spec.types || []).length > 1 && (
+            <div className="house-pick house-span">
+              <span>{t('house.typeLabel')}</span>
+              <div className="ui-seg" role="radiogroup" aria-label={t('house.typeLabel')}>
+                {spec.types.map(x => (
+                  <button key={x.kind} type="button" role="radio" aria-checked={form.kind === x.kind} onClick={() => setForm({ ...form, kind: x.kind })}>{t(`house.type.${x.kind}`)}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          {(fieldSpec(form.kind).fields || spec.fields).map(field => (
             field === 'recorrente' ? (
               <label key={field} className="house-check">
                 <input type="checkbox" checked={form.recorrente !== false} onChange={e => setForm({ ...form, recorrente: e.target.checked })} />
@@ -324,13 +400,24 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
               <input type="month" value={form.month_key} onChange={e => setForm({ ...form, month_key: e.target.value })} />
             </label>
           )}
+          {spec.payDate && (
+            <label>{t('house.payDate')}
+              <input type="date" value={form.data_pagamento || ''} onChange={e => setForm({ ...form, data_pagamento: e.target.value })} />
+            </label>
+          )}
+          {spec.pay && (
+            <ChipPick label={t('house.methodLabel')} group="metodo" keys={METODO_KEYS} value={form.metodo} onChange={metodo => setForm({ ...form, metodo })} />
+          )}
+          {spec.bandeiras && (
+            <ChipPick label={t('house.brandsLabel')} group="bandeira" keys={BANDEIRA_KEYS} value={form.bandeiras} multi onChange={bandeiras => setForm({ ...form, bandeiras })} />
+          )}
           <div className="house-actions">
             <button type="button" className="btn-primary" disabled={busy || !form.nome.trim()} onClick={() => onSave(form).then(() => setForm(null))}>{t('house.save')}</button>
             <button type="button" className="house-text" onClick={() => setForm(null)}>{t('house.cancel')}</button>
           </div>
         </div>
       ) : (
-        <button type="button" className="btn-primary house-add" onClick={() => setForm(blankRegistry(spec.kind))}>{t('house.add')}</button>
+        <button type="button" className="btn-primary house-add" onClick={() => setForm(blankRegistry(spec.types ? spec.types[spec.types.length - 1].kind : spec.kind))}>{t(spec.kind === 'cartao' ? 'house.addMachine' : 'house.add')}</button>
       )}
     </section>
   )
@@ -452,6 +539,17 @@ export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
     }
   }
 
+  function costPayload(source) {
+    return {
+      metodo: source.metodo || '',
+      data_pagamento: String(source.data_pagamento || '').slice(0, 10),
+      maquina: source.maquina || '',
+      local: source.local || '',
+      conta: source.conta || '',
+      bandeiras: asList(source.bandeiras),
+    }
+  }
+
   async function savePerson() {
     if (!form?.nome.trim()) return
     setBusy(true)
@@ -509,9 +607,10 @@ export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
         detalhe: row.detalhe,
         amount: +row.amount || 0,
         pct: +row.pct || 0,
-        recorrente: row.kind === 'variavel' ? false : row.kind === 'fixo' ? true : row.recorrente !== false,
+        recorrente: row.kind === 'variavel' || row.kind === 'energia' ? false : row.kind === 'fixo' || row.kind === 'aluguel' ? true : row.recorrente !== false,
         month_key: row.month_key,
         ...profilePayload(row),
+        ...costPayload(row),
       }),
     })
     const json = await res.json().catch(() => ({}))
@@ -539,7 +638,7 @@ export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
     setBusy(false)
   }
 
-  const spec = REGISTERS.find(r => r.kind === section)
+  const spec = REGISTERS.find(r => r.kind === (HOUSE_SECTION_ALIAS[section] || section))
 
   return (
     <div className="fade-in house-page">
@@ -559,13 +658,9 @@ export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
       )}
       {spec && (
         <RegisterBlock
-          key={section}
+          key={spec.kind}
           spec={spec}
-          rows={registry.filter(r => (
-            spec.kind === 'fixo' ? (r.kind === 'fixo' || (r.kind === 'outro' && r.recorrente !== false))
-            : spec.kind === 'variavel' ? (r.kind === 'variavel' || (r.kind === 'outro' && r.recorrente === false))
-            : r.kind === spec.kind
-          ))}
+          rows={rowsFor(spec, registry)}
           busy={busy}
           onSave={saveRegistry}
           onDelete={deleteRegistry}

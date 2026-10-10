@@ -1,8 +1,12 @@
 /** Dono do bar gerencia equipe, PIN, GPS e tablet. Não toca no fornecimento JBM. */
 
-import { tryDrinksAdminClient, createStaffUserClient } from './_supabaseAdmin.js'
+import { tryDrinksAdminClient, createStaffUserClient, drinksAuthClient } from './_supabaseAdmin.js'
 import { requireBarAccount } from './_requireStaff.js'
 import { hashSecret, randomTabletCode } from './_hash.js'
+import {
+  MAX_FAILS, COOLDOWN_MS, MONEY_KINDS, PAY_FIELDS, areaOpen, cleanAreas, cleanMinutes, hashPin, loadLock, lockEnabled, pinMatches,
+  publicLock, saveLock, signUnlock, validPin, verifyUnlock, UNLOCK_HEADER,
+} from './_barVault.js'
 import { isMissingSchemaError, loadBarWithGeo, listStaffWithExtras, runLiveOp, saveBarGeo, saveStaffExtras } from './_barLiveStore.js'
 
 function bodyOf(req) {
@@ -28,6 +32,18 @@ function profileExtras(body) {
   if (body.aniversario != null) extra.aniversario = String(body.aniversario || '').slice(0, 10)
   if (body.vence_dia != null) extra.vence_dia = Math.max(0, Math.min(31, Math.round(+body.vence_dia || 0)))
   if (body.prazo_dias != null) extra.prazo_dias = Math.max(0, Math.min(90, Math.round(+body.prazo_dias || 0)))
+  return extra
+}
+
+/** Registry rows only: how and when a cost is paid; which card machine, where it is used, where it pays out. */
+function costExtras(body) {
+  const extra = {}
+  if (body.metodo != null) extra.metodo = String(body.metodo || '').trim().slice(0, 40)
+  if (body.data_pagamento != null) extra.data_pagamento = /^\d{4}-\d{2}-\d{2}$/.test(String(body.data_pagamento)) ? String(body.data_pagamento) : ''
+  if (body.maquina != null) extra.maquina = String(body.maquina || '').trim().slice(0, 80)
+  if (body.local != null) extra.local = String(body.local || '').trim().slice(0, 80)
+  if (body.conta != null) extra.conta = String(body.conta || '').trim().slice(0, 120)
+  if (body.bandeiras != null) extra.bandeiras = asList(body.bandeiras).slice(0, 12)
   return extra
 }
 
@@ -186,6 +202,74 @@ export default async function handler(req, res) {
     }
 
     const body = bodyOf(req)
+    const uid = auth.user?.id || ''
+
+    // ── Owner PIN for money and payroll ──────────────────────────────────────
+    if (req.method === 'POST' && ['lockStatus', 'unlock', 'setLock'].includes(body.action)) {
+      const lock = await loadLock(db, barId)
+      const pub = publicLock(lock)
+      if (body.action === 'lockStatus') {
+        const token = verifyUnlock(req.headers?.[UNLOCK_HEADER], { barId, uid })
+        return res.status(200).json({ ...pub, unlockedUntil: token?.exp || 0, canEdit: auth.perfil.role === 'cliente' })
+      }
+      if (body.action === 'unlock') {
+        if (!lockEnabled(lock)) return res.status(400).json({ error: 'No PIN is set' })
+        const now = Date.now()
+        if (+lock.locked_until > now) return res.status(429).json({ error: 'Too many wrong PINs', retryAt: +lock.locked_until })
+        if (!pinMatches(body.pin, lock)) {
+          const fails = (+lock.fails || 0) + 1
+          const patch = fails >= MAX_FAILS ? { fails: 0, locked_until: now + COOLDOWN_MS } : { fails }
+          await saveLock(db, barId, { ...lock, ...patch }, true)
+          return res.status(fails >= MAX_FAILS ? 429 : 401).json({ error: 'Wrong PIN', left: Math.max(0, MAX_FAILS - fails), retryAt: patch.locked_until || 0 })
+        }
+        if (+lock.fails) await saveLock(db, barId, { ...lock, fails: 0, locked_until: 0 }, true)
+        const { token, exp } = signUnlock({ barId, uid, minutes: pub.minutes })
+        return res.status(200).json({ ok: true, token, exp, areas: pub.areas })
+      }
+      // setLock: only the owner sets, changes or removes the PIN. Changing it needs the current PIN or the account password.
+      if (auth.perfil.role !== 'cliente') return res.status(403).json({ error: 'Only the owner can change the PIN' })
+      if (lock?.pin_hash) {
+        let ok = pinMatches(body.currentPin, lock)
+        if (!ok && body.password && auth.user?.email) {
+          const check = await drinksAuthClient().auth.signInWithPassword({ email: auth.user.email, password: String(body.password) })
+          ok = !check.error && check.data?.user?.id === uid
+        }
+        if (!ok) return res.status(401).json({ error: 'Current PIN or password is wrong' })
+      }
+      if (body.disable) {
+        await saveLock(db, barId, { pin_hash: '', pin_salt: '', areas: [], minutes: 15, fails: 0, locked_until: 0, updated_at: new Date().toISOString(), updated_by: uid }, !!lock)
+        return res.status(200).json({ ok: true, ...publicLock(null) })
+      }
+      const areas = cleanAreas(body.areas)
+      if (!areas.length) return res.status(400).json({ error: 'Pick at least one area' })
+      let pin = { salt: lock?.pin_salt || '', hash: lock?.pin_hash || '' }
+      if (body.newPin != null && body.newPin !== '') {
+        if (!validPin(body.newPin)) return res.status(400).json({ error: 'PIN must be 4 to 8 digits' })
+        pin = hashPin(body.newPin)
+      }
+      if (!pin.hash) return res.status(400).json({ error: 'Set a PIN' })
+      const row = { pin_hash: pin.hash, pin_salt: pin.salt, areas, minutes: cleanMinutes(body.minutes), fails: 0, locked_until: 0, updated_at: new Date().toISOString(), updated_by: uid }
+      const saved = await saveLock(db, barId, row, !!lock)
+      if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not save' })
+      return res.status(200).json({ ok: true, ...publicLock(row) })
+    }
+
+    // Money and payroll changes need the PIN when the owner locked those areas.
+    const needsMoney = (body.action === 'saveRegistry' && MONEY_KINDS.has(String(body.kind || '')))
+      || body.action === 'deleteRegistry'
+    const needsPayroll = ['savePerson', 'createStaff'].includes(body.action) || req.method === 'PATCH'
+    const sendsPay = PAY_FIELDS.some(k => body[k] != null)
+    if (needsMoney || (needsPayroll && sendsPay)) {
+      const lock = await loadLock(db, barId)
+      if (lockEnabled(lock)) {
+        let area = needsMoney ? 'money' : 'payroll'
+        if (body.action === 'deleteRegistry') {
+          const hit = await runLiveOp(db, { table: 'bar_registry', mode: 'select', columns: 'id,kind', filters: [{ op: 'eq', k: 'id', v: body.id }, { op: 'eq', k: 'bar_id', v: barId }], wantSingle: 'maybe' })
+          if (!MONEY_KINDS.has(String(hit.data?.kind || ''))) area = null
+        }
+        if (area && !areaOpen(req, lock, area, { barId, uid })) return res.status(423).json({ error: 'Locked: enter the PIN first', locked: area })
+      }
+    }
 
     if (req.method === 'POST' && body.action === 'pairTablet') {
       const code = randomTabletCode()
@@ -419,6 +503,7 @@ export default async function handler(req, res) {
         recorrente: body.recorrente !== false,
         month_key: body.recorrente === false ? String(body.month_key || '') : '',
         ...profileExtras(body),
+        ...costExtras(body),
       }
       const existing = await runLiveOp(db, {
         table: 'bar_registry',

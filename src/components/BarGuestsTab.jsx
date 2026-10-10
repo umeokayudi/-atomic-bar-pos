@@ -15,6 +15,8 @@ import {
   crmTableMissing,
   withTimeout,
 } from '../lib/barCrm'
+import Icon from './ui/Icon'
+import { PageHeader } from './ui/PageLayout'
 
 const emptyForm = {
   nome: '', telefone: '', line_id: '', email: '', aniversario: '',
@@ -161,15 +163,14 @@ export default function BarGuestsTab({ bar }) {
 
   return (
     <div className="fade-in guests-book">
-      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>{t('guests.title')}</div>
-      <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16 }}>{t('guests.subtitle')}</div>
+      <PageHeader title={t('guests.title')} subtitle={t('guests.subtitle')} />
       {loadErr && <div className="pos-sale-err" style={{ marginBottom: 12 }}>{asReactText(loadErr)}</div>}
 
       {(todayBirthdays.length > 0 || monthBirthdays.length > 0) && (
         <div className="card" style={{ marginBottom: 16, padding: 14 }}>
           {todayBirthdays.length > 0 && (
             <div style={{ fontWeight: 800, marginBottom: 4 }}>
-              🎂 {t('guests.birthdayToday')}: {todayBirthdays.map(g => g.nome).join(', ')}
+              <Icon name="eventos" size={14} /> {t('guests.birthdayToday')}: {todayBirthdays.map(g => g.nome).join(', ')}
             </div>
           )}
           <div style={{ fontSize: 13, color: 'var(--text2)' }}>

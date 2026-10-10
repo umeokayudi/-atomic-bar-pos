@@ -35,22 +35,25 @@ export function needsBarLink(role) {
 
 export function defaultBarTab(role) {
   if (role === ROLES.caixa) return 'pos'
-  if (role === ROLES.bar_staff) return 'ponto'
+  if (role === ROLES.bar_staff) return 'hoje'
   return 'inicio'
 }
 
 const GERENTE_NAV = [
   { id: 'inicio', labelKey: 'nav.portalHome', icon: '🏠' },
+  { id: 'senha', labelKey: 'nav.vault', icon: '🔒' },
   { id: 'pos', labelKey: 'nav.portalPos', icon: '🧾' },
-  { id: 'pedidos', labelKey: 'nav.portalOrders', icon: '🛒' },
-  { id: 'entregas', labelKey: 'nav.portalDeliveries', icon: '📦' },
-  { id: 'faturas', labelKey: 'nav.portalInvoices', icon: '📄' },
-  { id: 'espacos', labelKey: 'nav.portalSpaces', icon: '🪑' },
+  { id: 'mesas', labelKey: 'nav.mesas', icon: '🗺' },
+  { id: 'pedidos', labelKey: 'nav.supply', icon: '🛒' },
+  { id: 'faturas', labelKey: 'nav.jbmInvoices', icon: '📄' },
+  { id: 'espacos', labelKey: 'nav.seating', icon: '🪑' },
+  { id: 'vip', labelKey: 'nav.vip', icon: '👑' },
+  { id: 'ordens', labelKey: 'nav.ordens', icon: '🚨' },
   { id: 'clientes', labelKey: 'nav.portalGuests', icon: '🥂' },
   { id: 'ponto', labelKey: 'nav.portalClock', icon: '🕒' },
   { id: 'fechamento', labelKey: 'nav.portalClose', icon: '📒' },
   { id: 'metas', labelKey: 'nav.portalGoals', icon: '🎯' },
-  { id: 'pagamentos', labelKey: 'nav.portalPay', icon: '📅' },
+  { id: 'pagamentos', labelKey: 'nav.billsToPay', icon: '📅' },
   { id: 'salarios', labelKey: 'nav.portalSalary', icon: '💴' },
   { id: 'eventos', labelKey: 'nav.portalEvents', icon: '🎂' },
   { id: 'ia', labelKey: 'nav.portalAi', icon: '✨' },
@@ -58,35 +61,56 @@ const GERENTE_NAV = [
   { id: 'fornecedor', labelKey: 'house.suppliers', icon: '🚚' },
   { id: 'parceiro', labelKey: 'house.partners', icon: '🤝' },
   { id: 'drinkback', labelKey: 'house.drinkBackNav', icon: '🥂' },
-  { id: 'cartao', labelKey: 'house.card', icon: '💳' },
-  { id: 'energia', labelKey: 'house.power', icon: '⚡' },
-  { id: 'aluguel', labelKey: 'house.rent', icon: '🏢' },
+  { id: 'cartao', labelKey: 'nav.cardMachines', icon: '💳' },
   { id: 'fixo', labelKey: 'house.fixedCosts', icon: '📌' },
   { id: 'variavel', labelKey: 'house.variableCosts', icon: '📈' },
   { id: 'contador', labelKey: 'house.accountant', icon: '🧮' },
   { id: 'imposto', labelKey: 'house.tax', icon: '🏛' },
   { id: 'estoque', labelKey: 'nav.portalInventory', icon: '🍾' },
-  { id: 'custos', labelKey: 'nav.portalCosts', icon: '📚' },
+  { id: 'custos', labelKey: 'nav.costsOverview', icon: '📚' },
   { id: 'precos', labelKey: 'nav.portalPrices', icon: '🏷' },
   { id: 'recibos', labelKey: 'nav.portalReceipts', icon: '🖨' },
+  { id: 'marketing', labelKey: 'nav.marketing', icon: '📣' },
+  { id: 'consultoria', labelKey: 'nav.consultoria', icon: '💼' },
 ]
 
+// Bar owner/manager menu in the order a night runs: tonight, drinks, money, team, clients.
 const NAV_GROUPS = [
-  { id: 'tonight', labelKey: 'nav.groupTonight', ids: ['inicio', 'pos', 'pedidos', 'entregas', 'faturas', 'espacos', 'clientes', 'ponto', 'fechamento'] },
-  { id: 'numbers', labelKey: 'nav.groupNumbers', ids: ['metas', 'pagamentos', 'salarios', 'eventos', 'ia'] },
-  { id: 'house', labelKey: 'nav.groupHouse', ids: ['staff', 'fornecedor', 'parceiro', 'drinkback', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'] },
-  { id: 'supply', labelKey: 'nav.groupSupply', ids: ['estoque'] },
-  { id: 'office', labelKey: 'nav.groupOffice', ids: ['custos', 'precos', 'recibos'] },
+  { id: 'overview', labelKey: 'barArea.overview', ids: ['inicio', 'ia', 'senha'] },
+  { id: 'tonight', labelKey: 'barArea.tonight', ids: ['pos', 'mesas', 'espacos', 'vip', 'ponto', 'fechamento'] },
+  { id: 'drinks', labelKey: 'barArea.drinks', ids: ['pedidos', 'estoque', 'precos', 'fornecedor'] },
+  { id: 'money', labelKey: 'barArea.money', ids: ['pagamentos', 'custos', 'fixo', 'variavel', 'cartao', 'faturas', 'contador', 'imposto', 'recibos'] },
+  { id: 'team', labelKey: 'barArea.team', ids: ['staff', 'ordens', 'salarios', 'metas', 'drinkback'] },
+  { id: 'clients', labelKey: 'barArea.clients', ids: ['clientes', 'eventos', 'marketing', 'parceiro', 'consultoria'] },
 ]
 
 const CAIXA_NAV = [
   { id: 'pos', labelKey: 'nav.portalPos', icon: '🧾' },
+  { id: 'mesas', labelKey: 'nav.mesas', icon: '🗺' },
 ]
 
 const STAFF_NAV = [
+  { id: 'hoje', labelKey: 'nav.myToday', icon: '☀️' },
   { id: 'ponto', labelKey: 'nav.portalClock', icon: '🕒' },
   { id: 'pos', labelKey: 'nav.portalPos', icon: '🧾' },
-  { id: 'pedidos', labelKey: 'nav.portalOrders', icon: '🛒' },
+  { id: 'mesas', labelKey: 'nav.mesas', icon: '🗺' },
+  { id: 'pedidos', labelKey: 'nav.supply', icon: '🛒' },
+  { id: 'shifts', labelKey: 'nav.myShifts', icon: '🗓️' },
+  { id: 'goals', labelKey: 'nav.myGoals', icon: '🎯' },
+  { id: 'result', labelKey: 'nav.myResult', icon: '📈' },
+  { id: 'points', labelKey: 'nav.myPoints', icon: '⭐' },
+  { id: 'rewards', labelKey: 'nav.myRewards', icon: '🏅' },
+  { id: 'occurrences', labelKey: 'nav.myOccurrences', icon: '📝' },
+  { id: 'salary', labelKey: 'nav.mySalary', icon: '💴' },
+  { id: 'profile', labelKey: 'nav.myProfile', icon: '👤' },
+]
+
+// Staff see their own day first, then work, results and pay — never the bar's books.
+const STAFF_GROUPS = [
+  { id: 'myDay', labelKey: 'nav.groupMyDay', ids: ['hoje', 'ponto', 'pos', 'mesas', 'pedidos'] },
+  { id: 'myWork', labelKey: 'nav.groupMyWork', ids: ['shifts', 'goals', 'result'] },
+  { id: 'myRecord', labelKey: 'nav.groupMyRecord', ids: ['points', 'rewards', 'occurrences'] },
+  { id: 'myPay', labelKey: 'nav.groupMyPay', ids: ['salary', 'profile'] },
 ]
 
 export function navForBarRole(role) {
@@ -98,7 +122,8 @@ export function navForBarRole(role) {
 export function groupedNavForRole(role) {
   const nav = navForBarRole(role)
   const byId = Object.fromEntries(nav.map(n => [n.id, n]))
-  const grouped = NAV_GROUPS.map(g => ({
+  const groups = role === ROLES.bar_staff ? STAFF_GROUPS : NAV_GROUPS
+  const grouped = groups.map(g => ({
     id: g.id,
     labelKey: g.labelKey,
     items: g.ids.map(id => byId[id]).filter(Boolean),
@@ -111,16 +136,17 @@ export function primaryDockForRole(role) {
   if (role === ROLES.caixa) return []
   if (role === ROLES.bar_staff) {
     return [
+      { id: 'hoje', icon: '☀️', labelKey: 'nav.myToday' },
       { id: 'ponto', icon: '🕒', labelKey: 'nav.portalClock' },
       { id: 'pos', icon: '🧾', labelKey: 'nav.portalPos' },
-      { id: 'pedidos', icon: '🛒', labelKey: 'nav.portalOrders' },
+      { id: 'pedidos', icon: '🛒', labelKey: 'nav.supply' },
     ]
   }
   return [
     { id: 'inicio', icon: '🏠', labelKey: 'nav.portalHome' },
     { id: 'pos', icon: '🧾', labelKey: 'nav.portalPos' },
-    { id: 'pedidos', icon: '🛒', labelKey: 'nav.portalOrders' },
-    { id: 'espacos', icon: '🪑', labelKey: 'nav.portalSpaces' },
+    { id: 'mesas', icon: '🗺', labelKey: 'nav.mesas' },
+    { id: 'pedidos', icon: '🛒', labelKey: 'nav.supply' },
     { id: 'ponto', icon: '🕒', labelKey: 'nav.portalClock' },
   ]
 }
