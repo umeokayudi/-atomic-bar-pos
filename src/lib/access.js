@@ -35,7 +35,7 @@ export function needsBarLink(role) {
 
 export function defaultBarTab(role) {
   if (role === ROLES.caixa) return 'pos'
-  if (role === ROLES.bar_staff) return 'ponto'
+  if (role === ROLES.bar_staff) return 'hoje'
   return 'inicio'
 }
 
@@ -84,9 +84,26 @@ const CAIXA_NAV = [
 ]
 
 const STAFF_NAV = [
+  { id: 'hoje', labelKey: 'nav.myToday', icon: '☀️' },
   { id: 'ponto', labelKey: 'nav.portalClock', icon: '🕒' },
   { id: 'pos', labelKey: 'nav.portalPos', icon: '🧾' },
   { id: 'pedidos', labelKey: 'nav.portalOrders', icon: '🛒' },
+  { id: 'shifts', labelKey: 'nav.myShifts', icon: '🗓️' },
+  { id: 'goals', labelKey: 'nav.myGoals', icon: '🎯' },
+  { id: 'result', labelKey: 'nav.myResult', icon: '📈' },
+  { id: 'points', labelKey: 'nav.myPoints', icon: '⭐' },
+  { id: 'rewards', labelKey: 'nav.myRewards', icon: '🏅' },
+  { id: 'occurrences', labelKey: 'nav.myOccurrences', icon: '📝' },
+  { id: 'salary', labelKey: 'nav.mySalary', icon: '💴' },
+  { id: 'profile', labelKey: 'nav.myProfile', icon: '👤' },
+]
+
+// Staff see their own day first, then work, results and pay — never the bar's books.
+const STAFF_GROUPS = [
+  { id: 'myDay', labelKey: 'nav.groupMyDay', ids: ['hoje', 'ponto', 'pos', 'pedidos'] },
+  { id: 'myWork', labelKey: 'nav.groupMyWork', ids: ['shifts', 'goals', 'result'] },
+  { id: 'myRecord', labelKey: 'nav.groupMyRecord', ids: ['points', 'rewards', 'occurrences'] },
+  { id: 'myPay', labelKey: 'nav.groupMyPay', ids: ['salary', 'profile'] },
 ]
 
 export function navForBarRole(role) {
@@ -98,7 +115,8 @@ export function navForBarRole(role) {
 export function groupedNavForRole(role) {
   const nav = navForBarRole(role)
   const byId = Object.fromEntries(nav.map(n => [n.id, n]))
-  const grouped = NAV_GROUPS.map(g => ({
+  const groups = role === ROLES.bar_staff ? STAFF_GROUPS : NAV_GROUPS
+  const grouped = groups.map(g => ({
     id: g.id,
     labelKey: g.labelKey,
     items: g.ids.map(id => byId[id]).filter(Boolean),
@@ -111,6 +129,7 @@ export function primaryDockForRole(role) {
   if (role === ROLES.caixa) return []
   if (role === ROLES.bar_staff) {
     return [
+      { id: 'hoje', icon: '☀️', labelKey: 'nav.myToday' },
       { id: 'ponto', icon: '🕒', labelKey: 'nav.portalClock' },
       { id: 'pos', icon: '🧾', labelKey: 'nav.portalPos' },
       { id: 'pedidos', icon: '🛒', labelKey: 'nav.portalOrders' },
