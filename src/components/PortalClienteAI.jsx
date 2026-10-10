@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { callGeminiChat, imageDataUrlToParts } from '../lib/ai'
+import { planAiActions } from '../lib/aiAgent'
+import AiActionCards from './AiActionCards'
 import { Spinner, SectionTitle } from './utils'
 import { useI18n } from '../lib/i18n'
 import { fetchClientPortalSnapshot, buildClientChatSystem } from '../lib/clientPortalSnapshot'
@@ -72,14 +74,22 @@ export default function PortalClienteAI({ bar, initialSnapshot = null }) {
     const history = messages.filter((_, i) => i > 0).map(m => ({ role: m.role, content: m.content }))
     const system = (snap?.books ? buildHqChatSystem(snap) : buildClientChatSystem(snap))
       + '\nIf the user sends a photo, read the invoice, receipt or delivery note and explain amount, date and next step.'
-    const reply = await callGeminiChat({
-      messages: [...history, { role: 'user', content: userLabel }],
-      system,
-      image,
-      temperature: 0.45,
-      maxOutputTokens: 1200,
-    })
-    setMessages(m => [...m, { role: 'assistant', content: reply }])
+    let answer
+    try {
+      // AI with actions: each proposal is written only after the manager confirms its card.
+      const out = await planAiActions({ messages: [...history, { role: 'user', content: userLabel }], image, screen: system })
+      answer = { role: 'assistant', content: out.reply || '', proposals: out.proposals || [] }
+    } catch {
+      const reply = await callGeminiChat({
+        messages: [...history, { role: 'user', content: userLabel }],
+        system,
+        image,
+        temperature: 0.45,
+        maxOutputTokens: 1200,
+      })
+      answer = { role: 'assistant', content: reply }
+    }
+    setMessages(m => [...m, answer])
     setChatLoading(false)
   }
 
@@ -94,6 +104,7 @@ export default function PortalClienteAI({ bar, initialSnapshot = null }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
         <div style={{ fontSize: 12, color: 'var(--text2)' }}>
           {t(isHq ? 'portal.aiHqConnected' : 'portal.aiConnected', { bar: bar.nome })}
+          <div className="ai-act-hint">{t('aiAct.hint')}</div>
         </div>
         <button
           type="button"
@@ -142,7 +153,8 @@ export default function PortalClienteAI({ bar, initialSnapshot = null }) {
       <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', height: 420 }}>
         <div ref={listRef} style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
           {messages.map((m, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+              {m.content && (
               <div
                 style={{
                   maxWidth: '85%',
@@ -158,6 +170,8 @@ export default function PortalClienteAI({ bar, initialSnapshot = null }) {
               >
                 {m.content}
               </div>
+              )}
+              <AiActionCards proposals={m.proposals} onSaved={() => refreshSnapshot()} />
             </div>
           ))}
           {chatLoading && <Spinner text={t('portal.aiThinking')} />}

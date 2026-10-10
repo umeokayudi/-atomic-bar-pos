@@ -1,5 +1,17 @@
 /** Japanese UI strings — JBM Drinks */
 export default {
+  aiAct: {
+    hint: '操作も頼めます（例：「Atomicにジェムソン6本注文」）。確定を押すまで保存されません。',
+    confirm: '確定して保存',
+    cancel: 'キャンセル',
+    saving: '保存中...',
+    done: '保存しました',
+    cancelled: 'キャンセルしました（保存なし）',
+    cannot: '実行できません',
+    failed: '保存できませんでした',
+    needsConfirm: '保存前に確認してください',
+    offline: 'AI操作は今使えません：{error}',
+  },
   common: {
     loading: '読み込み中...',
     wait: 'お待ちください...',

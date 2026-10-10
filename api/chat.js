@@ -25,11 +25,17 @@ export default async function handler(req, res) {
   }
 
   try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
+
+    // AI actions run on the user's own session, so they must not depend on the service role key.
+    if (body.module === 'agent') {
+      const { handleAgentRequest } = await import('./_aiAgent.js')
+      return await handleAgentRequest(req, res, body)
+    }
+
     const admin = drinksAdminClient()
     const auth = await requireStaffOrTrustedOrigin(req, admin)
     if (auth.error) return res.status(auth.status).json({ error: auth.error })
-
-    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
 
     if (body.module === 'seikyusho') {
       const finance = await requireGlobalFinance(req, admin)
