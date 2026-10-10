@@ -12,7 +12,7 @@ class ErrorBoundary extends Component {
   static getDerivedStateFromError(e) { return { error: asReactText(e, e?.message || 'Error') } }
   render() {
     if (this.state.error) return (
-      <div style={{ padding:20, background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:12, color:'#dc2626', fontSize:13 }}>
+      <div style={{ padding:20, background:'var(--red-bg)', border:'1px solid #fca5a5', borderRadius:12, color:'var(--red)', fontSize:13 }}>
         <strong>Error:</strong> {asReactText(this.state.error)}
       </div>
     )
@@ -120,9 +120,9 @@ function SupplierList() {
                 {s.notas && <div style={{ fontSize:11, color:'var(--text2)', marginTop:4 }}>📝 {s.notas}</div>}
               </div>
               <div style={{ display:'flex', gap:6 }}>
-                {s.website && <a href={s.website} target="_blank" rel="noreferrer" style={{ fontSize:11, padding:'5px 10px', borderRadius:8, background:'var(--bg3)', color:'var(--navy)', textDecoration:'none', fontWeight:600 }}>🌐 {t('common.visit')}</a>}
+                {s.website && <a href={s.website} target="_blank" rel="noreferrer" style={{ fontSize:11, padding:'5px 10px', borderRadius:8, background:'var(--bg3)', color:'var(--c-text)', textDecoration:'none', fontWeight:600 }}>🌐 {t('common.visit')}</a>}
                 <button onClick={()=>edit(s)} style={{ padding:'5px 10px', fontSize:11, borderRadius:8, border:'1px solid var(--border)', background:'transparent', cursor:'pointer' }}>✏️</button>
-                <button onClick={()=>del(s.id)} style={{ padding:'5px 10px', fontSize:11, borderRadius:8, border:'none', background:'#fef2f2', color:'var(--red)', cursor:'pointer' }}>🗑</button>
+                <button onClick={()=>del(s.id)} style={{ padding:'5px 10px', fontSize:11, borderRadius:8, border:'none', background:'var(--red-bg)', color:'var(--red)', cursor:'pointer' }}>🗑</button>
               </div>
             </div>
           ))}
@@ -189,7 +189,7 @@ function SupplierPricing() {
                   <div style={{ fontSize:12, color:'var(--text2)' }}>JBM: {fmtYen(p.custo)}</div>
                   {sp ? <>
                     {zeibetsu != null && <div style={{ fontSize:11, color:'var(--text3)' }}>税抜 {fmtYen(zeibetsu)}</div>}
-                    <div style={{ fontSize:14, fontWeight:700, color:'var(--navy)' }} title="税込 (+10%)">{fmtYen(sp.preco)}</div>
+                    <div style={{ fontSize:14, fontWeight:700, color:'var(--c-text)' }} title="税込 (+10%)">{fmtYen(sp.preco)}</div>
                     {variacao != null && variacao !== 0 && (
                       <div style={{ fontSize:11, fontWeight:700, color: variacao > 0 ? 'var(--red)' : 'var(--green)' }}>
                         jul {formatPriceChange(variacao)}
@@ -198,7 +198,7 @@ function SupplierPricing() {
                     {diff !== null && diff !== 0 && (
                       <div style={{ fontSize:10, color: diff < 0 ? 'var(--green)' : 'var(--red)' }}>vs JBM {diff > 0 ? '+' : ''}{diff}%</div>
                     )}
-                    {sp.url_compra && <a href={sp.url_compra} target="_blank" rel="noreferrer" style={{ fontSize:11, padding:'4px 8px', borderRadius:6, background:'var(--bg3)', color:'var(--navy)', textDecoration:'none', fontWeight:600 }}>{t('suppliers.buy')}</a>}
+                    {sp.url_compra && <a href={sp.url_compra} target="_blank" rel="noreferrer" style={{ fontSize:11, padding:'4px 8px', borderRadius:6, background:'var(--bg3)', color:'var(--c-text)', textDecoration:'none', fontWeight:600 }}>{t('suppliers.buy')}</a>}
                   </> : <div style={{ fontSize:12, color:'var(--text3)' }}>—</div>}
                   <button onClick={()=>setModal({ fornecedor_id:selSup, produto_id:p.id, preco:sp?.preco||'', url_compra:sp?.url_compra||'', notas:sp?.notas||'' })}
                     style={{ padding:'4px 10px', fontSize:11, borderRadius:6, border:'1px solid var(--border)', background:'transparent', cursor:'pointer' }}>
@@ -277,7 +277,7 @@ function SmartPurchase() {
                 <div style={{ borderTop:'1px solid var(--border)', padding:'12px 16px', background:'var(--bg3)' }}>
                   {prices.map((pr,i) => (
                     <div key={pr.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 12px', marginBottom:6,
-                      background:i===0?'linear-gradient(135deg,#f0fdf4,#dcfce7)':'var(--bg2)',
+                      background:i===0?'linear-gradient(135deg,var(--green-bg),#dcfce7)':'var(--bg2)',
                       border:i===0?'1px solid #86efac':'1px solid var(--border)', borderRadius:10 }}>
                       {i===0 && <span>🏆</span>}
                       <div style={{ flex:1 }}>

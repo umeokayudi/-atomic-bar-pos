@@ -173,7 +173,7 @@ export default function SeikyushoTab() {
         <PortalSurface style={{ marginBottom: 16 }}>
           {plano && (
             <div style={{ marginBottom: 20, padding: 16, background: 'var(--blue-bg)', borderRadius: 12, border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', marginBottom: 8 }}>{t('seikyusho.readSummary')}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--c-text)', marginBottom: 8 }}>{t('seikyusho.readSummary')}</div>
               <p style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 12 }}>{plano.resumo}</p>
               {plano.acoes?.length > 0 && (
                 <div style={{ marginBottom: 12 }}>
@@ -188,7 +188,7 @@ export default function SeikyushoTab() {
                   {plano.alertas.map((a, i) => <div key={i}>⚠️ {a}</div>)}
                 </div>
               )}
-              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--navy)', padding: '12px 0 0', borderTop: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-text)', padding: '12px 0 0', borderTop: '1px solid var(--border)' }}>
                 {plano.pergunta || t('seikyusho.confirmQuestion')}
               </div>
             </div>

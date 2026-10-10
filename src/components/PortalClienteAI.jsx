@@ -110,7 +110,7 @@ export default function PortalClienteAI({ bar, initialSnapshot = null }) {
           type="button"
           onClick={refreshSnapshot}
           disabled={loadingSnap}
-          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'white', fontSize: 12, cursor: 'pointer' }}
+          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg2)', fontSize: 12, cursor: 'pointer' }}
         >
           {loadingSnap ? '...' : `🔄 ${t('portal.refreshData')}`}
         </button>
@@ -119,12 +119,12 @@ export default function PortalClienteAI({ bar, initialSnapshot = null }) {
       {snapshot && !snapshot.erro && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(130px,1fr))', gap: 8, marginBottom: 16 }}>
           {(isHq ? [
-            { label: t('portal.costs.posTill'), value: `¥${Math.round(snapshot.books.pos?.amount || 0).toLocaleString('ja-JP')}`, color: 'var(--navy)' },
-            { label: t('portal.costs.jbmBill'), value: `¥${Math.round(snapshot.books.jbm?.amount || 0).toLocaleString('ja-JP')}`, color: 'var(--navy)' },
+            { label: t('portal.costs.posTill'), value: `¥${Math.round(snapshot.books.pos?.amount || 0).toLocaleString('ja-JP')}`, color: 'var(--c-text)' },
+            { label: t('portal.costs.jbmBill'), value: `¥${Math.round(snapshot.books.jbm?.amount || 0).toLocaleString('ja-JP')}`, color: 'var(--c-text)' },
             { label: t('portal.costs.staffWages'), value: `¥${Math.round(snapshot.books.staff?.amount || 0).toLocaleString('ja-JP')}`, color: 'var(--green)' },
             { label: t('portal.costs.rent'), value: `¥${Math.round(snapshot.books.rent?.amount || 0).toLocaleString('ja-JP')}`, color: 'var(--amber)' },
           ] : [
-            { label: t('portal.purchasesMonth'), value: `¥${Math.round(snapshot.comprasMes || 0).toLocaleString('ja-JP')}`, color: 'var(--navy)' },
+            { label: t('portal.purchasesMonth'), value: `¥${Math.round(snapshot.comprasMes || 0).toLocaleString('ja-JP')}`, color: 'var(--c-text)' },
             { label: t('portal.posMargin'), value: `${snapshot.margemPct || 0}%`, color: 'var(--green)' },
             { label: t('portal.pending'), value: `¥${Math.round(snapshot.totalPendente || 0).toLocaleString('ja-JP')}`, color: snapshot.totalPendente > 0 ? 'var(--amber)' : 'var(--green)' },
             { label: t('portal.overdue'), value: snapshot.faturasAtraso || 0, color: snapshot.faturasAtraso > 0 ? 'var(--red)' : 'var(--green)' },
@@ -192,7 +192,7 @@ export default function PortalClienteAI({ bar, initialSnapshot = null }) {
               r.readAsDataURL(file)
             }}
           />
-          <button type="button" onClick={() => fileRef.current?.click()} style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'white', cursor: 'pointer' }}>📷</button>
+          <button type="button" onClick={() => fileRef.current?.click()} style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg2)', cursor: 'pointer' }}>📷</button>
           <input
             value={input}
             onChange={e => setInput(e.target.value)}

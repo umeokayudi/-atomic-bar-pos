@@ -1,20 +1,20 @@
 /* Invoice payment log (InvoicePaymentsModal) */
 .ledger-back {
   position: fixed; inset: 0; z-index: 1200;
-  background: rgba(0,16,40,0.45);
+  background: color-mix(in srgb, var(--c-text) 45%, transparent);
   display: flex; align-items: center; justify-content: center; padding: 16px;
 }
 .ledger {
   width: 100%; max-width: 460px; max-height: 92vh; overflow-y: auto;
   background: var(--bg2, #fff); border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0,16,40,0.3);
+  box-shadow: 0 20px 60px color-mix(in srgb, var(--c-text) 30%, transparent);
 }
 .ledger-head {
   display: flex; justify-content: space-between; gap: 12px;
   padding: 18px 20px 12px; border-bottom: 1px solid var(--border);
 }
 .ledger-kicker { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--text3); }
-.ledger-title { font-size: 18px; font-weight: 800; color: var(--navy); margin-top: 2px; }
+.ledger-title { font-size: 18px; font-weight: 800; color: var(--c-text); margin-top: 2px; }
 .ledger-sub { font-size: 12px; color: var(--text2); margin-top: 4px; }
 .ledger-late { color: var(--red); font-weight: 700; }
 .ledger-x { border: none; background: transparent; font-size: 24px; line-height: 1; cursor: pointer; color: var(--text2); padding: 0 4px; }
@@ -22,7 +22,7 @@
 .ledger-sum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .ledger-sum > div { background: var(--bg3); border-radius: 10px; padding: 10px; }
 .ledger-sum span { display: block; font-size: 11px; color: var(--text2); margin-bottom: 4px; }
-.ledger-sum b { font-size: 16px; font-weight: 800; color: var(--navy); }
+.ledger-sum b { font-size: 16px; font-weight: 800; color: var(--c-text); }
 .ledger-sum b.is-green, .ledger-item-amt.is-green { color: var(--green); }
 .ledger-sum b.is-red { color: var(--red); }
 .ledger-bar { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; margin: 10px 0 16px; }
@@ -36,23 +36,23 @@
 .ledger-quick button { padding: 6px 10px; font-size: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg3); cursor: pointer; font-weight: 600; }
 .ledger-check input { width: auto; flex: 0 0 auto; margin: 2px 0 0; }
 .ledger-check { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: var(--text2); margin-bottom: 10px; cursor: pointer; }
-.ledger-preview { font-size: 12px; background: #f0fdf4; color: #166534; border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
+.ledger-preview { font-size: 12px; background: var(--green-bg); color: #166534; border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
 .ledger-save { width: 100%; padding: 11px; border-radius: 10px; }
 .ledger-log-title { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text2); margin-bottom: 8px; }
 .ledger-empty { font-size: 13px; color: var(--text3); }
 .ledger-log { display: flex; flex-direction: column; gap: 6px; }
 .ledger-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
-.ledger-item.is-waiting { background: #fffbeb; border-color: #fcd34d; }
+.ledger-item.is-waiting { background: var(--amber-bg); border-color: #fcd34d; }
 .ledger-item.is-old { background: var(--bg3); border-style: dashed; }
 .ledger-item-main { min-width: 0; }
 .ledger-item-amt { font-size: 15px; font-weight: 800; color: var(--green); }
-.ledger-item.is-waiting .ledger-item-amt { color: #92400e; }
+.ledger-item.is-waiting .ledger-item-amt { color: var(--amber); }
 .ledger-item.is-old .ledger-item-amt { color: var(--text2); }
 .ledger-item-meta { font-size: 11px; color: var(--text2); margin-top: 2px; overflow-wrap: anywhere; }
-.ledger-item-flag { font-size: 11px; font-weight: 700; color: #92400e; margin-top: 2px; }
+.ledger-item-flag { font-size: 11px; font-weight: 700; color: var(--amber); margin-top: 2px; }
 .ledger-item-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .ledger-item-actions button { padding: 5px 9px; font-size: 11px; border-radius: 8px; border: 1px solid var(--border); background: transparent; cursor: pointer; font-weight: 600; }
-.ledger-item-actions button.is-ok { background: #16a34a; border-color: #16a34a; color: #fff; }
+.ledger-item-actions button.is-ok { background: var(--green); border-color: var(--green); color: #fff; }
 
 /* Open invoices list (who owes what) */
 .owe-list { display: flex; flex-direction: column; gap: 8px; }
@@ -67,7 +67,7 @@
 .owe-name { font-size: 14px; font-weight: 700; }
 .owe-meta { font-size: 11px; color: var(--text2); margin-top: 2px; }
 .owe-meta.is-late { color: var(--red); font-weight: 700; }
-.owe-meta.is-wait { color: #92400e; font-weight: 600; }
+.owe-meta.is-wait { color: var(--amber); font-weight: 600; }
 .owe-num span { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--text3); }
 .owe-num b { font-size: 14px; font-weight: 800; }
 .owe-num b.is-green { color: var(--green); }

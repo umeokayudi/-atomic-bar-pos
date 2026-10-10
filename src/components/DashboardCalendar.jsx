@@ -6,10 +6,10 @@ import { PortalSurface } from './ui/PageLayout'
 const KINDS = ['pedido', 'pagamento', 'lucro', 'entrega']
 
 function kindColor(kind, dir, amount) {
-  if (kind === 'pedido') return '#2563eb'
+  if (kind === 'pedido') return 'var(--blue)'
   if (kind === 'entrega') return '#7c3aed'
-  if (kind === 'lucro') return amount >= 0 ? '#1a6b4a' : '#dc2626'
-  if (kind === 'pagamento') return dir === 'out' ? '#b45309' : '#16a34a'
+  if (kind === 'lucro') return amount >= 0 ? 'var(--green)' : 'var(--red)'
+  if (kind === 'pagamento') return dir === 'out' ? 'var(--amber)' : 'var(--green)'
   return 'var(--navy)'
 }
 

@@ -51,9 +51,9 @@ function SetupBanner({ onRefresh }) {
   useEffect(() => { checkPosSchema(supabase).then(setSetup) }, [])
   if (!setup || setup.ready) return null
   return (
-    <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 12, padding: 16, marginBottom: 20, fontSize: 13 }}>
+    <div style={{ background: 'var(--amber-bg)', border: '1px solid #fcd34d', borderRadius: 12, padding: 16, marginBottom: 20, fontSize: 13 }}>
       <strong>{t('atomicPos.setupRequired')}</strong>
-      <p style={{ margin: '8px 0', color: '#92400e' }}>
+      <p style={{ margin: '8px 0', color: 'var(--amber)' }}>
         {t('atomicPos.setupHint')}
       </p>
       <button onClick={onRefresh} style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12 }}>{t('atomicPos.checkAgain')}</button>
@@ -1332,7 +1332,7 @@ function PosDashboardTab({ bar, todaySales, salesList, onOrder }) {
           </div>
           {onOrder && (
             <button onClick={onOrder} style={{
-              background: 'white', color: 'var(--navy)', border: 'none', borderRadius: 12,
+              background: 'var(--bg2)', color: 'var(--c-text)', border: 'none', borderRadius: 12,
               padding: '10px 18px', fontWeight: 700, fontSize: 12, cursor: 'pointer',
             }}>
               {t('atomicPos.seeJbmOrders')}
@@ -1343,7 +1343,7 @@ function PosDashboardTab({ bar, todaySales, salesList, onOrder }) {
 
       {lowStock.length > 0 && (
         <div style={{
-          background: 'linear-gradient(135deg,#ff9500 0%,#ff6b00 100%)',
+          background: 'linear-gradient(135deg,var(--amber) 0%,#ff6b00 100%)',
           borderRadius: 16, padding: '16px 20px', marginBottom: 20,
           display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
         }}>
@@ -1357,7 +1357,7 @@ function PosDashboardTab({ bar, todaySales, salesList, onOrder }) {
           </div>
           {onOrder && (
             <button onClick={onOrder} style={{
-              background: 'white', color: '#ff6b00', border: 'none', borderRadius: 12,
+              background: 'var(--bg2)', color: '#ff6b00', border: 'none', borderRadius: 12,
               padding: '10px 18px', fontWeight: 700, fontSize: 12, cursor: 'pointer',
             }}>
               {t('atomicPos.reorderJbm')}
@@ -1440,9 +1440,9 @@ function PosDrinkBackTab({ bar, onUpdate }) {
 
   if (!schemaOk) {
     return (
-      <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 12, padding: 16, fontSize: 13 }}>
+      <div style={{ background: 'var(--amber-bg)', border: '1px solid #fcd34d', borderRadius: 12, padding: 16, fontSize: 13 }}>
         <strong>{t('atomicPos.drinkBackSetup')}</strong>
-        <p style={{ margin: '8px 0', color: '#92400e' }}>{t('atomicPos.drinkBackSetupHint')}</p>
+        <p style={{ margin: '8px 0', color: 'var(--amber)' }}>{t('atomicPos.drinkBackSetupHint')}</p>
       </div>
     )
   }

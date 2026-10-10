@@ -186,10 +186,10 @@ export function useBarOverdueAlerts(barId) {
 }
 
 const TIPO_ICON = {
-  pedido_novo:       { icon: '🛒', color: '#8A5A00', bg: '#FDF3E0' },
-  pedido_confirmado: { icon: '✅', color: '#1A4E8A', bg: '#EAF0FA' },
-  pedido_entregue:   { icon: '📦', color: '#1A7A5E', bg: '#EAF5F0' },
-  pedido_cancelado:  { icon: '❌', color: '#C0392B', bg: '#FBEAEA' },
+  pedido_novo:       { icon: '🛒', color: 'var(--amber)', bg: 'var(--amber-bg)' },
+  pedido_confirmado: { icon: '✅', color: 'var(--blue)', bg: 'var(--blue-bg)' },
+  pedido_entregue:   { icon: '📦', color: 'var(--green)', bg: 'var(--green-bg)' },
+  pedido_cancelado:  { icon: '❌', color: 'var(--red)', bg: 'var(--red-bg)' },
 }
 
 function timeAgo(iso, t) {

@@ -12,7 +12,7 @@ function VendaRow({ v }) {
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
         <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--c-text)' }}>
             {fmtDate(v.data)}
             {v.barNome && (
               <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, color: v.barCor || 'var(--text2)' }}>
@@ -26,7 +26,7 @@ function VendaRow({ v }) {
             </div>
           )}
         </div>
-        <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--navy)', flexShrink: 0 }}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--c-text)', flexShrink: 0 }}>
           {fmtYen(v.receita)}
         </div>
       </div>

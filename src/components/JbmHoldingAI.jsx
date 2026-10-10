@@ -96,7 +96,7 @@ export default function JbmHoldingAI({ holdingProfile }) {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" onClick={refreshSnapshot} disabled={loadingSnap} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'white', fontSize: 12, cursor: 'pointer' }}>
+          <button type="button" onClick={refreshSnapshot} disabled={loadingSnap} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg2)', fontSize: 12, cursor: 'pointer' }}>
             {loadingSnap ? '...' : '🔄 Refresh data'}
           </button>
           <button type="button" onClick={runFullAudit} disabled={auditLoading} className="btn-primary" style={{ padding: '8px 14px', fontSize: 12, borderRadius: 8 }}>
@@ -110,7 +110,7 @@ export default function JbmHoldingAI({ holdingProfile }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(120px,1fr))', gap: 8, marginBottom: 16 }}>
           {[
             { label: 'Checks', value: `${snapshot.checksOk}/${snapshot.checksTotal}`, color: snapshot.checksOk === snapshot.checksTotal ? 'var(--green)' : 'var(--amber)' },
-            { label: 'Caixa', value: `¥${Math.round(snapshot.financeiro?.caixaLiquido || 0).toLocaleString('ja-JP')}`, color: 'var(--navy)' },
+            { label: 'Caixa', value: `¥${Math.round(snapshot.financeiro?.caixaLiquido || 0).toLocaleString('ja-JP')}`, color: 'var(--c-text)' },
             { label: 'A receber', value: `¥${Math.round(snapshot.financeiro?.aReceber || 0).toLocaleString('ja-JP')}`, color: 'var(--green)' },
             { label: 'Proj. 30d', value: `¥${Math.round(snapshot.financeiro?.projetado30d || 0).toLocaleString('ja-JP')}`, color: 'var(--blue)' },
             { label: 'Oportunidade', value: `${snapshot.opportunityCostPct}%/ano`, color: 'var(--gold)' },
@@ -126,7 +126,7 @@ export default function JbmHoldingAI({ holdingProfile }) {
       {snapshot?.checks && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
           {snapshot.checks.map((c, i) => (
-            <span key={i} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, background: c.ok ? '#f0fdf4' : '#fef2f2', color: c.ok ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
+            <span key={i} style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, background: c.ok ? 'var(--green-bg)' : 'var(--red-bg)', color: c.ok ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
               {c.ok ? '✅' : '❌'} {c.label}
             </span>
           ))}
@@ -135,8 +135,8 @@ export default function JbmHoldingAI({ holdingProfile }) {
 
       {auditLoading && <Spinner text="Gemini analisando todo o sistema JBM Holding..." />}
       {auditText && !auditLoading && (
-        <div style={{ background: 'linear-gradient(135deg,#eff6ff,#f0fdf4)', border: '1px solid #93c5fd', borderRadius: 14, padding: '16px 18px', marginBottom: 16, fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy)', marginBottom: 8, textTransform: 'uppercase' }}>📋 Auditoria completa Gemini</div>
+        <div style={{ background: 'linear-gradient(135deg,#eff6ff,var(--green-bg))', border: '1px solid #93c5fd', borderRadius: 14, padding: '16px 18px', marginBottom: 16, fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--c-text)', marginBottom: 8, textTransform: 'uppercase' }}>📋 Auditoria completa Gemini</div>
           {auditText}
         </div>
       )}

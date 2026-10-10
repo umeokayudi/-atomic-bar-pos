@@ -94,10 +94,10 @@ export function AdminPage({ title, subtitle, actions, children, wide = false }) 
 
 export function PortalAlert({ variant = 'amber', children, onClick }) {
   const styles = {
-    amber: { background: '#fffbeb', border: '1px solid #fcd34d', color: 'inherit' },
-    red: { background: 'linear-gradient(135deg,#ff3b30,#c0392b)', border: 'none', color: 'white' },
-    green: { background: '#f0fdf4', border: '1px solid #86efac', color: '#166534' },
-    navy: { background: 'linear-gradient(135deg,var(--navy),var(--navy2))', border: '1px solid rgba(193,156,86,0.3)', color: 'white' },
+    amber: { background: 'var(--amber-bg)', border: '1px solid #fcd34d', color: 'inherit' },
+    red: { background: 'linear-gradient(135deg,var(--red),#c0392b)', border: 'none', color: 'white' },
+    green: { background: 'var(--green-bg)', border: '1px solid #86efac', color: '#166534' },
+    navy: { background: 'linear-gradient(135deg,var(--navy),var(--navy2))', border: '1px solid color-mix(in srgb, var(--gold) 30%, transparent)', color: 'white' },
   }
   const s = styles[variant] || styles.amber
   return (

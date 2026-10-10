@@ -1,0 +1,137 @@
+/*
+ * JBMTech design tokens — Deep Emerald.
+ * One place for every colour, radius, shadow, spacing and breakpoint.
+ * Themes switch with <html data-theme="classic|modern"> (classic = dark, modern = light),
+ * set before paint by the inline script in index.html and kept by src/lib/uiPrefs.jsx.
+ *
+ * Semantic tokens (--c-*) are the API for new code. The legacy names (--navy, --gold,
+ * --bg*, --text*) are aliases so every existing screen picks up the palette without edits.
+ */
+
+:root {
+  /* type */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  --font-num: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --fs-xs: 11px; --fs-sm: 12px; --fs-md: 14px; --fs-lg: 16px; --fs-xl: 20px; --fs-2xl: 26px; --fs-3xl: 32px;
+
+  /* spacing (4px grid) */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
+
+  /* shape */
+  --radius-sm: 8px;
+  --radius:    10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
+
+  /* touch + layout */
+  --tap: 44px;               /* minimum touch target */
+  --tap-pos: 52px;           /* POS buttons */
+  --sidebar-w: 248px;
+  --topbar-h: 56px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  /* breakpoints (documentation; CSS media queries cannot read vars):
+     phone < 640 · tablet-portrait 640–1023 · tablet-landscape/notebook 1024–1279 · desktop ≥ 1280 · wide ≥ 1440 */
+
+  --ease: cubic-bezier(.2,.7,.2,1);
+  --dur: 140ms;
+}
+
+/* ── Light (modern) ─────────────────────────────────────────────────────── */
+:root,
+[data-theme="modern"] {
+  color-scheme: light;
+  --c-bg:         #F4F7F5;
+  --c-surface:    #FFFFFF;
+  --c-surface-2:  #E9EFEC;
+  --c-surface-3:  #DDE6E1;
+  --c-text:       #13201D;
+  --c-text-2:     #4D5E59;
+  --c-text-3:     #6E7E79;
+  --c-border:     #D6E0DB;
+  --c-border-2:   #C2CFC9;
+  --c-accent:     #3F7F67;
+  --c-accent-2:   #346B56;
+  --c-accent-soft:#E2EEE8;
+  --c-on-accent:  #FFFFFF;
+  --c-focus:      #3F7F67;
+
+  /* app chrome (sidebar, login, top bar): stays deep emerald in both themes */
+  --c-chrome:     #13201D;
+  --c-chrome-2:   #1B2B27;
+  --c-chrome-3:   #22332F;
+  --c-on-chrome:  #F0F3F0;
+
+  --c-success: #2F7A55; --c-success-bg: #E3F2EA;
+  --c-danger:  #B0362B; --c-danger-bg:  #FBEAE7;
+  --c-warning: #8A5A00; --c-warning-bg: #FBF1DC;
+  --c-info:    #2D5F8A; --c-info-bg:    #E5EEF7;
+
+  --shadow-sm: 0 1px 2px rgba(19,32,29,.06);
+  --shadow:    0 1px 3px rgba(19,32,29,.08), 0 1px 2px rgba(19,32,29,.04);
+  --shadow-md: 0 4px 14px rgba(19,32,29,.08);
+  --shadow-lg: 0 12px 32px rgba(19,32,29,.14);
+}
+
+/* ── Dark (classic) ─────────────────────────────────────────────────────── */
+[data-theme="classic"] {
+  color-scheme: dark;
+  --c-bg:         #101B19;
+  --c-surface:    #1A2926;
+  --c-surface-2:  #22332F;
+  --c-surface-3:  #2B3F3A;
+  --c-text:       #F0F3F0;
+  --c-text-2:     #B5C2BD;
+  --c-text-3:     #8A9A95;
+  --c-border:     rgba(240,243,240,.09);
+  --c-border-2:   rgba(240,243,240,.16);
+  --c-accent:     #83B7A0;
+  --c-accent-2:   #9CC8B4;
+  --c-accent-soft:rgba(131,183,160,.14);
+  --c-on-accent:  #0E1A17;
+  --c-focus:      #9CC8B4;
+
+  --c-chrome:     #0C1513;
+  --c-chrome-2:   #14211E;
+  --c-chrome-3:   #1B2B27;
+  --c-on-chrome:  #F0F3F0;
+
+  --c-success: #7FCB9F; --c-success-bg: rgba(127,203,159,.13);
+  --c-danger:  #F08A7E; --c-danger-bg:  rgba(240,138,126,.13);
+  --c-warning: #E7BE6A; --c-warning-bg: rgba(231,190,106,.13);
+  --c-info:    #8DB8E3; --c-info-bg:    rgba(141,184,227,.13);
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.3);
+  --shadow:    0 1px 3px rgba(0,0,0,.35);
+  --shadow-md: 0 4px 14px rgba(0,0,0,.35);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,.45);
+}
+
+/* ── Legacy aliases (do not use in new code) ────────────────────────────── */
+:root, [data-theme="modern"], [data-theme="classic"] {
+  --navy:     var(--c-chrome);
+  --navy2:    var(--c-chrome-2);
+  --navy3:    var(--c-chrome-3);
+  --gold:     var(--c-accent);
+  --gold2:    var(--c-accent-2);
+  --gold-bg:  var(--c-accent-soft);
+
+  --bg:       var(--c-bg);
+  --bg2:      var(--c-surface);
+  --bg3:      var(--c-surface-2);
+  --bg4:      var(--c-surface-3);
+  --text:     var(--c-text);
+  --text2:    var(--c-text-2);
+  --text3:    var(--c-text-3);
+  --border:   var(--c-border);
+  --border2:  var(--c-border-2);
+
+  --green:    var(--c-success); --green-bg: var(--c-success-bg);
+  --red:      var(--c-danger);  --red-bg:   var(--c-danger-bg);
+  --amber:    var(--c-warning); --amber-bg: var(--c-warning-bg);
+  --blue:     var(--c-info);    --blue-bg:  var(--c-info-bg);
+}

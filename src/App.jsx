@@ -4,7 +4,7 @@ class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
   static getDerivedStateFromError(e) { return { error: errText(e, e?.message || 'Error') } }
   render() {
-    if (this.state.error) return <div style={{padding:20,color:'red',fontSize:14,background:'white',minHeight:'100vh'}}><h2>Error</h2><p>{asReactText(this.state.error)}</p></div>
+    if (this.state.error) return <div style={{padding:20,color:'red',fontSize:14,background: 'var(--bg2)',minHeight:'100vh'}}><h2>Error</h2><p>{asReactText(this.state.error)}</p></div>
     return this.props.children
   }
 }
@@ -98,7 +98,7 @@ const JBM_TABS = [
 const TABS_BY_ID = Object.fromEntries([...ADMIN_TABS, ...EMPLOYEE_TABS, ...STAFF_TABS, ...JBM_TABS].map(tab => [tab.id, tab]))
 
 // ── MINI BAR CHART ────────────────────────────────────────────────────────────
-function BarChart({ data, color='#c19c56', height=80, valueLabel=fmtYen }) {
+function BarChart({ data, color='var(--gold)', height=80, valueLabel=fmtYen }) {
   const [active, setActive] = useState(null)
   if (!data || data.length === 0) return null
   const max = Math.max(...data.map(d => d.value), 1)
@@ -314,7 +314,7 @@ function Dashboard({ onNav }) {
                     ))}
                   </div>
                 </div>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', whiteSpace: 'nowrap' }}>{t('dashboard.seeCashflow')}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--c-text)', whiteSpace: 'nowrap' }}>{t('dashboard.seeCashflow')}</span>
               </div>
             </PortalAlert>
           )}
@@ -377,7 +377,7 @@ function Dashboard({ onNav }) {
       />
 
       <PortalSurface title={t('dashboard.chartTitle')} sub={t('dashboard.chartSub')} style={{ marginTop: 20 }}>
-        <BarChart data={lucroChart} color="#1a6b4a" height={72} />
+        <BarChart data={lucroChart} color="var(--green)" height={72} />
       </PortalSurface>
 
       <PortalSurface title={t('dashboard.quickActions')}>
@@ -541,7 +541,7 @@ function Shell() {
               <span>{nav.icon}</span>
               <span style={{fontSize:13}}>{t(nav.labelKey)}</span>
               {nav.id==='pedidos'&&pedidosPendentes>0&&(
-                <span style={{marginLeft:'auto',background:'var(--gold)',color:'var(--navy)',fontSize:10,fontWeight:800,padding:'1px 6px',borderRadius:10}}>{pedidosPendentes}</span>
+                <span style={{marginLeft:'auto',background:'var(--gold)',color:'var(--c-on-accent)',fontSize:10,fontWeight:800,padding:'1px 6px',borderRadius:10}}>{pedidosPendentes}</span>
               )}
               {nav.id==='billingHub'&&(overdueAlerts?.faturas?.length ?? 0)>0&&(
                 <span style={{marginLeft:'auto',background:'var(--red)',color:'white',fontSize:10,fontWeight:800,padding:'1px 6px',borderRadius:10}}>{overdueAlerts.faturas.length}</span>
@@ -551,12 +551,12 @@ function Shell() {
         </nav>
         <div className="sidebar-footer">
           <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
-            <div style={{width:34,height:34,borderRadius:10,background:'rgba(193,156,86,0.2)',border:'1px solid rgba(193,156,86,0.3)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:700,color:'var(--gold)',flexShrink:0}}>
+            <div style={{width:34,height:34,borderRadius:10,background:'color-mix(in srgb, var(--gold) 20%, transparent)',border:'1px solid color-mix(in srgb, var(--gold) 30%, transparent)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:700,color:'var(--gold)',flexShrink:0}}>
               {(perfil?.nome||user?.email||'U')[0].toUpperCase()}
             </div>
             <div style={{minWidth:0}}>
               <div style={{fontSize:12,fontWeight:700,color:'rgba(255,255,255,0.85)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{perfil?.nome||user?.email}</div>
-              <div style={{fontSize:10,color:'rgba(193,156,86,0.7)'}}>{roleLabel(perfil?.role)}</div>
+              <div style={{fontSize:10,color:'color-mix(in srgb, var(--gold) 70%, transparent)'}}>{roleLabel(perfil?.role)}</div>
             </div>
           </div>
           <button onClick={signOut} className="sidebar-signout">{t('common.signOut')}</button>

@@ -11,9 +11,9 @@ import {
 import { loadHoldingLocal, syncHoldingFromCloud } from '../lib/jbmHolding'
 
 const VERDICT_STYLE = {
-  pay_now: { bg: '#f0fdf4', border: '#86efac', icon: '💵', label: 'Pay cash' },
+  pay_now: { bg: 'var(--green-bg)', border: '#86efac', icon: '💵', label: 'Pay cash' },
   pay_later: { bg: '#eff6ff', border: '#93c5fd', icon: '📅', label: 'Pay on terms' },
-  caution: { bg: '#fffbeb', border: '#fcd34d', icon: '⚠️', label: 'Caution' },
+  caution: { bg: 'var(--amber-bg)', border: '#fcd34d', icon: '⚠️', label: 'Caution' },
   neutral: { bg: 'var(--bg3)', border: 'var(--border)', icon: '📊', label: 'Analysis' },
   incomplete: { bg: 'var(--bg3)', border: 'var(--border)', icon: '—', label: 'Waiting' },
 }
@@ -101,14 +101,14 @@ export default function PurchaseCashflowAdvisor({
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text2)', marginBottom: 4 }}>
             {style.icon} Advisor JBM Holding · custo oport. {analysis.opportunityCostPct}%/ano
           </div>
-          <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--navy)', lineHeight: 1.3 }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--c-text)', lineHeight: 1.3 }}>
             {analysis.headline}
           </div>
         </div>
         <button
           type="button"
           onClick={() => setShowSettings(s => !s)}
-          style={{ fontSize: 11, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'white', cursor: 'pointer' }}
+          style={{ fontSize: 11, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg2)', cursor: 'pointer' }}
         >
           ⚙️ {showSettings ? 'Hide' : 'Assumptions'}
         </button>
@@ -179,7 +179,7 @@ export default function PurchaseCashflowAdvisor({
                 <td style={{ padding: '8px' }}>
                   <span style={{
                     fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
-                    background: sc.cashPressure === 'alta' ? '#fef2f2' : sc.cashPressure === 'média' ? '#fffbeb' : '#f0fdf4',
+                    background: sc.cashPressure === 'alta' ? 'var(--red-bg)' : sc.cashPressure === 'média' ? 'var(--amber-bg)' : 'var(--green-bg)',
                     color: sc.cashPressure === 'alta' ? 'var(--red)' : sc.cashPressure === 'média' ? 'var(--amber)' : 'var(--green)',
                   }}>
                     {PRESSURE_LABEL[sc.cashPressure] || sc.cashPressure}
@@ -212,7 +212,7 @@ export default function PurchaseCashflowAdvisor({
       {aiLoading && <div style={{ marginTop: 10 }}><Spinner text="AI synced with JBM Holding..." /></div>}
       {aiText && !aiLoading && (
         <div style={{
-          marginTop: 12, padding: '12px 14px', background: 'white',
+          marginTop: 12, padding: '12px 14px', background: 'var(--bg2)',
           borderRadius: 12, fontSize: 13, lineHeight: 1.65, whiteSpace: 'pre-wrap',
           border: '1px solid var(--border)',
         }}>

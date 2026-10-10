@@ -201,7 +201,7 @@ export function Empty({ text, icon = '📭' }) {
 export function SectionTitle({ children, sub }) {
   return (
     <div style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: -0.2, color: 'var(--navy)' }}>{children}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: -0.2, color: 'var(--c-text)' }}>{children}</div>
       {sub && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4 }}>{sub}</div>}
     </div>
   )

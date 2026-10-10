@@ -34,7 +34,7 @@ const ACTIONS = [
 function BookCard({ kicker, value, hint, tone = 'navy', active, onClick }) {
   const tones = {
     navy: { bg: 'linear-gradient(135deg, var(--navy) 0%, #002855 100%)', color: 'white', hint: 'rgba(255,255,255,0.75)', border: 'none' },
-    light: { bg: 'var(--bg2)', color: 'var(--navy)', hint: 'var(--text2)', border: '1px solid var(--border)' },
+    light: { bg: 'var(--bg2)', color: 'var(--c-text)', hint: 'var(--text2)', border: '1px solid var(--border)' },
     green: { bg: 'var(--bg2)', color: 'var(--green)', hint: 'var(--text2)', border: '1px solid rgba(52,199,89,0.25)' },
     amber: { bg: 'var(--bg2)', color: 'var(--amber)', hint: 'var(--text2)', border: '1px solid rgba(255,159,10,0.28)' },
   }

@@ -74,7 +74,7 @@ import {
 function EasyMoneyCard({ kicker, value, hint, tone = 'navy', children }) {
   const tones = {
     navy: { bg: 'linear-gradient(135deg, var(--navy) 0%, #002855 100%)', color: 'white', hint: 'rgba(255,255,255,0.75)' },
-    light: { bg: 'var(--bg2)', color: 'var(--navy)', hint: 'var(--text2)', border: '1px solid var(--border)' },
+    light: { bg: 'var(--bg2)', color: 'var(--c-text)', hint: 'var(--text2)', border: '1px solid var(--border)' },
     green: { bg: 'var(--bg2)', color: 'var(--green)', hint: 'var(--text2)', border: '1px solid rgba(52,199,89,0.25)' },
   }
   const s = tones[tone] || tones.navy
@@ -405,7 +405,7 @@ function HomeTab({ bar, onTab }) {
             <div style={{ fontSize:11, color:'var(--text2)', marginTop:4 }}>{t('portal.home.clickMonth', { month: chartMonthKey })}</div>
           </div>
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-            <div style={{ fontSize:13, fontWeight:800, color:'var(--navy)' }}>{fmtYen(chartMonthStats.jbmTotal)}</div>
+            <div style={{ fontSize:13, fontWeight:800, color:'var(--c-text)' }}>{fmtYen(chartMonthStats.jbmTotal)}</div>
           </div>
         </div>
         <div style={{ display:'flex', alignItems:'flex-end', gap:8, height:100 }}>
@@ -436,7 +436,7 @@ function HomeTab({ bar, onTab }) {
         </div>
         {chartMonthStats.jbmTotal > 0 && (
           <div style={{ marginTop:16, padding:'12px 14px', background:'var(--bg3)', borderRadius:12, display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, fontSize:12 }}>
-            <div><span style={{ color:'var(--text2)', fontSize:10, display:'block' }}>{t('portal.home.posProjection')}</span><strong style={{ color:'var(--navy)' }}>{fmtYen(chartMonthStats.posTotal)}</strong></div>
+            <div><span style={{ color:'var(--text2)', fontSize:10, display:'block' }}>{t('portal.home.posProjection')}</span><strong style={{ color:'var(--c-text)' }}>{fmtYen(chartMonthStats.posTotal)}</strong></div>
             <div><span style={{ color:'var(--text2)', fontSize:10, display:'block' }}>{t('portal.home.projProfit')}</span><strong style={{ color:'var(--green)' }}>{fmtYen(chartMonthStats.margin)}</strong></div>
             <div><span style={{ color:'var(--text2)', fontSize:10, display:'block' }}>ROI</span><strong>{chartMonthStats.roiPct}%</strong></div>
           </div>
@@ -504,14 +504,14 @@ function HomeTab({ bar, onTab }) {
               <div style={{ fontSize:14, fontWeight:700, marginBottom:4 }}>{t('portal.home.topMarginTitle')}</div>
               <div style={{ fontSize:11, color:'var(--text2)' }}>{t('portal.home.topMarginSub', { days: periodo })}</div>
             </div>
-            <button onClick={()=>onTab('precos')} style={{ fontSize:11, padding:'6px 12px', borderRadius:8, border:'1px solid var(--border)', background:'white', cursor:'pointer', fontWeight:600 }}>
+            <button onClick={()=>onTab('precos')} style={{ fontSize:11, padding:'6px 12px', borderRadius:8, border:'1px solid var(--border)', background: 'var(--bg2)', cursor:'pointer', fontWeight:600 }}>
               {t('portal.home.editPrices')}
             </button>
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))', gap:10 }}>
             {topMargin.map((p,i) => (
               <div key={p.nome} style={{
-                background:i===0?'linear-gradient(135deg,var(--navy),#2563eb)':'var(--bg3)',
+                background:i===0?'linear-gradient(135deg,var(--navy),var(--blue))':'var(--bg3)',
                 borderRadius:12, padding:'14px',
                 border:i===0?'none':'1px solid var(--border)'
               }}>
@@ -519,7 +519,7 @@ function HomeTab({ bar, onTab }) {
                 <div style={{ fontSize:11, fontWeight:600, color:i===0?'white':'var(--text)', marginBottom:6, lineHeight:1.3, minHeight:28 }}>
                   {p.nome.length > 22 ? p.nome.slice(0,20)+'…' : p.nome}
                 </div>
-                <div style={{ fontSize:17, fontWeight:800, color:i===0?'#34c759':'var(--green)' }}>{fmtYen(p.margin)}</div>
+                <div style={{ fontSize:17, fontWeight:800, color:i===0?'var(--green)':'var(--green)' }}>{fmtYen(p.margin)}</div>
                 <div style={{ fontSize:10, color:i===0?'rgba(255,255,255,0.6)':'var(--text2)', marginTop:4 }}>
                   {p.marginPct}% · ROI {p.roiPct}{p.source === 'estimate' ? ' · ~' : ''}
                 </div>
@@ -571,7 +571,7 @@ function HomeTab({ bar, onTab }) {
                 </thead>
                 <tbody>
                   {rows.map((r,i) => (
-                    <tr key={r.nome} style={{ borderBottom:'1px solid var(--border)', background:i===0?'rgba(193,156,86,0.04)':'transparent' }}>
+                    <tr key={r.nome} style={{ borderBottom:'1px solid var(--border)', background:i===0?'color-mix(in srgb, var(--gold) 4%, transparent)':'transparent' }}>
                       <td style={{ padding:'10px', fontWeight:i===0?700:500 }}>{r.source==='estimate'?'~ ':''}{r.nome}</td>
                       <td style={{ padding:'10px', textAlign:'right' }}>{r.qtd}</td>
                       <td style={{ padding:'10px', textAlign:'right', color:'var(--red)' }}>{fmtYen(r.jbmTotal)}</td>
@@ -580,11 +580,11 @@ function HomeTab({ bar, onTab }) {
                       <td style={{ padding:'10px', textAlign:'right' }}>
                         <span style={{
                           padding:'3px 8px', borderRadius:20, fontSize:11, fontWeight:700,
-                          background: r.marginPct>60?'#f0fdf4':r.marginPct>40?'#fffbeb':'#fef2f2',
+                          background: r.marginPct>60?'var(--green-bg)':r.marginPct>40?'var(--amber-bg)':'var(--red-bg)',
                           color: r.marginPct>60?'var(--green)':r.marginPct>40?'var(--amber)':'var(--red)'
                         }}>{r.marginPct}%</span>
                       </td>
-                      <td style={{ padding:'10px', textAlign:'right', fontSize:11, color:'var(--navy)', fontWeight:700 }}>{fmtYen(r.posTotal)}</td>
+                      <td style={{ padding:'10px', textAlign:'right', fontSize:11, color:'var(--c-text)', fontWeight:700 }}>{fmtYen(r.posTotal)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -630,7 +630,7 @@ function HomeTab({ bar, onTab }) {
 
           <div className="portal-grid-4" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:20 }}>
             {[
-              { label:t('portal.home.totalSpend'), value:fmtYen(totalPeriod), sub: growthSub, subColor:growth>=0?'var(--green)':'var(--red)', color:'var(--navy)' },
+              { label:t('portal.home.totalSpend'), value:fmtYen(totalPeriod), sub: growthSub, subColor:growth>=0?'var(--green)':'var(--red)', color:'var(--c-text)' },
               { label:t('common.deliveries'), value:vendasPeriod.length, sub:t('portal.home.inDays', { days: periodo }), color:'var(--blue)' },
               { label:t('portal.home.avgPerDelivery'), value:fmtYen(avgOrder), sub:t('portal.home.perDelivery'), color:'var(--green)' },
               { label:t('portal.home.activeOrders'), value:ativos.length, sub:ativos.length>0?ativos.map(p=>t(`orderStatus.${p.status}`)).join(', '):t('portal.home.allOk'), color:ativos.length>0?'var(--gold)':'var(--green)' },
@@ -712,7 +712,7 @@ function DeliveriesTab({ bar }) {
           <div key={v.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px', marginBottom: 10 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
               <span style={{ fontWeight: 700, fontSize: 14 }}>{fmtDate(v.data || v.data_venda)}</span>
-              <span style={{ fontWeight: 800, color: 'var(--navy)', fontSize: 15 }}>{fmtYen(v.total)}</span>
+              <span style={{ fontWeight: 800, color: 'var(--c-text)', fontSize: 15 }}>{fmtYen(v.total)}</span>
             </div>
             {(v.vendas_itens || []).map(it => (
               <div key={it.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text2)', marginBottom: 4 }}>
@@ -825,7 +825,7 @@ function InventoryTab({ bar, onOrder }) {
       {/* Alert banners */}
       {critical.length > 0 && (
         <div style={{
-          background:'linear-gradient(135deg,#ff3b30 0%,#c0392b 100%)',
+          background:'linear-gradient(135deg,var(--red) 0%,#c0392b 100%)',
           borderRadius:20, padding:'20px 24px', marginBottom:12,
           display:'flex', justifyContent:'space-between', alignItems:'center',
           boxShadow:'0 8px 32px rgba(255,59,48,0.3)'
@@ -839,7 +839,7 @@ function InventoryTab({ bar, onOrder }) {
             </div>
           </div>
           <button onClick={onOrder} style={{
-            background:'white', color:'#ff3b30', border:'none',
+            background: 'var(--bg2)', color:'var(--red)', border:'none',
             borderRadius:14, padding:'12px 22px', fontWeight:700,
             fontSize:13, cursor:'pointer', flexShrink:0, marginLeft:16,
             boxShadow:'0 2px 8px rgba(0,0,0,0.1)'
@@ -849,7 +849,7 @@ function InventoryTab({ bar, onOrder }) {
 
       {low.length > 0 && (
         <div style={{
-          background:'linear-gradient(135deg,#ff9500 0%,#e67e22 100%)',
+          background:'linear-gradient(135deg,var(--amber) 0%,#e67e22 100%)',
           borderRadius:20, padding:'20px 24px', marginBottom:12,
           display:'flex', justifyContent:'space-between', alignItems:'center',
           boxShadow:'0 8px 32px rgba(255,149,0,0.25)'
@@ -863,7 +863,7 @@ function InventoryTab({ bar, onOrder }) {
             </div>
           </div>
           <button onClick={onOrder} style={{
-            background:'white', color:'#ff9500', border:'none',
+            background: 'var(--bg2)', color:'var(--amber)', border:'none',
             borderRadius:14, padding:'12px 22px', fontWeight:700,
             fontSize:13, cursor:'pointer', flexShrink:0, marginLeft:16,
             boxShadow:'0 2px 8px rgba(0,0,0,0.1)'
@@ -891,9 +891,9 @@ function InventoryTab({ bar, onOrder }) {
       {/* Summary */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, margin:'20px 0' }}>
         {[
-          { label:t('portal.inventory.totalProducts'), value:glance.total, icon:'📦', color:'var(--navy)' },
-          { label:t('portal.inventory.needAttention'), value:glance.needAttention, icon:critical.length>0?'🚨':'⚠️', color:critical.length>0?'#ff3b30':low.length>0?'#ff9500':'var(--green)' },
-          { label:t('portal.inventory.wellStocked'), value:glance.wellStocked, icon:'✅', color:'#34c759' },
+          { label:t('portal.inventory.totalProducts'), value:glance.total, icon:'📦', color:'var(--c-text)' },
+          { label:t('portal.inventory.needAttention'), value:glance.needAttention, icon:critical.length>0?'🚨':'⚠️', color:critical.length>0?'var(--red)':low.length>0?'var(--amber)':'var(--green)' },
+          { label:t('portal.inventory.wellStocked'), value:glance.wellStocked, icon:'✅', color:'var(--green)' },
         ].map(s => (
           <div key={s.label} style={{
             background:'var(--bg2)', border:'1px solid var(--border)',
@@ -926,7 +926,7 @@ function InventoryTab({ bar, onOrder }) {
             {filtered.filter(p=>p.categoria===cat).map(p => {
               const isCrit = p.crit
               const isLow  = p.low
-              const dotColor = isCrit ? '#ff3b30' : isLow ? '#ff9500' : p.good ? '#34c759' : '#c5c5c7'
+              const dotColor = isCrit ? 'var(--red)' : isLow ? 'var(--amber)' : p.good ? 'var(--green)' : '#c5c5c7'
               const pct = p.hasCount && p.minimo > 0 ? Math.min(p.stock / p.minimo * 100, 100) : null
               return (
                 <div key={p.id} style={{
@@ -1004,7 +1004,7 @@ function InventoryTab({ bar, onOrder }) {
           }}>
             <div style={{ fontSize:18, fontWeight:800, marginBottom:4 }}>{selectedProd.nome}</div>
             <div style={{ fontSize:13, color:'var(--text2)', marginBottom:24 }}>
-              {t('portal.inventory.currentStock')}: <strong style={{ color:'var(--navy)' }}>{selectedProd.stock}</strong>
+              {t('portal.inventory.currentStock')}: <strong style={{ color:'var(--c-text)' }}>{selectedProd.stock}</strong>
               {selectedProd.minimo>0 && <span> · {t('portal.inventory.minLabel')}: <strong>{selectedProd.minimo}</strong></span>}
             </div>
 
@@ -1018,7 +1018,7 @@ function InventoryTab({ bar, onOrder }) {
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
               <button onClick={()=>doMove(selected,'entrada')} disabled={saving} style={{
                 padding:'14px', borderRadius:14, border:'none',
-                background:'linear-gradient(135deg,#34c759,#30b350)',
+                background:'linear-gradient(135deg,var(--green),#30b350)',
                 color:'white', fontSize:14, fontWeight:700, cursor:'pointer',
                 boxShadow:'0 4px 12px rgba(52,199,89,0.3)'
               }}>
@@ -1026,7 +1026,7 @@ function InventoryTab({ bar, onOrder }) {
               </button>
               <button onClick={()=>doMove(selected,'saida')} disabled={saving} style={{
                 padding:'14px', borderRadius:14, border:'none',
-                background:'linear-gradient(135deg,#ff9500,#e67e22)',
+                background:'linear-gradient(135deg,var(--amber),#e67e22)',
                 color:'white', fontSize:14, fontWeight:700, cursor:'pointer',
                 boxShadow:'0 4px 12px rgba(255,149,0,0.3)'
               }}>
@@ -1141,7 +1141,7 @@ function PricingTab({ bar }) {
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:20 }}>
           {[
             { label:t('portal.pricing.avgMargin'), value: Math.round(configured.filter(p=>p.margem!==null).reduce((a,p)=>a+p.margem,0)/configured.filter(p=>p.margem!==null).length||0)+'%', color:'var(--green)', icon:'📈' },
-            { label:t('portal.pricing.bestMargin'), value: configured.filter(p=>p.margem!==null).sort((a,b)=>b.margem-a.margem)[0]?.nome?.split(' ')[0]||'—', color:'var(--navy)', icon:'🏆' },
+            { label:t('portal.pricing.bestMargin'), value: configured.filter(p=>p.margem!==null).sort((a,b)=>b.margem-a.margem)[0]?.nome?.split(' ')[0]||'—', color:'var(--c-text)', icon:'🏆' },
             { label:t('portal.pricing.notSet'), value: notConfigured.length, color: notConfigured.length>0?'var(--amber)':'var(--green)', icon:'⚙️' },
           ].map(s => (
             <div key={s.label} style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:14, padding:'14px 16px', display:'flex', alignItems:'center', gap:12 }}>
@@ -1171,7 +1171,7 @@ function PricingTab({ bar }) {
                 }}>
                   {/* Status */}
                   <div style={{ width:8, height:8, borderRadius:'50%', flexShrink:0,
-                    background: !isSet ? 'var(--text3)' : p.margem > 60 ? '#34c759' : p.margem > 40 ? '#ff9500' : 'var(--red)',
+                    background: !isSet ? 'var(--text3)' : p.margem > 60 ? 'var(--green)' : p.margem > 40 ? 'var(--amber)' : 'var(--red)',
                     boxShadow: isSet && p.margem > 60 ? '0 0 8px rgba(52,199,89,0.5)' : 'none'
                   }}/>
 
@@ -1188,11 +1188,11 @@ function PricingTab({ bar }) {
                   {isSet && (
                     <>
                       <div style={{ textAlign:'center', minWidth:64 }}>
-                        <div style={{ fontSize:15, fontWeight:800, color:'var(--navy)' }}>{fmtYen(p.preco)}</div>
+                        <div style={{ fontSize:15, fontWeight:800, color:'var(--c-text)' }}>{fmtYen(p.preco)}</div>
                         <div style={{ fontSize:9, color:'var(--text2)', textTransform:'uppercase', marginTop:1 }}>{t('portal.pricing.priceDrink')}</div>
                       </div>
                       <div style={{ textAlign:'center', minWidth:54 }}>
-                        <div style={{ fontSize:15, fontWeight:800, color:p.margem>60?'#34c759':p.margem>40?'#ff9500':'var(--red)' }}>{p.margem}%</div>
+                        <div style={{ fontSize:15, fontWeight:800, color:p.margem>60?'var(--green)':p.margem>40?'var(--amber)':'var(--red)' }}>{p.margem}%</div>
                         <div style={{ fontSize:9, color:'var(--text2)', textTransform:'uppercase', marginTop:1 }}>{t('portal.pricing.margin')}</div>
                       </div>
                       <div style={{ textAlign:'center', minWidth:70 }}>
@@ -1264,13 +1264,13 @@ function PricingTab({ bar }) {
                   </div>
                   <div style={{ display:'flex', justifyContent:'space-between', fontSize:14, fontWeight:700 }}>
                     <span>Revenue/bottle</span>
-                    <span style={{ color:'var(--navy)' }}>{fmtYen(Math.round(form.drinks * form.preco))}</span>
+                    <span style={{ color:'var(--c-text)' }}>{fmtYen(Math.round(form.drinks * form.preco))}</span>
                   </div>
                   <div style={{ marginTop:8, height:4, background:'var(--border)', borderRadius:2, overflow:'hidden' }}>
                     <div style={{
                       height:'100%', borderRadius:2,
                       width: Math.min(Math.round((form.preco - selectedProd.preco_venda/form.drinks)/form.preco*100), 100) + '%',
-                      background: Math.round((form.preco - selectedProd.preco_venda/form.drinks)/form.preco*100) > 60 ? '#34c759' : '#ff9500'
+                      background: Math.round((form.preco - selectedProd.preco_venda/form.drinks)/form.preco*100) > 60 ? 'var(--green)' : 'var(--amber)'
                     }}/>
                   </div>
                   <div style={{ fontSize:11, color:'var(--text2)', marginTop:4, textAlign:'right' }}>
@@ -1425,7 +1425,7 @@ function MenuTab({ bar }) {
 
       {/* Add/Edit form */}
       {showAdd && (
-        <div style={{ background:'var(--bg2)', border:'2px solid rgba(193,156,86,0.3)', borderRadius:16, padding:'24px', marginBottom:20 }}>
+        <div style={{ background:'var(--bg2)', border:'2px solid color-mix(in srgb, var(--gold) 30%, transparent)', borderRadius:16, padding:'24px', marginBottom:20 }}>
           <div style={{ fontSize:15, fontWeight:700, marginBottom:16 }}>{editId ? t('portal.menu.editDrink') : t('portal.menu.addCustom')}</div>
 
           <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:12, marginBottom:12 }}>
@@ -1470,15 +1470,15 @@ function MenuTab({ bar }) {
           {/* Live margin preview */}
           {liveMargin !== null && (
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
-              <div style={{ padding:'12px 16px', borderRadius:12, background: liveMargin>70?'#f0fdf4':'#fffbeb', border:'1px solid', borderColor:liveMargin>70?'#86efac':'#fcd34d' }}>
+              <div style={{ padding:'12px 16px', borderRadius:12, background: liveMargin>70?'var(--green-bg)':'var(--amber-bg)', border:'1px solid', borderColor:liveMargin>70?'#86efac':'#fcd34d' }}>
                 <div style={{ fontSize:11, color:'var(--text2)', marginBottom:4, textTransform:'uppercase', letterSpacing:'0.05em' }}>Regular margin</div>
-                <div style={{ fontSize:22, fontWeight:800, color:liveMargin>70?'#16a34a':'#d97706' }}>{liveMargin}%</div>
+                <div style={{ fontSize:22, fontWeight:800, color:liveMargin>70?'var(--green)':'#d97706' }}>{liveMargin}%</div>
                 <div style={{ fontSize:11, color:'var(--text2)' }}>¥{Math.round(+form.preco_venda - +form.custo).toLocaleString()} profit/drink</div>
               </div>
               {liveMarginVip !== null && (
-                <div style={{ padding:'12px 16px', borderRadius:12, background:liveMarginVip>50?'#fdf8ec':'#fef2f2', border:'1px solid', borderColor:liveMarginVip>50?'var(--gold)':'#fca5a5' }}>
+                <div style={{ padding:'12px 16px', borderRadius:12, background:liveMarginVip>50?'#fdf8ec':'var(--red-bg)', border:'1px solid', borderColor:liveMarginVip>50?'var(--gold)':'#fca5a5' }}>
                   <div style={{ fontSize:11, color:'var(--text2)', marginBottom:4, textTransform:'uppercase', letterSpacing:'0.05em' }}>VIP margin</div>
-                  <div style={{ fontSize:22, fontWeight:800, color:liveMarginVip>50?'var(--gold)':'#dc2626' }}>{liveMarginVip}%</div>
+                  <div style={{ fontSize:22, fontWeight:800, color:liveMarginVip>50?'var(--gold)':'var(--red)' }}>{liveMarginVip}%</div>
                   <div style={{ fontSize:11, color:'var(--text2)' }}>¥{Math.round(+form.preco_desconto - +form.custo).toLocaleString()} profit/drink</div>
                 </div>
               )}
@@ -1511,7 +1511,7 @@ function MenuTab({ bar }) {
                       ))}
                     </select>
                     <button onClick={()=>setIngredientes(ingredientes.filter((_,i)=>i!==idx))}
-                      style={{ padding:'6px', borderRadius:6, border:'none', background:'#fef2f2', color:'var(--red)', cursor:'pointer', fontSize:13 }}>✕</button>
+                      style={{ padding:'6px', borderRadius:6, border:'none', background:'var(--red-bg)', color:'var(--red)', cursor:'pointer', fontSize:13 }}>✕</button>
                   </div>
                   {selProd && (
                     <div style={{ display:'flex', alignItems:'center', gap:12 }}>
@@ -1632,8 +1632,8 @@ function MenuTab({ bar }) {
         {filtered.map(d => {
           const margPct = Math.round(d.margem * 100)
           const vipMarg = d.preco_desconto && d.custo ? Math.round((d.preco_desconto - d.custo) / d.preco_desconto * 100) : null
-          const margColor = margPct >= 85 ? '#34c759' : margPct >= 70 ? '#ff9500' : '#ff3b30'
-          const vipColor  = vipMarg !== null ? (vipMarg >= 50 ? '#f59e0b' : '#ff3b30') : 'var(--text3)'
+          const margColor = margPct >= 85 ? 'var(--green)' : margPct >= 70 ? 'var(--amber)' : 'var(--red)'
+          const vipColor  = vipMarg !== null ? (vipMarg >= 50 ? '#f59e0b' : 'var(--red)') : 'var(--text3)'
           return (
             <div key={d.id} style={{
               display:'grid', gridTemplateColumns:'1fr 80px 70px 70px 64px 64px 64px',
@@ -1660,7 +1660,7 @@ function MenuTab({ bar }) {
               </div>
               <div style={{ display:'flex', gap:4, justifyContent:'flex-end' }}>
                 <button onClick={()=>startEdit(d)} style={{ padding:'4px 8px', fontSize:11, borderRadius:6, border:'1px solid var(--border)', background:'transparent', cursor:'pointer', color:'var(--text2)' }}>✏️</button>
-                <button onClick={()=>deleteDrink(d.id)} style={{ padding:'4px 8px', fontSize:11, borderRadius:6, border:'none', background:'#fef2f2', cursor:'pointer', color:'var(--red)' }}>🗑</button>
+                <button onClick={()=>deleteDrink(d.id)} style={{ padding:'4px 8px', fontSize:11, borderRadius:6, border:'none', background:'var(--red-bg)', cursor:'pointer', color:'var(--red)' }}>🗑</button>
               </div>
             </div>
           )
@@ -1863,7 +1863,7 @@ function FaturasTab({ bar }) {
         )}
       </div>
       {overdue.length>0 && (
-        <div style={{ background:"linear-gradient(135deg,#ff3b30,#c0392b)", borderRadius:16, padding:"16px 20px", marginBottom:16 }}>
+        <div style={{ background:"linear-gradient(135deg,var(--red),#c0392b)", borderRadius:16, padding:"16px 20px", marginBottom:16 }}>
           <div style={{ fontSize:15, fontWeight:700, color:"white" }}>{t('portal.invoices.overdueAlert', { count: overdue.length })}</div>
         </div>
       )}
@@ -1903,7 +1903,7 @@ function FaturasTab({ bar }) {
             const fp = pagamentos.filter(p=>p.fatura_id===f.id&&!p.confirmado)
             return (
               <div key={f.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderBottom:"1px solid var(--border)" }}>
-                <div style={{ width:44, height:44, borderRadius:12, background:daysLeft<=5?"#fef2f2":"#f0fdf4", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                <div style={{ width:44, height:44, borderRadius:12, background:daysLeft<=5?"var(--red-bg)":"var(--green-bg)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                   <div style={{ fontSize:16, fontWeight:800, color:daysLeft<=5?"var(--red)":"var(--green)", lineHeight:1 }}>{daysLeft}</div>
                   <div style={{ fontSize:9, color:"var(--text2)", textTransform:"uppercase" }}>{t('portal.invoices.days')}</div>
                 </div>
@@ -1943,7 +1943,7 @@ function FaturasTab({ bar }) {
                     {f.obs && <div style={{ fontSize:11, color:"var(--text3)", marginTop:2 }}>{f.obs}</div>}
                   </div>
                   <div style={{ textAlign:"right" }}>
-                    <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:f.status==="pago"?"#f0fdf4":isOverdue?"#fef2f2":"#EAF0FA", color:f.status==="pago"?"var(--green)":isOverdue?"var(--red)":"var(--navy)" }}>
+                    <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:f.status==="pago"?"var(--green-bg)":isOverdue?"var(--red-bg)":"var(--blue-bg)", color:f.status==="pago"?"var(--green)":isOverdue?"var(--red)":"var(--navy)" }}>
                       {f.status==="pago"?t('portal.invoices.statusPaid'):isOverdue?t('portal.invoices.statusOverdue'):t('portal.invoices.statusPending')}
                     </span>
                     <div style={{ fontSize:16, fontWeight:800, color:"var(--navy)", marginTop:4 }}>{fmtYen(total)}</div>
@@ -1957,7 +1957,7 @@ function FaturasTab({ bar }) {
                   {remaining>0&&<span style={{ color:"var(--red)", fontWeight:600 }}>{t('portal.invoices.remaining', { amount: fmtYen(remaining) })}</span>}
                 </div>
                 {pendingP.length>0&&(
-                  <div style={{ background:"#fffbeb", border:"1px solid #fcd34d", borderRadius:8, padding:"8px 12px", marginBottom:8, fontSize:12 }}>
+                  <div style={{ background:"var(--amber-bg)", border:"1px solid #fcd34d", borderRadius:8, padding:"8px 12px", marginBottom:8, fontSize:12 }}>
                     {t('portal.invoices.paymentsAwaiting', { count: pendingP.length, amount: fmtYen(pendingP.reduce((a,p)=>a+p.valor,0)) })}
                   </div>
                 )}
@@ -2211,7 +2211,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
           <div style={{fontSize:10,color:'rgba(255,255,255,0.4)',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.06em'}}>{t('shell.clientPortal')}</div>
           <div style={{fontSize:13,fontWeight:700,color:'var(--gold)',marginBottom:2}}>{bar.nome}</div>
           <div style={{fontSize:12,fontWeight:700,color:'rgba(255,255,255,0.85)',marginBottom:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{perfil?.nome || ''}</div>
-          <div style={{fontSize:10,color:'rgba(193,156,86,0.75)',marginBottom:12}}>{perfil?.role ? roleLabel(perfil.role) : ''}</div>
+          <div style={{fontSize:10,color:'color-mix(in srgb, var(--gold) 75%, transparent)',marginBottom:12}}>{perfil?.role ? roleLabel(perfil.role) : ''}</div>
           <div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginBottom:10,lineHeight:1.5}}>
             {t(footerKey)}
           </div>

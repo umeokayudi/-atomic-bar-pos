@@ -11,10 +11,10 @@ import { DeliveryConfirmation, OrderTimeline } from './fulfillment/FulfillmentWi
 import { shiftMonth } from '../lib/barCalendar'
 
 const STATUS_PEDIDO = {
-  pendente:   { labelKey: 'orderStatus.pendente',   color: '#8A5A00', bg: '#FDF3E0' },
-  confirmado: { labelKey: 'orderStatus.confirmado', color: '#1A4E8A', bg: '#EAF0FA' },
-  entregue:   { labelKey: 'orderStatus.entregue',   color: '#1A7A5E', bg: '#EAF5F0' },
-  cancelado:  { labelKey: 'orderStatus.cancelado',  color: '#C0392B', bg: '#FBEAEA' },
+  pendente:   { labelKey: 'orderStatus.pendente',   color: 'var(--amber)', bg: 'var(--amber-bg)' },
+  confirmado: { labelKey: 'orderStatus.confirmado', color: 'var(--blue)', bg: 'var(--blue-bg)' },
+  entregue:   { labelKey: 'orderStatus.entregue',   color: 'var(--green)', bg: 'var(--green-bg)' },
+  cancelado:  { labelKey: 'orderStatus.cancelado',  color: 'var(--red)', bg: 'var(--red-bg)' },
 }
 
 function Badge({ status }) {

@@ -38,7 +38,7 @@ export function shellTabIds(role) {
     return [
       'dashboard', 'billingHub', 'purchases', 'sales', 'pedidos', 'fulfillment', 'procurement',
       'relatorio', 'ryoshusho', 'seikyusho', 'products', 'bars', 'usuarios', 'faturas', 'suppliers', 'cashflow',
-      'payroll',
+      'payroll', 'crm', 'marketing', 'consultoria', 'ai',
     ]
   }
   if (role === 'jbm') return ['procurement', 'fulfillment', 'payroll']

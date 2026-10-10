@@ -346,7 +346,7 @@ export default function BarSpacesTab({ bar }) {
       <div className="floor-kpis">
         {[
           { label: t('spaces.total'), value: floor.length },
-          { label: t('spaces.seated'), value: seated, color: 'var(--navy)' },
+          { label: t('spaces.seated'), value: seated, color: 'var(--c-text)' },
           { label: t('spaces.reserved'), value: reserved, color: 'var(--gold, #b8860b)' },
           { label: t('spaces.free'), value: free, color: 'var(--green)' },
         ].map(k => (

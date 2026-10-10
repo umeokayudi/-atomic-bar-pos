@@ -184,7 +184,7 @@ function CashflowOverview() {
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--red)' }}>{fmtYen(c.amount)}</div>
-                    <div style={{ fontSize: 10, color: 'var(--navy)', fontWeight: 700 }}>{t('payMark.tap')}</div>
+                    <div style={{ fontSize: 10, color: 'var(--c-text)', fontWeight: 700 }}>{t('payMark.tap')}</div>
                   </div>
                 </button>
               )
@@ -278,7 +278,7 @@ function MoneyOut() {
     <div>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:20 }}>
         {[
-          { label: t('cashflow.totalPurchased'), value: fmtYen(total), color: 'var(--navy)' },
+          { label: t('cashflow.totalPurchased'), value: fmtYen(total), color: 'var(--c-text)' },
           { label: t('status.pago'), value: fmtYen(paid), color: 'var(--red)' },
           { label: t('cashflow.pendingPayment'), value: fmtYen(pending), color: pending > 0 ? 'var(--amber)' : 'var(--green)' },
         ].map(k=>(
@@ -367,7 +367,7 @@ function PurchasePayments() {
         {[
           { label: t('status.atrasado'), value: fmtYen(pendingSplit.overdueTotal), color: 'var(--red)', sub: t('cashflow.overdueSub') },
           { label: t('cashflow.toPay'), value: fmtYen(pendingSplit.futureTotal), color: 'var(--amber)', sub: t('cashflow.toPaySubShort') },
-          { label: t('common.pending'), value: String(pendingCount), color: 'var(--navy)', sub: t('cashflow.pendingNotes') },
+          { label: t('common.pending'), value: String(pendingCount), color: 'var(--c-text)', sub: t('cashflow.pendingNotes') },
         ].map(k=>(
           <PortalKpi key={k.label} label={k.label} value={k.value} color={k.color} sub={k.sub} />
         ))}
@@ -412,7 +412,7 @@ function PurchasePayments() {
               )}
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', justifyContent:'flex-end' }}>
-              <span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:overdue?'#fef2f2':c.status_pagamento==='pendente'?'#fffbeb':'#f0fdf4', color:overdue?'var(--red)':c.status_pagamento==='pendente'?'var(--amber)':'var(--green)' }}>
+              <span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:overdue?'var(--red-bg)':c.status_pagamento==='pendente'?'var(--amber-bg)':'var(--green-bg)', color:overdue?'var(--red)':c.status_pagamento==='pendente'?'var(--amber)':'var(--green)' }}>
                 {overdue ? t('status.atrasado') : c.status_pagamento==='pendente' ? t('cashflow.toPayStatus') : t('status.pago')}
               </span>
               {c.status_pagamento==='pendente' && (
@@ -511,14 +511,14 @@ function Caixa() {
         <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
           {entries.map(e=>(
             <div key={e.id} style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, padding:'12px 16px', display:'flex', alignItems:'center', gap:12 }}>
-              <div style={{ width:36, height:36, borderRadius:10, background:e.tipo==='entrada'?'#f0fdf4':'#fef2f2', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>
+              <div style={{ width:36, height:36, borderRadius:10, background:e.tipo==='entrada'?'var(--green-bg)':'var(--red-bg)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>
                 {e.tipo==='entrada'?'↑':'↓'}
               </div>
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:13, fontWeight:600 }}>{e.descricao}</div>
                 <div style={{ fontSize:11, color:'var(--text2)' }}>{fmtDate(e.data)} · {e.metodo}</div>
               </div>
-              <button onClick={async()=>{ if(!confirm(t('common.confirmDelete')))return; await supabase.from('caixa_movimentos').delete().eq('id',e.id); setEntries(prev=>prev.filter(x=>x.id!==e.id)) }} style={{padding:'4px 8px',fontSize:11,borderRadius:6,background:'#7f1d1d',color:'white',border:'none',cursor:'pointer',marginRight:8}}>🗑</button>
+              <button onClick={async()=>{ if(!confirm(t('common.confirmDelete')))return; await supabase.from('caixa_movimentos').delete().eq('id',e.id); setEntries(prev=>prev.filter(x=>x.id!==e.id)) }} style={{padding:'4px 8px',fontSize:11,borderRadius:6,background:'var(--red)',color:'white',border:'none',cursor:'pointer',marginRight:8}}>🗑</button>
               <div style={{ fontSize:15, fontWeight:800, color:e.tipo==='entrada'?'var(--green)':'var(--red)' }}>
                 {e.tipo==='entrada'?'+':'-'}{fmtYen(e.valor)}
               </div>
@@ -710,13 +710,13 @@ function Calendario() {
                     key={i}
                     type="button"
                     onClick={() => setPayItem({ type: ev.kind === 'compra' ? 'compra' : 'fatura', id: ev.id, label: ev.label, amount: ev.amount, dueDate: ev.date, paid: false })}
-                    style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 12, padding: '10px 14px', minWidth: 150, textAlign: 'left', cursor: 'pointer' }}
+                    style={{ background: 'var(--red-bg)', border: '1px solid #fca5a5', borderRadius: 12, padding: '10px 14px', minWidth: 150, textAlign: 'left', cursor: 'pointer' }}
                   >
                     <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)' }}>{t('cashflow.toReceiveOverdue')}</div>
                     <div style={{ fontSize: 14, fontWeight: 800 }}>{fmtYen(ev.amount)}</div>
                     <div style={{ fontSize: 11, color: 'var(--text2)' }}>{ev.label}</div>
                     <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 4 }}>{t('common.expiredOn', { date: fmtDate(ev.date) })}</div>
-                  <div style={{ fontSize: 10, color: 'var(--navy)', marginTop: 6, fontWeight: 700 }}>{t('payMark.tap')}</div>
+                  <div style={{ fontSize: 10, color: 'var(--c-text)', marginTop: 6, fontWeight: 700 }}>{t('payMark.tap')}</div>
                   </button>
                 ))}
               </div>
@@ -730,13 +730,13 @@ function Calendario() {
                     key={i}
                     type="button"
                     onClick={() => setPayItem({ type: 'compra', id: ev.id, label: ev.label, amount: ev.amount, dueDate: ev.date, paid: false })}
-                    style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 12, padding: '10px 14px', minWidth: 150, textAlign: 'left', cursor: 'pointer' }}
+                    style={{ background: 'var(--red-bg)', border: '1px solid #fca5a5', borderRadius: 12, padding: '10px 14px', minWidth: 150, textAlign: 'left', cursor: 'pointer' }}
                   >
                     <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)' }}>{t('cashflow.toPayOverdueLabel')}</div>
                     <div style={{ fontSize: 14, fontWeight: 800 }}>{fmtYen(ev.amount)}</div>
                     <div style={{ fontSize: 11, color: 'var(--text2)' }}>{ev.label}</div>
                     <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 4 }}>{t('common.expiredOn', { date: fmtDate(ev.date) })}</div>
-                    <div style={{ fontSize: 10, color: 'var(--navy)', marginTop: 6, fontWeight: 700 }}>{t('payMark.tap')}</div>
+                    <div style={{ fontSize: 10, color: 'var(--c-text)', marginTop: 6, fontWeight: 700 }}>{t('payMark.tap')}</div>
                   </button>
                 ))}
               </div>
@@ -752,7 +752,7 @@ function Calendario() {
               const daysLeft = Math.ceil((new Date(ev.date + 'T12:00:00') - today) / (1000 * 60 * 60 * 24))
               return (
                 <div key={i} onClick={() => setCurrentMonth(new Date(ev.date + 'T12:00:00'))}
-                  style={{ background: ev.type === 'in' ? '#f0fdf4' : '#fffbeb', border: '1px solid', borderColor: ev.type === 'in' ? '#86efac' : '#fcd34d', borderRadius: 12, padding: '10px 14px', minWidth: 140, cursor: 'pointer' }}>
+                  style={{ background: ev.type === 'in' ? 'var(--green-bg)' : 'var(--amber-bg)', border: '1px solid', borderColor: ev.type === 'in' ? '#86efac' : '#fcd34d', borderRadius: 12, padding: '10px 14px', minWidth: 140, cursor: 'pointer' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: ev.type === 'in' ? 'var(--green)' : 'var(--amber)' }}>{ev.type === 'in' ? t('cashflow.inflow') : t('cashflow.outflow')} · {statusLabel[ev.status] || ev.status}</div>
                   <div style={{ fontSize: 13, fontWeight: 700 }}>{fmtYen(ev.amount)}</div>
                   <div style={{ fontSize: 11, color: 'var(--text2)' }}>{ev.label}</div>
@@ -797,7 +797,7 @@ function Calendario() {
             return (
               <div key={day} onClick={()=>{ if(dayEvents.length>0){ setSelectedDay(day); setPopup(dayEvents) }}}
                 style={{ minHeight:78, borderRight:'1px solid var(--border)', borderBottom:'1px solid var(--border)',
-                  background: hasOverdue ? 'rgba(239,68,68,0.08)' : isToday ? 'rgba(193,156,86,0.1)' : 'transparent',
+                  background: hasOverdue ? 'rgba(239,68,68,0.08)' : isToday ? 'color-mix(in srgb, var(--gold) 10%, transparent)' : 'transparent',
                   cursor:dayEvents.length>0?'pointer':'default',
                   transition:'background 0.15s' }}>
                 <div style={{ padding:'6px 8px' }}>
@@ -809,8 +809,8 @@ function Calendario() {
                   </div>
                   {dayEvents.slice(0,3).map((ev,ei)=>(
                     <div key={ei} style={{ fontSize:9, padding:'2px 4px', borderRadius:3, marginTop:2,
-                      background: ev.status==='atrasado' ? '#fef2f2' : ev.type==='in' ? '#f0fdf4' : ev.type==='note' ? '#eef2ff' : '#fffbeb',
-                      color: ev.status==='atrasado' ? '#dc2626' : ev.type==='in' ? '#16a34a' : ev.type==='note' ? '#3730a3' : '#b45309',
+                      background: ev.status==='atrasado' ? 'var(--red-bg)' : ev.type==='in' ? 'var(--green-bg)' : ev.type==='note' ? '#eef2ff' : 'var(--amber-bg)',
+                      color: ev.status==='atrasado' ? 'var(--red)' : ev.type==='in' ? 'var(--green)' : ev.type==='note' ? '#3730a3' : 'var(--amber)',
                       fontWeight:600, lineHeight:1.3 }}>
                       {ev.type==='note' ? ev.label : `${ev.type==='in'?'↑':'↓'} ${Math.round(ev.amount/1000)}k`}
                     </div>
@@ -844,7 +844,7 @@ function Calendario() {
                 <div>
                   <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4, flexWrap:'wrap' }}>
                     <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:20,
-                      background:ev.type==='in'?'#f0fdf4':ev.status==='atrasado'?'#fef2f2':'#fffbeb',
+                      background:ev.type==='in'?'var(--green-bg)':ev.status==='atrasado'?'var(--red-bg)':'var(--amber-bg)',
                       color:ev.type==='in'?'var(--green)':ev.status==='atrasado'?'var(--red)':'var(--amber)' }}>
                       {ev.type==='in'?t('cashflow.receive'):ev.type==='note'?t('cashflow.agendaNote'):t('cashflow.pay')}
                     </span>
