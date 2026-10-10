@@ -1,3 +1,5 @@
+import Icon from './Icon'
+
 /** Shared layout primitives — same visual language as PortalCliente */
 
 export function PageHeader({ title, subtitle, actions }) {
@@ -30,19 +32,36 @@ export function PortalHero({ label, value, sub, alert, onClick, style }) {
   )
 }
 
-export function PortalKpi({ label, value, sub, subColor, color = 'var(--c-text)', onClick, hint }) {
+/**
+ * KPI card like the JBM TECH reference: icon square, label, big value, then the change
+ * vs the previous period ("+12% vs last month"). delta is a whole percent or null.
+ * deltaGood='down' flips the colours for costs, where going down is good.
+ */
+export function PortalKpi({ label, value, sub, subColor, color = 'var(--c-text)', onClick, hint, icon, tone = 'accent', delta, deltaLabel, deltaGood = 'up' }) {
   const clickable = typeof onClick === 'function'
   // --navy is the dark chrome colour: as text it vanishes on dark surfaces, so it reads as body text here.
   const valueColor = !color || color === 'var(--navy)' ? 'var(--c-text)' : color
+  const hasDelta = typeof delta === 'number' && Number.isFinite(delta)
+  const good = hasDelta && (deltaGood === 'down' ? delta <= 0 : delta >= 0)
   return (
     <div
-      className={`portal-kpi-card${clickable ? ' is-clickable' : ''}`}
+      className={`portal-kpi-card${clickable ? ' is-clickable' : ''}${icon ? ' has-icon' : ''}`}
       onClick={onClick}
+      onKeyDown={clickable ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e) } } : undefined}
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
     >
-      <div className="portal-overline">{label}</div>
+      <div className="portal-kpi-top">
+        {icon && <span className={`portal-kpi-icon is-${tone}`}><Icon name={icon} size={18} /></span>}
+        <div className="portal-overline">{label}</div>
+      </div>
       <div className="portal-kpi-value" style={{ color: valueColor }}>{value}</div>
+      {hasDelta && (
+        <div className={`portal-kpi-delta ${good ? 'is-good' : 'is-bad'}`}>
+          <Icon name={delta >= 0 ? 'trendUp' : 'trendDown'} size={13} />
+          <b>{delta > 0 ? '+' : ''}{delta}%</b>{deltaLabel && <span>{deltaLabel}</span>}
+        </div>
+      )}
       {sub && <div className="portal-kpi-sub" style={subColor ? { color: subColor, fontWeight: 600 } : undefined}>{sub}</div>}
       {hint && <div className="portal-kpi-hint">{hint}</div>}
     </div>

@@ -15,6 +15,15 @@ export default {
     deliveries: 'Deliveries', deliveriesDef: 'JBM supply sales (vendas) in the month, one per delivery.',
     source: 'Source: the same server calculation as the monthly report (api/_dashboardMonth.js). June 2026 uses a cost estimate from July prices because June purchases were not recorded.',
   },
+  dash: {
+    customize: 'Customize', done: 'Done', reset: 'Reset layout', hint: 'Show, hide, drag or use the arrows to arrange your cards. Saved to your account.',
+    hiddenCards: 'Hidden cards', drag: 'Drag to move', moveUp: 'Move {name} up', moveDown: 'Move {name} down',
+    makeHalf: 'Half width', makeFull: 'Full width', hide: 'Hide {name}', nothingNow: 'Nothing to show right now.',
+    vsLastMonth: 'vs last month', vsYesterday: 'vs yesterday', noData: 'No data for this period yet.',
+    billed: 'Billed', purchases: 'Purchases', trendSub: 'Last 6 months', deliveries: '{count} deliveries',
+    cashIn: 'In', cashOut: 'Out',
+    w: { alerts: 'Alerts', kpis: 'Key numbers', trend: 'Billed vs purchases', topBars: 'Top bars this month', calendar: 'Calendar' },
+  },
   shell: { collapseMenu: 'Collapse menu', expandMenu: 'Expand menu' },
   search: { placeholder: 'Search the system…', screen: 'Screen', bar: 'Bar', product: 'Product', supplier: 'Supplier', none: 'Nothing found.' },
   nav: {

@@ -15,6 +15,15 @@ export default {
     deliveries: '納品', deliveriesDef: '当月のJBM供給売上（vendas）、納品ごとに1件。',
     source: '出典：月次レポートと同じサーバー計算（api/_dashboardMonth.js）。2026年6月は仕入れ記録がないため、7月の価格から原価を推定しています。',
   },
+  dash: {
+    customize: 'カスタマイズ', done: '完了', reset: '初期配置に戻す', hint: 'カードの表示・非表示、ドラッグや矢印で並べ替えができます。アカウントに保存されます。',
+    hiddenCards: '非表示のカード', drag: 'ドラッグで移動', moveUp: '{name}を上へ', moveDown: '{name}を下へ',
+    makeHalf: '半分の幅', makeFull: '全幅', hide: '{name}を隠す', nothingNow: '今は表示するものがありません。',
+    vsLastMonth: '前月比', vsYesterday: '前日比', noData: 'この期間のデータはまだありません。',
+    billed: '請求', purchases: '仕入', trendSub: '過去6か月', deliveries: '納品 {count} 件',
+    cashIn: '入金', cashOut: '出金',
+    w: { alerts: 'アラート', kpis: '主要な数字', trend: '請求と仕入', topBars: '今月の上位バー', calendar: 'カレンダー' },
+  },
   shell: { collapseMenu: 'メニューを閉じる', expandMenu: 'メニューを開く' },
   search: { placeholder: 'システム内を検索…', screen: '画面', bar: 'バー', product: '商品', supplier: '仕入先', none: '見つかりません。' },
   nav: {

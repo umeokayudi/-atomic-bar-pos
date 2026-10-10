@@ -31,6 +31,8 @@ import UiPrefsPanel from './components/UiPrefsPanel'
 import { UiPrefsProvider, useUiPrefs, LAYOUTS } from './lib/uiPrefs'
 import { loadDashboard, invalidateDashboard } from './lib/loadDashboard'
 import { PageHeader, PortalHero, PortalKpi, PortalSurface, PortalAlert } from './components/ui/PageLayout'
+import { InOutChart, LineChart, RankList, deltaPct } from './components/ui/Charts'
+import DashboardGrid from './components/ui/DashboardGrid'
 const PortalCliente = lazy(() => import('./components/PortalCliente'))
 const ComprasTab = lazy(() => import('./components/Compras'))
 const VendasTab = lazy(() => import('./components/Vendas'))
@@ -126,44 +128,6 @@ async function loadHqSearchRecords(t, allowed) {
   return out
 }
 
-// ── MINI BAR CHART ────────────────────────────────────────────────────────────
-function BarChart({ data, color='var(--gold)', height=80, valueLabel=fmtYen }) {
-  const [active, setActive] = useState(null)
-  if (!data || data.length === 0) return null
-  const max = Math.max(...data.map(d => d.value), 1)
-
-  return (
-    <div className="chart-bars" style={{ height: height + 48 }}>
-      {data.map((d, i) => {
-        const barH = Math.max(4, (d.value / max) * height * 0.85)
-        const isLast = i === data.length - 1
-        const isOn = active === i
-        const tip = d.tip || `${d.month || d.label}: ${valueLabel(d.value)}`
-        return (
-          <div
-            key={i}
-            className={`chart-bar-cell${isOn ? ' is-active' : ''}`}
-            onMouseEnter={() => setActive(i)}
-            onMouseLeave={() => setActive(null)}
-          >
-            <div className="chart-bar-tip">{tip}</div>
-            <div className="chart-bar-value">{valueLabel(d.value)}</div>
-            <div
-              className="chart-bar-fill"
-              style={{
-                height: `${barH}px`,
-                background: color,
-                opacity: isOn || isLast ? 1 : 0.45,
-              }}
-            />
-            <div className="chart-bar-label">{d.label}</div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 function MetricCard({ label, value, sub, color, onClick, hint }) {
   return (
     <PortalKpi
@@ -178,6 +142,12 @@ function MetricCard({ label, value, sub, color, onClick, hint }) {
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
+function prevMonthKey(ym) {
+  const [y, mo] = String(ym || '').split('-').map(Number)
+  if (!y || !mo) return ''
+  return mo === 1 ? `${y - 1}-12` : `${y}-${String(mo - 1).padStart(2, '0')}`
+}
+
 function goToReport(onNav, month) {
   try { sessionStorage.setItem('relatorioMonth', month) } catch {}
   onNav('relatorio')
@@ -217,8 +187,9 @@ function Dashboard({ onNav }) {
     margem: 0, vendasCount: 0, comprasCount: 0, aReceber: 0, entregasDetalhe: [],
   }
   const m = data?.byMonth?.[selMonth] || emptyMonth
+  const shortMonth = mk => monthLabel(mk).split('/')[0]
   const lucroChart = (data?.chart || []).map(row => ({
-    label: monthLabel(row.month).split('/')[0],
+    label: shortMonth(row.month),
     month: monthLabel(row.month),
     value: row.lucro,
     tip: t('dashboard.chartTip', {
@@ -246,6 +217,14 @@ function Dashboard({ onNav }) {
   const isCurrentMonth = selMonth === mesAtual
   const noSales = !(m.faturamento || m.receita || m.compras || (m.entregasDetalhe || []).length)
   const entregasCount = m.entregasDetalhe?.length ?? m.vendasCount ?? 0
+  const prevM = data.byMonth?.[prevMonthKey(selMonth)] || null
+  const topBars = Object.values((m.entregasDetalhe || []).reduce((acc, e) => {
+    const k = e.barNome || '—'
+    acc[k] = acc[k] || { key: k, label: k, value: 0, n: 0 }
+    acc[k].value += +e.receita || 0
+    acc[k].n += 1
+    return acc
+  }, {})).map(r => ({ ...r, sub: t('dash.deliveries', { count: r.n }) }))
   const modalStats = {
     faturamento: m.faturamento ?? m.receita,
     receitaMes: m.receita,
@@ -280,158 +259,219 @@ function Dashboard({ onNav }) {
           .join('\n'),
       }) }} />
 
-      {data.pedidosPendentes > 0 && (
-        <PortalAlert variant="navy" onClick={() => onNav('pedidos')}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>{t('dashboard.pendingOrders', { count: data.pedidosPendentes })}</span>
-            <span style={{ color: 'var(--gold)', fontSize: 12, fontWeight: 700 }}>{t('dashboard.see')}</span>
-          </div>
-        </PortalAlert>
-      )}
+      <DashboardGrid id="hq" widgets={[
+        {
+          id: 'alerts', title: t('dash.w.alerts'), icon: 'warning', size: 'full',
+          empty: !(data.pedidosPendentes > 0 || data.alertas?.faturasAtrasadasTotal > 0 || data.alertas?.comprasAtrasadasTotal > 0),
+          render: () => (
+            <div className="dash-stack">
+              {data.pedidosPendentes > 0 && (
+                <PortalAlert variant="navy" onClick={() => onNav('pedidos')}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>{t('dashboard.pendingOrders', { count: data.pedidosPendentes })}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>{t('dashboard.see')}</span>
+                  </div>
+                </PortalAlert>
+              )}
 
-      {(data.alertas?.faturasAtrasadasTotal > 0 || data.alertas?.comprasAtrasadasTotal > 0) && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-          {data.alertas.faturasAtrasadasTotal > 0 && (
-            <PortalAlert variant="red" onClick={() => onNav('faturas')}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>
-                    {t('dashboard.overdueInvoices', { count: data.alertas.faturasAtrasadas.length })}
-                  </div>
-                  <div style={{ fontSize: 13, opacity: 0.95 }}>
-                    Total {fmtYen(data.alertas.faturasAtrasadasTotal)}
-                    {data.alertas.faturasAtrasadas.slice(0, 4).map(f => (
-                      <button
-                        key={f.id}
-                        type="button"
-                        onClick={e => {
-                          e.stopPropagation()
-                          setPayItem({ type: 'fatura', id: f.id, label: f.barNome, amount: f.valor, dueDate: f.vencimento, paid: false })
-                        }}
-                        style={{ display: 'inline', margin: 0, padding: 0, border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer', fontWeight: 700, textDecoration: 'underline' }}
-                      >
-                        {' · '}{f.barNome} ({fmtDate(f.vencimento)})
-                      </button>
-                    ))}
-                  </div>
+              {(data.alertas?.faturasAtrasadasTotal > 0 || data.alertas?.comprasAtrasadasTotal > 0) && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {data.alertas.faturasAtrasadasTotal > 0 && (
+                    <PortalAlert variant="red" onClick={() => onNav('faturas')}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>
+                            {t('dashboard.overdueInvoices', { count: data.alertas.faturasAtrasadas.length })}
+                          </div>
+                          <div style={{ fontSize: 13, opacity: 0.95 }}>
+                            Total {fmtYen(data.alertas.faturasAtrasadasTotal)}
+                            {data.alertas.faturasAtrasadas.slice(0, 4).map(f => (
+                              <button
+                                key={f.id}
+                                type="button"
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  setPayItem({ type: 'fatura', id: f.id, label: f.barNome, amount: f.valor, dueDate: f.vencimento, paid: false })
+                                }}
+                                style={{ display: 'inline', margin: 0, padding: 0, border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer', fontWeight: 700, textDecoration: 'underline' }}
+                              >
+                                {' · '}{f.barNome} ({fmtDate(f.vencimento)})
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 12, fontWeight: 700, opacity: 0.9, whiteSpace: 'nowrap' }}>{t('dashboard.seeInvoices')}</span>
+                      </div>
+                    </PortalAlert>
+                  )}
+                  {data.alertas.comprasAtrasadasTotal > 0 && (
+                    <PortalAlert variant="amber" onClick={() => onNav('cashflow')}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6, color: 'var(--red)' }}>
+                            {t('dashboard.overduePayments', { count: data.alertas.comprasAtrasadas.length })}
+                          </div>
+                          <div style={{ fontSize: 13, color: 'var(--text2)' }}>
+                            Total {fmtYen(data.alertas.comprasAtrasadasTotal)}
+                            {data.alertas.comprasAtrasadas.slice(0, 4).map(c => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  setPayItem({ type: 'compra', id: c.id, label: c.fornecedor, amount: c.valor, dueDate: c.vencimento, paid: false })
+                                }}
+                                style={{ display: 'inline', margin: 0, padding: 0, border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer', fontWeight: 700, textDecoration: 'underline' }}
+                              >
+                                {' · '}{c.fornecedor} ({fmtDate(c.vencimento)})
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--c-text)', whiteSpace: 'nowrap' }}>{t('dashboard.seeCashflow')}</span>
+                      </div>
+                    </PortalAlert>
+                  )}
                 </div>
-                <span style={{ fontSize: 12, fontWeight: 700, opacity: 0.9, whiteSpace: 'nowrap' }}>{t('dashboard.seeInvoices')}</span>
+              )}
+            </div>
+          ),
+        },
+        {
+          id: 'kpis', title: t('dash.w.kpis'), icon: 'dashboard', size: 'full',
+          render: () => (
+            <div className="portal-hero-grid">
+              <PortalHero
+                label={t('dashboard.projectedProfit', { month: monthLabel(selMonth) })}
+                value={fmtYen(m.lucroProjetado ?? m.lucro)}
+                sub={m.comprasEstimadas
+                  ? t('dashboard.marginSubEst', { margin: m.margem, revenue: fmtYen(m.faturamento), cost: fmtYen(m.compras) })
+                  : t('dashboard.marginSub', { margin: m.margem, revenue: fmtYen(m.faturamento ?? m.receita), purchases: fmtYen(m.compras) })}
+                onClick={() => goToReport(onNav, selMonth)}
+              />
+              <PortalKpi
+                icon="sales"
+                label={t('dashboard.billing')}
+                value={fmtYen(m.faturamento ?? m.receita)}
+                delta={deltaPct(m.faturamento ?? m.receita, prevM && (prevM.faturamento ?? prevM.receita))}
+                deltaLabel={t('dash.vsLastMonth')}
+                sub={m.comprasEstimadas
+                  ? t('dashboard.billingSubOrders', { count: entregasCount })
+                  : m.receita > 0 && m.faturamento !== m.receita
+                    ? t('dashboard.billingSubPaid', { paid: fmtYen(m.receita), count: entregasCount })
+                    : t('dashboard.billingSub', { count: entregasCount })}
+                onClick={() => setDetailModal('receita')}
+                hint={t('dashboard.clickDeliveries')}
+              />
+              <PortalKpi
+                icon="invoices"
+                tone={(m.aReceber || 0) > 0 ? 'warning' : 'success'}
+                label={t('dashboard.receivable')}
+                value={fmtYen(m.aReceber || 0)}
+                sub={t('dashboard.receivableSub')}
+                color={(m.aReceber || 0) > 0 ? 'var(--amber)' : 'var(--green)'}
+                onClick={() => onNav('faturas')}
+                hint={t('dashboard.seeInvoicesHint')}
+              />
+              <PortalKpi
+                icon="percent"
+                tone={m.margem >= 20 ? 'success' : m.margem > 0 ? 'warning' : 'danger'}
+                label={t('dashboard.projectedMargin')}
+                value={`${m.margem}%`}
+                sub={m.comprasEstimadas
+                  ? t('dashboard.marginDetailEst', { amount: fmtYen(m.compras) })
+                  : t('dashboard.marginDetail', { amount: fmtYen(m.compras), count: m.comprasCount })}
+                color={m.margem >= 20 ? 'var(--green)' : m.margem > 0 ? 'var(--amber)' : 'var(--red)'}
+                onClick={() => goToReport(onNav, selMonth)}
+                hint={t('dashboard.reportDetail')}
+              />
+            </div>
+          ),
+        },
+        {
+          id: 'trend', title: t('dash.w.trend'), icon: 'cashflow', size: 'half',
+          render: () => (
+            <PortalSurface title={t('dash.w.trend')} sub={t('dash.trendSub')}>
+              <InOutChart
+                data={(data.chart || []).map(r => ({ label: shortMonth(r.month), in: r.faturamento || r.receita || 0, out: r.compras || 0 }))}
+                labels={[t('dash.billed'), t('dash.purchases')]}
+                format={fmtYen}
+                empty={t('dash.noData')}
+              />
+            </PortalSurface>
+          ),
+        },
+        {
+          id: 'profit', title: t('dashboard.chartTitle'), icon: 'result', size: 'half',
+          render: () => (
+            <PortalSurface title={t('dashboard.chartTitle')} sub={t('dashboard.chartSub')}>
+              <LineChart data={lucroChart} format={fmtYen} empty={t('dash.noData')} />
+            </PortalSurface>
+          ),
+        },
+        {
+          id: 'topBars', title: t('dash.w.topBars'), icon: 'bars', size: 'half',
+          render: () => (
+            <PortalSurface title={t('dash.w.topBars')} sub={monthLabel(selMonth)}>
+              <RankList items={topBars} format={fmtYen} empty={t('dash.noData')} onPick={() => setDetailModal('receita')} />
+            </PortalSurface>
+          ),
+        },
+        {
+          id: 'quick', title: t('dashboard.quickActions'), icon: 'next', size: 'half',
+          render: () => (
+            <PortalSurface title={t('dashboard.quickActions')}>
+              <div className="dash-quick">
+                {[
+                  { labelKey: 'dashboard.newPurchase', tab: 'purchases', icon: 'purchases' },
+                  { labelKey: 'dashboard.registerSale', tab: 'sales', icon: 'sales' },
+                  { labelKey: 'nav.orders', tab: 'pedidos', icon: 'orders' },
+                  { labelKey: 'dashboard.invoiceReader', tab: 'seikyusho', icon: 'seikyusho' },
+                  { labelKey: 'nav.invoices', tab: 'faturas', icon: 'invoices' },
+                ].map(a => (
+                  <button key={a.tab} type="button" onClick={() => onNav(a.tab)} className="dash-quick-btn">
+                    <span className="portal-kpi-icon"><Icon name={a.icon} size={17} /></span>
+                    <span>{t(a.labelKey)}</span>
+                    <Icon name="next" size={15} />
+                  </button>
+                ))}
               </div>
-            </PortalAlert>
-          )}
-          {data.alertas.comprasAtrasadasTotal > 0 && (
-            <PortalAlert variant="amber" onClick={() => onNav('cashflow')}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6, color: 'var(--red)' }}>
-                    {t('dashboard.overduePayments', { count: data.alertas.comprasAtrasadas.length })}
-                  </div>
-                  <div style={{ fontSize: 13, color: 'var(--text2)' }}>
-                    Total {fmtYen(data.alertas.comprasAtrasadasTotal)}
-                    {data.alertas.comprasAtrasadas.slice(0, 4).map(c => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={e => {
-                          e.stopPropagation()
-                          setPayItem({ type: 'compra', id: c.id, label: c.fornecedor, amount: c.valor, dueDate: c.vencimento, paid: false })
-                        }}
-                        style={{ display: 'inline', margin: 0, padding: 0, border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer', fontWeight: 700, textDecoration: 'underline' }}
-                      >
-                        {' · '}{c.fornecedor} ({fmtDate(c.vencimento)})
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--c-text)', whiteSpace: 'nowrap' }}>{t('dashboard.seeCashflow')}</span>
-              </div>
-            </PortalAlert>
-          )}
-        </div>
-      )}
-
-      <div className="portal-hero-grid">
-        <PortalHero
-          label={t('dashboard.projectedProfit', { month: monthLabel(selMonth) })}
-          value={fmtYen(m.lucroProjetado ?? m.lucro)}
-          sub={m.comprasEstimadas
-            ? t('dashboard.marginSubEst', { margin: m.margem, revenue: fmtYen(m.faturamento), cost: fmtYen(m.compras) })
-            : t('dashboard.marginSub', { margin: m.margem, revenue: fmtYen(m.faturamento ?? m.receita), purchases: fmtYen(m.compras) })}
-          onClick={() => goToReport(onNav, selMonth)}
-        />
-        <PortalKpi
-          label={t('dashboard.billing')}
-          value={fmtYen(m.faturamento ?? m.receita)}
-          sub={m.comprasEstimadas
-            ? t('dashboard.billingSubOrders', { count: entregasCount })
-            : m.receita > 0 && m.faturamento !== m.receita
-              ? t('dashboard.billingSubPaid', { paid: fmtYen(m.receita), count: entregasCount })
-              : t('dashboard.billingSub', { count: entregasCount })}
-          color="var(--navy)"
-          onClick={() => setDetailModal('receita')}
-          hint={t('dashboard.clickDeliveries')}
-        />
-        <PortalKpi
-          label={t('dashboard.receivable')}
-          value={fmtYen(m.aReceber || 0)}
-          sub={t('dashboard.receivableSub')}
-          color={(m.aReceber || 0) > 0 ? 'var(--amber)' : 'var(--green)'}
-          onClick={() => onNav('faturas')}
-          hint={t('dashboard.seeInvoicesHint')}
-        />
-        <PortalKpi
-          label={t('dashboard.projectedMargin')}
-          value={`${m.margem}%`}
-          sub={m.comprasEstimadas
-            ? t('dashboard.marginDetailEst', { amount: fmtYen(m.compras) })
-            : t('dashboard.marginDetail', { amount: fmtYen(m.compras), count: m.comprasCount })}
-          color={m.margem >= 20 ? 'var(--green)' : m.margem > 0 ? 'var(--amber)' : 'var(--red)'}
-          onClick={() => goToReport(onNav, selMonth)}
-          hint={t('dashboard.reportDetail')}
-        />
-      </div>
+            </PortalSurface>
+          ),
+        },
+        {
+          id: 'calendar', title: t('dash.w.calendar'), icon: 'shifts', size: 'full',
+          render: () => (
+            <DashboardCalendar
+              events={data.calendar || []}
+              onNav={onNav}
+              month={selMonth}
+              onMonthChange={setSelMonth}
+              onPay={setPayItem}
+            />
+          ),
+        },
+        {
+          id: 'formulas', title: t('dashFormula.title'), icon: 'info', size: 'full',
+          render: () => (
+            <details className="ui-card ui-formulas">
+              <summary>{t('dashFormula.title')}</summary>
+              <dl>
+                {['keep', 'billed', 'purchases', 'margin', 'receivable', 'overdue', 'deliveries'].map(k => (
+                  <div key={k}><dt>{t(`dashFormula.${k}`)}</dt><dd>{t(`dashFormula.${k}Def`)}</dd></div>
+                ))}
+              </dl>
+              <p className="ui-muted">{t('dashFormula.source')}</p>
+            </details>
+          ),
+        },
+      ]} />
 
       {noSales && (
         <PortalAlert variant="navy">
           <div style={{ fontSize: 13 }}>{t('dashboard.noSalesMonth', { month: monthLabel(selMonth) })}</div>
         </PortalAlert>
       )}
-
-      <DashboardCalendar
-        events={data.calendar || []}
-        onNav={onNav}
-        month={selMonth}
-        onMonthChange={setSelMonth}
-        onPay={setPayItem}
-      />
-
-      <PortalSurface title={t('dashboard.chartTitle')} sub={t('dashboard.chartSub')} style={{ marginTop: 20 }}>
-        <BarChart data={lucroChart} color="var(--green)" height={72} />
-      </PortalSurface>
-
-      <PortalSurface title={t('dashboard.quickActions')}>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          {[
-            { labelKey: 'dashboard.newPurchase', tab: 'purchases' },
-            { labelKey: 'dashboard.registerSale', tab: 'sales' },
-            { labelKey: 'nav.orders', tab: 'pedidos' },
-            { labelKey: 'dashboard.invoiceReader', tab: 'seikyusho' },
-            { labelKey: 'nav.invoices', tab: 'faturas' },
-          ].map(a => (
-            <button key={a.tab} onClick={() => onNav(a.tab)} className="btn-primary" style={{ padding: '8px 16px', borderRadius: 10, fontSize: 12 }}>{t(a.labelKey)}</button>
-          ))}
-        </div>
-      </PortalSurface>
-
-      <details className="ui-card ui-formulas">
-        <summary>{t('dashFormula.title')}</summary>
-        <dl>
-          {['keep', 'billed', 'purchases', 'margin', 'receivable', 'overdue', 'deliveries'].map(k => (
-            <div key={k}><dt>{t(`dashFormula.${k}`)}</dt><dd>{t(`dashFormula.${k}Def`)}</dd></div>
-          ))}
-        </dl>
-        <p className="ui-muted">{t('dashFormula.source')}</p>
-      </details>
 
       <DashboardMetricModal
         open={detailModal === 'receita'}

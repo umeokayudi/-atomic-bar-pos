@@ -20,6 +20,7 @@ const THEMES = Object.fromEntries(Object.entries({ light: 'modern', dark: 'class
 const PAGES = [
   { who: ADMIN, path: '/hq/dashboard', name: 'hq-dashboard' },
   { who: ADMIN, path: '/hq/dashboard', name: 'hq-dashboard-rail', rail: true },
+  { who: ADMIN, path: '/hq/dashboard', name: 'hq-dashboard-edit', click: /^Customize$/ },
   { who: ADMIN, path: '/hq/crm', name: 'hq-crm' },
   { who: ADMIN, path: '/hq/marketing', name: 'hq-marketing' },
   { who: ADMIN, path: '/hq/consultoria', name: 'hq-consulting' },
@@ -213,7 +214,7 @@ async function main() {
           }) : []
           const theme = await page.evaluate(() => document.documentElement.getAttribute('data-theme'))
           const file = `${OUT}/${pg.name}-${width}-${themeName}.png`
-          await page.screenshot({ path: file, fullPage: false })
+          await page.screenshot({ path: file, fullPage: !!process.env.FULL })
           report.push({ page: pg.name, width, theme: themeName, appliedTheme: theme, overflowPx: overflow, culprits, errors })
           const flag = overflow > 1 || errors.length ? '✗' : '✓'
           console.log(`${flag} ${pg.name} ${width} ${themeName}${overflow > 1 ? ` overflow ${overflow}px [${culprits.join('; ')}]` : ''}${errors.length ? ` errors: ${errors.slice(0, 2).join(' | ').slice(0, 300)}` : ''}`)
