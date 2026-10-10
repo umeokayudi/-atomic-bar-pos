@@ -1,4 +1,9 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import Icon, { hasIcon } from './ui/Icon'
+import { BAR_ADMIN_TABS, aiModuleForTab, pathForTab, tabFromPath } from '../lib/navigation'
+import { useAiPanel } from '../lib/aiPanel'
+import AskAiDrawer, { AskAiButton } from './ai/AskAiDrawer'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import { callGeminiChat, imageDataUrlToParts, parseJsonFromAI } from '../lib/ai'
@@ -30,6 +35,9 @@ import AutoClose from './AutoClose'
 const ClientAnalyticsTab = lazy(() => import('./ClientAnalyticsTab'))
 const PortalRecibosTab = lazy(() => import('./PortalRecibosTab'))
 const PortalClienteAI = lazy(() => import('./PortalClienteAI'))
+const FloorScreen = lazy(() => import('./floor/FloorScreen'))
+const MarketingHub = lazy(() => import('./growth/MarketingHub'))
+const ConsultingHub = lazy(() => import('./growth/ConsultingHub'))
 const AtomicPosPanel = lazy(() => import('./AtomicPos'))
 const TimeClockPanel = lazy(() => import('./TimeClock'))
 const BarTeamTab = lazy(() => import('./BarTeamTab'))
@@ -2107,12 +2115,24 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   const { perfil } = useAuth()
   const NAV_GROUPS = groupedNavForRole(perfil?.role)
   const DOCK = primaryDockForRole(perfil?.role)
-  const [tab, setTab] = useState(() => defaultBarTab(perfil?.role))
-  const [opened, setOpened] = useState(() => new Set([defaultBarTab(perfil?.role)]))
+  const location = useLocation()
+  const navigate = useNavigate()
+  // Tabs reachable by URL (/bar/<tab>): the role's menu plus staff self-service sections.
+  const allowedTabs = [...NAV_GROUPS.flatMap(g => g.items.map(n => n.id)), ...DOCK.map(d => d.id), 'hoje', 'profile', 'shifts', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary', 'equipe']
+  const tab = tabFromPath(location.pathname, 'bar', allowedTabs, defaultBarTab(perfil?.role))
+  const [opened, setOpened] = useState(() => new Set([tab]))
   const [menuOpen, setMenuOpen] = useState(false)
   const [door, setDoor] = useState(() => loginDoorFromHash())
   const { t } = useI18n()
   const overdueAlerts = useBarOverdueAlerts(bar?.id)
+  const { setCtx: setAiCtx } = useAiPanel()
+  const aiOn = isGerente(perfil?.role) && BAR_ADMIN_TABS.has(tab)
+  const navLabel = id => NAV_GROUPS.flatMap(g => g.items).find(n => n.id === id)?.labelKey
+
+  useEffect(() => {
+    setOpened(prev => (prev.has(tab) ? prev : new Set([...prev, tab])))
+    setAiCtx({ module: aiModuleForTab(tab), screen: tab, title: t(navLabel(tab) || 'nav.portalHome'), unit: bar?.nome, barId: bar?.id })
+  }, [tab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useMobileMenuLock(menuOpen)
 
@@ -2124,13 +2144,8 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
 
   function selectTab(id) {
     const next = id === 'equipe' || id === 'casa' ? 'staff' : id === 'outro' ? 'fixo' : id
-    setTab(next)
-    setOpened(prev => {
-      if (prev.has(next)) return prev
-      const copy = new Set(prev)
-      copy.add(next)
-      return copy
-    })
+    // The hash keeps the login door (pos / clock / gerente); the path carries the screen.
+    if (next !== tab) navigate({ pathname: pathForTab('bar', next), hash: location.hash })
     setMenuOpen(false)
   }
 
@@ -2199,9 +2214,9 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
             <div key={g.id} className="nav-group">
               {g.labelKey && <div className="nav-group-label">{t(g.labelKey)}</div>}
               {g.items.map(n => (
-                <button key={n.id} onClick={() => selectTab(n.id)} className={`nav-item ${tab===n.id?'active':''}`}>
-                  <span>{n.icon}</span>
-                  <span>{t(n.labelKey)}</span>
+                <button key={n.id} onClick={() => selectTab(n.id)} className={`nav-item ${tab===n.id?'active':''}`} aria-current={tab===n.id ? 'page' : undefined}>
+                  <Icon name={hasIcon(n.id) ? n.id : 'info'} size={18} />
+                  <span style={{ fontSize: 13 }}>{t(n.labelKey)}</span>
                 </button>
               ))}
             </div>
@@ -2221,6 +2236,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
       <main className="app-main app-main-wide">
         <AutoClose bar={bar} />
         <WorkspaceChrome>
+          {aiOn && <AskAiButton />}
           <UiPrefsPanel compact />
           {isGerente(perfil?.role) && (
             <button type="button" className="chrome-till" onClick={() => { setDoorHash('pos'); setDoor('pos') }}>
@@ -2261,17 +2277,21 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         {tab==='faturas'   && canManageBarTeam(perfil?.role) && <FaturasTab bar={bar} />}
         {tab==='recibos'  && canManageBarTeam(perfil?.role) && <TabHold><PortalRecibosTab bar={bar} /></TabHold>}
         {tab==='ia'       && canManageBarTeam(perfil?.role) && <TabHold><PortalClienteAI bar={bar} /></TabHold>}
+        {tab==='mesas'     && posAccess !== 'none' && <TabHold><FloorScreen bar={bar} onOpenTill={() => selectTab('pos')} /></TabHold>}
+        {tab==='marketing' && canManageBarTeam(perfil?.role) && <TabHold><MarketingHub barId={bar.id} /></TabHold>}
+        {tab==='consultoria' && canManageBarTeam(perfil?.role) && <TabHold><ConsultingHub barId={bar.id} /></TabHold>}
       </main>
+      {aiOn && <AskAiDrawer />}
       {DOCK.length > 0 && (
         <nav className="easy-dock" aria-label={t('nav.portalHome')}>
           {DOCK.map(d => (
             <button key={d.id} type="button" className={tab===d.id ? 'is-on' : ''} onClick={() => selectTab(d.id)}>
-              <span className="easy-dock-icon">{d.icon}</span>
+              <span className="easy-dock-icon"><Icon name={hasIcon(d.id) ? d.id : 'info'} size={20} /></span>
               <span>{t(d.labelKey)}</span>
             </button>
           ))}
           <button type="button" className={!dockOn || menuOpen ? 'is-on' : ''} onClick={() => setMenuOpen(o => !o)}>
-            <span className="easy-dock-icon">☰</span>
+            <span className="easy-dock-icon"><Icon name="menu" size={20} /></span>
             <span>{t('nav.more')}</span>
           </button>
         </nav>

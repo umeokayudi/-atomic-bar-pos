@@ -42,6 +42,7 @@ export function defaultBarTab(role) {
 const GERENTE_NAV = [
   { id: 'inicio', labelKey: 'nav.portalHome', icon: '🏠' },
   { id: 'pos', labelKey: 'nav.portalPos', icon: '🧾' },
+  { id: 'mesas', labelKey: 'nav.mesas', icon: '🗺' },
   { id: 'pedidos', labelKey: 'nav.portalOrders', icon: '🛒' },
   { id: 'entregas', labelKey: 'nav.portalDeliveries', icon: '📦' },
   { id: 'faturas', labelKey: 'nav.portalInvoices', icon: '📄' },
@@ -69,24 +70,31 @@ const GERENTE_NAV = [
   { id: 'custos', labelKey: 'nav.portalCosts', icon: '📚' },
   { id: 'precos', labelKey: 'nav.portalPrices', icon: '🏷' },
   { id: 'recibos', labelKey: 'nav.portalReceipts', icon: '🖨' },
+  { id: 'marketing', labelKey: 'nav.marketing', icon: '📣' },
+  { id: 'consultoria', labelKey: 'nav.consultoria', icon: '💼' },
 ]
 
+// Bar owner/manager menu by work area (same areas as HQ).
 const NAV_GROUPS = [
-  { id: 'tonight', labelKey: 'nav.groupTonight', ids: ['inicio', 'pos', 'pedidos', 'entregas', 'faturas', 'espacos', 'clientes', 'ponto', 'fechamento'] },
-  { id: 'numbers', labelKey: 'nav.groupNumbers', ids: ['metas', 'pagamentos', 'salarios', 'eventos', 'ia'] },
-  { id: 'house', labelKey: 'nav.groupHouse', ids: ['staff', 'fornecedor', 'parceiro', 'drinkback', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'] },
-  { id: 'supply', labelKey: 'nav.groupSupply', ids: ['estoque'] },
-  { id: 'office', labelKey: 'nav.groupOffice', ids: ['custos', 'precos', 'recibos'] },
+  { id: 'overview', labelKey: 'navArea.overview', ids: ['inicio'] },
+  { id: 'operation', labelKey: 'navArea.operation', ids: ['pos', 'mesas', 'pedidos', 'entregas', 'espacos', 'ponto', 'fechamento'] },
+  { id: 'supply', labelKey: 'navArea.supply', ids: ['estoque', 'precos', 'fornecedor', 'parceiro'] },
+  { id: 'finance', labelKey: 'navArea.finance', ids: ['faturas', 'pagamentos', 'custos', 'recibos', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'] },
+  { id: 'people', labelKey: 'navArea.people', ids: ['staff', 'salarios', 'metas', 'drinkback'] },
+  { id: 'growth', labelKey: 'navArea.growth', ids: ['clientes', 'eventos', 'marketing', 'consultoria'] },
+  { id: 'intelligence', labelKey: 'navArea.intelligence', ids: ['ia'] },
 ]
 
 const CAIXA_NAV = [
   { id: 'pos', labelKey: 'nav.portalPos', icon: '🧾' },
+  { id: 'mesas', labelKey: 'nav.mesas', icon: '🗺' },
 ]
 
 const STAFF_NAV = [
   { id: 'hoje', labelKey: 'nav.myToday', icon: '☀️' },
   { id: 'ponto', labelKey: 'nav.portalClock', icon: '🕒' },
   { id: 'pos', labelKey: 'nav.portalPos', icon: '🧾' },
+  { id: 'mesas', labelKey: 'nav.mesas', icon: '🗺' },
   { id: 'pedidos', labelKey: 'nav.portalOrders', icon: '🛒' },
   { id: 'shifts', labelKey: 'nav.myShifts', icon: '🗓️' },
   { id: 'goals', labelKey: 'nav.myGoals', icon: '🎯' },
@@ -100,7 +108,7 @@ const STAFF_NAV = [
 
 // Staff see their own day first, then work, results and pay — never the bar's books.
 const STAFF_GROUPS = [
-  { id: 'myDay', labelKey: 'nav.groupMyDay', ids: ['hoje', 'ponto', 'pos', 'pedidos'] },
+  { id: 'myDay', labelKey: 'nav.groupMyDay', ids: ['hoje', 'ponto', 'pos', 'mesas', 'pedidos'] },
   { id: 'myWork', labelKey: 'nav.groupMyWork', ids: ['shifts', 'goals', 'result'] },
   { id: 'myRecord', labelKey: 'nav.groupMyRecord', ids: ['points', 'rewards', 'occurrences'] },
   { id: 'myPay', labelKey: 'nav.groupMyPay', ids: ['salary', 'profile'] },
@@ -138,8 +146,8 @@ export function primaryDockForRole(role) {
   return [
     { id: 'inicio', icon: '🏠', labelKey: 'nav.portalHome' },
     { id: 'pos', icon: '🧾', labelKey: 'nav.portalPos' },
+    { id: 'mesas', icon: '🗺', labelKey: 'nav.mesas' },
     { id: 'pedidos', icon: '🛒', labelKey: 'nav.portalOrders' },
-    { id: 'espacos', icon: '🪑', labelKey: 'nav.portalSpaces' },
     { id: 'ponto', icon: '🕒', labelKey: 'nav.portalClock' },
   ]
 }

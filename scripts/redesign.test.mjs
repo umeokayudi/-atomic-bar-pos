@@ -7,6 +7,7 @@ import { buildCatalog, searchCatalog, toggleFavorite } from '../src/lib/posCatal
 import { buildSaleArgs, commitSaleAtomic } from '../src/lib/posCommit.js'
 import { pendingToLines, splitEvenly, tableState, tabMoney, validateMoves } from '../src/lib/comandas.js'
 import { resolveItemPrice } from '../src/lib/atomicPos.js'
+import * as fe from '../src/lib/floorEditor.js'
 
 let n = 0
 const queue = []
@@ -207,6 +208,60 @@ test('split evenly adds up exactly; move validation', () => {
   assert.equal(validateMoves([{ item: 'zz', qtd: 1 }], lines), 'tabs.errLineGone')
   assert.equal(validateMoves([{ item: 'i1', qtd: 2 }], lines), '')
   assert.deepEqual(pendingToLines([{ nome: 'A', qtd: 0, preco_unitario: 1 }, { nome: 'B', qtd: 2, preco_unitario: 5, drink_menu_id: 'd' }]).map(l => l.nome), ['B'])
+})
+
+const base = () => ({ layout: { id: 'L', versao: 3, nome: 'Salão', largura: 600, altura: 400 }, sectors: [{ id: 's1', nome: 'VIP', cor: '#000' }],
+  tables: [{ id: 't1', nome: '1', forma: 'square', x: 20, y: 20, largura: 90, altura: 90, capacidade: 4, sector_id: 's1', ativo: true }], selected: null })
+
+test('floor editor: add, duplicate and names never collide; tables stay inside the floor', () => {
+  let st = fe.addTable(base(), 'rect')
+  assert.equal(st.tables.length, 2)
+  assert.equal(st.tables[1].nome, '2')
+  assert.ok(!fe.overlaps(st.tables[0], st.tables[1]))
+  st = fe.duplicateTable(st, 't1')
+  assert.equal(st.tables[2].nome, '3')
+  st = fe.updateTable(st, 't1', { x: 9999, y: -50 })
+  assert.equal(st.tables[0].x, 600 - 90)
+  assert.equal(st.tables[0].y, 0)
+  st = fe.updateTable(st, 't1', { forma: 'round', largura: 120 })
+  assert.equal(st.tables[0].largura, st.tables[0].altura)
+  assert.deepEqual(fe.validateLayout(fe.updateTable(st, 't1', { nome: '2' })), ['floor.errDupName'])
+})
+
+test('floor editor: a table with an open tab cannot be removed; sectors unlink cleanly', () => {
+  const st = fe.removeTable(base(), 't1', new Set(['t1']))
+  assert.equal(st.error, 'floor.errBusyTable')
+  assert.equal(fe.removeTable(base(), 't1').tables.length, 0)
+  const noSector = fe.removeSector(base(), 's1')
+  assert.equal(noSector.tables[0].sector_id, null)
+})
+
+test('floor editor: save payload keeps ids, new rows without id, new sectors by key', () => {
+  let st = fe.addSector(base(), 'Terraço')
+  const newSector = st.sectors[1].id
+  st = fe.addTable(st, 'round', { sector_id: newSector })
+  const p = fe.toSavePayload(st)
+  assert.equal(p.versao, 3)
+  assert.equal(p.tables[0].id, 't1')
+  assert.equal(p.tables[0].sector_id, 's1')
+  assert.equal(p.tables[1].id, undefined)
+  assert.equal(p.tables[1].sector_key, newSector)
+  assert.equal(p.sectors[1].key, newSector)
+  assert.equal(p.sectors[1].id, undefined)
+  assert.ok(fe.isDirty(base(), st))
+  assert.ok(!fe.isDirty(base(), { ...base(), selected: 't1' }))
+})
+
+test('floor editor: undo/redo', () => {
+  let h = fe.createHistory(base())
+  h = fe.pushHistory(h, fe.addTable(h.present, 'bar'))
+  assert.equal(h.present.tables.length, 2)
+  h = fe.undo(h)
+  assert.equal(h.present.tables.length, 1)
+  h = fe.redo(h)
+  assert.equal(h.present.tables.length, 2)
+  assert.equal(fe.fitZoom(0, 0, base().layout), 1)
+  assert.equal(fe.fitZoom(624, 424, base().layout), 1)
 })
 
 for (const [name, fn] of queue) { await fn(); n++; console.log(`ok ${n} - ${name}`) }

@@ -35,7 +35,7 @@ const ICONS = {
   back: ChevronLeft, down: ChevronDown, filter: Filter, refresh: RefreshCw, noImage: ImageOff,
   split: Split, merge: Merge, transfer: MoveRight, partialPay: HandCoins, lock: Lock, keyboard: Keyboard,
   signOut: LogOut,
-  star: Star, edit: Pencil, eye: Eye, reopen: RotateCcw, people: People, phone: Smartphone,
+  hoje: Sun, star: Star, edit: Pencil, eye: Eye, reopen: RotateCcw, people: People, phone: Smartphone,
   // table states
   stFree: CheckCircle2, stAwaitingOrder: Hourglass, stConsuming: GlassWater, stOccupied: People,
   stAwaitingPayment: HandCoins, stReserved: CalendarClock, stCleaning: Brush,
