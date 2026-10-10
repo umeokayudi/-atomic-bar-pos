@@ -251,5 +251,21 @@ await test('duplicate a layout and switch the active one', async () => {
   assert.equal((await one(`SELECT id FROM floor_layouts WHERE bar_id = $1 AND ativo`, [bar])).id, copy)
 })
 
+await test('growth, AI center and AI action log migrations apply twice', async () => {
+  for (const f of ['sql/growth.sql', 'sql/ai_center.sql', 'sql/ai_action_log.sql']) {
+    await db.query(read(f))
+    await db.query(read(f))
+  }
+})
+
+await test('campaigns and consulting plans are scoped per bar', async () => {
+  await as(gerente, () => db.query(`INSERT INTO marketing_campaigns (bar_id, nome) VALUES ($1, 'Happy hour')`, [bar]))
+  await assert.rejects(as(gerente, () => db.query(`INSERT INTO marketing_campaigns (bar_id, nome) VALUES ($1, 'Not mine')`, [otherBar])), /row-level security/)
+  await assert.rejects(as(gerente, () => db.query(`INSERT INTO marketing_campaigns (bar_id, nome) VALUES (null, 'HQ wide')`)), /row-level security/)
+  assert.equal((await as(stranger, () => all(`SELECT id FROM marketing_campaigns`))).length, 0)
+  assert.equal((await as(caixa, () => all(`SELECT id FROM marketing_campaigns`))).length, 0)
+  await assert.rejects(as(gerente, () => db.query(`INSERT INTO consulting_plans (bar_id, titulo) VALUES ($1, 'Self-made plan')`, [bar])), /row-level security/)
+})
+
 await db.end()
 console.log(`floor_comandas: ${passed} passed`)
