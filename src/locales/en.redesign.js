@@ -24,6 +24,11 @@ export default {
     label: 'Theme', light: 'Light', dark: 'Dark', system: 'System', hint: 'Saved for your account on this device.',
   },
   ai: {
+    attach: 'Attach', attachPhoto: 'Photo', attachFile: 'File (PDF, CSV, text)', attachVideo: 'Short video',
+    attached: 'Attached files', attachRemove: 'Remove {name}', attachMaxFiles: 'Up to {n} files per message.',
+    attachTooBig: 'That file is too big (max 2.5 MB). Try a smaller PDF or split the CSV.',
+    attachVideoTooBig: 'That video is too big (max 2.5 MB, about 10–20 seconds). Send a shorter clip.',
+    attachFailed: 'Could not read {name}.', attachDefaultAsk: 'Look at what I attached and tell me what matters.',
     ask: 'Ask AI', center: 'AI Center', newChat: 'New chat', send: 'Send', thinking: 'Reading your data…',
     placeholder: 'Ask about this page, e.g. "What needs my attention today?"',
     introTitle: 'Ask about what you see', introBody: 'Answers use your own data and permissions, state the period and sources, and separate facts, estimates and recommendations. Anything that changes data waits for your confirmation.',

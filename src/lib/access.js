@@ -76,13 +76,13 @@ const GERENTE_NAV = [
 
 // Bar owner/manager menu by work area (same areas as HQ).
 const NAV_GROUPS = [
+  { id: 'intelligence', labelKey: 'navArea.intelligence', ids: ['ia'] },
   { id: 'overview', labelKey: 'navArea.overview', ids: ['inicio'] },
   { id: 'operation', labelKey: 'navArea.operation', ids: ['pos', 'mesas', 'pedidos', 'entregas', 'espacos', 'ponto', 'fechamento'] },
   { id: 'supply', labelKey: 'navArea.supply', ids: ['estoque', 'precos', 'fornecedor', 'parceiro'] },
   { id: 'finance', labelKey: 'navArea.finance', ids: ['faturas', 'pagamentos', 'custos', 'recibos', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'] },
   { id: 'people', labelKey: 'navArea.people', ids: ['staff', 'salarios', 'metas', 'drinkback'] },
   { id: 'growth', labelKey: 'navArea.growth', ids: ['clientes', 'eventos', 'marketing', 'consultoria'] },
-  { id: 'intelligence', labelKey: 'navArea.intelligence', ids: ['ia'] },
 ]
 
 const CAIXA_NAV = [

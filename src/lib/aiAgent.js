@@ -15,8 +15,9 @@ async function post(body) {
 }
 
 /** Ask the AI. Nothing is written: returns { reply, proposals } for the user to confirm. */
-export function planAiActions({ messages, image, screen, analysis }) {
-  return post({ step: 'plan', messages, image, screen, analysis })
+export function planAiActions({ messages, image, attachments, screen, analysis }) {
+  const files = (attachments || []).map(a => ({ name: a.name, mimeType: a.mimeType, data: a.data }))
+  return post({ step: 'plan', messages, image, attachments: files.length ? files : undefined, screen, analysis })
 }
 
 /** Write one proposal the user confirmed. The server re-checks it against fresh data first. */

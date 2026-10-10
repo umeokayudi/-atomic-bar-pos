@@ -32,20 +32,50 @@ async function resolveActor(req) {
   return { user, perfil, scope, db }
 }
 
-function toContents(messages, image) {
+/** What the chat may attach. Gemini reads images, PDFs, audio and short videos inline; text files go in as text. */
+export const ATTACH_MAX_FILES = 4
+export const ATTACH_MAX_BASE64 = 3_400_000 // Vercel's request limit is 4.5 MB; base64 adds a third.
+const INLINE_MIME = /^(image\/(png|jpe?g|webp|heic|heif|gif)|application\/pdf|video\/(mp4|quicktime|webm|mpeg|3gpp|x-msvideo)|audio\/(mpeg|mp3|wav|x-wav|aac|ogg|webm|mp4|x-m4a))$/i
+const TEXT_MIME = /^(text\/(plain|csv|markdown|tab-separated-values)|application\/json)$/i
+
+/** Validate attachments; returns { parts, error }. Text files become text parts, the rest inlineData. */
+export function attachmentParts(list) {
+  const items = (Array.isArray(list) ? list : []).filter(a => a && typeof a.data === 'string' && a.data)
+  if (items.length > ATTACH_MAX_FILES) return { error: `Attach at most ${ATTACH_MAX_FILES} files at a time` }
+  const total = items.reduce((n, a) => n + a.data.length, 0)
+  if (total > ATTACH_MAX_BASE64) return { error: 'Attachments are too large (about 2.5 MB in total). Send a shorter video or a smaller file.' }
+  const parts = []
+  for (const a of items) {
+    const mimeType = String(a.mimeType || '').toLowerCase()
+    const name = String(a.name || 'file').slice(0, 80)
+    if (TEXT_MIME.test(mimeType)) {
+      const text = Buffer.from(a.data, 'base64').toString('utf8').slice(0, 20000)
+      parts.push({ text: `Attached file "${name}":\n${text}` })
+    } else if (INLINE_MIME.test(mimeType)) {
+      parts.push({ inlineData: { mimeType, data: a.data } })
+    } else {
+      return { error: `"${name}" is not supported. Use a photo, PDF, CSV, text file or a short video.` }
+    }
+  }
+  return { parts }
+}
+
+function toContents(messages, image, attachments = []) {
   const list = (messages || [])
     .filter(m => m?.content)
     .slice(-12)
     .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: String(m.content).slice(0, 4000) }] }))
-  if (image?.data && list.length && list[list.length - 1].role === 'user') {
-    list[list.length - 1].parts.unshift({ inlineData: { mimeType: image.mimeType || 'image/jpeg', data: image.data } })
-  }
+  const last = list.length && list[list.length - 1].role === 'user' ? list[list.length - 1] : null
+  if (last && image?.data) last.parts.unshift({ inlineData: { mimeType: image.mimeType || 'image/jpeg', data: image.data } })
+  if (last && attachments.length) last.parts.unshift(...attachments)
   return list
 }
 
 async function plan(res, actor, body) {
   const ctx = await loadActionContext(actor.db, { scope: actor.scope, barId: actor.perfil.bar_id, userId: actor.user.id })
-  const contents = toContents(body.messages, body.image)
+  const attached = attachmentParts(body.attachments)
+  if (attached.error) return res.status(400).json({ error: attached.error })
+  const contents = toContents(body.messages, body.image, attached.parts)
   if (!contents.length) return res.status(400).json({ error: 'messages is required' })
 
   // Page context ("Ask AI" panel / AI Center): load the facts for that module with the user's own rights.

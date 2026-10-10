@@ -474,3 +474,19 @@ html[data-layout] .sidebar.sidebar.is-collapsed { width: 76px !important; }
 .sidebar.is-collapsed .sidebar-who { justify-content: center; }
 .sidebar.is-collapsed .sidebar-signout { padding: 9px 0; }
 @media (prefers-reduced-motion: reduce) { .sidebar { transition: none; } }
+
+/* AI chat attachments */
+.ai-chat-compose { position: relative; }
+.ai-chat-compose.is-drag { outline: 2px dashed var(--c-accent); outline-offset: 4px; border-radius: var(--radius); }
+.ai-attach { position: relative; align-self: flex-end; }
+.ai-attach-menu { position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 20; min-width: 200px; display: grid; padding: 6px; background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius); box-shadow: var(--shadow-md); }
+.ai-attach-menu button { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--c-text); font-weight: 600; text-align: left; }
+.ai-attach-menu button:hover { background: var(--c-surface-2); }
+.ai-attach-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.ai-file-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; min-height: 30px; padding: 0 6px 0 8px; border-radius: var(--radius-pill); border: 1px solid var(--c-border); background: var(--c-surface-2); color: var(--c-text-2); font-size: 12px; }
+.ai-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-file-mini { width: 22px; height: 22px; border-radius: 6px; object-fit: cover; }
+.ai-file-x { width: 22px; height: 22px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--c-text-2); }
+.ai-file-x:hover { background: var(--c-surface-3, var(--c-border)); }
+.ai-msg-files { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; justify-content: flex-end; }
+.ai-file-thumb { width: 96px; height: 96px; object-fit: cover; border-radius: 10px; border: 1px solid var(--c-border); }

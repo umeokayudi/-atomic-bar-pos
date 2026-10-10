@@ -10,7 +10,7 @@ import {
   ChevronLeft, ChevronDown, Megaphone, Briefcase, Heart, Filter, RefreshCw, ImageOff, Split,
   Merge, MoveRight, HandCoins, Lock, Keyboard, LogOut, Beer, Martini, CupSoda, Flame, UtensilsCrossed,
   Grape, Brush, CalendarClock, RotateCcw, Hourglass, Pencil, Smartphone, Eye, Users as People, Wine as WineGlass,
-  PanelLeftClose, PanelLeftOpen, GripVertical, EyeOff, LayoutTemplate, ArrowUp, ArrowDown,
+  PanelLeftClose, PanelLeftOpen, Paperclip, Image as ImageIcon, FileText as FileDoc, Video, GripVertical, EyeOff, LayoutTemplate, ArrowUp, ArrowDown,
 } from 'lucide-react'
 
 /** One name → one vector icon. Screens ask for a semantic name, never an emoji. */
@@ -36,6 +36,7 @@ const ICONS = {
   back: ChevronLeft, down: ChevronDown, filter: Filter, refresh: RefreshCw, noImage: ImageOff,
   split: Split, merge: Merge, transfer: MoveRight, partialPay: HandCoins, lock: Lock, keyboard: Keyboard,
   signOut: LogOut, panelClose: PanelLeftClose, panelOpen: PanelLeftOpen, grip: GripVertical, hide: EyeOff,
+  attach: Paperclip, image: ImageIcon, fileDoc: FileDoc, video: Video,
   customize: LayoutTemplate, up: ArrowUp, downArrow: ArrowDown,
   hoje: Sun, star: Star, edit: Pencil, eye: Eye, reopen: RotateCcw, people: People, phone: Smartphone,
   // table states

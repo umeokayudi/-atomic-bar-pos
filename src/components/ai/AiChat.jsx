@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { planAiActions } from '../../lib/aiAgent'
+import { ATTACH_ACCEPT, ATTACH_MAX_FILES, readAttachment } from '../../lib/aiAttach'
 import { aiHistory, contextToScreen } from '../../lib/aiPanel'
 import { useI18n } from '../../lib/i18n'
 import AiActionCards from '../AiActionCards'
@@ -44,6 +45,10 @@ export default function AiChat({ ctx = {}, thread, onThreadSaved, seed = '', onS
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [files, setFiles] = useState([])
+  const [menu, setMenu] = useState(false)
+  const [drag, setDrag] = useState(false)
+  const pickers = { photo: useRef(null), file: useRef(null), video: useRef(null) }
   const idRef = useRef(thread?.id || newId())
   const serverIdRef = useRef(thread?.serverId || null)
   const logRef = useRef(null)
@@ -69,18 +74,37 @@ export default function AiChat({ ctx = {}, thread, onThreadSaved, seed = '', onS
     }
   }, [seed]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function send(override) {
-    const text = String(override ?? input).trim()
-    if (!text || busy) return
-    setInput('')
+  async function addFiles(list) {
+    setMenu(false)
     setErr('')
-    const userMsg = { role: 'user', content: text }
+    const incoming = [...(list || [])].slice(0, Math.max(0, ATTACH_MAX_FILES - files.length))
+    if (list?.length > incoming.length) setErr(t('ai.attachMaxFiles', { n: ATTACH_MAX_FILES }))
+    for (const f of incoming) {
+      try {
+        const a = await readAttachment(f)
+        setFiles(prev => [...prev, { ...a, id: newId() }])
+      } catch (e) {
+        setErr(t(String(e.message).startsWith('ai.') ? e.message : 'ai.attachFailed', { name: f.name }))
+      }
+    }
+  }
+
+  async function send(override) {
+    const typed = String(override ?? input).trim()
+    if ((!typed && !files.length) || busy) return
+    const text = typed || t('ai.attachDefaultAsk')
+    const sending = files
+    setInput('')
+    setFiles([])
+    setErr('')
+    const userMsg = { role: 'user', content: text, files: sending.map(f => ({ name: f.name, kind: f.kind, preview: f.preview })) }
     const history = [...messages, userMsg]
     setMessages(history)
     setBusy(true)
     try {
       const out = await planAiActions({
         messages: history.map(m => ({ role: m.role, content: m.content })),
+        attachments: sending,
         screen: contextToScreen(ctx),
         analysis: { module, days: ctx.days || 30, barId: ctx.barId || null },
       })
@@ -93,13 +117,14 @@ export default function AiChat({ ctx = {}, thread, onThreadSaved, seed = '', onS
       const next = [...history, answer]
       setMessages(next)
       try {
-        const saved = await aiHistory.save({ id: idRef.current, serverId: serverIdRef.current, module, messages: next, barId: ctx.barId })
+        const saved = await aiHistory.save({ id: idRef.current, serverId: serverIdRef.current, module, messages: next.map(({ files: f, ...m }) => (f ? { ...m, files: f.map(x => ({ name: x.name, kind: x.kind })) } : m)), barId: ctx.barId })
         serverIdRef.current = saved
         onThreadSaved?.(saved)
       } catch { /* history is a convenience; the answer is already on screen */ }
     } catch (e) {
       setErr(friendlyError(e.message, t))
       setMessages(history)
+      setFiles(sending)
     } finally {
       setBusy(false)
     }
@@ -123,6 +148,13 @@ export default function AiChat({ ctx = {}, thread, onThreadSaved, seed = '', onS
         )}
         {messages.map((m, i) => (
           <div key={i} className={`ai-msg is-${m.role}`}>
+            {m.files?.length > 0 && (
+              <div className="ai-msg-files">
+                {m.files.map((f, j) => f.preview
+                  ? <img key={j} src={f.preview} alt={f.name} className="ai-file-thumb" />
+                  : <span key={j} className="ai-file-chip"><Icon name={f.kind === 'video' ? 'video' : 'fileDoc'} size={14} />{f.name}</span>)}
+              </div>
+            )}
             {m.content && <div className="ai-msg-body">{m.content}</div>}
             {m.role === 'assistant' && <Sources sources={m.sources} />}
             {m.proposals?.length > 0 && <AiActionCards proposals={m.proposals} />}
@@ -131,7 +163,41 @@ export default function AiChat({ ctx = {}, thread, onThreadSaved, seed = '', onS
         {busy && <div className="ai-msg is-assistant"><div className="ai-msg-body ai-typing">{t('ai.thinking')}</div></div>}
       </div>
       {err && <div className="ui-error ai-chat-err" role="alert"><Icon name="warning" /><div>{err}</div></div>}
-      <form className="ai-chat-compose" onSubmit={e => { e.preventDefault(); send() }}>
+      {files.length > 0 && (
+        <div className="ai-attach-list" aria-label={t('ai.attached')}>
+          {files.map(f => (
+            <span key={f.id} className="ai-file-chip is-pending">
+              {f.preview ? <img src={f.preview} alt="" className="ai-file-mini" /> : <Icon name={f.kind === 'video' ? 'video' : 'fileDoc'} size={14} />}
+              <span className="ai-file-name">{f.name}</span>
+              <button type="button" className="ai-file-x" onClick={() => setFiles(prev => prev.filter(x => x.id !== f.id))} aria-label={t('ai.attachRemove', { name: f.name })}><Icon name="close" size={12} /></button>
+            </span>
+          ))}
+        </div>
+      )}
+      <form
+        className={`ai-chat-compose${drag ? ' is-drag' : ''}`}
+        onSubmit={e => { e.preventDefault(); send() }}
+        onDragOver={e => { if (e.dataTransfer?.types?.includes('Files')) { e.preventDefault(); setDrag(true) } }}
+        onDragLeave={() => setDrag(false)}
+        onDrop={e => { e.preventDefault(); setDrag(false); addFiles(e.dataTransfer?.files) }}
+      >
+        <div className="ai-attach">
+          <button type="button" className="ui-btn is-ghost is-icon" onClick={() => setMenu(v => !v)} aria-expanded={menu} aria-haspopup="menu" aria-label={t('ai.attach')} title={t('ai.attach')} disabled={busy}>
+            <Icon name="attach" size={18} />
+          </button>
+          {menu && (
+            <div className="ai-attach-menu" role="menu">
+              {[['photo', 'image', 'ai.attachPhoto'], ['file', 'fileDoc', 'ai.attachFile'], ['video', 'video', 'ai.attachVideo']].map(([k, icon, label]) => (
+                <button key={k} type="button" role="menuitem" onClick={() => pickers[k].current?.click()}>
+                  <Icon name={icon} size={16} /> {t(label)}
+                </button>
+              ))}
+            </div>
+          )}
+          {Object.entries(pickers).map(([k, ref]) => (
+            <input key={k} ref={ref} type="file" hidden multiple={k !== 'video'} accept={ATTACH_ACCEPT[k]} onChange={e => { addFiles(e.target.files); e.target.value = '' }} />
+          ))}
+        </div>
         <textarea
           ref={inputRef}
           rows={compact ? 2 : 3}
@@ -139,10 +205,11 @@ export default function AiChat({ ctx = {}, thread, onThreadSaved, seed = '', onS
           autoFocus={autoFocus}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+          onPaste={e => { const f = [...(e.clipboardData?.files || [])]; if (f.length) { e.preventDefault(); addFiles(f) } }}
           placeholder={t('ai.placeholder')}
           aria-label={t('ai.placeholder')}
         />
-        <button type="submit" className="ui-btn is-primary" disabled={busy || !input.trim()} aria-label={t('ai.send')}>
+        <button type="submit" className="ui-btn is-primary" disabled={busy || (!input.trim() && !files.length)} aria-label={t('ai.send')}>
           <Icon name="send" size={16} />
           {!compact && <span>{t('ai.send')}</span>}
         </button>

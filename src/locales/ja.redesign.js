@@ -22,6 +22,11 @@ export default {
   },
   theme: { label: 'テーマ', light: 'ライト', dark: 'ダーク', system: 'システム', hint: 'このアカウントとこの端末に保存されます。' },
   ai: {
+    attach: '添付', attachPhoto: '写真', attachFile: 'ファイル（PDF・CSV・テキスト）', attachVideo: '短い動画',
+    attached: '添付ファイル', attachRemove: '{name} を外す', attachMaxFiles: '1回に {n} 件まで添付できます。',
+    attachTooBig: 'ファイルが大きすぎます（最大2.5MB）。小さいPDFにするかCSVを分けてください。',
+    attachVideoTooBig: '動画が大きすぎます（最大2.5MB、約10〜20秒）。短い動画を送ってください。',
+    attachFailed: '{name} を読み込めませんでした。', attachDefaultAsk: '添付したものを見て、重要な点を教えてください。',
     ask: 'AIに聞く', center: 'AIセンター', newChat: '新しい会話', send: '送信', thinking: 'データを確認中…',
     placeholder: 'この画面について質問（例：「今日注意すべきことは？」）',
     introTitle: '画面の内容について質問', introBody: '回答はあなたの権限で見られるデータだけを使い、期間と出典を示し、事実・推定・提案を分けます。データを変更する操作は必ず確認してから実行されます。',

@@ -3,15 +3,15 @@
  * Pure data so it can be tested in Node and reused by the HQ shell, the bar portal and the AI layer.
  */
 
-/** HQ (JBM admin / staff / funcionario) areas, in menu order. Ids are shell tab ids. */
+/** HQ (JBM admin / staff / funcionario) areas, in menu order (AI Center first). Ids are shell tab ids. */
 export const HQ_AREAS = [
+  { id: 'intelligence', labelKey: 'navArea.intelligence', ids: ['ai'] },
   { id: 'overview', labelKey: 'navArea.overview', ids: ['dashboard', 'billingHub'] },
   { id: 'operation', labelKey: 'navArea.operation', ids: ['sales', 'pedidos', 'products', 'bars'] },
   { id: 'supply', labelKey: 'navArea.supply', ids: ['purchases', 'fulfillment', 'procurement', 'suppliers'] },
   { id: 'finance', labelKey: 'navArea.finance', ids: ['cashflow', 'faturas', 'relatorio', 'ryoshusho', 'seikyusho'] },
   { id: 'people', labelKey: 'navArea.people', ids: ['payroll', 'profile', 'shifts', 'clock', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary'] },
   { id: 'growth', labelKey: 'navArea.growth', ids: ['crm', 'marketing', 'consultoria'] },
-  { id: 'intelligence', labelKey: 'navArea.intelligence', ids: ['ai'] },
   { id: 'settings', labelKey: 'navArea.settings', ids: ['usuarios'] },
 ]
 

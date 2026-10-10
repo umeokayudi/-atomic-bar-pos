@@ -24,6 +24,7 @@ const PAGES = [
   { who: ADMIN, path: '/hq/marketing', name: 'hq-marketing' },
   { who: ADMIN, path: '/hq/consultoria', name: 'hq-consulting' },
   { who: ADMIN, path: '/hq/ai', name: 'hq-ai-center' },
+  { who: ADMIN, path: '/hq/ai', name: 'hq-ai-attach', click: /^Attach$/ },
   { who: ADMIN, path: '/hq/cashflow', name: 'hq-cashflow', ask: true },
   { who: ADMIN, path: '/hq/faturas', name: 'hq-invoices' },
   { who: ADMIN, path: '/hq/relatorio', name: 'hq-report' },
