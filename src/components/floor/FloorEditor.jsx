@@ -7,6 +7,7 @@ import {
   removeSector, removeTable, toSavePayload, undo, updateTable, validateLayout,
 } from '../../lib/floorEditor'
 import Icon from '../ui/Icon'
+import Floor3D from './Floor3D'
 
 const SHAPE_ICON = { round: 'circle', square: 'square', rect: 'rect', bar: 'move' }
 
@@ -21,6 +22,7 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
   const [hist, setHist] = useState(null)
   const [zoom, setZoom] = useState(1)
   const [grid, setGrid] = useState(true)
+  const [in3d, setIn3d] = useState(false)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null) // { tone, text, conflict? }
   const viewRef = useRef(null)
@@ -228,6 +230,7 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
           <button type="button" className="ui-btn is-icon is-sm" onClick={() => setZoom(z => Math.min(2, +(z + 0.1).toFixed(2)))} aria-label={t('floor.zoomIn')}><Icon name="zoomIn" size={16} /></button>
           <button type="button" className="ui-btn is-icon is-sm" onClick={() => setZoom(fitZoom(viewRef.current?.clientWidth, viewRef.current?.clientHeight, L))} aria-label={t('floor.fit')}><Icon name="fit" size={16} /></button>
           <button type="button" className="ui-btn is-sm" aria-pressed={grid} onClick={() => setGrid(g => !g)}>{t('floor.grid')}</button>
+          <button type="button" className="ui-btn is-sm" aria-pressed={in3d} onClick={() => setIn3d(v => !v)}><Icon name="cube" size={14} /> {t('floor.preview3d')}</button>
         </div>
         <button type="button" className="ui-btn is-primary" onClick={save} disabled={busy || !dirty}>
           <Icon name="save" size={16} /> {busy ? t('common.saving') : dirty ? t('floor.save') : t('floor.savedShort')}
@@ -242,6 +245,9 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
       )}
 
       <div className="fe-body">
+        {in3d ? (
+          <Floor3D layout={L} tables={state.tables} sectors={state.sectors} onTable={tb => select(tb.id)} />
+        ) : (
         <div
           ref={viewRef}
           className="fe-viewport"
@@ -284,6 +290,7 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
             </div>
           </div>
         </div>
+        )}
 
         <aside className="fe-side">
           {sel ? (

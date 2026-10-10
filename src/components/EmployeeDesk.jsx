@@ -13,6 +13,9 @@ import {
   groupByBar,
 } from '../lib/payrollCore'
 import Icon from './ui/Icon'
+import GoalGuide from './GoalGuide'
+import StaffQuickOrder from './StaffQuickOrder'
+import { personalGoalSource } from '../lib/goalDefinitions'
 
 const TITLES = {
   hoje: 'employee.today',
@@ -60,7 +63,7 @@ function sumPoints(rows) {
   return rows.reduce((s, p) => s + (+p.points || 0), 0)
 }
 
-function GoalRow({ goal }) {
+function GoalRow({ goal, t }) {
   const pct = goalPct(goal)
   return (
     <div className="emp-goal">
@@ -73,6 +76,7 @@ function GoalRow({ goal }) {
           <div style={{ width: `${pct}%` }} className={pct >= 100 ? 'is-done' : ''} />
         </div>
       )}
+      {t && <p className="emp-goal-how"><Icon name="help" size={12} /> {t(`goalDef.source.${personalGoalSource(goal)}`)}</p>}
     </div>
   )
 }
@@ -144,6 +148,8 @@ function TodayView({ t, perfil, bar, pack, missing, onTab, competence }) {
         <button type="button" onClick={() => onTab?.('salary')}><Icon name="salary" size={18} />{t('nav.mySalary')}</button>
       </div>
 
+      <StaffQuickOrder bar={bar} perfil={perfil} onTab={onTab} />
+
       {missing ? (
         <PortalSurface><Empty text={t('employee.schemaMissing')} /></PortalSurface>
       ) : (
@@ -157,7 +163,7 @@ function TodayView({ t, perfil, bar, pack, missing, onTab, competence }) {
           </div>
           <div className="emp-two">
             <PortalSurface title={t('employee.goals')} headerRight={goals.length > 3 ? <button type="button" className="emp-link" onClick={() => onTab?.('goals')}>{t('employee.seeAll')}</button> : null}>
-              {goals.length === 0 ? <Empty text={t('employee.noGoals')} icon="🎯" /> : goals.slice(0, 3).map(g => <GoalRow key={g.id} goal={g} />)}
+              {goals.length === 0 ? <Empty text={t('employee.noGoals')} icon="🎯" /> : goals.slice(0, 3).map(g => <GoalRow key={g.id} goal={g} t={t} />)}
             </PortalSurface>
             <PortalSurface title={t('employee.recent')}>
               {recent.length === 0
@@ -276,9 +282,10 @@ export default function EmployeeDesk({ section = 'salary', bar, onTab }) {
       {!missing && section === 'goals' && (
         <PortalSurface title={t('employee.goals')}>
           {(pack?.goals || []).length === 0 && <Empty text={t('employee.noGoals')} icon="🎯" />}
-          {(pack?.goals || []).map(g => <GoalRow key={g.id} goal={g} />)}
+          {(pack?.goals || []).map(g => <GoalRow key={g.id} goal={g} t={t} />)}
         </PortalSurface>
       )}
+      {section === 'goals' && <GoalGuide title={t('goalDef.staffTitle')} lead={t('goalDef.staffLead')} />}
       {!missing && section === 'result' && (
         <>
           <div className="admin-kpi-grid" style={{ marginBottom: 16 }}>

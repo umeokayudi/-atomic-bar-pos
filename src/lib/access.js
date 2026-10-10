@@ -47,6 +47,8 @@ const GERENTE_NAV = [
   { id: 'entregas', labelKey: 'nav.portalDeliveries', icon: '📦' },
   { id: 'faturas', labelKey: 'nav.portalInvoices', icon: '📄' },
   { id: 'espacos', labelKey: 'nav.portalSpaces', icon: '🪑' },
+  { id: 'vip', labelKey: 'nav.vip', icon: '👑' },
+  { id: 'ordens', labelKey: 'nav.ordens', icon: '🚨' },
   { id: 'clientes', labelKey: 'nav.portalGuests', icon: '🥂' },
   { id: 'ponto', labelKey: 'nav.portalClock', icon: '🕒' },
   { id: 'fechamento', labelKey: 'nav.portalClose', icon: '📒' },
@@ -78,10 +80,10 @@ const GERENTE_NAV = [
 const NAV_GROUPS = [
   { id: 'intelligence', labelKey: 'navArea.intelligence', ids: ['ia'] },
   { id: 'overview', labelKey: 'navArea.overview', ids: ['inicio'] },
-  { id: 'operation', labelKey: 'navArea.operation', ids: ['pos', 'mesas', 'pedidos', 'entregas', 'espacos', 'ponto', 'fechamento'] },
+  { id: 'operation', labelKey: 'navArea.operation', ids: ['pos', 'mesas', 'pedidos', 'entregas', 'espacos', 'vip', 'ponto', 'fechamento'] },
   { id: 'supply', labelKey: 'navArea.supply', ids: ['estoque', 'precos', 'fornecedor', 'parceiro'] },
   { id: 'finance', labelKey: 'navArea.finance', ids: ['faturas', 'pagamentos', 'custos', 'recibos', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'] },
-  { id: 'people', labelKey: 'navArea.people', ids: ['staff', 'salarios', 'metas', 'drinkback'] },
+  { id: 'people', labelKey: 'navArea.people', ids: ['staff', 'ordens', 'salarios', 'metas', 'drinkback'] },
   { id: 'growth', labelKey: 'navArea.growth', ids: ['clientes', 'eventos', 'marketing', 'consultoria'] },
 ]
 

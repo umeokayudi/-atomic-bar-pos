@@ -8,6 +8,7 @@ import { TABLE_STATES, floorApi, floorAvailable, loadOpenTabs, loadTabHistory, n
 import { fitZoom } from '../../lib/floorEditor'
 import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
+import Floor3D from './Floor3D'
 import FloorEditor from './FloorEditor'
 import TabPanel from './TabPanel'
 
@@ -233,6 +234,7 @@ export default function FloorScreen({ bar, onOpenTill }) {
             )}
             <div className="ui-seg" role="radiogroup" aria-label={t('floor.view')}>
               <button type="button" role="radio" aria-checked={view === 'plan'} onClick={() => setView('plan')}><Icon name="map" size={14} />{t('floor.plan')}</button>
+              <button type="button" role="radio" aria-checked={view === '3d'} onClick={() => setView('3d')}><Icon name="cube" size={14} />3D</button>
               <button type="button" role="radio" aria-checked={view === 'list'} onClick={() => setView('list')}><Icon name="comandas" size={14} />{t('floor.list')}</button>
             </div>
           </div>
@@ -258,6 +260,8 @@ export default function FloorScreen({ bar, onOpenTill }) {
                 </div>
               </div>
             </div>
+          ) : view === '3d' ? (
+            <Floor3D layout={layout} tables={live} onTable={onTable} live />
           ) : (
             <ul className="floor-list">
               {live.map(tb => (

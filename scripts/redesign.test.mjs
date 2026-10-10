@@ -13,6 +13,11 @@ import { deltaPct, niceMax, shortNum } from '../src/lib/chartMath.js'
 import { staffDayCsv, staffDayReport } from '../src/lib/staffDayReport.js'
 import { drinkPhotoPath, fitSize } from '../src/lib/drinkPhoto.js'
 import { greetingPart } from '../src/lib/greeting.js'
+import { vipRentals } from '../src/lib/vipRooms.js'
+import { goalGuide, goalHours, personalGoalSource } from '../src/lib/goalDefinitions.js'
+import { notificationToOrder, openForStaff, orderStats, orderToNotification } from '../src/lib/staffOrders.js'
+import { cartAdd, cartBump, cartTotals } from '../src/lib/quickCart.js'
+import { seatSpots } from '../src/lib/floor3d.js'
 
 let n = 0
 const queue = []
@@ -341,6 +346,73 @@ test('welcome greeting follows Tokyo time', () => {
   assert.equal(greetingPart(new Date('2026-10-10T05:00:00Z')), 'afternoon')
   assert.equal(greetingPart(new Date('2026-10-10T10:00:00Z')), 'evening')
   assert.equal(greetingPart(new Date('2026-10-10T16:00:00Z')), 'night')
+})
+
+test('VIP room uses: links tickets to visits, keeps loose room tickets, flags under-minimum', () => {
+  const rooms = [{ id: 'r1', nome: 'VIP 1', capacidade: 6 }, { id: 'r2', nome: 'VIP 2', capacidade: 4 }]
+  const visits = [
+    { id: 'v1', space_id: 'r1', status: 'done', party_size: 4, inicio: '2026-10-09T12:00:00Z', fim: '2026-10-09T14:00:00Z', host_nome: 'Aiko', bar_guests: { nome: 'Tanaka' } },
+    { id: 'v2', space_id: 'r2', status: 'seated', party_size: 2, inicio: '2026-10-09T15:00:00Z', fim: null },
+    { id: 'v3', space_id: 'x', status: 'done', party_size: 2, inicio: '2026-10-09T15:00:00Z', fim: '2026-10-09T16:00:00Z' },
+  ]
+  const sales = [
+    { id: 's1', total: 30000, space_id: 'r1', visit_id: 'v1', criado_em: '2026-10-09T13:50:00Z', obs: 'RoomMin: 10000' },
+    { id: 's2', total: 6000, space_id: 'r1', visit_id: null, criado_em: '2026-10-09T14:10:00Z', obs: '' },
+    { id: 's3', total: 8000, space_id: 'r2', visit_id: null, criado_em: '2026-10-09T15:30:00Z', obs: 'RoomMin: 10000' },
+    { id: 's4', total: 5000, space_id: 'r2', visit_id: null, criado_em: '2026-10-08T12:00:00Z', obs: '' },
+  ]
+  const r = vipRentals({ rooms, visits, sales, from: '2026-10-08', to: '2026-10-09', now: new Date('2026-10-09T16:00:00Z') })
+  const by = Object.fromEntries(r.rows.map(x => [x.id, x]))
+  assert.deepEqual([by.v1.spend, by.v1.tickets, by.v1.minutes, by.v1.perHour, by.v1.guest], [36000, 2, 120, 18000, 'Tanaka'], 'ticket rung 10 min after leaving still belongs to the visit')
+  assert.deepEqual([by.v2.open, by.v2.minutes, by.v2.spend, by.v2.minimum], [true, 60, 8000, 10000])
+  assert.equal(by['sale:s4'].kind, 'ticket')
+  assert.equal(r.rows.length, 3, 'visits in other spaces are not VIP uses')
+  assert.deepEqual([r.totals.uses, r.totals.spend, r.totals.belowMin, r.totals.open], [3, 49000, 1, 1])
+})
+
+test('goal guide: targets, progress and the hours used in the definitions', () => {
+  const rows = goalGuide({ noite: { sales: 90000, goal: 150000, pct: 60 }, lucro: { profit: 1000, goal: 0, pct: null } }, { noite: 150000, abre: 19, fecha: 4 })
+  assert.deepEqual(rows.map(r => r.id), ['noite', 'hora', 'semana', 'turno', 'lucro', 'mes', 'pessoa'])
+  assert.deepEqual([rows[0].target, rows[0].current, rows[0].pct], [150000, 90000, 60])
+  assert.equal(rows[4].target, 0)
+  assert.deepEqual(goalHours({ abre: 19, fecha: 4 }), { abre: '19:00', fecha: '04:00', corta: '00:00' })
+  assert.equal(personalGoalSource({ source: 'pos' }), 'sales')
+  assert.equal(personalGoalSource({ source: 'drink_back' }), 'drinkBack')
+  assert.equal(personalGoalSource({}), 'manual')
+})
+
+test('staff orders: urgent first, overdue count, bell fallback round trip', () => {
+  const now = Date.parse('2026-10-10T12:00:00Z')
+  const orders = [
+    { id: 'a', status: 'sent', prioridade: 'normal', criado_em: '2026-10-10T10:00:00Z' },
+    { id: 'b', status: 'seen', prioridade: 'urgent', criado_em: '2026-10-10T11:00:00Z', due_at: '2026-10-10T11:30:00Z' },
+    { id: 'c', status: 'done', prioridade: 'urgent', criado_em: '2026-10-10T09:00:00Z' },
+    { id: 'd', status: 'cancelled', prioridade: 'normal', criado_em: '2026-10-10T09:00:00Z' },
+  ]
+  assert.deepEqual(openForStaff(orders).map(o => o.id), ['b', 'a'])
+  assert.deepEqual(orderStats(orders, now), { sent: 1, seen: 1, done: 1, overdue: 1, open: 2 })
+  const n = orderToNotification({ to: { id: 'u1' }, mensagem: 'Ice to VIP 1', prioridade: 'urgent', fromNome: 'Boss' })
+  assert.deepEqual([n.user_id, n.tipo, n.lida], ['u1', 'ordem', false])
+  const back = notificationToOrder({ ...n, id: 7, criado_em: '2026-10-10T11:00:00Z' })
+  assert.deepEqual([back.id, back.prioridade, back.from_nome, back.status, back.mensagem], ['n:7', 'urgent', 'Boss', 'sent', 'Ice to VIP 1'])
+})
+
+test('staff quick cart uses the till line shape', () => {
+  const item = { key: 'd-1', id: '1', kind: 'drink', nome: 'Highball', categoria: 'Whisky', preco_venda: 800 }
+  let cart = cartAdd([], item)
+  cart = cartAdd(cart, item)
+  assert.deepEqual([cart.length, cart[0].qtd, cart[0].drink_menu_id, cart[0].preco_unitario], [1, 2, '1', 800])
+  assert.deepEqual(pendingToLines(cart)[0].qtd, 2)
+  assert.deepEqual(cartTotals(cart), { items: 2, total: 1600 })
+  assert.deepEqual(cartBump(cart, 'd-1', -2), [])
+})
+
+test('3D floor seats: count follows capacity, counters seat one side', () => {
+  assert.equal(seatSpots('round', 100, 100, 4).length, 4)
+  assert.equal(seatSpots('rect', 160, 100, 0).length, 0)
+  const bar = seatSpots('bar', 200, 60, 4)
+  assert.ok(bar.every(s => s.y > 60), 'counter seats sit in front of the counter')
+  assert.equal(seatSpots('square', 80, 80, 99).length, 16, 'capped')
 })
 
 for (const [name, fn] of queue) { await fn(); n++; console.log(`ok ${n} - ${name}`) }

@@ -7,7 +7,7 @@
 import { chromium } from '@playwright/test'
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { ADMIN, MANAGER, TABLES, BAR_STAFF, PUNCHES } from './fixtures.mjs'
+import { ADMIN, MANAGER, STAFF, TABLES, BAR_STAFF, PUNCHES } from './fixtures.mjs'
 import {
   monthDashboardStats, buildDashboardAlertas, entregasDetalheForMonth, buildDashboardCalendar,
 } from '../../api/_dashboardMonth.js'
@@ -48,8 +48,14 @@ const PAGES = [
   { who: MANAGER, path: '/bar/aluguel', name: 'bar-rent' },
   { who: MANAGER, path: '/bar/mesas', name: 'bar-floor' },
   { who: MANAGER, path: '/bar/mesas', name: 'bar-floor-edit', edit: true },
+  { who: MANAGER, path: '/bar/mesas', name: 'bar-floor-3d', radio: /^3D$/ },
+  { who: MANAGER, path: '/bar/mesas', name: 'bar-floor-edit-3d', edit: true, click: /3D preview/ },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos' },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-counter', click: /Counter/ },
+  { who: MANAGER, path: '/bar/vip', name: 'bar-vip' },
+  { who: MANAGER, path: '/bar/ordens', name: 'bar-orders' },
+  { who: STAFF, path: '/bar/hoje', name: 'staff-today' },
+  { who: STAFF, path: '/bar/goals', name: 'staff-goals' },
   { who: MANAGER, path: '/bar/inicio', name: 'bar-home' },
   { who: MANAGER, path: '/bar/inicio', name: 'bar-home-rail', rail: true },
 ]
@@ -215,6 +221,10 @@ async function main() {
             await page.waitForTimeout(600)
             await page.locator('.fe-table').first().click().catch(() => {})
             await page.waitForTimeout(300)
+          }
+          if (pg.radio) {
+            await page.getByRole('radio', { name: pg.radio }).first().click({ timeout: 5000 }).catch(e => errors.push(`radio: ${e.message}`))
+            await page.waitForTimeout(800)
           }
           if (pg.click) {
             await page.getByRole('button', { name: pg.click }).first().click({ timeout: 5000 }).catch(e => errors.push(`click: ${e.message}`))

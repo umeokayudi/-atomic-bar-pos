@@ -58,6 +58,9 @@ const BarEventsTab = lazy(() => import('./BarEvents'))
 const BarFinance = lazy(() => import('./BarFinance'))
 const BarGuestsTab = lazy(() => import('./BarGuestsTab'))
 const BarSpacesTab = lazy(() => import('./BarSpacesTab'))
+const BarVipTab = lazy(() => import('./BarVipTab'))
+const StaffOrdersTab = lazy(() => import('./StaffOrdersTab'))
+const StaffAlerts = lazy(() => import('./StaffAlerts'))
 const EmployeeDesk = lazy(() => import('./EmployeeDesk'))
 import { fetchAllStockMovements } from '../lib/posSupply'
 import { coalesceStockMoves, decorateStockList, deliveryNoteMoves, posPourMoves, stockFlow, stockGlance } from '../lib/barStock'
@@ -2113,6 +2116,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
           )}
           <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
         </WorkspaceChrome>
+        {perfil?.role === 'bar_staff' && <Suspense fallback={null}><StaffAlerts /></Suspense>}
         {tab==='custos'    && isGerente(perfil?.role) && <BarCostsTab bar={bar} onTab={selectTab} />}
         {tab==='metas' && canManageBarTeam(perfil?.role) && <TabHold><BarGoalsTab bar={bar} /></TabHold>}
         {['hoje', 'profile', 'shifts', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary'].includes(tab) && perfil?.role === 'bar_staff' && <TabHold><EmployeeDesk section={tab} bar={bar} onTab={selectTab} /></TabHold>}
@@ -2137,7 +2141,9 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         {tab==='drinkback' && canManageBarTeam(perfil?.role) && <TabHold><DrinkBackTab bar={bar} /></TabHold>}
         {tab==='equipe'    && canManageBarTeam(perfil?.role) && <TabHold><BarTeamTab bar={bar} /></TabHold>}
         {tab==='clientes'  && canManageBarTeam(perfil?.role) && <TabHold><BarGuestsTab bar={bar} /></TabHold>}
-        {tab==='espacos'   && canManageBarTeam(perfil?.role) && <TabHold><BarSpacesTab bar={bar} /></TabHold>}
+        {tab==='espacos'   && canManageBarTeam(perfil?.role) && <TabHold><BarSpacesTab bar={bar} onTab={selectTab} /></TabHold>}
+        {tab==='vip'       && canManageBarTeam(perfil?.role) && <TabHold><BarVipTab bar={bar} onTab={selectTab} /></TabHold>}
+        {tab==='ordens'    && canManageBarTeam(perfil?.role) && <TabHold><StaffOrdersTab bar={bar} /></TabHold>}
         {tab==='pedidos'   && canPlaceDrinkOrders(perfil?.role) && <TabHold><BarOrdersTab bar={bar} /></TabHold>}
         {tab==='entregas'  && canManageBarTeam(perfil?.role) && <DeliveriesTab bar={bar} />}
         {tab==='estoque'   && canManageBarTeam(perfil?.role) && <InventoryTab bar={bar} onOrder={()=>selectTab('pedidos')} />}

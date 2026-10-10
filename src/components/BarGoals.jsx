@@ -6,6 +6,7 @@ import { fetchHqSnapshot } from '../lib/hqSnapshot'
 import { buildGoalProgress } from '../lib/barGoals'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
+import GoalGuide from './GoalGuide'
 
 const MODES = ['noite', 'hora', 'semana', 'turno', 'lucro']
 
@@ -205,6 +206,8 @@ export default function BarGoalsTab({ bar }) {
           <p>{t('portal.goals.costNote')}</p>
         </section>
       )}
+
+      <GoalGuide progress={p} goals={form ? { ...form, abre: p.abre, fecha: p.fecha, corta: p.corta } : {}} />
 
       <section className="house-block">
         <h2>{t('portal.goals.people')}</h2>

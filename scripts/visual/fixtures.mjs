@@ -3,6 +3,7 @@ export const BAR = { id: '00000000-0000-4000-8000-0000000000b1', nome: 'Bar Demo
 export const BAR2 = { id: '00000000-0000-4000-8000-0000000000b2', nome: 'Lounge Demo', cor: '#C9A15B', criado_em: '2026-01-01T00:00:00Z' }
 export const ADMIN = { id: '00000000-0000-4000-8000-00000000a001', nome: 'Admin Demo', role: 'admin', bar_id: null, email: 'admin@example.com' }
 export const MANAGER = { id: '00000000-0000-4000-8000-00000000a002', nome: 'Gerente Demo', role: 'gerente', bar_id: BAR.id, email: 'gerente@example.com' }
+export const STAFF = { id: 'st1', nome: 'Aiko Tanaka', role: 'bar_staff', bar_id: BAR.id, email: 'aiko@example.com' }
 
 const day = n => { const d = new Date(Date.now() - n * 86400000); return d.toISOString().slice(0, 10) }
 const ago = m => new Date(Date.now() - m * 60000).toISOString()
@@ -36,12 +37,35 @@ const tabs = [
   tab('00000000-0000-4000-8000-0000000c0005', 'Walk-in', null, 15, [[3, 2, 10]]),
 ]
 
+const spaces = [
+  { id: 'sp1', bar_id: BAR.id, nome: '個室 VIP 1', tipo: 'vip_room', zona: 'vip', capacidade: 6, ordem: 1, ativo: true },
+  { id: 'sp2', bar_id: BAR.id, nome: '個室 VIP 2', tipo: 'vip_room', zona: 'vip', capacidade: 8, ordem: 2, ativo: true },
+  { id: 'sp3', bar_id: BAR.id, nome: 'Counter 1', tipo: 'counter', zona: 'counter', capacidade: 1, ordem: 3, ativo: true },
+]
+const guests = [{ id: 'g1', bar_id: BAR.id, nome: 'Tanaka-sama', ativo: true }, { id: 'g2', bar_id: BAR.id, nome: 'Mr. Smith', ativo: true }]
+const visits = [
+  { id: 'vi1', bar_id: BAR.id, space_id: 'sp1', status: 'seated', party_size: 4, inicio: ago(80), fim: null, guest_id: 'g1', host_nome: 'Aiko Tanaka', bar_guests: { nome: 'Tanaka-sama' } },
+  { id: 'vi2', bar_id: BAR.id, space_id: 'sp2', status: 'done', party_size: 6, inicio: ago(60 * 26), fim: ago(60 * 23), guest_id: 'g2', host_nome: 'Lucia Sato', bar_guests: { nome: 'Mr. Smith' } },
+  { id: 'vi3', bar_id: BAR.id, space_id: 'sp1', status: 'done', party_size: 2, inicio: ago(60 * 50), fim: ago(60 * 49), guest_id: null, host_nome: '', bar_guests: null },
+]
+const posSales = [
+  { id: 'ps1', bar_id: BAR.id, total: 18400, space_id: 'sp1', visit_id: 'vi1', criado_em: ago(30), data: day(0), obs: 'Cast: Aiko Tanaka\nRoomMin: 10000' },
+  { id: 'ps2', bar_id: BAR.id, total: 46200, space_id: 'sp2', visit_id: 'vi2', criado_em: ago(60 * 23 + 5), data: day(1), obs: 'Cast: Lucia Sato\nRoomMin: 10000' },
+  { id: 'ps3', bar_id: BAR.id, total: 10000, space_id: 'sp1', visit_id: 'vi3', criado_em: ago(60 * 49 + 2), data: day(2), obs: 'RoomMin: 10000' },
+  { id: 'ps4', bar_id: BAR.id, total: 3200, space_id: 'sp3', visit_id: null, criado_em: ago(45), data: day(0), obs: '' },
+]
+const staffOrders = [
+  { id: 'so1', bar_id: BAR.id, staff_id: 'st1', staff_nome: 'Aiko Tanaka', from_id: MANAGER.id, from_nome: 'Gerente Demo', mensagem: 'VIP 1 needs ice and two clean glasses now', prioridade: 'urgent', status: 'sent', criado_em: ago(3) },
+  { id: 'so2', bar_id: BAR.id, staff_id: 'st2', staff_nome: 'Ken Mori', from_id: MANAGER.id, from_nome: 'Gerente Demo', mensagem: 'Restock the beer fridge before 21:00', prioridade: 'normal', status: 'seen', due_at: ago(-40), criado_em: ago(25), seen_at: ago(20) },
+  { id: 'so3', bar_id: BAR.id, staff_id: 'st3', staff_nome: 'Lucia Sato', from_id: MANAGER.id, from_nome: 'Gerente Demo', mensagem: 'Greet the Smith party at the door', prioridade: 'normal', status: 'done', criado_em: ago(90), done_at: ago(70) },
+]
+
 const vendas = []
 for (let i = 0; i < 160; i++) vendas.push({ id: `v${i}`, bar_id: i % 3 ? BAR.id : BAR2.id, total: 20000 + (i % 7) * 4500, data: day(i % 170), obs: 'JBM supply', criado_em: day(i % 170) })
 
 export const TABLES = {
   bars: [BAR, BAR2],
-  perfis: [ADMIN, MANAGER],
+  perfis: [ADMIN, MANAGER, { ...STAFF }],
   drink_menu: drinks,
   floor_layouts: [{ id: 'L1', bar_id: BAR.id, nome: 'Salão', ativo: true, largura: 900, altura: 420, versao: 3, criado_em: '2026-10-01T00:00:00Z' }],
   floor_sectors: [{ id: 'S1', bar_id: BAR.id, layout_id: 'L1', nome: 'VIP', cor: '#C9A15B', ordem: 0 }],
@@ -67,6 +91,11 @@ export const TABLES = {
     { id: 'ct3', plan_id: 'cp1', bar_id: BAR.id, titulo: 'New menu photos', responsavel: 'Gerente Demo', prazo: day(20), prioridade: 'low', status: 'done' },
   ],
   pos_settings: [{ bar_id: BAR.id, service_pct: 10, room_min: 10000, set_minutes: 60, set_price: 0 }],
+  bar_spaces: spaces,
+  bar_guests: guests,
+  bar_visits: visits,
+  pos_vendas: posSales,
+  staff_orders: staffOrders,
 }
 
 /** /api/bar-staff GET: team, registry (suppliers, rent, power...), goals, events, day sheets. */

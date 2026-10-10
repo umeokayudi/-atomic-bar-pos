@@ -23,7 +23,7 @@ export const HQ_ADMIN_TABS = new Set([
 
 /** Bar-portal tabs that are administrative (owner/manager); the till and the clock are not. */
 export const BAR_ADMIN_TABS = new Set([
-  'inicio', 'pedidos', 'entregas', 'faturas', 'espacos', 'mesas', 'clientes', 'fechamento', 'metas', 'pagamentos',
+  'inicio', 'pedidos', 'entregas', 'faturas', 'espacos', 'vip', 'ordens', 'mesas', 'clientes', 'fechamento', 'metas', 'pagamentos',
   'salarios', 'eventos', 'staff', 'fornecedor', 'parceiro', 'drinkback', 'cartao', 'energia', 'aluguel', 'fixo',
   'variavel', 'contador', 'imposto', 'estoque', 'custos', 'precos', 'recibos',
 ])
@@ -41,7 +41,7 @@ const MODULE_BY_TAB = {
   crm: 'crm', clientes: 'crm', drinkback: 'crm', parceiro: 'crm',
   marketing: 'marketing', eventos: 'marketing',
   consultoria: 'consulting', bars: 'consulting',
-  mesas: 'floor', espacos: 'floor',
+  mesas: 'floor', espacos: 'floor', vip: 'floor', ordens: 'team',
   ai: 'overview',
 }
 
