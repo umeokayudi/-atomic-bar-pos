@@ -1,6 +1,7 @@
 import { fmtYen, fmtDate } from './utils'
 import { useI18n } from '../lib/i18n'
 import { faturaSummary } from '../lib/faturaLedger'
+import './invoicePayments.css'
 
 /** One row per invoice: bar, total / received / left, and a button to log a payment. */
 export default function OpenInvoicesList({ faturas, pagamentos, onOpen, emptyText }) {

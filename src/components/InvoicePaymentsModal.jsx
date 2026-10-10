@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { fmtYen, fmtDate } from './utils'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
+import './invoicePayments.css'
 import { faturaSummary, addFaturaPayment, confirmFaturaPayment, removeFaturaPayment } from '../lib/faturaLedger'
 
 const METHODS = ['Transfer', 'Cash', 'Card', 'Stripe']
