@@ -18,6 +18,7 @@ import { goalGuide, goalHours, personalGoalSource } from '../src/lib/goalDefinit
 import { notificationToOrder, openForStaff, orderStats, orderToNotification } from '../src/lib/staffOrders.js'
 import { cartAdd, cartBump, cartTotals } from '../src/lib/quickCart.js'
 import { seatSpots } from '../src/lib/floor3d.js'
+import { fixedMonthCost, paymentAgenda } from '../src/lib/barClose.js'
 import { openOrders, receivedByProduct, receivedTimeline, restockSuggestions, supplyOverview } from '../src/lib/drinkSupply.js'
 
 let n = 0
@@ -455,6 +456,24 @@ test('drink supply: one list of what arrived, open orders late first, restock sk
   const o = supplyOverview({ pedidos, notes, restock, today: '2026-10-10', month: '2026-10' })
   assert.deepEqual([o.toOrder, o.onTheWay, o.late, o.nextArrival, o.receivedCount, o.receivedTotal], [1, 2, 1, '2026-10-12', 2, 14900])
   assert.deepEqual(receivedByProduct(rows), [{ nome: 'Gin', qtd: 3, total: 9900 }])
+})
+
+test('bar costs: power counts in its own month, dated bills land on their pay date', () => {
+  const registry = [
+    { id: 'r', kind: 'aluguel', nome: 'Realty', amount: 180000, vence_dia: 25, metodo: 'transfer' },
+    { id: 'e1', kind: 'energia', nome: 'Tokyo Power', amount: 32000, month_key: '2026-10', data_pagamento: '2026-10-20', metodo: 'debit' },
+    { id: 'e0', kind: 'energia', nome: 'Tokyo Power', amount: 29000, month_key: '2026-09' },
+    { id: 'v1', kind: 'variavel', nome: 'Repair', amount: 18000, month_key: '2026-10', data_pagamento: '2026-10-15' },
+    { id: 'v2', kind: 'variavel', nome: 'Glasses', amount: 5000, month_key: '2026-10' },
+  ]
+  const c = fixedMonthCost(registry, null, '2026-10')
+  assert.deepEqual([c.rent, c.energy, c.variable], [180000, 32000, 23000])
+  const items = paymentAgenda({ registry, today: '2026-10-10' })
+  const byId = Object.fromEntries(items.map(i => [i.id, i]))
+  assert.deepEqual([byId.e1.date, byId.e1.amount, byId.e1.tab], ['2026-10-20', 32000, 'variavel'])
+  assert.ok(!byId.energia, 'no undated power left over')
+  assert.deepEqual([byId.v1.date, byId.variavel.amount], ['2026-10-15', 5000])
+  assert.deepEqual([byId.aluguel.metodo, byId.aluguel.tab], ['transfer', 'fixo'])
 })
 
 for (const [name, fn] of queue) { await fn(); n++; console.log(`ok ${n} - ${name}`) }

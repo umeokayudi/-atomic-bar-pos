@@ -18,7 +18,7 @@ function daysBetween(fromKey, toKey) {
 function sumKind(registry, kind, monthKey) {
   return (registry || []).reduce((a, r) => {
     if (r.kind !== kind) return a
-    if (kind === 'variavel' && r.month_key && r.month_key !== monthKey) return a
+    if ((kind === 'variavel' || kind === 'energia') && r.month_key && r.month_key !== monthKey) return a
     return a + Math.round(+r.amount || 0)
   }, 0)
 }
@@ -72,8 +72,8 @@ export function buildBarDesk({
     })
   }
   const monthly = [
-    rent > 0 && { id: 'rent', titleKey: 'rent', amount: rent, tab: 'aluguel' },
-    energy > 0 && { id: 'energy', titleKey: 'power', amount: energy, tab: 'energia' },
+    rent > 0 && { id: 'rent', titleKey: 'rent', amount: rent, tab: 'fixo' },
+    energy > 0 && { id: 'energy', titleKey: 'power', amount: energy, tab: 'variavel' },
     fixed > 0 && { id: 'fixed', titleKey: 'fixed', amount: fixed, tab: 'fixo' },
     variable > 0 && { id: 'variable', titleKey: 'variable', amount: variable, tab: 'variavel' },
     wages > 0 && { id: 'wages', titleKey: 'labor', amount: wages, tab: 'ponto' },

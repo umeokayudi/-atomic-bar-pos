@@ -408,10 +408,9 @@ export default function BarCostsTab({ bar, onTab }) {
               </div>
               <div className="goal-modes">
                 {[
-                  ['aluguel', 'house.rent'],
-                  ['energia', 'house.power'],
                   ['fixo', 'house.fixedCosts'],
                   ['variavel', 'house.variableCosts'],
+                  ['cartao', 'house.card'],
                   ['contador', 'house.accountant'],
                   ['imposto', 'house.tax'],
                   ['salarios', 'nav.portalSalary'],

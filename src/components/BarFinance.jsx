@@ -390,6 +390,7 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
                       {item.days < 0 && t('portal.desk.overdue', { days: Math.abs(item.days) })}
                       {item.days === 0 && t('portal.desk.dueToday')}
                       {item.days > 0 && t('portal.desk.dueSoon', { days: item.days })}
+                      {item.metodo ? ` · ${t(`house.metodo.${item.metodo}`)}` : ''}
                     </em>
                   </span>
                   <b>{item.inflow ? '+' : ''}{money(item.amount)}</b>

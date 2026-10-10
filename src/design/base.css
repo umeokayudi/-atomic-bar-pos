@@ -1200,3 +1200,9 @@ html .sdr-row-main { width: 100%; display: grid; grid-template-columns: 36px min
   .sup-step-body { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
   .sup-step-title { width: 100%; }
 }
+
+/* Bar costs: type tag, how/when it is paid */
+.house-card .house-type { display: inline-block; margin-left: 8px; vertical-align: middle; }
+.house-pay { color: var(--c-text-2); }
+.house-pay.is-missing { color: var(--c-warning); }
+.house-editor .ui-seg { flex-wrap: wrap; }

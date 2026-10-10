@@ -31,6 +31,18 @@ function profileExtras(body) {
   return extra
 }
 
+/** Registry rows only: how and when a cost is paid; which card machine, where it is used, where it pays out. */
+function costExtras(body) {
+  const extra = {}
+  if (body.metodo != null) extra.metodo = String(body.metodo || '').trim().slice(0, 40)
+  if (body.data_pagamento != null) extra.data_pagamento = /^\d{4}-\d{2}-\d{2}$/.test(String(body.data_pagamento)) ? String(body.data_pagamento) : ''
+  if (body.maquina != null) extra.maquina = String(body.maquina || '').trim().slice(0, 80)
+  if (body.local != null) extra.local = String(body.local || '').trim().slice(0, 80)
+  if (body.conta != null) extra.conta = String(body.conta || '').trim().slice(0, 120)
+  if (body.bandeiras != null) extra.bandeiras = asList(body.bandeiras).slice(0, 12)
+  return extra
+}
+
 function payExtras(body) {
   const extra = {}
   if (body.salario_hora != null) extra.salario_hora = +body.salario_hora || 0
@@ -419,6 +431,7 @@ export default async function handler(req, res) {
         recorrente: body.recorrente !== false,
         month_key: body.recorrente === false ? String(body.month_key || '') : '',
         ...profileExtras(body),
+        ...costExtras(body),
       }
       const existing = await runLiveOp(db, {
         table: 'bar_registry',
