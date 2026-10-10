@@ -10,7 +10,8 @@ class ErrorBoundary extends Component {
 }
 
 import { LogoSidebar } from './components/Logo'
-import { MobileTopBar, ShellOverlay, WorkspaceChrome, useMobileMenuLock } from './components/MobileShell'
+import { MobileTopBar, ShellOverlay, WorkspaceChrome, TopbarUser, useMobileMenuLock } from './components/MobileShell'
+import GlobalSearch from './components/GlobalSearch'
 import { useNotifications, NotificationBell, useOverdueAlerts } from './components/Notifications'
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, useLocation, useNavigate } from 'react-router-dom'
@@ -113,6 +114,17 @@ const JBM_TABS = [
 ]
 
 const TABS_BY_ID = Object.fromEntries([...ADMIN_TABS, ...EMPLOYEE_TABS, ...STAFF_TABS, ...JBM_TABS, ...GROWTH_TABS].map(tab => [tab.id, tab]))
+
+/** Records the top-bar search can jump to (loaded on first focus, with the user's own rights). */
+async function loadHqSearchRecords(t, allowed) {
+  const out = []
+  const tasks = []
+  if (allowed.has('bars')) tasks.push(supabase.from('bars').select('id,nome').limit(200).then(({ data }) => (data || []).forEach(b => out.push({ key: `b-${b.id}`, label: b.nome, sub: t('search.bar'), icon: 'bars', tab: 'bars' }))))
+  if (allowed.has('products')) tasks.push(supabase.from('produtos').select('id,nome').limit(400).then(({ data }) => (data || []).forEach(p => out.push({ key: `p-${p.id}`, label: p.nome, sub: t('search.product'), icon: 'products', tab: 'products' }))))
+  if (allowed.has('suppliers')) tasks.push(supabase.from('fornecedores').select('nome').limit(200).then(({ data }) => (data || []).forEach((f, i) => out.push({ key: `f-${i}-${f.nome}`, label: f.nome, sub: t('search.supplier'), icon: 'suppliers', tab: 'suppliers' }))))
+  await Promise.allSettled(tasks)
+  return out
+}
 
 // ── MINI BAR CHART ────────────────────────────────────────────────────────────
 function BarChart({ data, color='var(--gold)', height=80, valueLabel=fmtYen }) {
@@ -602,7 +614,10 @@ function Shell() {
       </aside>
 
       <main className="app-main app-main-wide">
-        <WorkspaceChrome>
+        <WorkspaceChrome
+          start={<GlobalSearch screens={tabs.map(x => ({ id: x.id, label: t(x.labelKey), icon: x.icon }))} loadRecords={() => loadHqSearchRecords(t, new Set(tabs.map(x => x.id)))} onGo={selectTab} />}
+          end={<TopbarUser name={perfil?.nome || user?.email || ''} role={roleLabel(perfil?.role)} />}
+        >
           {isAdminScreen && activeTab !== 'ai' && <AskAiButton />}
           <UiPrefsPanel compact />
           <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>

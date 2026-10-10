@@ -7,6 +7,7 @@ import { splitPendingCompras, splitPendingFaturas } from '../lib/compraPagamento
 import { filterJbmDrinksFaturas, faturaRemaining } from '../lib/barPortal'
 import { billChecks } from '../lib/billMatch'
 import { filterSupplierVendas } from './utils'
+import Icon from './ui/Icon'
 import { useI18n } from '../lib/i18n'
 import { asReactText } from '../lib/errText'
 import { canLoadOverdueAlerts } from '../lib/legacyScope'
@@ -412,7 +413,7 @@ export function NotificationBell({
         aria-haspopup="dialog"
         aria-label={badgeCount > 0 ? t('notifications.badgeCount', { count: badgeCount }) : t('notifications.title')}
       >
-        🔔
+        <Icon name="bell" size={18} />
         {badgeCount > 0 && (
           <span className="notif-badge">{badgeCount > 9 ? '9+' : badgeCount}</span>
         )}

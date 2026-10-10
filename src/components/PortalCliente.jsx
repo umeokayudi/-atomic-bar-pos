@@ -9,7 +9,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import { callGeminiChat, imageDataUrlToParts, parseJsonFromAI } from '../lib/ai'
 import { LogoSidebar } from './Logo'
-import { MobileTopBar, ShellOverlay, WorkspaceChrome, useMobileMenuLock } from './MobileShell'
+import { MobileTopBar, ShellOverlay, WorkspaceChrome, TopbarUser, useMobileMenuLock } from './MobileShell'
+import GlobalSearch from './GlobalSearch'
 import { fmtYen, fmtDate, Spinner, Empty, SectionTitle, isSupplierProduct, filterSupplierVendas, roleLabel } from './utils'
 import {
   filterJbmDrinksFaturas,
@@ -2241,7 +2242,22 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
       </aside>
       <main className="app-main app-main-wide">
         <AutoClose bar={bar} />
-        <WorkspaceChrome>
+        <WorkspaceChrome
+          start={<GlobalSearch
+            screens={NAV_GROUPS.flatMap(g => g.items).map(n => ({ id: n.id, label: t(n.labelKey), icon: hasIcon(n.id) ? n.id : 'info' }))}
+            loadRecords={async () => {
+              const ids = new Set(NAV_GROUPS.flatMap(g => g.items).map(n => n.id))
+              const out = []
+              if (ids.has('precos')) {
+                const { data } = await supabase.from('drink_menu').select('id,nome,categoria').eq('bar_id', bar.id).limit(400)
+                ;(data || []).forEach(d => out.push({ key: `d-${d.id}`, label: d.nome, sub: d.categoria || t('search.product'), icon: 'precos', tab: 'precos' }))
+              }
+              return out
+            }}
+            onGo={selectTab}
+          />}
+          end={<TopbarUser name={perfil?.nome || ''} role={`${bar.nome}${perfil?.role ? ` · ${roleLabel(perfil.role)}` : ''}`} />}
+        >
           {aiOn && <AskAiButton />}
           <UiPrefsPanel compact />
           {isGerente(perfil?.role) && (

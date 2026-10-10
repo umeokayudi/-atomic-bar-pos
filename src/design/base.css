@@ -490,3 +490,54 @@ html[data-layout] .sidebar.sidebar.is-collapsed { width: 76px !important; }
 .ai-file-x:hover { background: var(--c-surface-3, var(--c-border)); }
 .ai-msg-files { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; justify-content: flex-end; }
 .ai-file-thumb { width: 96px; height: 96px; object-fit: cover; border-radius: 10px; border: 1px solid var(--c-border); }
+
+/* ── Top bar (tablet/desktop): search · bell · settings · person · Ask AI ── */
+.workspace-chrome {
+  position: sticky; top: 0; z-index: 40; justify-content: space-between; gap: 12px;
+  margin: -12px 0 20px; padding: 10px 0; background: color-mix(in srgb, var(--c-bg) 92%, transparent);
+  backdrop-filter: blur(10px); border-bottom: 1px solid var(--c-border);
+}
+.workspace-chrome-start { flex: 1; min-width: 0; display: flex; }
+.workspace-chrome-end { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.workspace-chrome-end .chrome-till { order: 1; }
+.workspace-chrome-end .notif-bell-wrap { order: 2; }
+.workspace-chrome-end .ui-prefs-wrap { order: 3; }
+.workspace-chrome-end .topbar-user { order: 4; }
+.workspace-chrome-end .ui-ask-ai { order: 5; }
+
+.gsearch { position: relative; display: flex; align-items: center; gap: 8px; width: min(440px, 100%); height: 40px; padding: 0 10px 0 12px; border: 1px solid var(--c-border); border-radius: var(--radius); background: var(--c-surface); color: var(--c-text-3); }
+.gsearch:focus-within { border-color: var(--c-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-accent) 18%, transparent); }
+.gsearch input { flex: 1; min-width: 0; border: 0 !important; box-shadow: none !important; background: transparent !important; padding: 0; height: 100%; font-size: 13px; color: var(--c-text); }
+.gsearch input::-webkit-search-cancel-button { display: none; }
+.gsearch-kbd { font: 600 10px/1 var(--font-sans); padding: 3px 6px; border-radius: 6px; border: 1px solid var(--c-border); color: var(--c-text-3); background: var(--c-surface-2); }
+.gsearch-list { position: absolute; top: calc(100% + 6px); left: 0; width: min(520px, 90vw); max-height: 420px; overflow: auto; list-style: none; margin: 0; padding: 6px; background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); z-index: 60; }
+.gsearch-item { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--c-text); text-align: left; }
+.gsearch-item.is-active { background: var(--c-surface-2); }
+.gsearch-item-icon { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--c-accent-soft); color: var(--c-accent); flex-shrink: 0; }
+.gsearch-item-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.gsearch-item-main strong { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gsearch-item-main small { font-size: 11px; color: var(--c-text-3); }
+.gsearch-item-go { color: var(--c-text-3); }
+.gsearch-empty { padding: 16px; text-align: center; color: var(--c-text-3); font-size: 13px; }
+
+.topbar-user { display: flex; align-items: center; gap: 8px; padding-left: 10px; margin-left: 2px; border-left: 1px solid var(--c-border); min-width: 0; }
+.topbar-avatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; background: var(--c-accent); color: var(--c-on-accent); flex-shrink: 0; }
+.topbar-user-text { display: flex; flex-direction: column; line-height: 1.2; max-width: 160px; }
+.topbar-user-text strong { font-size: 12px; color: var(--c-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topbar-user-text small { font-size: 11px; color: var(--c-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 1180px) { .topbar-user-text { display: none; } .gsearch-kbd { display: none; } }
+
+/* Bell: outlined square with a small count, same on every surface */
+.notif-bell-btn, .workspace-chrome .notif-bell-btn {
+  width: 40px; height: 40px; padding: 0; border-radius: var(--radius); font-size: 0;
+  background: var(--c-surface); border: 1px solid var(--c-border); color: var(--c-text-2);
+}
+.notif-bell-btn:hover, .notif-bell-btn.is-on,
+.workspace-chrome .notif-bell-btn:hover, .workspace-chrome .notif-bell-btn.is-on {
+  background: var(--c-surface-2); border-color: var(--c-border-2); color: var(--c-text);
+}
+.notif-badge { top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--c-danger); color: #fff; font-size: 10px; font-weight: 800; border: 2px solid var(--c-bg); display: grid; place-items: center; }
+.mobile-topbar .notif-bell-btn { background: transparent; border-color: color-mix(in srgb, var(--c-on-chrome) 16%, transparent); color: var(--c-on-chrome); }
+.mobile-topbar .notif-bell-btn:hover, .mobile-topbar .notif-bell-btn.is-on { background: color-mix(in srgb, var(--c-on-chrome) 10%, transparent); }
+.mobile-topbar .notif-badge { border-color: var(--c-chrome); }
+.ui-prefs-toggle.is-icon { width: 40px; height: 40px; }

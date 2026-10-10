@@ -51,7 +51,23 @@ export function ShellOverlay({ open, onClose }) {
 }
 
 /** Desktop/tablet tools that sit in the page, not the sidebar. */
-export function WorkspaceChrome({ children }) {
-  if (!children) return null
-  return <div className="workspace-chrome">{children}</div>
+export function WorkspaceChrome({ children, start = null, end = null }) {
+  if (!children && !start && !end) return null
+  return (
+    <div className="workspace-chrome">
+      {start && <div className="workspace-chrome-start">{start}</div>}
+      <div className="workspace-chrome-end">{children}{end}</div>
+    </div>
+  )
+}
+
+/** Person chip at the right end of the top bar: initials, name and role. */
+export function TopbarUser({ name, role }) {
+  const initials = String(name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase()
+  return (
+    <div className="topbar-user" title={`${name}${role ? ` · ${role}` : ''}`}>
+      <span className="topbar-avatar" aria-hidden="true">{initials}</span>
+      <span className="topbar-user-text"><strong>{name}</strong>{role && <small>{role}</small>}</span>
+    </div>
+  )
 }

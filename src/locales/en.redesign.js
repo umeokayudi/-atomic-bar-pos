@@ -16,6 +16,7 @@ export default {
     source: 'Source: the same server calculation as the monthly report (api/_dashboardMonth.js). June 2026 uses a cost estimate from July prices because June purchases were not recorded.',
   },
   shell: { collapseMenu: 'Collapse menu', expandMenu: 'Expand menu' },
+  search: { placeholder: 'Search the system…', screen: 'Screen', bar: 'Bar', product: 'Product', supplier: 'Supplier', none: 'Nothing found.' },
   nav: {
     crm: 'Clients & CRM', marketing: 'Marketing', consultoria: 'Consulting', ai: 'AI Center', mesas: 'Floor & tables',
     comandas: 'Tabs',
