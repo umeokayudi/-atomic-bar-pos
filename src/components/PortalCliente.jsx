@@ -40,6 +40,7 @@ const BarEventsTab = lazy(() => import('./BarEvents'))
 const BarFinance = lazy(() => import('./BarFinance'))
 const BarGuestsTab = lazy(() => import('./BarGuestsTab'))
 const BarSpacesTab = lazy(() => import('./BarSpacesTab'))
+const EmployeeDesk = lazy(() => import('./EmployeeDesk'))
 import { fetchAllStockMovements } from '../lib/posSupply'
 import { coalesceStockMoves, decorateStockList, deliveryNoteMoves, posPourMoves, stockFlow, stockGlance } from '../lib/barStock'
 import { groupedNavForRole, primaryDockForRole, defaultBarTab, posAccessForRole, canManageBarTeam, isGerente, costAccessForRole, canPlaceDrinkOrders } from '../lib/access'
@@ -2230,6 +2231,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         </WorkspaceChrome>
         {tab==='custos'    && isGerente(perfil?.role) && <BarCostsTab bar={bar} onTab={selectTab} />}
         {tab==='metas' && canManageBarTeam(perfil?.role) && <TabHold><BarGoalsTab bar={bar} /></TabHold>}
+        {['hoje', 'profile', 'shifts', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary'].includes(tab) && perfil?.role === 'bar_staff' && <TabHold><EmployeeDesk section={tab} bar={bar} onTab={selectTab} /></TabHold>}
         {tab==='eventos' && canManageBarTeam(perfil?.role) && <TabHold><BarEventsTab bar={bar} /></TabHold>}
         {['fechamento', 'pagamentos', 'salarios'].some(id => opened.has(id)) && canManageBarTeam(perfil?.role) && (
           <div hidden={!['fechamento', 'pagamentos', 'salarios'].includes(tab)}>

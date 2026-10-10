@@ -83,7 +83,8 @@ export function AuthProvider({ children }) {
     if (isLaneEmail(e)) {
       const lane = await tryLaneLogin(e, p)
       if (lane.error) return lane
-      writeLaneSession(lane.token, lane.perfil, false)
+      // The till tablet keeps its POS sign-in overnight; every other lane stays per-tab.
+      writeLaneSession(lane.token, lane.perfil, lane.perfil?.role === 'caixa')
       applyLane(lane.perfil)
       return { error: null, perfil: lane.perfil }
     }

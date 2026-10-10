@@ -25,7 +25,7 @@ import {
 } from '../src/lib/posFloor.js'
 import { movementOperationalDay, nightSettlement, reconcileNight, summarizeNight } from '../src/lib/nightClose.js'
 import { tokyoWallToUtcMs } from '../src/lib/tokyo.js'
-import { readPosDeviceMode, suggestPosDeviceMode, writePosDeviceMode } from '../src/lib/posDeviceMode.js'
+import { itemVisual, rankTopSellers, starterPicks } from '../src/lib/posVisual.js'
 
 const hennessy = { id: 'prod-h', nome: 'Hennessy XO', custo: 18000, volume_ml: 700 }
 const opened = openBottle({
@@ -337,25 +337,14 @@ const authSql = readFileSync('sql/pos_sale_security.sql', 'utf8')
 assert.match(authSql, /'cliente', 'gerente', 'caixa', 'bar_staff'/)
 assert.doesNotMatch(authSql, /fornecedor/)
 
-const floor = readFileSync('src/components/PosFloor.jsx', 'utf8')
-assert.match(floor, /pos_close_ticket/)
-assert.match(floor, /pos_load_ticket/)
-assert.match(floor, /pos_preview_ticket/)
-assert.match(floor, /pos_ticket_item/)
-assert.doesNotMatch(floor, /preco_unitario:/)
-assert.doesNotMatch(floor, /previewSale/)
-assert.match(floor, /pos_bottle_move/)
-assert.doesNotMatch(floor.slice(0, floor.indexOf('pos_bottle_move')), /p_volume/)
-assert.match(floor, /error\.message/)
-
 const panel = readFileSync('src/components/AtomicPos.jsx', 'utf8')
 assert.match(panel, /access !== 'cashier'/)
 assert.match(panel, /legacyIsolated/)
 assert.match(sql, /operational_day/)
 assert.match(sql, /reason required/)
-assert.doesNotMatch(floor, /commitPosSale|create_order|syncPosStockAndReorder|deductBottlesForPosSale/)
 assert.match(panel, /commitPosSale/)
 assert.match(panel, /syncPosStockAndReorder/)
+assert.match(panel, /PosQuick/)
 
 const at0530 = new Date(tokyoWallToUtcMs(2026, 9, 28, 5, 30)).toISOString()
 const at0600 = new Date(tokyoWallToUtcMs(2026, 9, 28, 6, 0)).toISOString()
@@ -417,45 +406,33 @@ for (const role of ['fornecedor', 'funcionario', 'staff']) {
   assert.equal(matrix[role].waste, false)
 }
 
-const memory = new Map()
-const storage = {
-  getItem: key => (memory.has(key) ? memory.get(key) : null),
-  setItem: (key, value) => memory.set(key, value),
-}
-assert.equal(readPosDeviceMode('cashier-1', storage), null)
-writePosDeviceMode('cashier-1', 'mobile', storage)
-assert.equal(storage.getItem('POS_DEVICE_MODE:cashier-1'), 'mobile')
-assert.equal(storage.getItem('POS_DEVICE_MODE'), 'mobile')
-assert.equal(readPosDeviceMode('cashier-1', storage), 'mobile')
-writePosDeviceMode('cashier-1', 'tablet', storage)
-assert.equal(readPosDeviceMode('cashier-1', storage), 'tablet')
-assert.equal(suggestPosDeviceMode({ width: 390, height: 844 }), 'mobile')
-assert.equal(suggestPosDeviceMode({ width: 375, height: 667 }), 'mobile')
-assert.equal(suggestPosDeviceMode({ width: 430, height: 932 }), 'mobile')
-assert.equal(suggestPosDeviceMode({ width: 768, height: 1024 }), 'tablet')
-assert.equal(suggestPosDeviceMode({ width: 1024, height: 768 }), 'tablet')
-assert.equal(suggestPosDeviceMode({ width: 1280, height: 800 }), 'tablet')
-assert.equal(suggestPosDeviceMode({ width: 932, height: 430 }), 'mobile')
 
-const mobileHtml = readFileSync('src/components/pos/PosMobile.jsx', 'utf8')
-const tabletHtml = readFileSync('src/components/pos/PosTablet.jsx', 'utf8')
-assert.match(mobileHtml, /data-pos-mode="mobile"/)
-assert.match(mobileHtml, /pos-m-nav/)
-assert.match(mobileHtml, /pos-m-charge/)
-assert.doesNotMatch(mobileHtml, /pos-t-board/)
-assert.match(tabletHtml, /data-pos-mode="tablet"/)
-assert.match(tabletHtml, /pos-t-board/)
-assert.match(tabletHtml, /pos-t-spaces/)
-assert.match(tabletHtml, /pos-t-products/)
-assert.match(tabletHtml, /pos-t-ticket/)
-assert.match(tabletHtml, /pos-t-charge/)
-assert.doesNotMatch(tabletHtml, /pos-m-nav/)
-const floorSource = readFileSync(new URL('../src/components/PosFloor.jsx', import.meta.url), 'utf8')
-assert.match(floorSource, /pos_load_ticket/)
-assert.match(floorSource, /pos_ticket_item/)
-assert.match(floorSource, /pos_close_ticket/)
-assert.match(floorSource, /pos_open_bottle/)
-assert.match(floorSource, /pos_bottle_move/)
-assert.doesNotMatch(floorSource, /pos_void_sale/)
+// Till tiles: photo when present, otherwise a category icon.
+assert.equal(itemVisual({ categoria: 'Beer', nome: 'Asahi' }).emoji, '🍺')
+assert.equal(itemVisual({ categoria: 'Tequila Base', nome: 'Paloma' }).emoji, '🌵')
+assert.equal(itemVisual({ categoria: 'Shots', nome: 'Jack Daniels' }).emoji, '🔥')
+assert.equal(itemVisual({ categoria: 'Whisky Base', imagem_url: 'https://x/y.jpg' }).image, 'https://x/y.jpg')
+assert.ok(itemVisual({ categoria: '???' }).emoji)
+
+// Most ordered: summed quantity, drinks and shots apart, highest first.
+assert.deepEqual(rankTopSellers([
+  { drink_menu_id: 'a', qtd: 1 },
+  { drink_menu_id: 'b', qtd: 3 },
+  { produto_id: 'a', qtd: 2 },
+  { drink_menu_id: 'a', qtd: 1 },
+  { qtd: 9 },
+]), ['d-b', 'd-a', 'p-a'])
+assert.deepEqual(rankTopSellers([{ drink_menu_id: 'a', qtd: 1 }, { drink_menu_id: 'b', qtd: 2 }], 1), ['d-b'])
+assert.deepEqual(starterPicks([
+  { key: 'd-1', categoria: 'Beer' },
+  { key: 'd-2', categoria: 'Beer' },
+  { key: 'd-3', categoria: 'Wine' },
+]), ['d-1', 'd-3'])
+
+const quickSource = readFileSync(new URL('../src/components/pos/PosQuick.jsx', import.meta.url), 'utf8')
+assert.match(quickSource, /commitPosSale/)
+assert.match(quickSource, /pq-charge/)
+assert.match(quickSource, /posQuick\.top/)
+assert.doesNotMatch(quickSource, /pos_void_sale/)
 
 console.log('pos floor tests passed')
