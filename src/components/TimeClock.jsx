@@ -8,19 +8,10 @@ import { loadBarTeam } from '../lib/barTeam'
 import StaffPayCards from './StaffPayCards'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
+import { postClockMark } from '../lib/clockApi'
+import NfcClockStation from './NfcClockStation'
 
-export async function postClockMark({ barId, staffId, tipo, managerMark }) {
-  const res = await staffFetch('/api/time-clock', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tipo, staff_id: staffId, managerMark: !!managerMark, bar_id: barId }),
-  })
-  const text = await res.text()
-  let json = {}
-  try { json = text ? JSON.parse(text) : {} } catch { json = { error: text.slice(0, 160) } }
-  if (!res.ok) throw new Error(errText(json.error, json.message || `Clock failed (${res.status})`))
-  return json
-}
+export { postClockMark }
 
 export default function TimeClockPanel({ bar, onOpenStaff }) {
   const { perfil } = useAuth()
@@ -78,6 +69,7 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
       <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>{t('clock.title')}</div>
       <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16 }}>{t('clock.selfHint')}</div>
       {err && <div className="pos-sale-err" style={{ marginBottom: 12 }}>{asReactText(err)}</div>}
+      <NfcClockStation bar={bar} onPunched={load} />
       {loading ? <Spinner /> : (
         <div className="card people-me">
           <div>

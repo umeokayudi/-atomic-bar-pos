@@ -5,7 +5,8 @@ import { staffFetch } from '../lib/apiAuth'
 import { payrollFromPunches, monthRange } from '../lib/timeClock'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
-import { postClockMark } from './TimeClock'
+import { postClockMark } from '../lib/clockApi'
+import NfcCardPrompt from './NfcCardPrompt'
 
 export default function BarTeamTab({ bar, embedded = false }) {
   const { perfil } = useAuth()
@@ -19,6 +20,8 @@ export default function BarTeamTab({ bar, embedded = false }) {
   const [created, setCreated] = useState(null)
   const [form, setForm] = useState({ nome: '', email: '', password: '', salario_hora: '1200', salario_mes: '', drink_back: false, comissao_pct: '10' })
   const [payId, setPayId] = useState('')
+  const [cardId, setCardId] = useState('')
+  const [cardMsg, setCardMsg] = useState('')
   const [pay, setPay] = useState({ salario_hora: '', salario_mes: '', drink_back: false, comissao_pct: '10' })
   const range = monthRange()
 
@@ -110,6 +113,23 @@ export default function BarTeamTab({ bar, embedded = false }) {
     setBusyId('')
   }
 
+  async function saveCard(id, nfcUid) {
+    setErr(''); setCardMsg(''); setCardId(''); setBusyId(id)
+    const res = await staffFetch('/api/bar-staff', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, nfc_uid: nfcUid }),
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) setErr(errText(json.error, t('team.saveFailed')))
+    else {
+      const who = staff.find(s => s.id === id)?.nome || ''
+      setCardMsg(t(nfcUid ? 'nfc.linked' : 'nfc.unlinked', { name: who }))
+      await load()
+    }
+    setBusyId('')
+  }
+
   async function mark(staffId, tipo) {
     setErr(''); setBusyId(staffId)
     try {
@@ -161,6 +181,7 @@ export default function BarTeamTab({ bar, embedded = false }) {
         <div style={{ padding: '14px 16px 0' }}>
           <SectionTitle>{t('team.roster')}</SectionTitle>
           <p style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 8 }}>{t('team.payHint')}</p>
+          {cardMsg && <div className="nfc-done is-in" style={{ marginBottom: 8 }}>{cardMsg}</div>}
         </div>
         {loading ? <div style={{ padding: 16 }}><Spinner /></div> : staff.map(s => (
           <div key={s.id} className="people-row" style={{ alignItems: 'flex-start' }}>
@@ -174,6 +195,24 @@ export default function BarTeamTab({ bar, embedded = false }) {
                   {' · '}
                   {s.drink_back ? `${t('team.drinkBackOn')} ${s.comissao_pct || 0}%` : t('team.drinkBackOff')}
                 </div>
+                <div className="nfc-card-line">
+                  <span className={s.nfc_linked ? 'people-on' : 'people-off'}>{s.nfc_linked ? t('nfc.cardOn') : t('nfc.cardOff')}</span>
+                  <button type="button" className="people-add-link" disabled={busyId === s.id} onClick={() => { setCardMsg(''); setCardId(cardId === s.id ? '' : s.id) }}>
+                    {s.nfc_linked ? t('nfc.replaceCard') : t('nfc.linkCard')}
+                  </button>
+                  {s.nfc_linked && (
+                    <button type="button" className="people-add-link" disabled={busyId === s.id} onClick={() => saveCard(s.id, '')}>
+                      {t('nfc.removeCard')}
+                    </button>
+                  )}
+                </div>
+                {cardId === s.id && (
+                  <NfcCardPrompt
+                    title={t('nfc.tapToLink', { name: s.nome })}
+                    onUid={uid => saveCard(s.id, uid)}
+                    onCancel={() => setCardId('')}
+                  />
+                )}
               </div>
             </div>
             {payId === s.id ? (
