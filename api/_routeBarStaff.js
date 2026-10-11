@@ -3,6 +3,7 @@
 import { tryDrinksAdminClient, createStaffUserClient } from './_supabaseAdmin.js'
 import { requireBarAccount } from './_requireStaff.js'
 import { hashSecret, randomTabletCode } from './_hash.js'
+import { nfcUidHash, staffIdsForNfc, staffIdsWithNfc } from './_nfcCard.js'
 import { isMissingSchemaError, loadBarWithGeo, listStaffWithExtras, runLiveOp, saveBarGeo, saveStaffExtras } from './_barLiveStore.js'
 
 function bodyOf(req) {
@@ -134,10 +135,12 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const [staff, bar] = await Promise.all([
+      const [staffRows, bar, withNfc] = await Promise.all([
         listStaffWithExtras(db, barId),
         loadBarWithGeo(db, barId),
+        staffIdsWithNfc(db),
       ])
+      const staff = (staffRows || []).map(r => ({ ...r, nfc_linked: withNfc.has(r.id) }))
       const peopleLive = await runLiveOp(db, {
         table: 'bar_people',
         mode: 'select',
@@ -556,6 +559,20 @@ export default async function handler(req, res) {
       Object.assign(extraPatch, profileExtras(body), payExtras(body))
       if (body.ativo != null) extraPatch.ativo = !!body.ativo
       if (body.pin) extraPatch.clock_pin_hash = hashSecret(String(body.pin))
+      if (body.nfc_uid != null) {
+        const hash = body.nfc_uid ? nfcUidHash(body.nfc_uid) : ''
+        if (body.nfc_uid && !hash) return res.status(400).json({ error: 'Card not readable. Tap it again.' })
+        if (hash) {
+          for (const otherId of await staffIdsForNfc(db, body.nfc_uid)) {
+            if (otherId === id) continue
+            const { data: other } = await db.from('perfis').select('id,bar_id,nome').eq('id', otherId).maybeSingle()
+            if (!other || other.bar_id === barId) {
+              return res.status(409).json({ error: `Card already linked to ${other?.nome || 'another person'}`, code: 'card_taken' })
+            }
+          }
+        }
+        extraPatch.nfc_uid_hash = hash || null
+      }
       if (body.role === 'caixa' || body.role === 'bar_staff') patch.role = body.role
       if (Object.keys(patch).length) {
         const { error } = await db.from('perfis').update(patch).eq('id', id)

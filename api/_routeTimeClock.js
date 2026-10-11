@@ -2,6 +2,7 @@ import { tryDrinksAdminClient, createStaffUserClient } from './_supabaseAdmin.js
 import { requireBarAccount, bearerToken } from './_requireStaff.js'
 import { secretsMatch } from './_hash.js'
 import { isInsideGeofence } from './_geo.js'
+import { staffIdsForNfc } from './_nfcCard.js'
 import { applyFilters, isMissingSchemaError, isRlsError, loadBarWithGeo, loadStaffWithExtras, listStaffWithExtras, runLiveOp, readLiveJson } from './_barLiveStore.js'
 
 function bodyOf(req) {
@@ -118,17 +119,38 @@ export default async function handler(req, res) {
       if (!staffId || !manager) staffId = auth.user?.id || auth.perfil.id
     }
 
-    if (!barId || !staffId) return res.status(400).json({ error: 'bar_id and staff_id required' })
-
     const db = admin || (auth?.token ? createStaffUserClient(auth.token) : null)
+
+    // NFC card: a signed-in bar device reads the card, the card says who is punching.
+    let nfcPunch = false
+    if (body.nfc_uid != null) {
+      if (!auth || auth.error) return res.status(401).json({ error: 'Sign in on this device to use NFC cards' })
+      if (!db) return res.status(500).json({ error: 'Database client unavailable' })
+      const ids = await staffIdsForNfc(db, body.nfc_uid)
+      let owner = null
+      for (const id of ids) {
+        const s = await loadStaffWithExtras(db, id)
+        if (s && s.bar_id === barId) { owner = s; break }
+      }
+      if (!owner) return res.status(404).json({ error: 'Card not linked to anyone in this bar', code: 'card_unknown' })
+      const me = auth.user?.id || auth.perfil.id
+      if (auth.perfil.role === 'bar_staff' && owner.id !== me) {
+        return res.status(403).json({ error: 'This card belongs to someone else', code: 'card_other' })
+      }
+      staffId = owner.id
+      nfcPunch = true
+    }
+
+    if (!barId || !staffId) return res.status(400).json({ error: 'bar_id and staff_id required' })
     if (!db) return res.status(500).json({ error: 'Database client unavailable' })
 
     const bar = await loadBar(db, barId)
     if (!bar) return res.status(404).json({ error: 'Bar not found' })
 
     const selfPunch = !!(auth && !auth.error && staffId === (auth.user?.id || auth.perfil.id))
+    const trusted = managerMark || selfPunch || nfcPunch
     let geo = { ok: true, distance: 0, reason: null }
-    if (!managerMark && !selfPunch) {
+    if (!trusted) {
       const deviceOk = tabletOk(bar, tabletToken)
       if (!deviceOk) {
         return res.status(403).json({ error: 'Clock-in only on the paired bar tablet', code: 'tablet' })
@@ -158,7 +180,7 @@ export default async function handler(req, res) {
     if (!staff || staff.bar_id !== bar.id) return res.status(404).json({ error: 'Staff not found' })
     if (staff.ativo === false) return res.status(403).json({ error: 'Staff inactive' })
 
-    if (!managerMark && !selfPunch) {
+    if (!trusted) {
       const pinOk = secretsMatch(String(body.pin || ''), staff.clock_pin_hash)
       if (!pinOk) {
         return res.status(403).json({ error: 'Invalid PIN', code: 'pin' })
@@ -167,10 +189,10 @@ export default async function handler(req, res) {
 
     const lastTipo = await lastPunchTipo(db, bar.id, staffId)
     if (tipo === 'in' && lastTipo === 'in') {
-      return res.status(400).json({ error: 'Already clocked in' })
+      return res.status(400).json({ error: nfcPunch ? `${staff.nome} is already clocked in` : 'Already clocked in', code: 'already_in' })
     }
     if (tipo === 'out' && lastTipo !== 'in') {
-      return res.status(400).json({ error: 'Not clocked in' })
+      return res.status(400).json({ error: nfcPunch ? `${staff.nome} is not clocked in` : 'Not clocked in', code: 'not_in' })
     }
 
     const punchRow = {
@@ -182,8 +204,8 @@ export default async function handler(req, res) {
       lng: body.lng || null,
       accuracy_m: body.accuracy || null,
       distance_m: Math.round(geo.distance || 0),
-      tablet_ok: managerMark || selfPunch ? false : true,
-      origem: managerMark ? 'hq' : (selfPunch ? 'app' : 'tablet'),
+      tablet_ok: trusted ? false : true,
+      origem: nfcPunch ? 'nfc' : managerMark ? 'hq' : (selfPunch ? 'app' : 'tablet'),
     }
     let punch, pErr
     ;({ data: punch, error: pErr } = await db.from('time_clock').insert(punchRow).select().single())

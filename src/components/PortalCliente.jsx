@@ -32,6 +32,7 @@ const PortalRecibosTab = lazy(() => import('./PortalRecibosTab'))
 const PortalClienteAI = lazy(() => import('./PortalClienteAI'))
 const AtomicPosPanel = lazy(() => import('./AtomicPos'))
 const TimeClockPanel = lazy(() => import('./TimeClock'))
+const NfcClockStation = lazy(() => import('./NfcClockStation'))
 const BarTeamTab = lazy(() => import('./BarTeamTab'))
 const BarHouseTab = lazy(() => import('./BarHouse'))
 const DrinkBackTab = lazy(() => import('./DrinkBackTab'))
@@ -2109,6 +2110,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   const [tab, setTab] = useState(() => defaultBarTab(perfil?.role))
   const [opened, setOpened] = useState(() => new Set([defaultBarTab(perfil?.role)]))
   const [menuOpen, setMenuOpen] = useState(false)
+  const [kioskClock, setKioskClock] = useState(false)
   const [door, setDoor] = useState(() => loginDoorFromHash())
   const { t } = useI18n()
   const overdueAlerts = useBarOverdueAlerts(bar?.id)
@@ -2164,11 +2166,17 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
             {tillKiosk && isGerente(perfil?.role) && (
               <button type="button" onClick={() => { setDoorHash('gerente'); setDoor('gerente') }}>{t('auth.openHq')}</button>
             )}
+            {tillKiosk && (
+              <button type="button" aria-pressed={kioskClock} onClick={() => setKioskClock(v => !v)}>{t('nfc.kioskButton')}</button>
+            )}
             <button type="button" onClick={signOut}>{t('atomicPos.lockTill')}</button>
           </div>
         </header>
         <main className="app-main app-main-wide till-kiosk-main">
           <AutoClose bar={bar} />
+          {tillKiosk && kioskClock && (
+            <TabHold><NfcClockStation bar={bar} /></TabHold>
+          )}
           {tillKiosk && posAccess !== 'none' && (
             <TabHold><AtomicPosPanel bar={bar} access={kioskAccess} /></TabHold>
           )}

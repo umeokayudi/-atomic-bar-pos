@@ -4771,3 +4771,31 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
 .pos-orient-portrait.pos-mode-tablet .pos-t-ticket { grid-column: 1 / -1; max-height: 46vh; }
 
 
+
+/* NFC punch card */
+.nfc-station { padding: 16px 18px; margin-bottom: 16px; }
+.nfc-station-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.nfc-station-btns .people-me-btn { min-width: 0; width: 100%; }
+.nfc-prompt {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 18px 14px;
+  margin-top: 8px;
+  border: 2px dashed var(--border2);
+  border-radius: 14px;
+  text-align: center;
+  background: var(--bg3);
+}
+.nfc-prompt-icon { font-size: 26px; font-weight: 800; color: var(--navy); animation: nfc-pulse 1.4s ease-in-out infinite; }
+.nfc-prompt-title { font-size: 18px; font-weight: 800; }
+.nfc-prompt-hint { font-size: 13px; color: var(--text2); }
+.nfc-prompt-input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.nfc-prompt-cancel { margin-top: 6px; border: none; background: none; color: var(--text2); font-weight: 700; cursor: pointer; text-decoration: underline; }
+.nfc-done { margin-top: 10px; padding: 10px 12px; border-radius: 10px; font-weight: 800; }
+.nfc-done.is-in { background: var(--green-bg); color: var(--green); }
+.nfc-done.is-out { background: var(--blue-bg); color: var(--blue); }
+.nfc-card-line { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 4px; font-size: 12px; }
+@keyframes nfc-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .nfc-prompt-icon { animation: none; } }
