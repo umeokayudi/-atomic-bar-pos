@@ -9,12 +9,15 @@ import MarkPaidPopup from './MarkPaidPopup'
 import Icon from './ui/Icon'
 import { ColumnChart } from './ui/Charts'
 
+// Local date key (toISOString shifts to UTC, which moved Tokyo dates one day back).
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
 function getBillingPeriod(date) {
-  const d = new Date(date)
+  const d = new Date(date + 'T12:00:00')
   const day = d.getDate(), year = d.getFullYear(), month = d.getMonth()
-  if (day <= 5) return { start: new Date(year,month,1).toISOString().slice(0,10), end: new Date(year,month,5).toISOString().slice(0,10), due: new Date(year,month,20).toISOString().slice(0,10) }
-  if (day <= 20) return { start: new Date(year,month,6).toISOString().slice(0,10), end: new Date(year,month,20).toISOString().slice(0,10), due: new Date(year,month+1,5).toISOString().slice(0,10) }
-  return { start: new Date(year,month,21).toISOString().slice(0,10), end: new Date(year,month+1,0).toISOString().slice(0,10), due: new Date(year,month+1,20).toISOString().slice(0,10) }
+  if (day <= 5) return { start: ymd(new Date(year,month,1)), end: ymd(new Date(year,month,5)), due: ymd(new Date(year,month,20)) }
+  if (day <= 20) return { start: ymd(new Date(year,month,6)), end: ymd(new Date(year,month,20)), due: ymd(new Date(year,month+1,5)) }
+  return { start: ymd(new Date(year,month,21)), end: ymd(new Date(year,month+1,0)), due: ymd(new Date(year,month+1,20)) }
 }
 
 export default function Faturas() {
@@ -194,12 +197,18 @@ function InvoiceList() {
     if (bR.data?.length>0 && !selBar) setSelBar(bR.data[0].id)
     setLoading(false)
   }
+  // The period, issue date and due date start from the current billing cycle and can all be changed.
+  const [genForm, setGenForm] = useState(() => {
+    const p = getBillingPeriod(ymd(new Date()))
+    return { start: p.start, end: p.end, issue: ymd(new Date()), due: p.due }
+  })
+  const setGen = (k, v) => setGenForm(f => ({ ...f, [k]: v }))
   async function generateInvoice() {
-    if (!selBar) return; setSaving(true)
-    const period = getBillingPeriod(new Date().toISOString().slice(0,10))
-    const venc = customDue || period.due
-    const total = vendas.filter(v=>v.bar_id===selBar&&v.data>=period.start&&v.data<=period.end).reduce((a,v)=>a+(+v.total||0),0)
-    await supabase.from('faturas').insert({ bar_id:selBar, valor:total, data_emissao:period.start, periodo_inicio:period.start, periodo_fim:period.end, data_vencimento:venc, total, pago:0, status:'pendente' })
+    if (!selBar || !genForm.start || !genForm.end || genForm.start > genForm.end) return
+    setSaving(true)
+    const venc = genForm.due || customDue || getBillingPeriod(genForm.end).due
+    const total = vendas.filter(v=>v.bar_id===selBar&&v.data>=genForm.start&&v.data<=genForm.end).reduce((a,v)=>a+(+v.total||0),0)
+    await supabase.from('faturas').insert({ bar_id:selBar, valor:total, data_emissao:genForm.issue || genForm.start, periodo_inicio:genForm.start, periodo_fim:genForm.end, data_vencimento:venc, total, pago:0, status:'pendente' })
     setSaving(false); setShowForm(false); load()
   }
   async function generateRyoshusho(fatura) {
@@ -225,10 +234,16 @@ function InvoiceList() {
       </div>
 
       {showForm && (
-        <PortalSurface title={t('invoices.generatePeriod')}>
+        <PortalSurface title={t('invoices.generateInvoice')}>
           <div style={{ marginBottom:12 }}><label className="form-label">{t('common.bar')}</label><select value={selBar} onChange={e=>setSelBar(e.target.value)}>{bars.map(b=><option key={b.id} value={b.id}>{b.nome}</option>)}</select></div>
+          <div className="grid4" style={{ marginBottom:12 }}>
+            <div><label className="form-label">{t('invoices.periodStart')}</label><input type="date" value={genForm.start} onChange={e=>setGen('start', e.target.value)} /></div>
+            <div><label className="form-label">{t('invoices.periodEnd')}</label><input type="date" value={genForm.end} onChange={e=>setGen('end', e.target.value)} /></div>
+            <div><label className="form-label">{t('invoices.issueDate')}</label><input type="date" value={genForm.issue} onChange={e=>setGen('issue', e.target.value)} /></div>
+            <div><label className="form-label">{t('common.dueDate')}</label><input type="date" value={genForm.due} onChange={e=>setGen('due', e.target.value)} /></div>
+          </div>
           {selBar && (() => {
-            const period = getBillingPeriod(new Date().toISOString().slice(0,10))
+            const period = { start: genForm.start, end: genForm.end, due: genForm.due }
             const periodVendas = vendas.filter(v=>v.bar_id===selBar&&v.data>=period.start&&v.data<=period.end)
             const total = periodVendas.reduce((a,v)=>a+(+v.total||0),0)
             return (

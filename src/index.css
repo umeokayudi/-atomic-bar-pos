@@ -1451,16 +1451,18 @@ body.menu-open {
 .pedido-item-chip::after {
   content: attr(data-tip);
   position: absolute;
-  left: 50%;
+  left: 0;
   bottom: calc(100% + 8px);
-  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(260px, 70vw);
   padding: 8px 12px;
   border-radius: 10px;
   background: var(--navy);
   color: #fff;
   font-size: 11px;
   font-weight: 600;
-  white-space: nowrap;
+  line-height: 1.5;
+  white-space: pre-line;
   box-shadow: 0 8px 24px color-mix(in srgb, var(--c-text) 25%, transparent);
   opacity: 0;
   visibility: hidden;

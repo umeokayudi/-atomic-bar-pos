@@ -260,7 +260,7 @@ export function PedidoItemChip({ nome, qtd, precoUnitario, custoUnitario, hideCo
   }
 
   return (
-    <span className="pedido-item-chip" data-tip={tipLines.join(' · ')}>
+    <span className="pedido-item-chip" data-tip={tipLines.join('\n')}>
       <span className="pedido-item-chip-name">{nome}</span>
       <span className="pedido-item-chip-qty">×{qty}</span>
     </span>
