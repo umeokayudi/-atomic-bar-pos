@@ -289,8 +289,11 @@ html[data-pointer="coarse"] .ui-btn { min-height: var(--tap); }
 .pq-tile-qty { background: var(--c-accent); color: var(--c-on-accent); }
 .pq-tile-price { display: flex; align-items: baseline; gap: 6px; color: var(--c-text); }
 .pq-tile-price em { font-style: normal; font-size: 11px; font-weight: 700; color: var(--c-text-3); background: var(--c-surface-2); border-radius: 6px; padding: 1px 6px; }
-.pq-fav { position: absolute; top: 6px; left: 6px; width: 32px; height: 32px; border-radius: 50%; border: 0; display: grid; place-items: center; background: rgba(6,12,11,.35); color: rgba(255,255,255,.85); }
-.pq-fav.is-on { background: var(--c-accent); color: var(--c-on-accent); }
+.pq-fav, .pq .pq-fav { position: absolute; top: 6px; left: 6px; width: 32px; height: 32px; min-width: 0; min-height: 0; padding: 0; margin: 0; line-height: 0; border-radius: 50%; border: 0; display: grid; place-items: center; background: rgba(6,12,11,.35); color: rgba(255,255,255,.9); }
+.pq-fav .ui-icon { display: block; margin: 0; }
+.pq .pq-fav:hover { background: rgba(6,12,11,.5); }
+.pq .pq-fav.is-on:hover { background: var(--c-accent); }
+.pq-fav.is-on, .pq .pq-fav.is-on { background: var(--c-accent); color: var(--c-on-accent); }
 .pq-fav.is-on .ui-icon { fill: currentColor; }
 html[data-pointer="coarse"] .pq-fav { width: 40px; height: 40px; top: 4px; left: 4px; }
 .pq-search .ui-icon { color: var(--c-text-3); flex-shrink: 0; }

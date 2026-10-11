@@ -1415,6 +1415,12 @@ export default {
     noPreview: 'このファイルはプレビューできません。',
     openFile: 'ファイルを開く',
   },
+  orderDetail: {
+    open: '詳細',
+    kicker: '注文',
+    total: '合計（{count}品目）',
+    orderTotal: '保存された注文合計：{amount}',
+  },
   payMark: {
     invoice: '請求',
     supplier: '仕入先',

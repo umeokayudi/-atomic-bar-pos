@@ -11,6 +11,7 @@ import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 import { canReadProductCost } from '../lib/legacyScope'
 import Icon from './ui/Icon'
+import OrderDetailPopup from './OrderDetailPopup'
 
 // ── PRODUTOS ─────────────────────────────────────────────────────────────────
 export function ProductsTab() {
@@ -453,6 +454,7 @@ export function PedidosAdminTab() {
   const [loading,setLoading]=useState(true)
   const [filterStatus,setFilterStatus]=useState('')
   const [checklistPedido,setChecklistPedido]=useState(null)
+  const [detailPedido,setDetailPedido]=useState(null)
   const [checkedItems,setCheckedItems]=useState({})
   const [missingVenda,setMissingVenda]=useState({})
   const [repairing,setRepairing]=useState(null)
@@ -700,6 +702,7 @@ export function PedidosAdminTab() {
                   </div>
                 )}
                 <div style={{display:'flex',gap:8}}>
+                  <button onClick={()=>setDetailPedido(p)} style={{padding:'6px 14px',fontSize:11,borderRadius:8,fontWeight:600}}><Icon name="pedidos" size={14} /> {t('orderDetail.open')}</button>
                   {p.status==='pendente'&&<>
                     <button onClick={()=>updateStatus(p.id,'confirmado')} style={{padding:'6px 14px',fontSize:11,borderRadius:8,background:'var(--navy)',color:'var(--gold)',border:'none',fontWeight:600}}>{t('configs.confirm')}</button>
                     <button onClick={()=>updateStatus(p.id,'cancelado')} className="btn-danger" style={{padding:'6px 14px',fontSize:11,borderRadius:8}}>{t('common.cancel')}</button>
@@ -714,6 +717,7 @@ export function PedidosAdminTab() {
           })
       }
 
+      {detailPedido&&<OrderDetailPopup pedido={detailPedido} date={pedidoSaleDate(detailPedido)} onClose={()=>setDetailPedido(null)} />}
       {checklistPedido&&(
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
           <div style={{background:'var(--bg2)',borderRadius:16,padding:'28px 28px 24px',width:'100%',maxWidth:480,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>

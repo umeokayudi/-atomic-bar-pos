@@ -5132,3 +5132,4 @@ button.pq-charge {
   border: 1px solid var(--border2); background: var(--bg2); color: var(--text); cursor: pointer;
 }
 .ai-act-hint { font-size: 11px; color: var(--text2); margin: 2px 0 8px; }
+.doc-view-items tfoot th { font-size: 12px; text-transform: none; color: var(--c-text); border-bottom: 0; padding-top: 8px; }

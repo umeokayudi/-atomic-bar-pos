@@ -1415,6 +1415,12 @@ export default {
     noPreview: 'No preview for this file type.',
     openFile: 'Open file',
   },
+  orderDetail: {
+    open: 'Details',
+    kicker: 'Order',
+    total: 'Total ({count} items)',
+    orderTotal: 'Order total saved: {amount}',
+  },
   payMark: {
     invoice: 'Invoice',
     supplier: 'Supplier bill',

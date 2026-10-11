@@ -144,7 +144,9 @@ function PaySection({ tab, money, busy, act, isManager }) {
   const [valor, setValor] = useState('')
   const [metodo, setMetodo] = useState('Cash')
   const [pagador, setPagador] = useState('')
-  const [people, setPeople] = useState(Math.max(1, tab.pessoas || 1))
+  // Keep what is typed (even empty) so the field can be cleared; the split uses at least 1.
+  const [peopleText, setPeopleText] = useState(String(Math.max(1, tab.pessoas || 1)))
+  const people = Math.max(1, Math.min(50, Math.floor(+peopleText) || 1))
   const [payKey, setPayKey] = useState(() => newKey('pay'))
   const parts = splitEvenly(money.due, people)
   const amount = Math.round(+valor || 0)
@@ -178,7 +180,7 @@ function PaySection({ tab, money, busy, act, isManager }) {
 
       <div className="tab-split-people">
         <label className="ui-field"><span>{t('tabs.splitPeople')}</span>
-          <input type="number" min="1" max="50" value={people} onChange={e => setPeople(Math.max(1, Math.min(50, +e.target.value || 1)))} />
+          <input type="number" min="1" max="50" inputMode="numeric" value={peopleText} onChange={e => setPeopleText(e.target.value.replace(/[^\d]/g, '').slice(0, 2))} onBlur={() => setPeopleText(String(people))} />
         </label>
         <div className="ui-muted">{parts.length > 1 ? parts.map(fmtYen).join(' · ') : fmtYen(money.due)}</div>
       </div>
