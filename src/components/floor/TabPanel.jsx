@@ -4,6 +4,7 @@ import { useI18n } from '../../lib/i18n'
 import { useAuth } from '../Auth'
 import { isConflict, loadTabEvents, newKey, splitEvenly, tabMoney, tabsApi, validateMoves } from '../../lib/comandas'
 import { fmtYen } from '../utils'
+import { cardMethodLabel, cardSurcharge, isCardMethod, normalizeCardMachines, pickCardMachine } from '../../lib/posFloor'
 import Icon from '../ui/Icon'
 
 const METHODS = [
@@ -90,7 +91,7 @@ export default function TabPanel({ tab, tabs = [], tables = [], settings = {}, o
         <div className="ui-drawer-body">
           {err && <div className="ui-error tab-err" role="alert"><Icon name="warning" />{err}</div>}
           {section === 'items' && <ItemsSection tab={tab} money={money} busy={busy || locked} act={act} />}
-          {section === 'pay' && <PaySection tab={tab} money={money} busy={busy} act={act} isManager={isManager} />}
+          {section === 'pay' && <PaySection tab={tab} money={money} busy={busy} act={act} isManager={isManager} settings={settings} />}
           {section === 'transfer' && <TransferSection tab={tab} money={money} others={others} busy={busy || locked} act={act} onDone={() => setSection('items')} />}
           {section === 'split' && <SplitSection tab={tab} money={money} busy={busy || locked} act={act} onDone={() => setSection('items')} />}
           {section === 'merge' && <MergeSection tab={tab} others={others} busy={busy || locked} act={act} />}
@@ -139,7 +140,7 @@ function ItemsSection({ tab, money, busy, act }) {
   )
 }
 
-function PaySection({ tab, money, busy, act, isManager }) {
+function PaySection({ tab, money, busy, act, isManager, settings = {} }) {
   const { t } = useI18n()
   const [valor, setValor] = useState('')
   const [metodo, setMetodo] = useState('Cash')
@@ -150,11 +151,19 @@ function PaySection({ tab, money, busy, act, isManager }) {
   const [payKey, setPayKey] = useState(() => newKey('pay'))
   const parts = splitEvenly(money.due, people)
   const amount = Math.round(+valor || 0)
+  // Card: which machine (asked only when the bar has 2+) and the bar's optional surcharge on top.
+  const machines = normalizeCardMachines(settings.card_machines)
+  const [machineId, setMachineId] = useState('')
+  const machine = pickCardMachine(machines, machineId)
+  const card = isCardMethod(metodo)
+  const surcharge = card ? cardSurcharge(amount, settings.card_surcharge_pct) : 0
+  const charged = amount + surcharge
 
   async function pay(e) {
     e.preventDefault()
     if (amount <= 0) return
-    const ok = await act(() => tabsApi.pay(supabase, tab.id, { valor: amount, metodo, pagador: pagador.trim() || null, key: payKey }))
+    const label = card ? cardMethodLabel({ method: metodo, machine, surcharge, named: machines.length > 1 }) : metodo
+    const ok = await act(() => tabsApi.pay(supabase, tab.id, { valor: charged, metodo: label, pagador: pagador.trim() || null, key: payKey }))
     if (ok) { setValor(''); setPagador(''); setPayKey(newKey('pay')) }
   }
 
@@ -173,8 +182,16 @@ function PaySection({ tab, money, busy, act, isManager }) {
             <button key={m.id} type="button" role="radio" aria-checked={metodo === m.id} onClick={() => setMetodo(m.id)}><Icon name={m.icon} size={14} />{t(m.key)}</button>
           ))}
         </div>
+        {card && machines.length > 1 && (
+          <div className="ui-seg" role="radiogroup" aria-label={t('posCard.machine')}>
+            {machines.map(m => (
+              <button key={m.id} type="button" role="radio" aria-checked={machine.id === m.id} onClick={() => setMachineId(m.id)}>{m.nome}</button>
+            ))}
+          </div>
+        )}
+        {surcharge > 0 && <div className="ui-muted">{t('posCard.surchargeHint', { pct: settings.card_surcharge_pct, amount: fmtYen(surcharge), total: fmtYen(charged) })}</div>}
         <label className="ui-field"><span>{t('tabs.payer')}</span><input value={pagador} onChange={e => setPagador(e.target.value)} placeholder={t('common.optional')} /></label>
-        <button type="submit" className="ui-btn is-primary" disabled={busy || amount <= 0}><Icon name="partialPay" size={16} /> {t('tabs.registerPay', { amount: fmtYen(amount) })}</button>
+        <button type="submit" className="ui-btn is-primary" disabled={busy || amount <= 0}><Icon name="partialPay" size={16} /> {t('tabs.registerPay', { amount: fmtYen(charged) })}</button>
         {amount > money.due && money.due > 0 && <div className="ui-muted">{t('tabs.overpay', { amount: fmtYen(amount - money.due) })}</div>}
       </form>
 

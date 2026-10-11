@@ -24,12 +24,14 @@ import { includedTaxBreakdown } from '../lib/consumptionTax'
 import { tokyoMonthKey, tokyoNightKey } from '../lib/tokyo'
 import { useI18n } from '../lib/i18n'
 import { matchCheckoutVisit, spacesByZone, activeKeeps } from '../lib/barCrm'
-import { packTicketObs, ticketChargeLines, settingsFromRow, DEFAULT_POS_SETTINGS, effectiveServicePct } from '../lib/nightTicket'
+import { packTicketObs, ticketChargeLines, settingsFromRow, DEFAULT_POS_SETTINGS, effectiveServicePct, cardSurchargeLine } from '../lib/nightTicket'
+import { cardSurcharge, isCardMethod, machineFee, pickCardMachine } from '../lib/posFloor'
 import { summarizeNight, reconcileNight, nightWindow, closeVariance, saleOnNight, prevTokyoDateKey, lastBusyNight } from '../lib/nightClose'
 import { CASH_CHIPS, cashSettle, isCashMethod, payRecordNote } from '../lib/posPay'
 import { printGuestReceipt } from '../lib/guestReceipt'
 import { drinkBackCommission } from '../lib/drinkBackPay'
 import PosQuick from './pos/PosQuick'
+import PosPaySettings from './pos/PosPaySettings'
 import Icon from './ui/Icon'
 
 const SUB_TAB_IDS = [
@@ -257,6 +259,7 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
   const [ticketReady, setTicketReady] = useState(false)
   const [agents, setAgents] = useState(drinkBackAgents || [])
   const [payMethod, setPayMethod] = useState('Cash')
+  const [machineId, setMachineId] = useState('')
   const [cashTendered, setCashTendered] = useState('')
   const [restMethod, setRestMethod] = useState('')
   const [saving, setSaving] = useState(false)
@@ -376,9 +379,15 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
     roomMin: settings.room_min,
     spaceType: space?.tipo || '',
   })
-  const ticketTotal = charges.total
-  const checkoutCart = [...cart, ...charges.lines]
+  // Card: machine used (picked only when the bar has 2+) and the bar's optional surcharge.
+  const machines = settings.card_machines || DEFAULT_POS_SETTINGS.card_machines
+  const machine = pickCardMachine(machines, machineId)
+  const cardPay = isCardMethod(payMethod)
+  const surLine = cardPay ? cardSurchargeLine(cardSurcharge(charges.total, settings.card_surcharge_pct), settings.card_surcharge_pct) : null
+  const ticketTotal = charges.total + (surLine?.preco || 0)
+  const checkoutCart = [...cart, ...charges.lines, ...(surLine ? [surLine] : [])]
   const cash = isCashMethod(payMethod) ? cashSettle(ticketTotal, cashTendered, restMethod) : null
+  const cardPart = cardPay ? ticketTotal : (cash?.restMethod === 'Card' ? cash.rest : 0)
   const cashShort = !!(cash && cash.short)
 
   async function completeSale() {
@@ -410,6 +419,9 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
       keepId,
       keepPourPct: +keepPourPct || 0,
       commission: bottleFee,
+      cardNote: cardPart > 0 ? `${machine.nome} ${machine.fee_pct}%` : '',
+      cardFee: cardPart > 0 ? machineFee(cardPart, machine) : 0,
+      cardSurcharge: surLine?.preco || 0,
       payNote: payRecordNote({
         method: payMethod,
         total: ticketTotal,
@@ -792,11 +804,11 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
                 </div>
               </div>
             ))}
-            {charges.lines.map(it => (
+            {[...charges.lines, ...(surLine ? [surLine] : [])].map(it => (
               <div key={it.key} className="pos-cart-row pos-cart-extra">
                 <div>
                   <div className="pos-cart-name">{it.nome}</div>
-                  <div className="pos-cart-meta">{it.tipo_preco}</div>
+                  <div className="pos-cart-meta">{it.kind === 'card_surcharge' ? t('posCard.machine') : it.tipo_preco}</div>
                 </div>
                 <strong>{fmtYen(it.preco)}</strong>
               </div>
@@ -821,6 +833,14 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
               >{t(`atomicPos.${m.key}`)}</button>
             ))}
           </div>
+          {cardPay && machines.length > 1 && (
+            <div className="pos-cash-chips" role="radiogroup" aria-label={t('posCard.machine')}>
+              {machines.map(m => (
+                <button key={m.id} type="button" role="radio" aria-checked={machine.id === m.id}
+                  className={`pos-cash-chip${machine.id === m.id ? ' is-on' : ''}`} onClick={() => setMachineId(m.id)}>{m.nome}</button>
+              ))}
+            </div>
+          )}
           {isCashMethod(payMethod) ? (
             <div className="pos-cash-box">
               <div className="pos-pay-hint">{t('atomicPos.payCashHint')}</div>
@@ -1088,7 +1108,7 @@ function PosPricesTab({ bar, drinks, onRefresh }) {
   return (
     <div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        {[['menu', t('atomicPos.menuDrinks')], ['shots', t('atomicPos.shotsBottle')]].map(([id, label]) => (
+        {[['menu', t('atomicPos.menuDrinks')], ['shots', t('atomicPos.shotsBottle')], ['payments', t('posCard.tab')]].map(([id, label]) => (
           <button key={id} onClick={() => setPriceMode(id)} style={{
             padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 600,
             background: priceMode === id ? 'var(--navy)' : 'var(--bg3)', color: priceMode === id ? '#fff' : 'var(--text2)', border: 'none',
@@ -1127,6 +1147,8 @@ function PosPricesTab({ bar, drinks, onRefresh }) {
           </table>
         </>
       )}
+
+      {priceMode === 'payments' && <PosPaySettings bar={bar} />}
 
       {priceMode === 'shots' && (
         <>

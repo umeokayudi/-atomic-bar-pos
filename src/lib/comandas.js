@@ -6,6 +6,7 @@
 
 import { cartTotal, lineUnitPrice } from './atomicPos.js'
 import { ticketChargeLines } from './nightTicket.js'
+import { parseCardMethod } from './posFloor.js'
 
 export const OPEN_STATUSES = ['open', 'awaiting_payment']
 
@@ -64,8 +65,14 @@ export function tabMoney(tab, items = [], payments = [], settings = {}, spaceTyp
     roomMin: settings.room_min || 0,
     spaceType,
   })
-  const paid = payments.filter(p => !p.estornado_em).reduce((a, p) => a + (+p.valor || 0), 0)
-  return { lines, drinksTotal, charges: charges.lines, total: charges.total, paid, due: Math.max(0, charges.total - paid) }
+  const live = payments.filter(p => !p.estornado_em)
+  const paid = live.reduce((a, p) => a + (+p.valor || 0), 0)
+  // Card surcharge taken with a payment ("Credit card · … · +N") is on top of the bill, not part of it.
+  const surchargePaid = live.reduce((a, p) => a + parseCardMethod(p.metodo).surcharge, 0)
+  return {
+    lines, drinksTotal, charges: charges.lines, total: charges.total, paid, surchargePaid,
+    due: Math.max(0, charges.total - (paid - surchargePaid)),
+  }
 }
 
 /** Split a total in n parts that add up exactly (the first parts take the leftover yen). */

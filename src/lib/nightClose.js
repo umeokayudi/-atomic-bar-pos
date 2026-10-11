@@ -106,13 +106,16 @@ export function saleCardFee(sale) {
   const method = String(sale?.metodo_pagamento || sale?.pay_method || '')
   const gross = saleGross(sale)
   const net = saleNet(sale)
-  if (sale?.card_fee != null && sale.card_fee !== '') {
+  // Till sales record the fee of the card machine used in obs ("CardFee: N"), the column stays 0.
+  const obsFee = Math.round(+(String(sale?.obs || '').match(/^CardFee:\s*(\d+)$/im)?.[1]) || 0)
+  if (sale?.card_fee != null && sale.card_fee !== '' && (Math.round(+sale.card_fee || 0) > 0 || !obsFee)) {
     const stored = Math.round(+sale.card_fee || 0)
     if (sale.card_fee_reversed != null && sale.card_fee_reversed !== '') {
       return Math.max(0, stored - Math.round(+sale.card_fee_reversed || 0))
     }
     return gross > 0 ? Math.round(stored * net / gross) : 0
   }
+  if (obsFee > 0) return gross > 0 ? Math.round(obsFee * net / gross) : 0
   if (method !== 'card' && method !== 'credit') return 0
   return cardFee(net, 'card')
 }

@@ -5,7 +5,14 @@ import {
   applyBottleTakes,
   bottlePerformance,
   cardFee,
+  cardMethodLabel,
+  cardPaymentsFee,
+  cardSurcharge,
   cashLines,
+  machineFee,
+  normalizeCardMachines,
+  parseCardMethod,
+  pickCardMachine,
   closeTicket,
   commitClose,
   expandRecipe,
@@ -23,7 +30,10 @@ import {
   removeTicketItem,
   voidSale,
 } from '../src/lib/posFloor.js'
-import { movementOperationalDay, nightSettlement, reconcileNight, summarizeNight } from '../src/lib/nightClose.js'
+import { movementOperationalDay, nightSettlement, reconcileNight, saleCardFee, summarizeNight } from '../src/lib/nightClose.js'
+import { cardSurchargeLine, packTicketObs, readTicketMeta, settingsFromRow } from '../src/lib/nightTicket.js'
+import { tabMoney } from '../src/lib/comandas.js'
+import { orderDetailsFromObs } from '../src/lib/orderMeta.js'
 import { tokyoWallToUtcMs } from '../src/lib/tokyo.js'
 import { itemVisual, rankTopSellers, starterPicks } from '../src/lib/posVisual.js'
 
@@ -179,6 +189,65 @@ assert.equal(cashVoid.restores.some(row => row.mode === 'ml'), false)
 const creditFee = cardFee(10000, 'credit')
 assert.equal(creditFee, 378)
 assert.equal(cardFee(10000, 'other'), 0)
+
+// Card machines: per-machine rate, default machine, surcharge, labels, settings.
+assert.equal(cardFee(10000, 'card', 0.0324), 324)
+assert.equal(cardFee(10000, 'card', undefined), 378)
+assert.equal(cardFee(10000, 'cash', 0.05), 0)
+assert.equal(cashLines({ total: 10000, method: 'card', rate: 0.0198 }).fee, 198)
+assert.equal(cashLines({ total: 10000, method: 'card' }).fee, 378)
+assert.deepEqual(normalizeCardMachines(), [{ id: 'card-1', nome: 'Card', fee_pct: 3.78 }])
+assert.deepEqual(normalizeCardMachines([{ nome: '', fee_pct: 3 }, { nome: 'X', fee_pct: 99 }]), [{ id: 'card-1', nome: 'Card', fee_pct: 3.78 }])
+const twoMachines = normalizeCardMachines([{ id: 'sq', nome: 'Square', fee_pct: 3.25 }, { id: 'air', nome: 'Airペイ', fee_pct: '3.74' }])
+assert.equal(twoMachines.length, 2)
+assert.equal(pickCardMachine(twoMachines, 'air').nome, 'Airペイ')
+assert.equal(pickCardMachine(twoMachines, 'gone').id, 'sq')
+assert.equal(machineFee(10000, twoMachines[1]), 374)
+assert.equal(machineFee(10000, null), 378)
+assert.equal(cardSurcharge(10000, 3), 300)
+assert.equal(cardSurcharge(10000, 0), 0)
+assert.equal(cardMethodLabel({ method: 'Credit card', machine: twoMachines[1], surcharge: 300 }), 'Credit card · Airペイ · +300')
+assert.equal(cardMethodLabel({ method: 'Credit card', machine: twoMachines[0], named: false }), 'Credit card')
+assert.deepEqual(parseCardMethod('Credit card · Airペイ · +300'), { card: true, machine: 'Airペイ', surcharge: 300 })
+assert.deepEqual(parseCardMethod('Credit card'), { card: true, machine: null, surcharge: 0 })
+assert.deepEqual(parseCardMethod('Cash'), { card: false, machine: null, surcharge: 0 })
+const tabFees = cardPaymentsFee([
+  { valor: 5150, metodo: 'Credit card · Airペイ · +150' },
+  { valor: 3000, metodo: 'Credit card' },
+  { valor: 2000, metodo: 'Cash' },
+  { valor: 9999, metodo: 'Credit card · Airペイ', estornado_em: '2026-09-27T12:00:00Z' },
+], twoMachines)
+assert.equal(tabFees.fee, Math.round(5150 * 0.0374) + Math.round(3000 * 0.0325))
+assert.equal(tabFees.note, 'Airペイ 3.74% + Square 3.25%')
+const barSettings = settingsFromRow({ service_pct: 15, card_surcharge_pct: 3, card_machines: twoMachines })
+assert.equal(barSettings.service_pct, 15)
+assert.equal(barSettings.card_surcharge_pct, 3)
+assert.equal(barSettings.card_machines.length, 2)
+assert.equal(settingsFromRow(null).card_surcharge_pct, 0)
+assert.equal(settingsFromRow(null).card_machines.length, 1)
+const surLine = cardSurchargeLine(300, 3)
+assert.equal(surLine.preco_unitario, 300)
+assert.equal(surLine.tipo_preco, 'service') // exempt from the tab drink-line check in pos_commit_sale
+assert.equal(cardSurchargeLine(0, 3), null)
+const cardObs = packTicketObs({ payNote: 'Pay: Credit card record-only', cardNote: 'Airペイ 3.74%', cardFee: 386, cardSurcharge: 300, details: 'Table 4' })
+const cardMeta = readTicketMeta(cardObs)
+assert.equal(cardMeta.cardNote, 'Airペイ 3.74%')
+assert.equal(cardMeta.cardFee, 386)
+assert.equal(cardMeta.cardSurcharge, 300)
+assert.equal(orderDetailsFromObs(cardObs), 'Table 4')
+assert.equal(saleCardFee({ total: 10300, refunded: 0, metodo_pagamento: 'Credit card', card_fee: 0, obs: cardObs }), 386)
+assert.equal(saleCardFee({ total: 10300, refunded: 5150, metodo_pagamento: 'Credit card', card_fee: 0, obs: cardObs }), 193)
+assert.equal(saleCardFee({ total: 10000, refunded: 0, metodo_pagamento: 'card', card_fee: 378, obs: cardObs }), 378)
+assert.equal(saleCardFee({ total: 10000, refunded: 0, metodo_pagamento: 'Cash', card_fee: 0, obs: 'Pay: Cash exact 10000' }), 0)
+// Tab: a card payment with surcharge pays the bill plus the surcharge; the surcharge never reduces what is due.
+const surTab = tabMoney({ service_pct: 0 }, [{ id: 'i1', nome: 'Gin', qtd: 2, preco_unitario: 5000 }], [
+  { valor: 5150, metodo: 'Credit card · Airペイ · +150' },
+])
+assert.equal(surTab.total, 10000)
+assert.equal(surTab.paid, 5150)
+assert.equal(surTab.surchargePaid, 150)
+assert.equal(surTab.due, 5000)
+assert.equal(tabMoney({ service_pct: 0 }, [{ id: 'i1', nome: 'Gin', qtd: 1, preco_unitario: 5000 }], [{ valor: 2000, metodo: 'Cash' }]).due, 3000)
 
 const night = summarizeNight([
   { total: 10000, refunded: 3000, metodo_pagamento: 'card', card_fee: 378, card_fee_reversed: 113, data: '2026-09-27', criado_em: '2026-09-27T12:00:00Z' },

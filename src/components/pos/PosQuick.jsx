@@ -7,7 +7,8 @@ import { buildStockMap, cartTotal, findLowStockProducts, pricingMapFromShots, re
 import { reorderLowStock, syncPosStockAndReorder } from '../../lib/posSupply'
 import { CASH_CHIPS, cashSettle, isCashMethod, payRecordNote } from '../../lib/posPay'
 import { drinkBackCommission } from '../../lib/drinkBackPay'
-import { DEFAULT_POS_SETTINGS, packTicketObs, settingsFromRow, ticketChargeLines } from '../../lib/nightTicket'
+import { DEFAULT_POS_SETTINGS, cardSurchargeLine, packTicketObs, settingsFromRow, ticketChargeLines } from '../../lib/nightTicket'
+import { cardMethodLabel, cardPaymentsFee, cardSurcharge, isCardMethod, machineFee, pickCardMachine } from '../../lib/posFloor'
 import { tokyoNightKey, tokyoDateKey } from '../../lib/tokyo'
 import { itemVisual, rankTopSellers, starterPicks } from '../../lib/posVisual'
 import { buildCatalog, searchCatalog, toggleFavorite } from '../../lib/posCatalog'
@@ -77,6 +78,8 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
   const [tendered, setTendered] = useState('')
   const [agentId, setAgentId] = useState('')
   const [serviceOn, setServiceOn] = useState(true)
+  const machineKey = `pos-card-machine:${bar.id}`
+  const [machineId, setMachineId] = useState(() => readJson(machineKey, ''))
   const [spaces, setSpaces] = useState([])
   const [settings, setSettings] = useState(DEFAULT_POS_SETTINGS)
   const [topKeys, setTopKeys] = useState([])
@@ -99,6 +102,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
   useEffect(() => { writeJson(ordersKey, orders) }, [orders, ordersKey])
   useEffect(() => { writeJson(`${ordersKey}:active`, active) }, [active, ordersKey])
   useEffect(() => { writeJson(favKey, favs) }, [favs, favKey])
+  useEffect(() => { writeJson(machineKey, machineId) }, [machineId, machineKey])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-pos-mode', 'quick')
@@ -231,7 +235,15 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
     ? ticketChargeLines({ drinksTotal, servicePct: +srvTab.service_pct || 0, roomMin: settings.room_min, spaceType: '' })
     : ticketChargeLines({ drinksTotal, servicePct: tableOrder && serviceOn ? settings.service_pct : 0, roomMin: settings.room_min, spaceType: space?.tipo || '' })
   const total = charges.total
-  const due = Math.max(0, total - (srvMoney?.paid || 0))
+  const surchargePaid = srvMoney?.surchargePaid || 0
+  const baseDue = Math.max(0, total - ((srvMoney?.paid || 0) - surchargePaid))
+  // Card: the machine used (only chosen when the bar has 2+) and the optional surcharge on what is due now.
+  const machines = settings.card_machines || DEFAULT_POS_SETTINGS.card_machines
+  const machine = pickCardMachine(machines, machineId)
+  const multiMachine = machines.length > 1
+  const cardPay = isCardMethod(pay)
+  const surchargeNow = cardPay ? cardSurcharge(baseDue, settings.card_surcharge_pct) : 0
+  const due = baseDue + surchargeNow
   const itemCount = cart.reduce((a, l) => a + l.qtd, 0) + (srvMoney?.lines || []).reduce((a, l) => a + l.qtd, 0)
   const cashPay = isCashMethod(pay)
   const cash = cashPay ? cashSettle(due, tendered, '') : null
@@ -370,23 +382,38 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
       let checkoutCart
       let comandaId = null
       let payNote
+      let card = null
+      let chargedTotal = total
       if (srvTab) {
         if (!(await sendPending())) return
         const fresh = (await loadOpenTabs(supabase, bar.id)).find(x => x.id === srvTab.id)
         if (!fresh) throw new Error(t('tabs.errGone'))
         const m = tabMoney(fresh, fresh.items, fresh.payments, settings)
+        const payments = fresh.payments.filter(p => !p.estornado_em)
+        let finalMetodo = pay
+        let finalSur = 0
         if (m.due > 0) {
+          finalSur = cardPay ? cardSurcharge(m.due, settings.card_surcharge_pct) : 0
+          finalMetodo = cardPay ? cardMethodLabel({ method: pay, machine, surcharge: finalSur, named: multiMachine }) : pay
           const payKey = order.payKey || newKey('pay')
           setOrders(prev => ({ ...prev, [active]: { ...(prev[active] || { cart: [] }), saleKey, payKey } }))
-          await tabsApi.pay(supabase, fresh.id, { valor: m.due, metodo: pay, key: payKey })
+          await tabsApi.pay(supabase, fresh.id, { valor: m.due + finalSur, metodo: finalMetodo, key: payKey })
+          payments.push({ valor: m.due + finalSur, metodo: finalMetodo })
         }
-        checkoutCart = [...m.lines, ...m.charges]
+        const surLine = cardSurchargeLine(m.surchargePaid + finalSur, settings.card_surcharge_pct)
+        checkoutCart = [...m.lines, ...m.charges, ...(surLine ? [surLine] : [])]
         comandaId = fresh.id
-        const methods = [...new Set([...fresh.payments.map(p => p.metodo), ...(m.due > 0 ? [pay] : [])])]
+        const methods = [...new Set(payments.map(p => p.metodo))]
         payNote = `Pay: ${methods.join(' + ') || pay} tab`
+        const fees = cardPaymentsFee(payments, machines)
+        card = { fee: fees.fee, note: fees.note, surcharge: m.surchargePaid + finalSur }
+        chargedTotal = m.total + m.surchargePaid + finalSur
       } else {
-        checkoutCart = [...cart, ...charges.lines]
-        payNote = payRecordNote({ method: pay, total, tendered: cashPay ? tendered : undefined })
+        const surLine = cardSurchargeLine(surchargeNow, settings.card_surcharge_pct)
+        checkoutCart = [...cart, ...charges.lines, ...(surLine ? [surLine] : [])]
+        payNote = payRecordNote({ method: pay, total: due, tendered: cashPay ? tendered : undefined })
+        if (cardPay) card = { fee: machineFee(due, machine), note: `${machine.nome} ${machine.fee_pct}%`, surcharge: surchargeNow }
+        chargedTotal = due
       }
       const drinkLines = checkoutCart.filter(l => !['set', 'nominho', 'service', 'room_min'].includes(l.tipo_preco))
       const commission = agent ? drinkBackCommission(drinkLines, agent.comissao_pct) : null
@@ -399,6 +426,9 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
         roomMin: space?.tipo === 'vip_room' ? settings.room_min : 0,
         commission,
         payNote,
+        cardNote: card?.note || '',
+        cardFee: card?.fee || 0,
+        cardSurcharge: card?.surcharge || 0,
       })
       const legacy = {
         bar, payMethod: pay, agentId: agentId || null, spaceId: order.spaceId || null, obs, userId: user?.id, shots,
@@ -419,7 +449,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
       // Restock check after the sale is safe on the server; it never undoes the sale.
       if (result.atomic) reorderLowStock(supabase, { bar, userId: user?.id, buildStockMap, findLowStockProducts }).catch(() => {})
       rememberTop(drinkLines)
-      setDone({ total, change: !srvTab && cash && !cash.exact ? Math.max(0, cash.change) : 0, method: pay, label: tableOrder ? (srvTab?.nome || order.label) : '' })
+      setDone({ total: chargedTotal, change: !srvTab && cash && !cash.exact ? Math.max(0, cash.change) : 0, method: pay, label: tableOrder ? (srvTab?.nome || order.label) : '' })
       dropActive()
       setAgentId('')
       setTendered('')
@@ -592,12 +622,14 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
         </div>
 
         <div className="pq-pay">
-          {charges.lines.length > 0 && (
+          {(charges.lines.length > 0 || surchargeNow > 0 || srvMoney?.paid > 0) && (
             <div className="pq-extra">
               {charges.lines.map(line => (
                 <div key={line.key}><span>{line.kind === 'service' ? t('posQuick.service', { pct: srvTab ? srvTab.service_pct : settings.service_pct }) : line.nome}</span><span>{fmtYen(line.preco)}</span></div>
               ))}
+              {surchargePaid > 0 && <div><span>{t('posCard.surchargeLine', { pct: settings.card_surcharge_pct })}</span><span>{fmtYen(surchargePaid)}</span></div>}
               {srvMoney?.paid > 0 && <div><span>{t('tabs.paid')}</span><span>−{fmtYen(srvMoney.paid)}</span></div>}
+              {surchargeNow > 0 && <div><span>{t('posCard.surchargeLine', { pct: settings.card_surcharge_pct })}</span><span>{fmtYen(surchargeNow)}</span></div>}
             </div>
           )}
           <div className="pq-total">
@@ -618,6 +650,16 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
               </button>
             ))}
           </div>
+
+          {cardPay && multiMachine && hasSomething && (
+            <div className="pq-cash pq-machines" role="radiogroup" aria-label={t('posCard.machine')}>
+              {machines.map(row => (
+                <button key={row.id} type="button" role="radio" aria-checked={machine.id === row.id} className={machine.id === row.id ? 'is-on' : ''} onClick={() => setMachineId(row.id)}>
+                  {row.nome}
+                </button>
+              ))}
+            </div>
+          )}
 
           {cashPay && hasSomething && (
             <div className="pq-cash">

@@ -199,15 +199,17 @@ export function lineDeductions(item, recipeLines) {
   return [{ mode: 'unit', produto_id: item.produto_id, qtd: qty }]
 }
 
-export function cardFee(total, method) {
+/** Processor fee. `rate` is a fraction (0.0378); left out it is the default machine rate. */
+export function cardFee(total, method, rate = CARD_FEE_RATE) {
   const due = Math.round(+total || 0)
   if (method !== 'card' && method !== 'credit') return 0
-  return Math.round(due * CARD_FEE_RATE)
+  const r = rate == null || Number.isNaN(+rate) ? CARD_FEE_RATE : Math.max(0, +rate)
+  return Math.round(due * r)
 }
 
-export function cashLines({ total, method, vendaId, barId }) {
+export function cashLines({ total, method, vendaId, barId, rate }) {
   const due = Math.round(+total || 0)
-  const fee = cardFee(due, method)
+  const fee = cardFee(due, method, rate)
   const lines = [{
     bar_id: barId,
     tipo: 'entrada',
@@ -225,6 +227,95 @@ export function cashLines({ total, method, vendaId, barId }) {
     })
   }
   return { lines, fee, net: due - fee }
+}
+
+// ─── card machines (per bar, kept in pos_settings) ───────────────────────────────────────────
+
+/** One machine at the default rate: what every bar had before machines were configurable. */
+export const DEFAULT_CARD_MACHINE = Object.freeze({ id: 'card-1', nome: 'Card', fee_pct: Math.round(CARD_FEE_RATE * 10000) / 100 })
+
+/** Clean list from settings. Never empty: a bar without machines gets the default one. */
+export function normalizeCardMachines(list) {
+  const rows = Array.isArray(list) ? list : []
+  const out = []
+  const seen = new Set()
+  rows.forEach((row, i) => {
+    if (!row || typeof row !== 'object') return
+    const nome = String(row.nome || '').replace(/·/g, '-').trim().slice(0, 40)
+    const pct = +row.fee_pct
+    if (!nome || Number.isNaN(pct) || pct < 0 || pct > 20) return
+    let id = String(row.id || '').trim() || `card-${i + 1}`
+    while (seen.has(id)) id = `${id}-${i + 1}`
+    seen.add(id)
+    out.push({ id, nome, fee_pct: Math.round(pct * 100) / 100 })
+  })
+  return out.length ? out : [{ ...DEFAULT_CARD_MACHINE }]
+}
+
+/** The machine used: the chosen one, else the first. With one machine there is nothing to choose. */
+export function pickCardMachine(machines, id) {
+  const list = normalizeCardMachines(machines)
+  return list.find(m => m.id === id) || list[0]
+}
+
+export function isCardMethod(method) {
+  return /card|credit|クレジット|カード/i.test(String(method || ''))
+}
+
+/** Surcharge passed to the guest when they pay by card (bar setting, 0 = off). */
+export function cardSurcharge(amount, pct) {
+  const p = Math.max(0, +pct || 0)
+  if (!p) return 0
+  return Math.round(Math.round(+amount || 0) * p / 100)
+}
+
+/** Fee the machine takes on what it charged (surcharge included). */
+export function machineFee(amount, machine) {
+  const pct = machine && machine.fee_pct != null ? +machine.fee_pct : CARD_FEE_RATE * 100
+  return cardFee(amount, 'card', pct / 100)
+}
+
+/**
+ * Method text for a card payment on a tab: "Credit card · <machine>[ · +<surcharge>]".
+ * The machine is only named when the bar has more than one.
+ */
+export function cardMethodLabel({ method = 'Credit card', machine = null, surcharge = 0, named = true } = {}) {
+  const parts = [method]
+  if (machine && named) parts.push(machine.nome)
+  if (Math.round(+surcharge || 0) > 0) parts.push(`+${Math.round(+surcharge)}`)
+  return parts.join(' · ')
+}
+
+/** Reverse of cardMethodLabel. Plain "Credit card" / "Cash" read as no machine, no surcharge. */
+export function parseCardMethod(metodo) {
+  const text = String(metodo || '')
+  const parts = text.split(' · ').map(s => s.trim()).filter(Boolean)
+  const card = isCardMethod(parts[0] || text)
+  if (!card) return { card: false, machine: null, surcharge: 0 }
+  let surcharge = 0
+  const rest = parts.slice(1)
+  if (rest.length && /^\+\d+$/.test(rest[rest.length - 1])) surcharge = +rest.pop().slice(1)
+  return { card: true, machine: rest.join(' · ') || null, surcharge }
+}
+
+/**
+ * Card fee of a set of card payments, each on its machine (matched by name; unknown → first machine).
+ * Returns { fee, note } where note is "Name pct%" per machine used, for the sale obs.
+ */
+export function cardPaymentsFee(payments = [], machines = []) {
+  const list = normalizeCardMachines(machines)
+  let fee = 0
+  const used = []
+  for (const p of payments || []) {
+    if (p?.estornado_em) continue
+    const parsed = parseCardMethod(p?.metodo)
+    if (!parsed.card) continue
+    const machine = list.find(m => m.nome === parsed.machine) || list[0]
+    fee += machineFee(p.valor, machine)
+    const label = `${machine.nome} ${machine.fee_pct}%`
+    if (!used.includes(label)) used.push(label)
+  }
+  return { fee, note: used.join(' + ') }
 }
 
 export function previewSale({
