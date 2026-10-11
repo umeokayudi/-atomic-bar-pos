@@ -19,6 +19,7 @@
     "test:pos:pg": "node scripts/posFloor.pg.test.mjs",
     "test:floor:pg": "node scripts/floorComandas.pg.test.mjs",
     "test:redesign": "node scripts/redesign.test.mjs",
+    "test:live-import": "node scripts/liveImport.test.mjs",
     "test:visual": "npm run build && node scripts/visual/shots.mjs visual-out"
   },
   "dependencies": {

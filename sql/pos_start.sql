@@ -1,7 +1,7 @@
 -- Atomic till: the tables the POS screen needs to sell.
 -- Run once in the Supabase SQL editor (project ojirgkqtqvugqktyuhem).
 -- Additive only: CREATE ... IF NOT EXISTS and ADD COLUMN IF NOT EXISTS. Nothing is dropped or rewritten.
--- Policies follow the pattern the existing bar tables use (any signed-in user).
+-- Policies are per bar (jbm_can_access_bar). Applied to production on 2026-10-11.
 --
 -- After this file:
 --   pos_vendas / pos_vendas_itens  -> each sale and its lines (the till total and "most ordered")
@@ -159,22 +159,30 @@ CREATE INDEX IF NOT EXISTS pos_vendas_bar_data_idx ON public.pos_vendas (bar_id,
 CREATE INDEX IF NOT EXISTS pos_vendas_itens_venda_idx ON public.pos_vendas_itens (pos_venda_id);
 CREATE INDEX IF NOT EXISTS bar_spaces_bar_idx ON public.bar_spaces (bar_id, ordem);
 
+-- Per bar: a bar's staff see only their bar (admin/jbm see all). Needs jbm_can_access_bar from sql/floor_comandas.sql.
 DO $$
 DECLARE
   t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
-    'pos_vendas', 'pos_vendas_itens', 'drink_back_agents', 'bar_spaces', 'pos_shifts',
+    'pos_vendas', 'drink_back_agents', 'bar_spaces', 'pos_shifts',
     'vip_members', 'vip_usages', 'discount_codes', 'discount_usages'
   ] LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = t AND policyname = 'read') THEN
-      EXECUTE format('CREATE POLICY read ON public.%I FOR SELECT USING (auth.role() = ''authenticated'')', t);
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = t AND policyname = 'write') THEN
-      EXECUTE format('CREATE POLICY write ON public.%I FOR ALL USING (auth.role() = ''authenticated'') WITH CHECK (auth.role() = ''authenticated'')', t);
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = t AND policyname = t || '_bar') THEN
+      EXECUTE format('CREATE POLICY %I ON public.%I FOR ALL TO authenticated USING (public.jbm_can_access_bar(bar_id)) WITH CHECK (public.jbm_can_access_bar(bar_id))', t || '_bar', t);
     END IF;
   END LOOP;
+END $$;
+
+ALTER TABLE public.pos_vendas_itens ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'pos_vendas_itens' AND policyname = 'pos_vendas_itens_bar') THEN
+    CREATE POLICY pos_vendas_itens_bar ON public.pos_vendas_itens FOR ALL TO authenticated
+      USING (EXISTS (SELECT 1 FROM public.pos_vendas v WHERE v.id = pos_venda_id AND public.jbm_can_access_bar(v.bar_id)))
+      WITH CHECK (EXISTS (SELECT 1 FROM public.pos_vendas v WHERE v.id = pos_venda_id AND public.jbm_can_access_bar(v.bar_id)));
+  END IF;
 END $$;
 
 NOTIFY pgrst, 'reload schema';

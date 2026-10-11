@@ -1,4 +1,5 @@
 import { hashSecret } from './_hash.js'
+import { importLegacyOnce } from './_liveImport.js'
 
 export const ATOMIC_BAR_ID = 'b23a5f97-ad4c-4c2a-baa6-72a0d3ba85b9'
 export const LIVE_BUCKET = 'system-private'
@@ -35,6 +36,13 @@ export const LIVE_TABLES = [
   'floor_sectors',
   'floor_tables',
 ]
+
+// Tables that had a JSON copy before the migrations created them in Postgres (sql/pos_start.sql,
+// sql/floor_comandas.sql). Their JSON rows are copied into Postgres once (api/_liveImport.js).
+export const IMPORTED_TABLES = new Set([
+  'pos_vendas', 'pos_vendas_itens', 'vip_members', 'vip_usages', 'discount_codes', 'discount_usages',
+  'drink_back_agents', 'bar_spaces', 'pos_shifts', 'floor_layouts', 'floor_sectors', 'floor_tables',
+])
 
 const locks = new Map()
 const memTables = new Map()
@@ -322,6 +330,7 @@ export async function readLiveJson(admin, table) {
 export async function runLiveOp(admin, spec) {
   const table = spec.table
   if (!LIVE_TABLES.includes(table)) return { data: null, error: { message: `Unknown live table ${table}` } }
+  if (IMPORTED_TABLES.has(table)) await importLegacyOnce(admin, table, { bucket: LIVE_BUCKET }).catch(() => null)
   const pg = await tryPostgresOp(admin, spec)
   if (!pg.missingTable) return pg.result
   return withLock(table, async () => {
