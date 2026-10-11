@@ -64,7 +64,9 @@ export default function AutoClose({ bar }) {
             counted_cash: sum.expectedCash,
             variance: closeVariance(sum.expectedCash, sum.expectedCash),
           }
-          const ins = await supabase.from('pos_shifts').insert(row)
+          // The day report has no row of its own: pos_shifts.night_key is a date in Postgres, so "<day>#dia" was
+          // rejected (400) on every run. Nothing reads those rows, so the day close only records that it ran.
+          const ins = item.kind === 'dia' ? { error: null } : await supabase.from('pos_shifts').insert(row)
           if (!ins.error) {
             patch[item.kind === 'dia' ? 'fechou_dia' : 'fechou_noite'] = item.kind === 'dia' ? item.day : item.key
           }
