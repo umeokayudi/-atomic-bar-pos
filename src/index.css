@@ -4019,6 +4019,31 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
   cursor: pointer;
   font-weight: 600;
 }
+.pay-pop-due.is-muted { color: var(--text2); }
+.pay-pop-pick { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; margin-bottom: 12px; }
+.pay-pop-pick label { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; cursor: pointer; }
+.pay-pop-pick input { width: auto; margin: 0; flex: none; }
+.pay-pop-pick span { flex: 1; }
+.pay-pop-pick b { font-weight: 700; }
+.pay-pop .pay-pop-date select { padding: 8px 10px; border-radius: 8px; font-size: 13px; }
+
+.doc-view { max-width: 640px; max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+.doc-view-body { overflow-y: auto; margin: 10px 0 14px; min-height: 60px; }
+.doc-view-body img { max-width: 100%; border-radius: 10px; display: block; }
+.doc-view-body iframe { width: 100%; height: 60vh; border: 0; border-radius: 10px; }
+.doc-view-total { font-size: 22px; font-weight: 800; margin-bottom: 8px; }
+.doc-view-head { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px 16px; margin: 0 0 14px; }
+.doc-view-head dt { font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text3); }
+.doc-view-head dd { margin: 2px 0 0; font-size: 13px; font-weight: 600; }
+.doc-view-items { width: 100%; border-collapse: collapse; font-size: 12px; }
+.doc-view-items th { text-align: left; font-size: 10px; text-transform: uppercase; color: var(--text3); padding: 6px 4px; border-bottom: 1px solid var(--border); }
+.doc-view-items td { padding: 6px 4px; border-bottom: 1px solid var(--border); }
+.doc-view-items th:not(:first-child), .doc-view-items td:not(:first-child) { text-align: right; white-space: nowrap; }
+.doc-view-notes { font-size: 12px; color: var(--text2); margin: 12px 0 0; white-space: pre-wrap; }
+.doc-view-pre { font-size: 12px; white-space: pre-wrap; word-break: break-word; margin: 0; }
+.doc-view-muted { font-size: 13px; color: var(--text2); }
+.doc-view-open { display: flex; align-items: center; justify-content: center; padding: 10px; border-radius: 10px; border: 1px solid var(--border); font-weight: 600; font-size: 13px; color: var(--c-text); text-decoration: none; }
+.doc-link { background: none; border: 0; padding: 0; font-size: 11px; color: var(--blue); margin-top: 4px; cursor: pointer; text-decoration: underline; }
 
 .people-me {
   display: flex;

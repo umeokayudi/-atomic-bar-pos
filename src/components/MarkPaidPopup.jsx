@@ -18,7 +18,8 @@ export default function MarkPaidPopup({ item, onClose, onSaved }) {
 
 function SupplierPaidPopup({ item, onClose, onSaved }) {
   const { t } = useI18n()
-  const [paid, setPaid] = useState(item?.paid ? false : true)
+  // Opening a bill is almost always to mark it paid; an already paid bill stays paid unless "Not paid" is tapped.
+  const [paid, setPaid] = useState(true)
   const [date, setDate] = useState(item?.paidDate || todayStr())
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -45,9 +46,13 @@ function SupplierPaidPopup({ item, onClose, onSaved }) {
         <div className="pay-pop-kicker">{item.type === 'compra' ? t('payMark.supplier') : t('payMark.invoice')}</div>
         <div className="pay-pop-title">{item.label}</div>
         <div className="pay-pop-amt">{fmtYen(item.amount || 0)}</div>
-        {item.dueDate && (
-          <div className="pay-pop-due">{t('common.expiredOn', { date: fmtDate(item.dueDate) })}</div>
-        )}
+        {item.paid && item.paidDate ? (
+          <div className="pay-pop-due is-muted">{t('cashflow.paidOnDate', { date: fmtDate(item.paidDate) })}</div>
+        ) : item.dueDate ? (
+          <div className={item.dueDate < todayStr() ? 'pay-pop-due' : 'pay-pop-due is-muted'}>
+            {t(item.dueDate < todayStr() ? 'common.expiredOn' : 'cashflow.dueOnDate', { date: fmtDate(item.dueDate) })}
+          </div>
+        ) : null}
 
         <div className="pay-pop-toggle">
           <button type="button" className={paid ? 'is-on paid' : ''} onClick={() => setPaid(true)}>

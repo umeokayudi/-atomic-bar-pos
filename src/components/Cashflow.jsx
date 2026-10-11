@@ -6,6 +6,8 @@ import { uploadCobrancaDoc, buildCobrancaDocument, downloadTextFile } from '../l
 import JbmHoldingPanel from './JbmHoldingPanel'
 import { AiContextPublisher, snapshotToKpis } from '../lib/aiPanel'
 import MarkPaidPopup from './MarkPaidPopup'
+import PaySupplierPopup from './PaySupplierPopup'
+import DocViewer from './DocViewer'
 import OpenInvoicesList from './OpenInvoicesList'
 import { AdminPage, PortalKpi, PortalSurface, PortalPills } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
@@ -57,6 +59,8 @@ function CashflowOverview() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [payItem, setPayItem] = useState(null)
+  const [paySupplier, setPaySupplier] = useState(false)
+  const [doc, setDoc] = useState(null)
   useEffect(() => { load(); const iv=setInterval(load,30000); return ()=>clearInterval(iv) }, [])
   async function load() {
     const [fR, cR, pR, foR] = await Promise.all([
@@ -215,6 +219,8 @@ function CashflowOverview() {
 
       <AiContextPublisher screen="cashflow" ctx={{ kpis: snapshotToKpis(aiSnap) }} />
       {payItem && <MarkPaidPopup item={payItem} onClose={() => setPayItem(null)} onSaved={load} />}
+      {paySupplier && <PaySupplierPopup compras={compras} onClose={() => setPaySupplier(false)} onSaved={load} />}
+      {doc && <DocViewer url={doc.url} title={doc.title} onClose={() => setDoc(null)} />}
     </div>
   )
 }
@@ -375,9 +381,10 @@ function PurchasePayments() {
       </div>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
         <div style={{ fontSize:16, fontWeight:700 }}>{t('cashflow.purchasePayments')}</div>
-        <div style={{ display:'flex', gap:12 }}>
+        <div style={{ display:'flex', gap:12, alignItems:'center' }}>
           {overdueCount>0 && <div style={{ fontSize:12, color:'var(--red)', fontWeight:700 }}>{t('cashflow.overdueCount', { count: overdueCount })}</div>}
           {pendingCount>0 && <div style={{ fontSize:12, color:'var(--amber)', fontWeight:600 }}>{t('cashflow.pendingCount', { count: pendingCount })}</div>}
+          {pendingCount>0 && <button className="btn-primary" onClick={()=>setPaySupplier(true)} style={{ padding:'7px 14px', fontSize:12, borderRadius:10 }}>{t('paySupplier.open')}</button>}
         </div>
       </div>
       <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
@@ -407,9 +414,9 @@ function PurchasePayments() {
                 {c.metodo_pagamento_real&&<span> {t('cashflow.via', { method: c.metodo_pagamento_real })}</span>}
               </div>
               {c.foto_url && (
-                <a href={c.foto_url} target="_blank" rel="noreferrer" style={{ fontSize:11, color:'var(--blue)', marginTop:4, display:'inline-block' }}>
+                <button type="button" className="doc-link" onClick={e=>{ e.stopPropagation(); setDoc({ url:c.foto_url, title:`${c.fornecedor||''} — ${fmtDate(c.data)}` }) }}>
                   {t('cashflow.docSaved')}
-                </a>
+                </button>
               )}
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', justifyContent:'flex-end' }}>

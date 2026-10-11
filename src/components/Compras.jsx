@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import {
-  fmtYen, fmtDate, monthKey, monthLabel, compraDate,
+  fmtYen, fmtDate, monthKey, monthLabel, compraDate, compraDueDate,
   Badge, Spinner, Empty, DelBtn,
   PAGAMENTOS, analyzeReceipt
 } from './utils'
@@ -31,7 +31,7 @@ export default function ComprasTab() {
   function defaultForm() {
     return {
       data: new Date().toISOString().slice(0,10),
-      fornecedor: '', pagamento: 'Dinheiro',
+      fornecedor: '', pagamento: 'Dinheiro', status_pagamento: 'pago',
       pontos_ganhos: 0, desconto_pontos: 0, tipo_ponto: '', data_pagamento: '', foto_url: '',
       subtotal: 0, total_pago: 0, obs: '',
       itens: []
@@ -49,6 +49,12 @@ export default function ComprasTab() {
   }
 
   const selectedSupplier = fornecedores.find(f => f.nome === form.fornecedor)
+  // Suppliers billed monthly (e.g. Le Vin "Dia 10") start as "to pay"; the rest as paid on the spot.
+  function pickSupplier(nome) {
+    const sup = fornecedores.find(f => f.nome === nome)
+    const monthly = !!compraDueDate({ data: form.data }, sup?.pagamento)
+    setForm(f => ({ ...f, fornecedor: nome, status_pagamento: monthly ? 'pendente' : 'pago' }))
+  }
   const purchaseTotal = (+form.total_pago || +form.subtotal || 0) - (+form.desconto_pontos || 0)
 
   async function load() {
@@ -116,7 +122,8 @@ export default function ComprasTab() {
       total_real,
       pontos_ganhos:   +form.pontos_ganhos,
       tipo_ponto:      form.tipo_ponto||null,
-      data_pagamento:  form.data_pagamento||null,
+      status_pagamento: form.status_pagamento,
+      data_pagamento:  form.status_pagamento === 'pago' ? (form.data_pagamento || form.data) : (form.data_pagamento || null),
       foto_url:        form.foto_url||null,
       obs:             form.obs,
       criado_por:      user.id
@@ -140,8 +147,9 @@ export default function ComprasTab() {
       }
     }
     // Auto cashflow entry
+    // A purchase still "to pay" has not left the till yet: Cash flow counts it when it is marked paid.
     const hoje = form.data_pagamento || form.data
-    if (hoje) {
+    if (!error && hoje && form.status_pagamento === 'pago') {
       await supabase.from('caixa_movimentos').insert({
         tipo: 'saida',
         valor: total_real,
@@ -215,7 +223,7 @@ export default function ComprasTab() {
           <div><label className="form-label">{t('common.date')}</label>
             <input type="date" value={form.data} onChange={e=>setF('data',e.target.value)} /></div>
           <div><label className="form-label">{t('common.supplier')}</label>
-            <select value={form.fornecedor} onChange={e=>setF('fornecedor',e.target.value)}>
+            <select value={form.fornecedor} onChange={e=>pickSupplier(e.target.value)}>
               <option value="">{t('common.selectSupplier')}</option>
               {fornecedores.map(f=><option key={f.id} value={f.nome}>{f.nome}</option>)}
             </select></div>
@@ -261,7 +269,12 @@ export default function ComprasTab() {
               <option value="PayPay">PayPay</option>
               <option value="Outro">{t('common.other')}</option>
             </select></div>
-          <div><label className="form-label">{t('common.paymentDate')}</label>
+          <div><label className="form-label">{t('cashflow.paymentStatus')}</label>
+            <select value={form.status_pagamento} onChange={e=>setF('status_pagamento',e.target.value)}>
+              <option value="pago">{t('status.pago')}</option>
+              <option value="pendente">{t('cashflow.toPayStatus')}</option>
+            </select></div>
+          <div><label className="form-label">{form.status_pagamento === 'pago' ? t('common.paymentDate') : t('paySupplier.dueOptional')}</label>
             <input type="date" value={form.data_pagamento} onChange={e=>setF('data_pagamento',e.target.value)} /></div>
         </div>
         <div style={{marginBottom:12}}>
