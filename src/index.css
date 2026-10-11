@@ -4574,9 +4574,9 @@ html[data-pos-mode="quick"] .till-kiosk-actions button { min-height: 48px; paddi
 .pq input, .pq select { -webkit-user-select: auto; user-select: auto; font-size: 16px; }
 
 .pq-menu { display: flex; flex-direction: column; min-height: 0; gap: 10px; }
-.pq-top { display: flex; gap: 10px; align-items: stretch; }
+.pq-top { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
 .pq-search {
-  flex: 1;
+  flex: 1 1 240px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -4588,19 +4588,94 @@ html[data-pos-mode="quick"] .till-kiosk-actions button { min-height: 48px; paddi
 }
 .pq-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 18px; color: var(--text); }
 .pq-search button { border: 0; background: var(--bg3); width: 36px; height: 36px; border-radius: 50%; }
-.pq-night {
+/* Tonight: closed sales · open on tabs · on account. Light card in the same surface as the search. */
+.pq-glance {
+  display: flex;
+  align-items: stretch;
+  min-height: 56px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 16px;
+  overflow: hidden;
+  flex: 1 1 300px;
+  min-width: 0;
+}
+.pq-glance-cell {
+  flex: 1 1 0;
   display: grid;
   align-content: center;
-  padding: 6px 18px;
-  border-radius: 16px;
-  background: var(--navy);
-  color: white;
-  text-align: right;
+  gap: 1px;
+  padding: 6px 14px;
+  min-width: 0;
   line-height: 1.15;
+  text-align: left;
+  color: var(--text);
 }
-.pq-night span { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.6; }
-.pq-night strong { font-size: 22px; color: var(--gold2); }
-.pq-night em { font-style: normal; font-size: 12px; opacity: 0.7; }
+.pq-glance-cell + .pq-glance-cell { border-left: 1px solid var(--border); }
+button.pq-glance-cell { border: 0; border-left: 1px solid var(--border); background: transparent; min-height: 56px; }
+button.pq-glance-cell:hover { background: var(--bg3); }
+.pq-glance-cell span { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text2); white-space: nowrap; }
+.pq-glance-cell strong { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pq-glance-cell strong.is-owed { color: var(--amber); }
+.pq-glance-cell em { font-style: normal; font-size: 12px; color: var(--text2); white-space: nowrap; }
+
+/* Customer of the order (CRM): discounts and on account. */
+.pq-options button.pq-custbtn {
+  flex: 1 1 180px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 4px 12px;
+  border-radius: 14px;
+  border: 1px dashed var(--border2);
+  background: var(--bg);
+  text-align: left;
+}
+.pq-custbtn.is-set { border-style: solid; border-color: var(--pq-accent); background: color-mix(in srgb, var(--pq-accent) 8%, var(--bg2)); }
+.pq-custbtn.is-needed { border-color: var(--amber); background: var(--amber-bg); }
+.pq-custbtn-name { flex: 1; min-width: 0; display: grid; line-height: 1.2; }
+.pq-custbtn-name strong { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pq-custbtn-name span { font-size: 12px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pq-onacc-note { font-size: 13px; color: var(--text2); }
+.pq-discount { display: grid; gap: 10px; padding-top: 4px; border-top: 1px solid var(--border); }
+.pq-discount h3 { margin: 6px 0 0; font-size: 15px; }
+
+/* On account list */
+.pq-fiado-total { display: flex; align-items: baseline; justify-content: space-between; padding: 12px 14px; border-radius: 14px; background: var(--bg); }
+.pq-fiado-total span { color: var(--text2); font-weight: 700; }
+.pq-fiado-total strong { font-size: 26px; font-variant-numeric: tabular-nums; }
+.pq-fiado-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pq-fiado-list > li { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--bg2); }
+.pq-fiado-list > li.is-open { border-color: var(--border2); box-shadow: var(--shadow-sm); }
+button.pq-fiado-row { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 60px; padding: 8px 12px; border: 0; background: transparent; text-align: left; }
+.pq-fiado-row > strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+.pq-fiado-row > strong.is-owed { color: var(--amber); }
+.pq-fiado-pay { display: grid; gap: 10px; padding: 0 12px 12px; }
+.pq-fiado-hist { list-style: none; margin: 0; padding: 8px 0 0; border-top: 1px solid var(--border); display: grid; gap: 4px; font-size: 13px; color: var(--text2); }
+.pq-fiado-hist li { display: flex; justify-content: space-between; gap: 8px; }
+button.pq-fiado-receive { min-height: 56px; border: 0; border-radius: 14px; background: var(--pq-accent); color: white !important; font-size: 17px; font-weight: 800; }
+button.pq-fiado-receive:disabled { opacity: 0.5; }
+
+/* CRM customer picker (till and tab panel). */
+.cust-picker { display: grid; gap: 8px; min-width: 0; }
+.cust-search { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 12px; border: 1px solid var(--border2); border-radius: 12px; background: var(--bg2); }
+.cust-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 16px; color: var(--text); }
+.cust-list { display: grid; gap: 6px; max-height: min(320px, 40dvh); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+button.cust-row, .cust-picked { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); text-align: left; color: var(--text); cursor: pointer; font: inherit; }
+.cust-picked { border-color: var(--c-accent); cursor: default; }
+button.cust-row em { font-style: normal; font-weight: 800; color: var(--amber); font-variant-numeric: tabular-nums; }
+.cust-avatar { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--bg3); font-weight: 800; text-transform: uppercase; }
+.cust-name { flex: 1; min-width: 0; display: grid; line-height: 1.2; }
+.cust-name strong { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cust-name span { font-size: 12px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button.cust-change, button.cust-add { min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--border2); background: var(--bg2); font-weight: 700; color: var(--text); cursor: pointer; font: inherit; font-weight: 700; }
+button.cust-add { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-style: dashed; }
+.cust-empty { margin: 6px 2px; font-size: 13px; color: var(--text2); }
+.cust-err { font-size: 13px; color: var(--red); }
+.tab-onaccount { display: grid; gap: 8px; }
+.tab-onaccount p { margin: 0; }
 
 .pq-cats {
   display: flex;
@@ -4787,7 +4862,7 @@ button.pq-tab {
 .pq-total { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .pq-total span { font-size: 14px; color: var(--text2); font-weight: 700; }
 .pq-total strong { font-size: 34px; letter-spacing: -0.02em; }
-.pq-pays { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.pq-pays { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .pq-pays button {
   display: grid;
   justify-items: center;
@@ -4800,6 +4875,8 @@ button.pq-tab {
   font-weight: 800;
 }
 .pq-pays button span { font-size: 22px; }
+.pq-pays button { align-content: center; line-height: 1.1; padding: 4px; font-size: 14px; }
+.pq-pays button:disabled { opacity: 0.45; cursor: not-allowed; }
 .pq-pays button.is-on { background: var(--navy); border-color: var(--c-text); color: white; }
 .pq-cash { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .pq-cash button {
@@ -4923,8 +5000,8 @@ button.pq-charge {
 @media (max-width: 900px) {
   .pq { grid-template-columns: minmax(0, 1fr); padding-bottom: 76px; }
   .pq-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
-  .pq-night { padding: 6px 12px; }
-  .pq-night em { display: none; }
+  .pq-glance-cell { padding: 6px 10px; }
+  .pq-glance-cell strong { font-size: 17px; }
   .pq-order {
     position: fixed;
     left: 0;

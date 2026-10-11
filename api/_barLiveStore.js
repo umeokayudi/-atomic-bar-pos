@@ -35,6 +35,7 @@ export const LIVE_TABLES = [
   'floor_layouts',
   'floor_sectors',
   'floor_tables',
+  'bar_guest_ledger',
 ]
 
 // Tables that had a JSON copy before the migrations created them in Postgres (sql/pos_start.sql,

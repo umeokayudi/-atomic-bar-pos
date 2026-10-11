@@ -31,6 +31,9 @@ import { CASH_CHIPS, cashSettle, isCashMethod, payRecordNote } from '../lib/posP
 import { printGuestReceipt } from '../lib/guestReceipt'
 import { drinkBackCommission } from '../lib/drinkBackPay'
 import PosQuick from './pos/PosQuick'
+import { discountGuestError } from '../lib/onAccount'
+import { addCrmGuest } from '../lib/onAccountStore'
+import { forgetLiveSelects } from '../lib/barLiveClient'
 import PosPaySettings from './pos/PosPaySettings'
 import Icon from './ui/Icon'
 
@@ -249,6 +252,8 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
   const [agentId, setAgentId] = useState('')
   const [spaceId, setSpaceId] = useState('')
   const [guestId, setGuestId] = useState('')
+  const [newGuestName, setNewGuestName] = useState('')
+  const [addGuestOpen, setAddGuestOpen] = useState(false)
   const [ticketNote, setTicketNote] = useState('')
   const [addCastOpen, setAddCastOpen] = useState(false)
   const [newCastName, setNewCastName] = useState('')
@@ -389,11 +394,37 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
   const cash = isCashMethod(payMethod) ? cashSettle(ticketTotal, cashTendered, restMethod) : null
   const cardPart = cardPay ? ticketTotal : (cash?.restMethod === 'Card' ? cash.rest : 0)
   const cashShort = !!(cash && cash.short)
+  // A discount (code or VIP price) is only for a recurring customer of the CRM, and the sale is linked to them.
+  const discountErr = discountGuestError({
+    priceType: priceType === 'codigo' && !activeCode ? 'regular' : priceType,
+    codeId: activeCode?.id || null,
+    guest: guests.find(g => g.id === guestId) || null,
+  })
+
+  async function addGuestToCrm() {
+    const nome = newGuestName.trim()
+    if (!nome) return
+    try {
+      const g = await addCrmGuest(supabase, bar.id, nome)
+      setGuests(prev => [...prev, g].sort((a, b) => String(a.nome).localeCompare(String(b.nome))))
+      setGuestId(g.id)
+      setNewGuestName('')
+      setAddGuestOpen(false)
+      setSaleErr('')
+    } catch (e) {
+      setSaleErr(t('onAccount.errAdd', { error: e.message }))
+    }
+  }
 
   async function completeSale() {
     if (!cart.length && !charges.lines.length) return
     if (priceType === 'vip' && !vipId) {
       setSaleErr(t('atomicPos.vipMemberRequired'))
+      return
+    }
+    if (discountErr) {
+      setSaleErr(t(discountErr))
+      setShowExtras(true)
       return
     }
     if (cashShort) {
@@ -654,9 +685,19 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
               }}
               className="pos-select"
             >
-              <option value="">{t('atomicPos.guestOptional')}</option>
+              <option value="">{priceType === 'regular' ? t('atomicPos.guestOptional') : t('onAccount.guestRequired')}</option>
               {guests.map(g => <option key={g.id} value={g.id}>{g.nome}{g.line_id ? ` · LINE ${g.line_id}` : ''}</option>)}
             </select>
+            {discountErr && <div className="pos-sale-err">{t(discountErr)}</div>}
+            {addGuestOpen ? (
+              <div className="pos-code-row">
+                <input value={newGuestName} onChange={e => setNewGuestName(e.target.value)} placeholder={t('guests.name')} aria-label={t('guests.name')}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addGuestToCrm() } }} />
+                <button type="button" className="btn-primary" disabled={!newGuestName.trim()} onClick={addGuestToCrm}>{t('onAccount.addShort')}</button>
+              </div>
+            ) : (
+              <button type="button" className="pos-chip" onClick={() => setAddGuestOpen(true)}>{t('onAccount.addNew')}</button>
+            )}
 
             {guestId && (() => {
               const g = guests.find(x => x.id === guestId)
@@ -902,7 +943,10 @@ function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBa
           ) : (
             <div className="pos-pay-hint">{t('atomicPos.payRecordHint')}</div>
           )}
-          <button className="btn-gold pos-pay" onClick={completeSale} disabled={saving || cashShort || (!cart.length && !charges.lines.length) || (priceType === 'vip' && !vipId)}>
+          {discountErr && (cart.length > 0 || charges.lines.length > 0) && (
+            <button type="button" className="pos-sale-err" onClick={() => setShowExtras(true)}>{t(discountErr)}</button>
+          )}
+          <button className="btn-gold pos-pay" onClick={completeSale} disabled={saving || cashShort || (!cart.length && !charges.lines.length) || (priceType === 'vip' && !vipId) || !!discountErr}>
             {saving ? t('common.saving') : t('atomicPos.chargeNow', { amount: fmtYen(ticketTotal) })}
           </button>
           <NightCloseBar bar={bar} compact />
@@ -1564,6 +1608,8 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
   async function init({ quiet = false } = {}) {
     // A refresh after a sale keeps the till on screen; only the first load shows the spinner.
     if (!quiet) setLoading(true)
+    // The sale was written by an RPC the live-store cache does not see: read tonight's sales fresh.
+    forgetLiveSelects('pos_vendas')
     const nightKey = tokyoNightKey()
     const from = prevTokyoDateKey(nightKey)
     const salesSelect = 'total,refunded,card_fee,card_fee_reversed,criado_em,data,metodo_pagamento,obs,drink_back_agent_id'
@@ -1673,6 +1719,7 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
                 drinks={drinks}
                 shots={shots}
                 agents={drinkBackAgents}
+                discountCodes={discountCodes}
                 todaySales={todaySales}
                 catalogError={catalogErr}
                 onSale={() => init({ quiet: true })}

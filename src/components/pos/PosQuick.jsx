@@ -3,28 +3,39 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../Auth'
 import { useI18n } from '../../lib/i18n'
 import { fmtYen } from '../utils'
-import { buildStockMap, cartTotal, findLowStockProducts, pricingMapFromShots, resolveItemPrice } from '../../lib/atomicPos'
+import { buildStockMap, cartTotal, findLowStockProducts, pricingMapFromShots, resolveItemPrice, validateDiscountCode } from '../../lib/atomicPos'
 import { reorderLowStock, syncPosStockAndReorder } from '../../lib/posSupply'
 import { CASH_CHIPS, cashSettle, isCashMethod, payRecordNote } from '../../lib/posPay'
 import { drinkBackCommission } from '../../lib/drinkBackPay'
 import { DEFAULT_POS_SETTINGS, cardSurchargeLine, packTicketObs, settingsFromRow, ticketChargeLines } from '../../lib/nightTicket'
 import { cardMethodLabel, cardPaymentsFee, cardSurcharge, isCardMethod, machineFee, pickCardMachine } from '../../lib/posFloor'
 import { tokyoNightKey, tokyoDateKey } from '../../lib/tokyo'
+import { prevTokyoDateKey, summarizeNight } from '../../lib/nightClose'
+import { forgetLiveSelects } from '../../lib/barLiveClient'
+import {
+  ON_ACCOUNT, discountGuestError, ledgerBalances, methodDisplay, onAccountError, onAccountGuestId, onAccountMethod,
+  receivePaymentRow, saleOnAccountRow, tabOnAccountRows, tonightGlance,
+} from '../../lib/onAccount'
+import { linkSaleToGuest, loadCrmGuests, loadLedger, recordLedger, saveLedgerRows } from '../../lib/onAccountStore'
 import { itemVisual, rankTopSellers, starterPicks } from '../../lib/posVisual'
 import { buildCatalog, searchCatalog, toggleFavorite } from '../../lib/posCatalog'
 import { commitSaleAtomic, newSaleKey } from '../../lib/posCommit'
 import { floorAvailable, floorApi, isConflict, loadOpenTabs, newKey, pendingToLines, tabMoney, tabsApi } from '../../lib/comandas'
 import Icon from '../ui/Icon'
 import TabPanel from '../floor/TabPanel'
+import CustomerPicker from './CustomerPicker'
 
 const PAY = [
   { id: 'Cash', key: 'atomicPos.payCash', icon: 'payCash' },
   { id: 'Credit card', key: 'atomicPos.payCard', icon: 'payCard' },
   { id: 'PayPay', key: 'atomicPos.payPaypay', icon: 'payPhone' },
+  { id: ON_ACCOUNT, key: 'onAccount.method', icon: 'salary' },
 ]
+const RECEIVE = PAY.filter(row => row.id !== ON_ACCOUNT)
 const COUNTER = 'counter'
 const SRV = 'srv:'
 const POLL_MS = 12000
+const SALES_POLL_MS = 60000
 
 function readJson(key, fallback) {
   try { return JSON.parse(localStorage.getItem(key)) ?? fallback } catch { return fallback }
@@ -60,7 +71,7 @@ function Tile({ item, qty, fav, onAdd, onFav, t }) {
  * Tabs live on the server (pos_comandas) when sql/floor_comandas.sql is applied, so every device sees
  * the same tab; otherwise they stay on this device as before.
  */
-export default function PosQuick({ bar, drinks = [], shots = [], agents = [], todaySales, catalogError = '', onSale }) {
+export default function PosQuick({ bar, drinks = [], shots = [], agents = [], discountCodes = [], todaySales, catalogError = '', onSale }) {
   const { t } = useI18n()
   const { user, perfil } = useAuth()
   const ordersKey = `pos-orders:${bar.id}`
@@ -96,6 +107,16 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
   const [tabsLoaded, setTabsLoaded] = useState(false)
   const [tables, setTables] = useState([])
   const [panelTab, setPanelTab] = useState(null)
+  // CRM customers (bar_guests), the on-account ledger and tonight's closed sales.
+  const [guests, setGuests] = useState(null)
+  const [crmErr, setCrmErr] = useState('')
+  const [ledger, setLedger] = useState([])
+  const [ledgerReady, setLedgerReady] = useState(null) // null = checking, false = store not reachable
+  const [custSheet, setCustSheet] = useState(false)
+  const [fiadoSheet, setFiadoSheet] = useState(false)
+  const [codeText, setCodeText] = useState('')
+  const [codeErr, setCodeErr] = useState('')
+  const [night, setNight] = useState(null) // { summary } | { error }
   const doneTimer = useRef(null)
   const searchRef = useRef(null)
 
@@ -150,6 +171,47 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
     floorAvailable(supabase, bar.id).then(ok => { if (!cancelled) setServer(ok) }).catch(() => { if (!cancelled) setServer(false) })
     return () => { cancelled = true }
   }, [bar.id, localTopKey])
+
+  const refreshCrm = useCallback(async () => {
+    try {
+      setGuests(await loadCrmGuests(supabase, bar.id))
+      setCrmErr('')
+    } catch (e) {
+      setGuests(g => g || [])
+      setCrmErr(e.message)
+    }
+  }, [bar.id])
+
+  const refreshLedger = useCallback(async () => {
+    try {
+      await recordLedger(supabase, bar.id, []) // replay rows this device could not save before
+      setLedger(await loadLedger(supabase, bar.id))
+      setLedgerReady(true)
+    } catch {
+      setLedgerReady(false)
+    }
+  }, [bar.id])
+
+  // Tonight's closed sales, read here so the card stays right after every sale and with other tills ringing too.
+  const refreshNight = useCallback(async () => {
+    const nightKey = tokyoNightKey()
+    forgetLiveSelects('pos_vendas')
+    const from = prevTokyoDateKey(nightKey)
+    let { data, error } = await supabase.from('pos_vendas').select('total,refunded,criado_em,data,obs,metodo_pagamento').eq('bar_id', bar.id).gte('data', from)
+    if (error && /refunded/.test(error.message || '')) {
+      ({ data, error } = await supabase.from('pos_vendas').select('total,criado_em,data,obs,metodo_pagamento').eq('bar_id', bar.id).gte('data', from))
+    }
+    if (error) setNight(n => (n?.summary ? n : { error: error.message }))
+    else setNight({ summary: summarizeNight(data || [], nightKey) })
+  }, [bar.id])
+
+  useEffect(() => {
+    refreshCrm()
+    refreshLedger()
+    refreshNight().catch(() => {})
+    const id = setInterval(() => { if (document.visibilityState === 'visible') refreshNight().catch(() => {}) }, SALES_POLL_MS)
+    return () => clearInterval(id)
+  }, [refreshCrm, refreshLedger, refreshNight])
 
   const refreshTabs = useCallback(async () => {
     if (!server) return
@@ -206,6 +268,12 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
   const order = orders[active] || (isSrv ? { cart: [] } : orders[COUNTER])
   const cart = order.cart || [] // lines not yet on the server (or the whole order for counter/device tabs)
   const space = spaces.find(row => row.id === order.spaceId)
+  // Customer of this order (from the CRM) and its discount: a discount always needs a CRM customer.
+  const orderGuest = (guests || []).find(g => g.id === order.guestId) || null
+  const priceType = order.priceType === 'vip' && orderGuest?.vip_member_id ? 'vip' : 'regular'
+  const activeCode = order.codeId ? (discountCodes || []).find(c => c.id === order.codeId) || null : null
+  const vipId = priceType === 'vip' ? orderGuest.vip_member_id : null
+  const balances = useMemo(() => new Map(ledgerBalances(ledger).map(b => [b.guest_id, b.balance])), [ledger])
 
   // If the tab we were on was closed elsewhere, fall back to the counter.
   useEffect(() => {
@@ -246,11 +314,25 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
   const due = baseDue + surchargeNow
   const itemCount = cart.reduce((a, l) => a + l.qtd, 0) + (srvMoney?.lines || []).reduce((a, l) => a + l.qtd, 0)
   const cashPay = isCashMethod(pay)
+  const onAccountPay = pay === ON_ACCOUNT
   const cash = cashPay ? cashSettle(due, tendered, '') : null
   const short = !!(cash && cash.short)
   const agent = agents.find(row => row.id === agentId)
   const lockedTab = srvTab && srvTab.status !== 'open'
   const hasSomething = cart.length > 0 || (srvMoney?.lines.length || 0) > 0
+  const needGuest = hasSomething && due > 0 && onAccountPay && !orderGuest
+  const settledTab = !!srvTab && baseDue === 0 && (srvMoney?.paid || 0) > 0
+  // What is on the open tabs right now (bill incl. service + lines not sent yet), for the "tonight" card.
+  const openTabsMoney = [
+    ...(server ? srvTabs : []).map(x => {
+      const m = tabMoney(x, x.items, x.payments, settings)
+      return { total: m.total + cartTotal(orders[SRV + x.id]?.cart || []), paid: m.paid - m.surchargePaid }
+    }),
+    ...localTabIds.map(id => ({ total: cartTotal(orders[id].cart || []), paid: 0 })),
+  ]
+  const glance = tonightGlance({ summary: night?.summary || (night?.error ? null : todaySales && { drinksTotal: todaySales.total, ticketCount: todaySales.count }), tabs: openTabsMoney })
+  const owedTotal = useMemo(() => ledgerBalances(ledger).reduce((a, b) => a + Math.max(0, b.balance), 0), [ledger])
+  const owedCount = useMemo(() => ledgerBalances(ledger).filter(b => b.balance > 0).length, [ledger])
 
   function setCart(updater) {
     setOrders(prev => {
@@ -263,7 +345,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
   function add(item) {
     setErr('')
     if (lockedTab) { setErr(t('tabs.lockedHint')); return }
-    const price = resolveItemPrice(item, 'regular', null)
+    const price = resolveItemPrice(item, priceType, activeCode)
     setCart(prev => {
       const hit = prev.find(line => line.key === item.key)
       if (hit) return prev.map(line => line.key === item.key ? { ...line, qtd: line.qtd + 1 } : line)
@@ -285,6 +367,39 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
     setCart(prev => prev
       .map(line => line.key === key ? { ...line, qtd: line.qtd + delta } : line)
       .filter(line => line.qtd > 0))
+  }
+
+  /** Customer and discount of the order on screen. Lines not yet sent are re-priced. */
+  function setOrderCustomer({ guestId, priceType: nextType = 'regular', code = null }) {
+    setOrders(prev => {
+      const cur = prev[active] || { cart: [] }
+      const nextCart = (cur.cart || []).map(line => {
+        const item = byKey.get(line.key)
+        if (!item) return line
+        const price = resolveItemPrice(item, nextType, code)
+        return { ...line, ...price, preco_unitario: price.preco }
+      })
+      return { ...prev, [active]: { ...cur, cart: nextCart, guestId: guestId || null, priceType: nextType, codeId: code?.id || null, saleKey: undefined } }
+    })
+  }
+
+  function pickGuest(g) {
+    setErr('')
+    setCodeErr('')
+    if (!g) { setOrderCustomer({ guestId: null }); return }
+    // Keep the discount when the customer changes to another CRM customer (VIP price only if they are VIP).
+    setOrderCustomer({ guestId: g.id, priceType: priceType === 'vip' && g.vip_member_id ? 'vip' : 'regular', code: activeCode })
+  }
+
+  function applyCode() {
+    setCodeErr('')
+    if (!orderGuest) { setCodeErr(t('onAccount.errDiscountGuest')); return }
+    const code = (discountCodes || []).find(c => String(c.codigo || '').toUpperCase() === codeText.trim().toUpperCase())
+    if (!code) { setCodeErr(t('atomicPos.codeNotFound')); return }
+    const v = validateDiscountCode(code)
+    if (!v.ok) { setCodeErr(t(v.errorKey || 'atomicPos.codeNotFound')); return }
+    setOrderCustomer({ guestId: orderGuest.id, priceType: 'regular', code })
+    setCodeText('')
   }
 
   function switchTo(id) {
@@ -339,7 +454,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
   }
 
   function dropActive() {
-    if (active === COUNTER) { setCart([]); return }
+    if (active === COUNTER) { setOrders(prev => ({ ...prev, [COUNTER]: { cart: [] } })); return }
     setOrders(prev => {
       const next = { ...prev }
       delete next[active]
@@ -372,6 +487,16 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
 
   async function charge() {
     if (busy || short || setupNeeded || !hasSomething) return
+    // Lines already priced with a discount (e.g. sent to the tab earlier) also need the CRM customer.
+    const discountedLines = [...cart, ...(srvMoney?.lines || [])].some(l => l.tipo_preco === 'vip' || l.tipo_preco === 'codigo')
+    const discountErr = discountGuestError({ priceType: discountedLines ? 'codigo' : priceType, codeId: activeCode?.id, vipId, guest: orderGuest })
+    if (discountErr) { setErr(t(discountErr)); setCustSheet(true); return }
+    const onAcc = onAccountPay && due > 0
+    if (onAcc) {
+      if (ledgerReady === false) { setErr(t('onAccount.errStore')); return }
+      const v = onAccountError({ guest: orderGuest, amount: due })
+      if (v) { setErr(t(v)); setCustSheet(true); return }
+    }
     setBusy(true)
     setErr('')
     // One key per checkout attempt, kept until it succeeds: a retry after a timeout cannot sell twice.
@@ -384,26 +509,36 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
       let payNote
       let card = null
       let chargedTotal = total
+      let tabPayments = []
       if (srvTab) {
         if (!(await sendPending())) return
         const fresh = (await loadOpenTabs(supabase, bar.id)).find(x => x.id === srvTab.id)
         if (!fresh) throw new Error(t('tabs.errGone'))
         const m = tabMoney(fresh, fresh.items, fresh.payments, settings)
-        const payments = fresh.payments.filter(p => !p.estornado_em)
+        let payments = fresh.payments.filter(p => !p.estornado_em)
         let finalMetodo = pay
         let finalSur = 0
         if (m.due > 0) {
+          if (onAccountPay && !orderGuest) throw new Error(t('onAccount.errGuest'))
           finalSur = cardPay ? cardSurcharge(m.due, settings.card_surcharge_pct) : 0
-          finalMetodo = cardPay ? cardMethodLabel({ method: pay, machine, surcharge: finalSur, named: multiMachine }) : pay
+          finalMetodo = onAccountPay ? onAccountMethod(orderGuest)
+            : cardPay ? cardMethodLabel({ method: pay, machine, surcharge: finalSur, named: multiMachine }) : pay
           const payKey = order.payKey || newKey('pay')
           setOrders(prev => ({ ...prev, [active]: { ...(prev[active] || { cart: [] }), saleKey, payKey } }))
-          await tabsApi.pay(supabase, fresh.id, { valor: m.due + finalSur, metodo: finalMetodo, key: payKey })
-          payments.push({ valor: m.due + finalSur, metodo: finalMetodo })
+          await tabsApi.pay(supabase, fresh.id, { valor: m.due + finalSur, metodo: finalMetodo, pagador: onAccountPay ? orderGuest.nome : null, key: payKey })
+          if (onAccountPay) {
+            // Read the payment back: its id is the ledger id, so a retry never doubles the customer's debt.
+            const again = (await loadOpenTabs(supabase, bar.id)).find(x => x.id === fresh.id)
+            payments = (again?.payments || []).filter(p => !p.estornado_em)
+          } else {
+            payments.push({ valor: m.due + finalSur, metodo: finalMetodo })
+          }
         }
+        tabPayments = payments
         const surLine = cardSurchargeLine(m.surchargePaid + finalSur, settings.card_surcharge_pct)
         checkoutCart = [...m.lines, ...m.charges, ...(surLine ? [surLine] : [])]
         comandaId = fresh.id
-        const methods = [...new Set(payments.map(p => p.metodo))]
+        const methods = [...new Set(payments.map(p => methodDisplay(p.metodo)))]
         payNote = `Pay: ${methods.join(' + ') || pay} tab`
         const fees = cardPaymentsFee(payments, machines)
         card = { fee: fees.fee, note: fees.note, surcharge: m.surchargePaid + finalSur }
@@ -411,7 +546,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
       } else {
         const surLine = cardSurchargeLine(surchargeNow, settings.card_surcharge_pct)
         checkoutCart = [...cart, ...charges.lines, ...(surLine ? [surLine] : [])]
-        payNote = payRecordNote({ method: pay, total: due, tendered: cashPay ? tendered : undefined })
+        payNote = onAccountPay ? `Pay: ${ON_ACCOUNT} · ${orderGuest.nome}` : payRecordNote({ method: pay, total: due, tendered: cashPay ? tendered : undefined })
         if (cardPay) card = { fee: machineFee(due, machine), note: `${machine.nome} ${machine.fee_pct}%`, surcharge: surchargeNow }
         chargedTotal = due
       }
@@ -430,13 +565,16 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
         cardFee: card?.fee || 0,
         cardSurcharge: card?.surcharge || 0,
       })
+      const saleGuestId = orderGuest?.id || (srvTab ? onAccountGuestId(tabPayments) : null)
       const legacy = {
         bar, payMethod: pay, agentId: agentId || null, spaceId: order.spaceId || null, obs, userId: user?.id, shots,
+        priceType: vipId ? 'vip' : 'regular', vipId, activeCode, guestId: saleGuestId,
         syncStock: args => syncPosStockAndReorder(supabase, { ...args, pricingByProduto, buildStockMap, findLowStockProducts }),
       }
       const result = await commitSaleAtomic(supabase, {
         key: saleKey, barId: bar.id, cart: checkoutCart, payMethod: srvTab ? 'Tab' : pay, obs,
         agentId: agentId || null, spaceId: order.spaceId || null,
+        vipId, codeId: activeCode?.id || null,
         commission,
         comandaId, pricingByProduto, legacy,
       })
@@ -448,8 +586,23 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
       }
       // Restock check after the sale is safe on the server; it never undoes the sale.
       if (result.atomic) reorderLowStock(supabase, { bar, userId: user?.id, buildStockMap, findLowStockProducts }).catch(() => {})
+      // The customer: link the sale, and record what was put on their account (ledger, idempotent by id).
+      if (result.atomic && !result.replay && saleGuestId) linkSaleToGuest(supabase, result.vendaId, saleGuestId)
+      const ledgerRows = srvTab
+        ? tabOnAccountRows(tabPayments, { barId: bar.id, comandaId, vendaId: result.vendaId || null, guests: guests || [], userId: user?.id || null })
+        : onAcc ? [saleOnAccountRow({ barId: bar.id, vendaId: result.vendaId || newKey('oa'), guest: orderGuest, valor: chargedTotal, userId: user?.id || null })] : []
+      if (ledgerRows.length) {
+        recordLedger(supabase, bar.id, ledgerRows)
+          .then(r => { if (r.pending) setErr(t('onAccount.pendingSave', { n: r.pending })) })
+          .finally(() => refreshLedger())
+      }
       rememberTop(drinkLines)
-      setDone({ total: chargedTotal, change: !srvTab && cash && !cash.exact ? Math.max(0, cash.change) : 0, method: pay, label: tableOrder ? (srvTab?.nome || order.label) : '' })
+      const onAccountAmount = ledgerRows.reduce((a, r) => a + r.valor, 0)
+      setDone({
+        total: chargedTotal, change: !srvTab && cash && !cash.exact ? Math.max(0, cash.change) : 0, method: pay,
+        label: tableOrder ? (srvTab?.nome || order.label) : '',
+        onAccount: onAccountAmount > 0 ? t('onAccount.doneLine', { amount: fmtYen(onAccountAmount), name: ledgerRows[0].guest_nome }) : '',
+      })
       dropActive()
       setAgentId('')
       setTendered('')
@@ -458,6 +611,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
       clearTimeout(doneTimer.current)
       doneTimer.current = setTimeout(() => setDone(null), 4000)
       if (srvTab) refreshTabs()
+      refreshNight().catch(() => {})
       onSale?.()
     } catch (e) {
       setErr(isConflict(e) ? t('tabs.errConflict') : t('tabs.errGeneric', { error: e.message }))
@@ -486,7 +640,13 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
       ? t('posQuick.cannotSave')
       : short
         ? t('posQuick.short', { amount: fmtYen(cash.due - cash.tendered) })
-        : hasSomething ? t('posQuick.charge', { amount: fmtYen(due) }) : t('posQuick.charge', { amount: '' }).trim()
+        : needGuest
+          ? t('onAccount.pickFirst')
+          : settledTab
+            ? t('tabs.closeSale')
+            : hasSomething && onAccountPay && due > 0
+              ? t('onAccount.chargeOn', { amount: fmtYen(due) })
+              : hasSomething ? t('posQuick.charge', { amount: fmtYen(due) }) : t('posQuick.charge', { amount: '' }).trim()
 
   const sentLines = srvMoney?.lines || []
 
@@ -510,13 +670,25 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
             />
             {query && <button type="button" aria-label={t('posQuick.clear')} onClick={() => setQuery('')}><Icon name="close" size={16} /></button>}
           </label>
-          {todaySales && (
-            <div className="pq-night">
-              <span>{t('posQuick.tonight')}</span>
-              <strong>{fmtYen(todaySales.total)}</strong>
-              <em>{t('atomicPos.salesCount', { count: todaySales.count })}</em>
+          <div className="pq-glance" aria-label={t('posQuick.tonight')}>
+            <div className="pq-glance-cell" title={night?.error ? t('onAccount.salesError', { error: night.error }) : t('onAccount.soldHint')}>
+              <span>{t('onAccount.sold')}</span>
+              <strong>{night?.error && !night?.summary ? '—' : fmtYen(glance.soldTotal)}</strong>
+              <em>{t('atomicPos.salesCount', { count: glance.soldCount })}</em>
             </div>
-          )}
+            <div className="pq-glance-cell" title={t('onAccount.openHint')}>
+              <span>{t('onAccount.openTabs')}</span>
+              <strong>{fmtYen(glance.openTotal)}</strong>
+              <em>{t('onAccount.tabsCount', { n: glance.openCount })}</em>
+            </div>
+            {ledgerReady !== false && (
+              <button type="button" className="pq-glance-cell is-btn" onClick={() => { setFiadoSheet(true); refreshLedger() }} aria-label={t('onAccount.title')}>
+                <span>{t('onAccount.short')}</span>
+                <strong className={owedTotal > 0 ? 'is-owed' : ''}>{fmtYen(owedTotal)}</strong>
+                <em>{t('onAccount.peopleCount', { n: owedCount })}</em>
+              </button>
+            )}
+          </div>
         </div>
 
         {setupNeeded && <div className="pq-alert">{t('posQuick.setupNeeded')}</div>}
@@ -645,11 +817,16 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
 
           <div className="pq-pays">
             {PAY.map(row => (
-              <button key={row.id} type="button" className={pay === row.id ? 'is-on' : ''} aria-pressed={pay === row.id} onClick={() => { setPay(row.id); setTendered('') }}>
+              <button key={row.id} type="button" className={pay === row.id ? 'is-on' : ''} aria-pressed={pay === row.id}
+                disabled={row.id === ON_ACCOUNT && ledgerReady === false} title={row.id === ON_ACCOUNT && ledgerReady === false ? t('onAccount.errStore') : undefined}
+                onClick={() => { setPay(row.id); setTendered(''); if (row.id === ON_ACCOUNT && !orderGuest && hasSomething) setCustSheet(true) }}>
                 <Icon name={row.icon} size={16} />{t(row.key)}
               </button>
             ))}
           </div>
+          {onAccountPay && hasSomething && due > 0 && (
+            <div className="pq-onacc-note">{orderGuest ? t('onAccount.chargeHint', { amount: fmtYen(due), name: orderGuest.nome }) : t('onAccount.pickFirst')}</div>
+          )}
 
           {cardPay && multiMachine && hasSomething && (
             <div className="pq-cash pq-machines" role="radiogroup" aria-label={t('posCard.machine')}>
@@ -674,6 +851,18 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
           )}
 
           <div className="pq-options">
+            <button type="button" className={`pq-custbtn${orderGuest ? ' is-set' : ''}${needGuest ? ' is-needed' : ''}`} onClick={() => setCustSheet(true)}>
+              <Icon name="clientes" size={18} />
+              <span className="pq-custbtn-name">
+                <strong>{orderGuest ? orderGuest.nome : t('onAccount.customer')}</strong>
+                <span>
+                  {orderGuest
+                    ? [priceType === 'vip' ? t('onAccount.vipPrice') : '', activeCode ? t('onAccount.codeOn', { code: activeCode.codigo }) : '', balances.get(orderGuest.id) > 0 ? t('onAccount.owes', { amount: fmtYen(balances.get(orderGuest.id)) }) : ''].filter(Boolean).join(' · ') || t('onAccount.inCrm')
+                    : t('onAccount.customerHint')}
+                </span>
+              </span>
+              <Icon name="next" size={16} />
+            </button>
             {agents.length > 0 && (
               <select value={agentId} onChange={e => setAgentId(e.target.value)} aria-label={t('posQuick.cast')}>
                 <option value="">{t('posQuick.noCast')}</option>
@@ -693,7 +882,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
           </div>
 
           {err && <div className="pq-alert" role="alert">{err}</div>}
-          <button type="button" className="pq-charge" disabled={busy || !hasSomething || short || setupNeeded} onClick={charge} aria-keyshortcuts="Control+Enter F12">
+          <button type="button" className="pq-charge" disabled={busy || !hasSomething || short || setupNeeded} onClick={needGuest ? () => setCustSheet(true) : charge} aria-keyshortcuts="Control+Enter F12">
             {chargeLabel}
           </button>
         </div>
@@ -748,6 +937,48 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
           settings={settings}
           onChanged={refreshTabs}
           onClose={() => setPanelTab(null)}
+          onCharge={x => { setPanelTab(null); switchTo(SRV + x.id); setOrderOpen(true) }}
+        />
+      )}
+
+      {custSheet && (
+        <div className="pq-sheet" role="dialog" aria-modal="true" aria-label={t('onAccount.customer')} onClick={e => { if (e.target === e.currentTarget) setCustSheet(false) }}>
+          <div className="pq-sheet-card">
+            <h2>{t('onAccount.customer')}</h2>
+            <p className="pq-hint">{t('onAccount.customerRule')}</p>
+            {guests === null
+              ? <div className="ui-skel" style={{ height: 56 }} />
+              : <CustomerPicker barId={bar.id} guests={guests} onGuestsChange={setGuests} value={orderGuest?.id || ''} onPick={pickGuest} balances={balances} error={crmErr ? t('onAccount.errCrm', { error: crmErr }) : ''} />}
+
+            {orderGuest && (
+              <div className="pq-discount">
+                <h3>{t('onAccount.discount')}</h3>
+                <div className="pq-cash">
+                  <button type="button" className={priceType === 'regular' && !activeCode ? 'is-on' : ''} onClick={() => setOrderCustomer({ guestId: orderGuest.id })}>{t('atomicPos.regularPrice')}</button>
+                  {orderGuest.vip_member_id && (
+                    <button type="button" className={priceType === 'vip' ? 'is-on' : ''} onClick={() => setOrderCustomer({ guestId: orderGuest.id, priceType: 'vip' })}>{t('onAccount.vipPrice')}</button>
+                  )}
+                  {activeCode && <button type="button" className="is-on" onClick={() => setOrderCustomer({ guestId: orderGuest.id })}>{activeCode.codigo} ✕</button>}
+                </div>
+                {(discountCodes || []).length > 0 && (
+                  <form className="pq-sheet-name" onSubmit={e => { e.preventDefault(); applyCode() }}>
+                    <input value={codeText} onChange={e => setCodeText(e.target.value.toUpperCase())} placeholder={t('atomicPos.codePlaceholder')} aria-label={t('atomicPos.discountCode')} autoCapitalize="characters" />
+                    <button type="submit" disabled={!codeText.trim()}>{t('atomicPos.apply')}</button>
+                  </form>
+                )}
+                {codeErr && <div className="pq-alert" role="alert">{codeErr}</div>}
+                {srvTab && (priceType === 'vip' || activeCode) && <p className="pq-hint">{t('onAccount.discountTabHint')}</p>}
+              </div>
+            )}
+            <button type="button" className="pq-sheet-cancel" onClick={() => setCustSheet(false)}>{t('common.close')}</button>
+          </div>
+        </div>
+      )}
+
+      {fiadoSheet && (
+        <FiadoSheet
+          bar={bar} ledger={ledger} guests={guests || []} userId={user?.id || null} t={t}
+          onSaved={refreshLedger} onClose={() => setFiadoSheet(false)}
         />
       )}
 
@@ -758,10 +989,112 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], to
             <div className="pq-done-total">{fmtYen(done.total)}</div>
             {done.change > 0 && <div className="pq-done-change">{t('posQuick.change')} {fmtYen(done.change)}</div>}
             {done.label && <div className="pq-done-label">{done.label}</div>}
+            {done.onAccount && <div className="pq-done-label">{done.onAccount}</div>}
             <button type="button" onClick={() => setDone(null)}>{t('posQuick.newSale')}</button>
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/** Who owes what ("on account" / ツケ), and taking a later payment against it. */
+function FiadoSheet({ bar, ledger, guests, userId, t, onSaved, onClose }) {
+  const rows = ledgerBalances(ledger)
+  const [openId, setOpenId] = useState('')
+  const [valor, setValor] = useState('')
+  const [metodo, setMetodo] = useState('Cash')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const [payId, setPayId] = useState(() => newKey('oapay'))
+  const total = rows.reduce((a, b) => a + Math.max(0, b.balance), 0)
+  const current = rows.find(b => b.guest_id === openId) || null
+  const history = openId ? ledger.filter(r => r.guest_id === openId && !r.estornado_em).slice(0, 6) : []
+
+  function open(id) {
+    setOpenId(o => (o === id ? '' : id))
+    setValor('')
+    setErr('')
+    setPayId(newKey('oapay'))
+  }
+
+  async function receive(e) {
+    e.preventDefault()
+    if (!current || busy) return
+    const amount = valor === '' ? current.balance : valor
+    const r = receivePaymentRow({ id: payId, barId: bar.id, guest: current, valor: amount, metodo, balance: current.balance, userId })
+    if (r.error) { setErr(t(r.error, { amount: fmtYen(current.balance) })); return }
+    setBusy(true)
+    setErr('')
+    try {
+      await saveLedgerRows(supabase, [r.row])
+      setValor('')
+      setPayId(newKey('oapay'))
+      await onSaved?.()
+    } catch (e2) {
+      setErr(t('tabs.errGeneric', { error: e2.message }))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="pq-sheet" role="dialog" aria-modal="true" aria-label={t('onAccount.title')} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="pq-sheet-card pq-fiado">
+        <h2>{t('onAccount.title')}</h2>
+        <div className="pq-fiado-total"><span>{t('onAccount.totalOwed')}</span><strong>{fmtYen(total)}</strong></div>
+        {!rows.length && <p className="pq-empty">{t('onAccount.nobodyOwes')}</p>}
+        <ul className="pq-fiado-list">
+          {rows.map(b => {
+            const g = guests.find(x => x.id === b.guest_id)
+            return (
+              <li key={b.guest_id} className={openId === b.guest_id ? 'is-open' : ''}>
+                <button type="button" className="pq-fiado-row" onClick={() => open(b.guest_id)} aria-expanded={openId === b.guest_id}>
+                  <span className="cust-avatar" aria-hidden="true">{String(b.nome || '?').slice(0, 1)}</span>
+                  <span className="cust-name">
+                    <strong>{g?.nome || b.nome}</strong>
+                    <span>{b.last ? t('onAccount.since', { date: new Date(b.last).toLocaleDateString() }) : ''}</span>
+                  </span>
+                  <strong className={b.balance > 0 ? 'is-owed' : ''}>{fmtYen(b.balance)}</strong>
+                </button>
+                {openId === b.guest_id && (
+                  <form className="pq-fiado-pay" onSubmit={receive}>
+                    <ul className="pq-fiado-hist">
+                      {history.map(r => (
+                        <li key={r.id}>
+                          <span>{new Date(r.criado_em).toLocaleDateString()} · {r.tipo === 'payment' ? t('onAccount.received', { method: r.metodo }) : t('onAccount.charged')}</span>
+                          <span className="num">{r.tipo === 'payment' ? '−' : '+'}{fmtYen(r.valor)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {b.balance > 0 && (
+                      <>
+                        <div className="pq-sheet-name">
+                          <input type="number" inputMode="numeric" min="1" step="1" value={valor} placeholder={String(b.balance)} aria-label={t('tabs.amount')}
+                            onChange={e => { setValor(e.target.value); setPayId(newKey('oapay')) }} />
+                        </div>
+                        <div className="pq-cash" role="radiogroup" aria-label={t('tabs.method')}>
+                          {RECEIVE.map(row => (
+                            <button key={row.id} type="button" role="radio" aria-checked={metodo === row.id} className={metodo === row.id ? 'is-on' : ''} onClick={() => setMetodo(row.id)}>
+                              <Icon name={row.icon} size={14} /> {t(row.key)}
+                            </button>
+                          ))}
+                        </div>
+                        {err && <div className="pq-alert" role="alert">{err}</div>}
+                        <button type="submit" className="pq-fiado-receive" disabled={busy}>
+                          {t('onAccount.receive', { amount: fmtYen(valor === '' ? b.balance : Math.round(+valor || 0)) })}
+                        </button>
+                      </>
+                    )}
+                  </form>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+        <p className="pq-hint">{t('onAccount.ledgerHint')}</p>
+        <button type="button" className="pq-sheet-cancel" onClick={onClose}>{t('common.close')}</button>
+      </div>
     </div>
   )
 }

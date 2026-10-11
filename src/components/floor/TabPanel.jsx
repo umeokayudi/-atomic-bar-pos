@@ -5,12 +5,16 @@ import { useAuth } from '../Auth'
 import { isConflict, loadTabEvents, newKey, splitEvenly, tabMoney, tabsApi, validateMoves } from '../../lib/comandas'
 import { fmtYen } from '../utils'
 import { cardMethodLabel, cardSurcharge, isCardMethod, normalizeCardMachines, pickCardMachine } from '../../lib/posFloor'
+import { ON_ACCOUNT, methodDisplay, onAccountError, onAccountMethod, parseOnAccountMethod } from '../../lib/onAccount'
+import { loadCrmGuests } from '../../lib/onAccountStore'
 import Icon from '../ui/Icon'
+import CustomerPicker from '../pos/CustomerPicker'
 
 const METHODS = [
   { id: 'Cash', icon: 'payCash', key: 'atomicPos.payCash' },
   { id: 'Credit card', icon: 'payCard', key: 'atomicPos.payCard' },
   { id: 'PayPay', icon: 'payPhone', key: 'atomicPos.payPaypay' },
+  { id: ON_ACCOUNT, icon: 'salary', key: 'onAccount.method' },
 ]
 const SECTIONS = ['items', 'pay', 'transfer', 'split', 'merge', 'details', 'history']
 
@@ -158,9 +162,33 @@ function PaySection({ tab, money, busy, act, isManager, settings = {} }) {
   const card = isCardMethod(metodo)
   const surcharge = card ? cardSurcharge(amount, settings.card_surcharge_pct) : 0
   const charged = amount + surcharge
+  // On account (ツケ): the whole bill or what is left after a partial payment goes on a CRM customer's account.
+  const onAccount = metodo === ON_ACCOUNT
+  const [guests, setGuests] = useState(null)
+  const [guestErr, setGuestErr] = useState('')
+  const [guestId, setGuestId] = useState('')
+  const [formErr, setFormErr] = useState('')
+  const guest = (guests || []).find(g => g.id === guestId) || null
+  const onAccountAmount = valor === '' ? money.due : amount
+  useEffect(() => {
+    if (!onAccount || guests) return undefined
+    let alive = true
+    loadCrmGuests(supabase, tab.bar_id)
+      .then(list => { if (alive) setGuests(list) })
+      .catch(e => { if (alive) { setGuests([]); setGuestErr(t('onAccount.errCrm', { error: e.message })) } })
+    return () => { alive = false }
+  }, [onAccount, guests, tab.bar_id, t])
 
   async function pay(e) {
     e.preventDefault()
+    setFormErr('')
+    if (onAccount) {
+      const v = onAccountError({ guest, amount: onAccountAmount, due: money.due })
+      if (v) { setFormErr(t(v, { amount: fmtYen(money.due) })); return }
+      const ok = await act(() => tabsApi.pay(supabase, tab.id, { valor: onAccountAmount, metodo: onAccountMethod(guest), pagador: guest.nome, key: payKey }))
+      if (ok) { setValor(''); setPayKey(newKey('pay')) }
+      return
+    }
     if (amount <= 0) return
     const label = card ? cardMethodLabel({ method: metodo, machine, surcharge, named: machines.length > 1 }) : metodo
     const ok = await act(() => tabsApi.pay(supabase, tab.id, { valor: charged, metodo: label, pagador: pagador.trim() || null, key: payKey }))
@@ -179,9 +207,17 @@ function PaySection({ tab, money, busy, act, isManager, settings = {} }) {
         </div>
         <div className="ui-seg" role="radiogroup" aria-label={t('tabs.method')}>
           {METHODS.map(m => (
-            <button key={m.id} type="button" role="radio" aria-checked={metodo === m.id} onClick={() => setMetodo(m.id)}><Icon name={m.icon} size={14} />{t(m.key)}</button>
+            <button key={m.id} type="button" role="radio" aria-checked={metodo === m.id} onClick={() => { setMetodo(m.id); setFormErr(''); setPayKey(newKey('pay')) }}><Icon name={m.icon} size={14} />{t(m.key)}</button>
           ))}
         </div>
+        {onAccount && (
+          <div className="tab-onaccount">
+            <p className="ui-muted">{t('onAccount.tabHint')}</p>
+            {guests === null
+              ? <div className="ui-skel" style={{ height: 56 }} />
+              : <CustomerPicker barId={tab.bar_id} guests={guests} onGuestsChange={setGuests} value={guestId} onPick={g => { setGuestId(g?.id || ''); setFormErr(''); setPayKey(newKey('pay')) }} error={guestErr} />}
+          </div>
+        )}
         {card && machines.length > 1 && (
           <div className="ui-seg" role="radiogroup" aria-label={t('posCard.machine')}>
             {machines.map(m => (
@@ -190,9 +226,17 @@ function PaySection({ tab, money, busy, act, isManager, settings = {} }) {
           </div>
         )}
         {surcharge > 0 && <div className="ui-muted">{t('posCard.surchargeHint', { pct: settings.card_surcharge_pct, amount: fmtYen(surcharge), total: fmtYen(charged) })}</div>}
-        <label className="ui-field"><span>{t('tabs.payer')}</span><input value={pagador} onChange={e => setPagador(e.target.value)} placeholder={t('common.optional')} /></label>
-        <button type="submit" className="ui-btn is-primary" disabled={busy || amount <= 0}><Icon name="partialPay" size={16} /> {t('tabs.registerPay', { amount: fmtYen(charged) })}</button>
-        {amount > money.due && money.due > 0 && <div className="ui-muted">{t('tabs.overpay', { amount: fmtYen(amount - money.due) })}</div>}
+        {!onAccount && <label className="ui-field"><span>{t('tabs.payer')}</span><input value={pagador} onChange={e => setPagador(e.target.value)} placeholder={t('common.optional')} /></label>}
+        {formErr && <div className="ui-error" role="alert"><Icon name="warning" />{formErr}</div>}
+        {onAccount
+          ? (
+            <button type="submit" className="ui-btn is-primary" disabled={busy || !guest || onAccountAmount <= 0 || !money.due}>
+              <Icon name="salary" size={16} /> {guest ? t('onAccount.putOn', { amount: fmtYen(onAccountAmount), name: guest.nome }) : t('onAccount.pickFirst')}
+            </button>
+          )
+          : <button type="submit" className="ui-btn is-primary" disabled={busy || amount <= 0}><Icon name="partialPay" size={16} /> {t('tabs.registerPay', { amount: fmtYen(charged) })}</button>}
+        {!onAccount && amount > money.due && money.due > 0 && <div className="ui-muted">{t('tabs.overpay', { amount: fmtYen(amount - money.due) })}</div>}
+        {money.due === 0 && money.paid > 0 && <div className="ui-muted">{t('onAccount.settledHint')}</div>}
       </form>
 
       <div className="tab-split-people">
@@ -207,7 +251,7 @@ function PaySection({ tab, money, busy, act, isManager, settings = {} }) {
       <ul className="tab-lines">
         {tab.payments.map(p => (
           <li key={p.id}>
-            <div className="tab-line-name"><strong>{fmtYen(p.valor)}</strong><span className="ui-muted">{p.metodo}{p.pagador ? ` · ${p.pagador}` : ''} · {new Date(p.criado_em).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></div>
+            <div className="tab-line-name"><strong>{fmtYen(p.valor)}</strong><span className="ui-muted">{methodDisplay(p.metodo)}{p.pagador && !parseOnAccountMethod(p.metodo).onAccount ? ` · ${p.pagador}` : ''} · {new Date(p.criado_em).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></div>
             {isManager && (
               <button type="button" className="ui-btn is-danger is-sm" disabled={busy}
                 onClick={() => { const r = window.prompt(t('tabs.voidReason')); if (r) act(() => tabsApi.voidPayment(supabase, p.id, r)) }}>{t('tabs.void')}</button>
