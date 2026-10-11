@@ -381,15 +381,17 @@ export default function BarSpacesTab({ bar, onTab }) {
           </ul>
         )}
         <p className="desk-note">{t('spaces.vipHave', { count: vipRooms.length })}</p>
-        <button type="button" className="btn-primary" disabled={saving} onClick={addVipRoom} style={{ marginBottom: 12 }}>
-          {t('spaces.addVip')}
-        </button>
-        {!vipRooms.length && <div className="house-empty">{t('spaces.vip.empty')}</div>}
-        {!!vipRooms.length && onTab && (
-          <button type="button" className="ui-btn is-primary" onClick={() => onTab('vip')}>
-            {t('vip.open', { count: vipRooms.length })}
+        <div className="vip-actions">
+          <button type="button" className="btn-primary" disabled={saving} onClick={addVipRoom}>
+            {t('spaces.addVip')}
           </button>
-        )}
+          {!!vipRooms.length && onTab && (
+            <button type="button" className="btn-primary" onClick={() => onTab('vip')}>
+              {t('vip.open', { count: vipRooms.length })}
+            </button>
+          )}
+        </div>
+        {!vipRooms.length && <div className="house-empty">{t('spaces.vip.empty')}</div>}
       </section>
 
       {!spaces.length && (
