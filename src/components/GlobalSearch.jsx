@@ -11,7 +11,7 @@ function norm(s) {
  * records such as bars, products or suppliers. `screens`: [{ id, label, icon }]; `loadRecords`: async () =>
  * [{ key, label, sub, icon, tab }]. Picking a result calls onGo(tab).
  */
-export default function GlobalSearch({ screens = [], loadRecords, onGo, compact = false }) {
+export default function GlobalSearch({ screens = [], loadRecords, onGo, compact = false, hotkey = true }) {
   const { t } = useI18n()
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
@@ -21,6 +21,7 @@ export default function GlobalSearch({ screens = [], loadRecords, onGo, compact 
   const boxRef = useRef(null)
 
   useEffect(() => {
+    if (!hotkey) return undefined
     const onKey = e => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
@@ -30,13 +31,14 @@ export default function GlobalSearch({ screens = [], loadRecords, onGo, compact 
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [hotkey])
 
   useEffect(() => {
     if (!open) return undefined
     const onDoc = e => { if (!boxRef.current?.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
+    document.addEventListener('touchstart', onDoc, { passive: true })
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('touchstart', onDoc) }
   }, [open])
 
   function warm() {
@@ -96,12 +98,12 @@ export default function GlobalSearch({ screens = [], loadRecords, onGo, compact 
         aria-label={t('search.placeholder')}
         role="combobox"
         aria-expanded={open}
-        aria-controls="gsearch-list"
+        aria-controls={hotkey ? 'gsearch-list' : 'gsearch-list-m'}
         aria-autocomplete="list"
       />
-      <kbd className="gsearch-kbd">⌘K</kbd>
+      {hotkey && <kbd className="gsearch-kbd">⌘K</kbd>}
       {open && (
-        <ul id="gsearch-list" className="gsearch-list" role="listbox">
+        <ul id={hotkey ? 'gsearch-list' : 'gsearch-list-m'} className="gsearch-list" role="listbox">
           {results.length === 0 && <li className="gsearch-empty">{t('search.none')}</li>}
           {results.map((r, i) => (
             <li key={r.key} role="option" aria-selected={i === active}>

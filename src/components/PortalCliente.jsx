@@ -1975,6 +1975,23 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
     )
   }
 
+  const searchBox = hotkey => (
+    <GlobalSearch
+      hotkey={hotkey}
+      screens={NAV_GROUPS.flatMap(g => g.items).map(n => ({ id: n.id, label: t(n.labelKey), icon: hasIcon(n.id) ? n.id : 'info' }))}
+      loadRecords={async () => {
+        const ids = new Set(NAV_GROUPS.flatMap(g => g.items).map(n => n.id))
+        const out = []
+        if (ids.has('precos')) {
+          const { data } = await supabase.from('drink_menu').select('id,nome,categoria').eq('bar_id', bar.id).limit(400)
+          ;(data || []).forEach(d => out.push({ key: `d-${d.id}`, label: d.nome, sub: d.categoria || t('search.product'), icon: 'precos', tab: 'precos' }))
+        }
+        return out
+      }}
+      onGo={selectTab}
+    />
+  )
+
   return (
     <div className={`app-shell${DOCK.length ? ' has-easy-dock' : ''}`}>
       <ShellOverlay open={menuOpen} onClose={() => setMenuOpen(false)} />
@@ -2020,20 +2037,9 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
       </aside>
       <main className="app-main app-main-wide">
         <AutoClose bar={bar} />
+        <div className="mobile-search">{searchBox(false)}</div>
         <WorkspaceChrome
-          start={<GlobalSearch
-            screens={NAV_GROUPS.flatMap(g => g.items).map(n => ({ id: n.id, label: t(n.labelKey), icon: hasIcon(n.id) ? n.id : 'info' }))}
-            loadRecords={async () => {
-              const ids = new Set(NAV_GROUPS.flatMap(g => g.items).map(n => n.id))
-              const out = []
-              if (ids.has('precos')) {
-                const { data } = await supabase.from('drink_menu').select('id,nome,categoria').eq('bar_id', bar.id).limit(400)
-                ;(data || []).forEach(d => out.push({ key: `d-${d.id}`, label: d.nome, sub: d.categoria || t('search.product'), icon: 'precos', tab: 'precos' }))
-              }
-              return out
-            }}
-            onGo={selectTab}
-          />}
+          start={searchBox(true)}
           end={<TopbarUser name={perfil?.nome || ''} role={`${bar.nome}${perfil?.role ? ` · ${roleLabel(perfil.role)}` : ''}`} />}
         >
           {aiOn && <AskAiButton />}
@@ -2092,14 +2098,14 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
       {DOCK.length > 0 && (
         <nav className="easy-dock" aria-label={t('nav.portalHome')}>
           {DOCK.map(d => (
-            <button key={d.id} type="button" className={tab===d.id ? 'is-on' : ''} onClick={() => selectTab(d.id)}>
+            <button key={d.id} type="button" className={tab===d.id ? 'is-on' : ''} onClick={() => selectTab(d.id)} aria-label={t(d.labelKey)}>
               <span className="easy-dock-icon"><Icon name={hasIcon(d.id) ? d.id : 'info'} size={20} /></span>
-              <span>{t(d.labelKey)}</span>
+              <span className="easy-dock-label">{t(`dock.${d.id}`) === `dock.${d.id}` ? t(d.labelKey) : t(`dock.${d.id}`)}</span>
             </button>
           ))}
           <button type="button" className={!dockOn || menuOpen ? 'is-on' : ''} onClick={() => setMenuOpen(o => !o)}>
             <span className="easy-dock-icon"><Icon name="menu" size={20} /></span>
-            <span>{t('nav.more')}</span>
+            <span className="easy-dock-label">{t('dock.more')}</span>
           </button>
         </nav>
       )}

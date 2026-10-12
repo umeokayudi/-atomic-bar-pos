@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react'
+import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
@@ -213,6 +213,11 @@ function notifTab(link) {
   return s.replace(/^\//, '').split(/[?#]/)[0] || 'pedidos'
 }
 
+const SEEN_ALERTS_KEY = 'jbm.notif.seenAlerts'
+function readSeenAlerts() {
+  try { return new Set(JSON.parse(localStorage.getItem(SEEN_ALERTS_KEY) || '[]')) } catch { return new Set() }
+}
+
 export function NotificationBell({
   notifs,
   unread,
@@ -233,7 +238,26 @@ export function NotificationBell({
 
   const mismatches = overdueAlerts?.mismatches || []
   const overdueCount = (overdueAlerts?.faturas?.length || 0) + (overdueAlerts?.compras?.length || 0)
-  const badgeCount = unread + overdueCount + mismatches.length
+  // Overdue and mismatch alerts stay listed while they are true, but once the panel has been opened they stop counting
+  // on the badge until a new one appears. Saved per browser.
+  const alertKeys = useMemo(() => [
+    ...(overdueAlerts?.faturas || []).map(f => `f:${f.id}`),
+    ...(overdueAlerts?.compras || []).map(c => `c:${c.id}`),
+    ...mismatches.map(m => `m:${m.id}:${m.invoice || 0}`),
+  ], [overdueAlerts, mismatches])
+  const [seenAlerts, setSeenAlerts] = useState(readSeenAlerts)
+  const unseenAlerts = alertKeys.filter(k => !seenAlerts.has(k)).length
+  const badgeCount = unread + unseenAlerts
+
+  useEffect(() => {
+    if (!open) return
+    if (unread > 0) markAllRead?.()
+    if (unseenAlerts > 0) {
+      const next = new Set(alertKeys)
+      setSeenAlerts(next)
+      try { localStorage.setItem(SEEN_ALERTS_KEY, JSON.stringify([...next])) } catch { /* private mode */ }
+    }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const place = useCallback(() => {
     if (!open || !btnRef.current) {

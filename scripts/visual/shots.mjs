@@ -13,7 +13,7 @@ import {
 } from '../../api/_dashboardMonth.js'
 
 const OUT = process.argv[2] || 'visual-out'
-const PORT = 4179
+const PORT = Number(process.env.PORT || 4179)
 const SHELL = '/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell'
 const WIDTHS = process.env.WIDTHS ? process.env.WIDTHS.split(',').map(Number) : [360, 390, 768, 1024, 1280, 1440]
 const THEMES = Object.fromEntries(Object.entries({ light: 'modern', dark: 'classic' }).filter(([k]) => !process.env.THEMES || process.env.THEMES.split(',').includes(k)))

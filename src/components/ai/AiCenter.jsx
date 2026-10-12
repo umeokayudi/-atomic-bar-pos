@@ -144,6 +144,27 @@ export default function AiCenter({ bar = null } = {}) {
       </div>
 
       <div className="ai-center-grid">
+        <label className="ai-center-pick">
+          <Icon name={view === 'history' ? 'history' : view === 'actions' ? 'automation' : (AREAS.find(a => a.id === area)?.icon || 'dashboard')} size={18} />
+          <select
+            aria-label={t('ai.analyses')}
+            value={view === 'chat' ? `a:${area}` : `v:${view}`}
+            onChange={e => {
+              const [k, id] = e.target.value.split(':')
+              if (k === 'a') { setArea(id); setView('chat'); setThread({ id: `center-${Date.now()}`, messages: [] }) }
+              else { setView(id); if (id === 'history') refreshHistory() }
+            }}
+          >
+            <optgroup label={t('ai.analyses')}>
+              {AREAS.map(a => <option key={a.id} value={`a:${a.id}`}>{t(`ai.module.${a.id}`)}</option>)}
+            </optgroup>
+            <optgroup label={t('ai.manage')}>
+              <option value="v:history">{t('ai.history')}</option>
+              <option value="v:actions">{t('ai.actions')}</option>
+            </optgroup>
+          </select>
+          <Icon name="down" size={16} className="ai-center-pick-caret" />
+        </label>
         <nav className="ai-center-nav ui-card" aria-label={t('ai.center')}>
           <div className="ai-center-group">{t('ai.analyses')}</div>
           {AREAS.map(a => (

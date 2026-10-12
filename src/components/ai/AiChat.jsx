@@ -39,6 +39,19 @@ function Sources({ sources }) {
  * The single chat used by the "Ask AI" panel and the AI Center.
  * ctx: { module, title, unit, period, filters, kpis, barId, days }
  */
+function useNarrow() {
+  const q = '(max-width: 640px)'
+  const [on, setOn] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.(q).matches)
+  useEffect(() => {
+    const m = window.matchMedia?.(q)
+    if (!m) return undefined
+    const f = () => setOn(m.matches)
+    m.addEventListener?.('change', f)
+    return () => m.removeEventListener?.('change', f)
+  }, [])
+  return on
+}
+
 export default function AiChat({ ctx = {}, thread, onThreadSaved, seed = '', seedSend = false, onSeedUsed, autoFocus = false, compact = false }) {
   const { t } = useI18n()
   const [messages, setMessages] = useState(thread?.messages || [])
@@ -52,6 +65,7 @@ export default function AiChat({ ctx = {}, thread, onThreadSaved, seed = '', see
   const idRef = useRef(thread?.id || newId())
   const serverIdRef = useRef(thread?.serverId || null)
   const logRef = useRef(null)
+  const narrow = useNarrow()
   const inputRef = useRef(null)
   const module = ctx.module || 'overview'
 
@@ -63,8 +77,20 @@ export default function AiChat({ ctx = {}, thread, onThreadSaved, seed = '', see
   }, [thread?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
+    const log = logRef.current
+    if (!log) return
+    // On phones the AI Center log flows with the page (no inner scroll box), so bring the newest message into view instead.
+    if (log.scrollHeight > log.clientHeight + 1 && getComputedStyle(log).overflowY !== 'visible') log.scrollTop = log.scrollHeight
+    else if (messages.length) log.lastElementChild?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
   }, [messages, busy])
+
+  // The box grows with the text, up to a few lines, then scrolls inside.
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+  }, [input])
 
   useEffect(() => {
     if (seed) {
@@ -201,18 +227,18 @@ export default function AiChat({ ctx = {}, thread, onThreadSaved, seed = '', see
         </div>
         <textarea
           ref={inputRef}
-          rows={compact ? 2 : 3}
+          rows={1}
           value={input}
           autoFocus={autoFocus}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
           onPaste={e => { const f = [...(e.clipboardData?.files || [])]; if (f.length) { e.preventDefault(); addFiles(f) } }}
-          placeholder={t('ai.placeholder')}
+          placeholder={t(narrow ? 'ai.placeholderShort' : 'ai.placeholder')}
           aria-label={t('ai.placeholder')}
         />
-        <button type="submit" className="ui-btn is-primary" disabled={busy || (!input.trim() && !files.length)} aria-label={t('ai.send')}>
+        <button type="submit" className="ui-btn is-primary ai-send" disabled={busy || (!input.trim() && !files.length)} aria-label={t('ai.send')}>
           <Icon name="send" size={16} />
-          {!compact && <span>{t('ai.send')}</span>}
+          {!compact && !narrow && <span>{t('ai.send')}</span>}
         </button>
       </form>
       <div className="ai-chat-foot">{t('aiAct.hint')}</div>

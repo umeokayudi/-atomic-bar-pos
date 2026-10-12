@@ -174,6 +174,7 @@ export default {
   payroll: { month: '対象月', status: 'ステータス' },
   shell: { collapseMenu: 'メニューを閉じる', expandMenu: 'メニューを開く' },
   search: { placeholder: 'システム内を検索…', screen: '画面', bar: 'バー', product: '商品', supplier: '仕入先', none: '見つかりません。' },
+  dock: { inicio: 'ホーム', pos: 'POS', mesas: 'フロア', pedidos: '仕入れ', ponto: '打刻', hoje: '今日', more: 'その他' },
   nav: {
     vault: 'パスワード', seating: '席と予約', jbmInvoices: 'JBM請求書', billsToPay: '支払予定', cardMachines: 'カード端末', costsOverview: 'コスト概要', supply: 'ドリンク仕入れ', vip: 'VIPルーム', ordens: 'スタッフ指示',
     crm: '顧客・CRM', marketing: 'マーケティング', consultoria: 'コンサルティング', ai: 'AIセンター', mesas: 'フロア・テーブル',
@@ -189,6 +190,7 @@ export default {
     attachFailed: '{name} を読み込めませんでした。', attachDefaultAsk: '添付したものを見て、重要な点を教えてください。',
     ask: 'AIに聞く', center: 'AIセンター', newChat: '新しい会話', send: '送信', thinking: 'データを確認中…',
     placeholder: 'この画面について質問（例：「今日注意すべきことは？」）',
+    placeholderShort: '何でも質問…',
     introTitle: '画面の内容について質問', introBody: '回答はあなたの権限で見られるデータだけを使い、期間と出典を示し、事実・推定・提案を分けます。データを変更する操作は必ず確認してから実行されます。',
     emptyReply: 'AIの回答が空でした。言い換えてください。',
     errNoKey: 'サーバーでAIが設定されていません。VercelプロジェクトにGEMINI_API_KEYを設定して再デプロイしてください。',

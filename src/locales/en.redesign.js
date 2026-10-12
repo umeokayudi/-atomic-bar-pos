@@ -174,6 +174,7 @@ export default {
   payroll: { month: 'Month', status: 'Status' },
   shell: { collapseMenu: 'Collapse menu', expandMenu: 'Expand menu' },
   search: { placeholder: 'Search the system…', screen: 'Screen', bar: 'Bar', product: 'Product', supplier: 'Supplier', none: 'Nothing found.' },
+  dock: { inicio: 'Home', pos: 'POS', mesas: 'Floor', pedidos: 'Supply', ponto: 'Clock', hoje: 'Today', more: 'More' },
   nav: {
     vault: 'Passwords', seating: 'Seating & bookings', jbmInvoices: 'JBM invoices', billsToPay: 'Bills to pay', cardMachines: 'Card machines', costsOverview: 'Costs overview', supply: 'Drink supply', vip: 'VIP rooms', ordens: 'Orders to staff',
     crm: 'Clients & CRM', marketing: 'Marketing', consultoria: 'Consulting', ai: 'AI Center', mesas: 'Floor & tables',
@@ -191,6 +192,7 @@ export default {
     attachFailed: 'Could not read {name}.', attachDefaultAsk: 'Look at what I attached and tell me what matters.',
     ask: 'Ask AI', center: 'AI Center', newChat: 'New chat', send: 'Send', thinking: 'Reading your data…',
     placeholder: 'Ask about this page, e.g. "What needs my attention today?"',
+    placeholderShort: 'Ask anything…',
     introTitle: 'Ask about what you see', introBody: 'Answers use your own data and permissions, state the period and sources, and separate facts, estimates and recommendations. Anything that changes data waits for your confirmation.',
     emptyReply: 'The AI returned an empty answer. Try rephrasing.',
     errNoKey: 'AI is not configured on the server. Set GEMINI_API_KEY in the Vercel project (Settings → Environment Variables) and redeploy.',

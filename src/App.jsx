@@ -665,6 +665,7 @@ function Shell() {
       </aside>
 
       <main className="app-main app-main-wide">
+        <div className="mobile-search"><GlobalSearch hotkey={false} screens={tabs.map(x => ({ id: x.id, label: t(x.labelKey), icon: x.icon }))} loadRecords={() => loadHqSearchRecords(t, new Set(tabs.map(x => x.id)))} onGo={selectTab} /></div>
         <WorkspaceChrome
           start={<GlobalSearch screens={tabs.map(x => ({ id: x.id, label: t(x.labelKey), icon: x.icon }))} loadRecords={() => loadHqSearchRecords(t, new Set(tabs.map(x => x.id)))} onGo={selectTab} />}
           end={<TopbarUser name={perfil?.nome || user?.email || ''} role={roleLabel(perfil?.role)} />}
