@@ -331,6 +331,10 @@ export default {
     tables: 'テーブル（{n}）', sectors: 'セクター', addSector: 'セクター', noSectors: 'セクターはありません。部屋やエリア（テラス、VIPなど）に使えます。', sectorName: 'セクター名',
     activate: 'このレイアウトを使う', activated: 'このレイアウトを使用中にしました。', saveFirst: '先に保存', duplicateLayout: '複製', newLayout: '新しいレイアウト',
     version: 'バージョン {n}',
+    chipAria: 'テーブルを表示：{state}（{n}）', sheetSummary: '{n}テーブル · 伝票 {tabs}件 · {amount}',
+    sheetEmpty: '現在「{state}」のテーブルはありません。', sheetSince: '{time}から · {min}分', sheetItems: '{n}品',
+    sheetServer: '担当：{name}', sheetDue: '未払い {amount}', sheetSeats: '{n}席',
+    sheetOpenTab: '伝票を開く', sheetStart: '伝票を作成', sheetManage: 'テーブルを管理',
   },
   posCard: {
     tab: '支払い・手数料',

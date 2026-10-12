@@ -440,6 +440,24 @@ html[data-pointer="coarse"] .fe-resize { width: 28px; height: 28px; }
 .floor-legend select { min-height: 34px; }
 .floor-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: var(--radius-pill); border: 1px solid color-mix(in srgb, var(--st) 50%, transparent); background: color-mix(in srgb, var(--st) 12%, transparent); font-size: 12px; color: var(--c-text); }
 .floor-chip .ui-icon { color: var(--st); }
+.floor-legend button.floor-chip { font: inherit; font-size: 12px; min-height: 34px; cursor: pointer; }
+.floor-legend button.floor-chip:hover { background: color-mix(in srgb, var(--st) 22%, transparent); }
+.floor-legend button.floor-chip[aria-expanded="true"] { border-color: var(--st); box-shadow: 0 0 0 2px color-mix(in srgb, var(--st) 35%, transparent); }
+.floor-legend button.floor-chip:focus-visible { outline: 2px solid var(--st); outline-offset: 2px; }
+.floor-sheet-icon { color: var(--st); }
+.floor-sheet-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.floor-sheet-row { display: grid; gap: 6px; padding: 12px; border-radius: var(--radius); border: 1px solid var(--c-border); border-left: 4px solid var(--st); background: var(--c-surface); }
+.floor-sheet-top { display: flex; align-items: baseline; gap: 10px; }
+.floor-sheet-name { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.floor-sheet-total { font-weight: 700; font-size: 15px; }
+.floor-sheet-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; }
+.floor-sheet-row .ui-btn { justify-self: start; min-height: var(--tap); }
+/* Phones: the status list is a bottom sheet. */
+@media (max-width: 639px) {
+  .ui-drawer.floor-sheet { top: auto; max-height: 85vh; border-top: 1px solid var(--c-border); border-radius: 16px 16px 0 0; padding-top: 0; animation: floor-sheet-up 200ms var(--ease); }
+}
+@keyframes floor-sheet-up { from { transform: translateY(24px); opacity: .4; } }
+@media (prefers-reduced-motion: reduce) { .ui-drawer.floor-sheet { animation: none; } }
 .floor-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
 .floor-row { width: 100%; display: grid; grid-template-columns: 1fr auto; grid-template-areas: "name money" "state state"; gap: 4px 10px; text-align: left; padding: 12px; min-height: var(--tap); border-radius: var(--radius); border: 1px solid var(--c-border); border-left: 4px solid var(--st); background: var(--c-surface); color: var(--c-text); font: inherit; cursor: pointer; }
 .floor-row-name { grid-area: name; display: flex; flex-direction: column; font-weight: 700; }

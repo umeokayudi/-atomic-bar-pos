@@ -6,6 +6,7 @@ import { useAiPageContext } from '../../lib/aiPanel'
 import { DEFAULT_POS_SETTINGS, settingsFromRow } from '../../lib/nightTicket'
 import { TABLE_STATES, floorApi, floorAvailable, floorPlanAvailable, loadOpenTabs, loadTabHistory, newKey, tableState, tabMoney, tabsApi } from '../../lib/comandas'
 import { fitZoom, isDecor } from '../../lib/floorEditor'
+import { tablesInState } from '../../lib/floorStatus'
 import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
 import Floor3D from './Floor3D'
@@ -45,6 +46,7 @@ export default function FloorScreen({ bar, onOpenTill }) {
   const [err, setErr] = useState('')
   const [now, setNow] = useState(() => Date.now())
   const [zoom, setZoom] = useState(1)
+  const [stateSheet, setStateSheet] = useState(null)
   const viewRef = useRef(null)
 
   const loadLayouts = useCallback(async (preferId) => {
@@ -131,6 +133,15 @@ export default function FloorScreen({ bar, onOpenTill }) {
   const floating = tabs.filter(c => !c.table_id || !tables.some(x => x.id === c.table_id))
   const busyTableIds = useMemo(() => new Set(tabs.filter(c => c.table_id).map(c => c.table_id)), [tabs])
   const openTotal = tabs.reduce((a, c) => a + tabMoney(c, c.items, c.payments, settings).total, 0)
+  const sheet = useMemo(() => (stateSheet ? tablesInState(live, stateSheet) : null), [live, stateSheet])
+
+  // The status list closes on Esc (outside taps hit the scrim).
+  useEffect(() => {
+    if (!stateSheet) return undefined
+    const onKey = e => { if (e.key === 'Escape') setStateSheet(null) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [stateSheet])
 
   useAiPageContext('mesas', {
     module: 'floor',
@@ -240,7 +251,11 @@ export default function FloorScreen({ bar, onOpenTill }) {
         <>
           <div className="floor-legend" aria-label={t('floor.legend')}>
             {TABLE_STATES.map(s => (
-              <span key={s} className={`floor-chip st-${s}`}><Icon name={STATE_ICON[s]} size={13} /> {t(`tabs.state.${s}`)} <strong>{counts[s]}</strong></span>
+              <button
+                key={s} type="button" className={`floor-chip st-${s}`} aria-haspopup="dialog" aria-expanded={stateSheet === s}
+                aria-label={t('floor.chipAria', { state: t(`tabs.state.${s}`), n: counts[s] })}
+                onClick={() => setStateSheet(cur => (cur === s ? null : s))}
+              ><Icon name={STATE_ICON[s]} size={13} /> {t(`tabs.state.${s}`)} <strong>{counts[s]}</strong></button>
             ))}
             <span className="ui-spacer" />
             {layouts.length > 1 && (
@@ -335,6 +350,57 @@ export default function FloorScreen({ bar, onOpenTill }) {
               </table>
             ))}
           </section>
+        </>
+      )}
+
+      {sheet && (
+        <>
+          <div className="ui-drawer-scrim" onClick={() => setStateSheet(null)} />
+          <aside className={`ui-drawer floor-sheet st-${stateSheet}`} role="dialog" aria-modal="true" aria-label={t(`tabs.state.${stateSheet}`)}>
+            <div className="ui-drawer-head">
+              <span className="ui-kpi-icon floor-sheet-icon"><Icon name={STATE_ICON[stateSheet]} size={18} /></span>
+              <div className="ui-drawer-title">{t(`tabs.state.${stateSheet}`)} · {sheet.count}
+                <div className="ui-card-sub">{t('floor.sheetSummary', { n: sheet.count, tabs: sheet.tabs, amount: fmtYen(sheet.total) })}</div>
+              </div>
+              <button type="button" className="ui-btn is-ghost is-icon" onClick={() => setStateSheet(null)} aria-label={t('common.close')} autoFocus><Icon name="close" /></button>
+            </div>
+            <div className="ui-drawer-body">
+              {sheet.count === 0 ? (
+                <div className="ui-empty">
+                  <Icon name={STATE_ICON[stateSheet]} size={22} />
+                  <div className="ui-empty-title">{t('floor.sheetEmpty', { state: t(`tabs.state.${stateSheet}`) })}</div>
+                </div>
+              ) : (
+                <ul className="floor-sheet-list">
+                  {sheet.rows.map(r => (
+                    <li key={r.id} className={`floor-sheet-row st-${stateSheet}`}>
+                      <div className="floor-sheet-top">
+                        <span className="floor-sheet-name">{r.nome}</span>
+                        {r.tabs.length > 0 && <span className="num floor-sheet-total">{fmtYen(r.total)}</span>}
+                      </div>
+                      <div className="floor-sheet-meta ui-muted">
+                        {r.tabs.length > 0 ? (
+                          <>
+                            <span>{t('tabs.people', { n: r.guests || r.capacidade })}</span>
+                            {r.since && <span>{t('floor.sheetSince', { time: new Date(r.since).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), min: r.minutes })}</span>}
+                            <span>{t('floor.sheetItems', { n: r.items })}</span>
+                            {r.servers.length > 0 && <span>{t('floor.sheetServer', { name: r.servers.join(', ') })}</span>}
+                            {r.due > 0 && r.due !== r.total && <span>{t('floor.sheetDue', { amount: fmtYen(r.due) })}</span>}
+                            {r.tabs.length > 1 && <span>{r.tabs.map(x => x.nome).join(' · ')}</span>}
+                          </>
+                        ) : (
+                          <span>{t('floor.sheetSeats', { n: r.capacidade })}</span>
+                        )}
+                      </div>
+                      <button type="button" className={`ui-btn is-sm ${r.tabs.length ? 'is-primary' : ''}`} onClick={() => { setStateSheet(null); onTable(r.table) }}>
+                        <Icon name={r.tabs.length ? 'comandas' : planOnly ? 'info' : 'plus'} size={14} /> {r.tabs.length ? t('floor.sheetOpenTab') : planOnly ? t('floor.sheetManage') : (stateSheet === 'free' ? t('floor.sheetStart') : t('floor.sheetManage'))}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </aside>
         </>
       )}
 

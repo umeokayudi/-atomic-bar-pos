@@ -338,6 +338,10 @@ export default {
     tables: 'Tables ({n})', sectors: 'Sectors', addSector: 'Sector', noSectors: 'No sectors. Use them for rooms or areas (terrace, VIP…).', sectorName: 'Sector name',
     activate: 'Use this layout', activated: 'This layout is now in use.', saveFirst: 'Save first', duplicateLayout: 'Duplicate', newLayout: 'New layout',
     version: 'Version {n}',
+    chipAria: 'Show tables: {state} ({n})', sheetSummary: '{n} tables · {tabs} open tabs · {amount}',
+    sheetEmpty: 'No table is “{state}” right now.', sheetSince: 'Since {time} · {min} min', sheetItems: '{n} items',
+    sheetServer: 'Server: {name}', sheetDue: 'To pay {amount}', sheetSeats: '{n} seats',
+    sheetOpenTab: 'Open tab', sheetStart: 'Open a tab', sheetManage: 'Manage table',
   },
   posCard: {
     tab: 'Payments & fees',
