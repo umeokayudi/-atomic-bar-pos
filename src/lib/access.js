@@ -58,6 +58,7 @@ const GERENTE_NAV = [
   { id: 'eventos', labelKey: 'nav.portalEvents', icon: '🎂' },
   { id: 'ia', labelKey: 'nav.portalAi', icon: '✨' },
   { id: 'staff', labelKey: 'house.staffTitle', icon: '👤' },
+  { id: 'usuarios', labelKey: 'barUsers.nav', icon: '🔑' },
   { id: 'fornecedor', labelKey: 'house.suppliers', icon: '🚚' },
   { id: 'parceiro', labelKey: 'house.partners', icon: '🤝' },
   { id: 'drinkback', labelKey: 'house.drinkBackNav', icon: '🥂' },
@@ -80,7 +81,7 @@ const NAV_GROUPS = [
   { id: 'tonight', labelKey: 'barArea.tonight', ids: ['pos', 'mesas', 'espacos', 'vip', 'ponto', 'fechamento'] },
   { id: 'drinks', labelKey: 'barArea.drinks', ids: ['pedidos', 'estoque', 'precos', 'fornecedor'] },
   { id: 'money', labelKey: 'barArea.money', ids: ['pagamentos', 'custos', 'fixo', 'variavel', 'cartao', 'faturas', 'contador', 'imposto', 'recibos'] },
-  { id: 'team', labelKey: 'barArea.team', ids: ['staff', 'ordens', 'salarios', 'metas', 'drinkback'] },
+  { id: 'team', labelKey: 'barArea.team', ids: ['staff', 'usuarios', 'ordens', 'salarios', 'metas', 'drinkback'] },
   { id: 'clients', labelKey: 'barArea.clients', ids: ['clientes', 'eventos', 'marketing', 'parceiro', 'consultoria'] },
 ]
 

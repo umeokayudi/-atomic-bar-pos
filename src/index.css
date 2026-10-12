@@ -5311,3 +5311,39 @@ button.pq-charge {
 
 .ord-send-modal { width: min(440px, 92vw); }
 .ord-send-modal .ord-meta-grid { margin-top: 10px; }
+
+/* Users & access (bar Team menu) */
+.bar-users-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.bar-users-row { grid-template-columns: minmax(0, 1fr) auto; }
+.bar-users-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.bar-users-chip {
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--c-text);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.bar-users-chip.is-on { background: var(--navy); border-color: var(--navy); color: #fff; }
+.bar-users-chip.is-static { cursor: default; }
+.bar-users-chip:disabled { opacity: 0.45; cursor: not-allowed; }
+.bar-users-areas { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; }
+.bar-users-areas label {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.bar-users-areas label.is-off { opacity: 0.5; cursor: not-allowed; }
+.bar-users-areas label span { display: grid; gap: 2px; min-width: 0; }
+.bar-users-areas small { color: var(--text2); font-size: 11px; line-height: 1.35; }
+@media (max-width: 800px) {
+  .bar-users-form { grid-template-columns: 1fr; }
+  .bar-users-row { grid-template-columns: 1fr; }
+}

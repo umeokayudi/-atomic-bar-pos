@@ -618,6 +618,8 @@ const STAFF_ONLY_KEYS = [
   // Employee file: photo and contract live in private storage (paths only here), the rest is plain text.
   'email', 'endereco', 'foto', 'contrato_tipo', 'contrato_inicio', 'contrato_fim', 'contrato_doc', 'contrato_doc_nome',
   'transporte', 'condicoes', 'banco',
+  // "Users & access": the bar areas this login may open (null / missing = what the role allows).
+  'acessos',
 ]
 
 export async function saveStaffExtras(admin, staffId, patch) {
@@ -691,6 +693,7 @@ export async function listStaffWithExtras(admin, barId) {
       salario_hora: login.salario_hora || 0,
       ativo: login.ativo !== false,
       bar_id: login.bar_id,
+      lane: true,
     }, byId[login.id]))
   }
   return rows

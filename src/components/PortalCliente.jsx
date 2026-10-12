@@ -52,6 +52,7 @@ const ConsultingHub = lazy(() => import('./growth/ConsultingHub'))
 const AtomicPosPanel = lazy(() => import('./AtomicPos'))
 const TimeClockPanel = lazy(() => import('./TimeClock'))
 const BarTeamTab = lazy(() => import('./BarTeamTab'))
+const BarUsersTab = lazy(() => import('./BarUsersTab'))
 const BarHouseTab = lazy(() => import('./BarHouse'))
 const DrinkBackTab = lazy(() => import('./DrinkBackTab'))
 const BarGoalsTab = lazy(() => import('./BarGoals'))
@@ -69,6 +70,8 @@ import { groupedNavForRole, primaryDockForRole, defaultBarTab, posAccessForRole,
 import { isTillKiosk, isClockKiosk, loginDoorFromHash, setDoorHash, doorAllowsRole } from '../lib/barDoors'
 import UiPrefsPanel from './UiPrefsPanel'
 import { useI18n } from '../lib/i18n'
+import { canOpenTab, filterNavGroups, firstOpenTab } from '../lib/barAccess'
+import { useMyBarAccess } from '../lib/myBarAccess'
 import { tokyoMonthKey, tokyoNightKey } from '../lib/tokyo'
 import { buildBarCalendarEvents, dateInRange, invoiceInRange } from '../lib/barCalendar'
 import { birthdayThisMonth, decorateSpaces } from '../lib/barCrm'
@@ -1891,13 +1894,19 @@ function PrecosCardapioTab({ bar }) {
 // ── MAIN PORTAL ───────────────────────────────────────────────────────────────
 export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markRead, markAllRead, deleteNotif, deleteAll }) {
   const { perfil } = useAuth()
-  const NAV_GROUPS = groupedNavForRole(perfil?.role)
-  const DOCK = primaryDockForRole(perfil?.role)
+  // "Users & access": the owner may limit a login to some areas; the menu, the dock and /bar/<tab> follow it.
+  const myAccess = useMyBarAccess(perfil)
+  const access = { id: perfil?.id, role: perfil?.role, acessos: myAccess.acessos }
+  const NAV_GROUPS = filterNavGroups(groupedNavForRole(perfil?.role), access)
+  const DOCK = primaryDockForRole(perfil?.role).filter(d => canOpenTab(access, d.id))
   const location = useLocation()
   const navigate = useNavigate()
-  // Tabs reachable by URL (/bar/<tab>): the role's menu plus staff self-service sections.
+  // Tabs reachable by URL (/bar/<tab>): the role's menu plus staff self-service sections, minus areas this login lacks.
   const allowedTabs = [...NAV_GROUPS.flatMap(g => g.items.map(n => n.id)), ...DOCK.map(d => d.id), 'hoje', 'profile', 'shifts', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary', 'equipe', 'entregas', 'energia', 'aluguel', 'senha']
-  const tab = tabFromPath(location.pathname, 'bar', allowedTabs, defaultBarTab(perfil?.role))
+    .filter(id => canOpenTab(access, id))
+  const homeTab = firstOpenTab(access, [defaultBarTab(perfil?.role), ...allowedTabs], defaultBarTab(perfil?.role))
+  const tab = tabFromPath(location.pathname, 'bar', allowedTabs, homeTab)
+  const tabOk = canOpenTab(access, tab)
   const [opened, setOpened] = useState(() => new Set([tab]))
   const [menuOpen, setMenuOpen] = useState(false)
   const [door, setDoor] = useState(() => loginDoorFromHash())
@@ -1917,6 +1926,12 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
 
   useMobileMenuLock(menuOpen)
 
+  // When the area list arrives or changes, drop screens kept mounted in the background that it no longer allows.
+  const accessKey = JSON.stringify(myAccess.acessos)
+  useEffect(() => {
+    setOpened(prev => new Set([...prev].filter(id => canOpenTab(access, id))))
+  }, [accessKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     const sync = () => setDoor(loginDoorFromHash())
     window.addEventListener('hashchange', sync)
@@ -1931,11 +1946,23 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   }
 
   const posAccess = posAccessForRole(perfil?.role)
-  const tillKiosk = isTillKiosk(perfil?.role, door)
-  const clockKiosk = isClockKiosk(perfil?.role)
+  const tillKiosk = isTillKiosk(perfil?.role, door) && canOpenTab(access, 'pos')
+  const clockKiosk = isClockKiosk(perfil?.role) && canOpenTab(access, 'ponto')
   const footerKey = perfil?.role === 'caixa' ? 'portal.footerCaixa' : perfil?.role === 'bar_staff' ? 'portal.footerStaff' : 'portal.footerHint'
   const dockOn = DOCK.some(d => d.id === tab)
   const kioskAccess = tillKiosk ? 'cashier' : posAccess
+
+  if (myAccess.disabled) {
+    return (
+      <div className="till-kiosk-wrong">
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>{t('barUsers.disabledTitle')}</div>
+          <p>{t('barUsers.disabledBody')}</p>
+          <button className="btn-gold" onClick={signOut}>{t('common.signOut')}</button>
+        </div>
+      </div>
+    )
+  }
 
   if (!doorAllowsRole(door, perfil?.role) && (door === 'pos' || door === 'clock')) {
     return (
@@ -2052,7 +2079,12 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
           <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
         </WorkspaceChrome>
         {perfil?.role === 'bar_staff' && <Suspense fallback={null}><StaffAlerts /></Suspense>}
-        {vault.locked ? vault.gate : (<>
+        {!tabOk ? (
+          <div className="card" style={{ maxWidth: 520 }}>
+            <div style={{ fontWeight: 800, marginBottom: 6 }}>{t('barUsers.noAccessTitle')}</div>
+            <p style={{ fontSize: 13, color: 'var(--text2)' }}>{t('barUsers.noAccessBody')}</p>
+          </div>
+        ) : vault.locked ? vault.gate : (<>
         {vault.strip}
         {tab==='senha' && isGerente(perfil?.role) && <TabHold><VaultSettings /></TabHold>}
         {tab==='custos'    && isGerente(perfil?.role) && <BarCostsTab bar={bar} onTab={selectTab} />}
@@ -2078,6 +2110,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         )}
         {tab==='drinkback' && canManageBarTeam(perfil?.role) && <TabHold><DrinkBackTab bar={bar} /></TabHold>}
         {tab==='equipe'    && canManageBarTeam(perfil?.role) && <TabHold><BarTeamTab bar={bar} /></TabHold>}
+        {tab==='usuarios'  && canManageBarTeam(perfil?.role) && <TabHold><BarUsersTab bar={bar} /></TabHold>}
         {tab==='clientes'  && canManageBarTeam(perfil?.role) && <TabHold><BarGuestsTab bar={bar} /></TabHold>}
         {tab==='espacos'   && canManageBarTeam(perfil?.role) && <TabHold><BarSpacesTab bar={bar} onTab={selectTab} /></TabHold>}
         {tab==='vip'       && canManageBarTeam(perfil?.role) && <TabHold><BarVipTab bar={bar} onTab={selectTab} /></TabHold>}

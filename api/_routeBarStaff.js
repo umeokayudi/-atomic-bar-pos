@@ -8,6 +8,9 @@ import {
   publicLock, saveLock, signUnlock, validPin, verifyUnlock, UNLOCK_HEADER,
 } from './_barVault.js'
 import { isMissingSchemaError, loadBarWithGeo, listStaffWithExtras, runLiveOp, saveBarGeo, saveStaffExtras } from './_barLiveStore.js'
+import { forgetBarActors } from './_barLaneAuth.js'
+import { canAccess, canEditAccessOf, canManageLogin, cleanAcessos, isRestricted, staffActionAreas } from '../src/lib/barAccess.js'
+import { denyMissingArea } from './_barAccess.js'
 
 function bodyOf(req) {
   return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
@@ -165,10 +168,78 @@ async function syncDrinkBackAgent(db, barId, staffId, { nome, drink_back, comiss
   return { ok: true }
 }
 
+/** PATCH for a lane login (bar_logins row of this bar): name, on/off, till/floor role, area list. Never the password hash. */
+async function patchLaneLogin(req, res, db, auth, barId, body) {
+  const hit = await runLiveOp(db, {
+    table: 'bar_logins',
+    mode: 'select',
+    columns: '*',
+    filters: [{ op: 'eq', k: 'id', v: body.id }, { op: 'eq', k: 'bar_id', v: barId }],
+    wantSingle: 'maybe',
+  })
+  const login = hit.data
+  if (!login) return res.status(404).json({ error: 'Staff not found' })
+  const target = { id: login.id, role: login.role }
+  if (!canManageLogin(auth.perfil, target)) return res.status(403).json({ error: 'You cannot change this login' })
+  const nextAcessos = body.acessos === undefined ? undefined : cleanAcessos(body.acessos)
+  if (nextAcessos !== undefined && !canEditAccessOf(auth.perfil, target, nextAcessos)) {
+    return res.status(403).json({ error: 'You cannot give this login those areas' })
+  }
+  const patch = {}
+  if (body.nome != null && String(body.nome).trim()) patch.nome = String(body.nome).trim().slice(0, 80)
+  if (body.ativo != null) patch.ativo = !!body.ativo
+  if (body.role === 'caixa' || body.role === 'bar_staff') patch.role = body.role
+  if (Object.keys(patch).length) {
+    const saved = await runLiveOp(db, {
+      table: 'bar_logins',
+      mode: 'update',
+      filters: [{ op: 'eq', k: 'id', v: login.id }],
+      updatePatch: patch,
+      wantSingle: true,
+    })
+    if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not save' })
+  }
+  const extraPatch = {}
+  if (body.ativo != null) extraPatch.ativo = !!body.ativo
+  if (nextAcessos !== undefined) extraPatch.acessos = nextAcessos
+  if (Object.keys(extraPatch).length) {
+    // Straight to staff_extras: a lane id has no perfis row, so saveStaffExtras would send `ativo` nowhere.
+    const prev = await runLiveOp(db, { table: 'staff_extras', mode: 'select', columns: '*', filters: [{ op: 'eq', k: 'id', v: login.id }], wantSingle: 'maybe' })
+    const saved = await runLiveOp(db, {
+      table: 'staff_extras',
+      mode: prev.data ? 'update' : 'insert',
+      filters: [{ op: 'eq', k: 'id', v: login.id }],
+      insertRows: [{ id: login.id, ...extraPatch }],
+      updatePatch: extraPatch,
+      wantSingle: true,
+    })
+    if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not save' })
+  }
+  forgetBarActors()
+  return res.status(200).json({ ok: true })
+}
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
 
   const admin = tryDrinksAdminClient()
+
+  // Any bar login may ask which areas it may open (menu + routes). Nothing else here is open to till/floor logins.
+  if (req.method === 'POST') {
+    let early = {}
+    try { early = bodyOf(req) } catch { early = {} }
+    if (early.action === 'myAccess') {
+      const me = await requireBarAccount(req, admin, { allowDisabled: true })
+      if (me.error) return res.status(me.status).json({ error: me.error })
+      const owner = me.perfil.role === 'cliente'
+      return res.status(200).json({
+        role: me.perfil.role,
+        acessos: owner ? null : (me.perfil.acessos ?? null),
+        disabled: owner ? false : !!me.disabled,
+      })
+    }
+  }
+
   const auth = await requireBarAccount(req, admin, { roles: ['cliente', 'gerente'] })
   if (auth.error) return res.status(auth.status).json({ error: auth.error })
   const barId = auth.perfil.bar_id
@@ -187,15 +258,24 @@ export default async function handler(req, res) {
         columns: '*',
         filters: [{ op: 'eq', k: 'bar_id', v: barId }],
       })
+      // A manager limited in "Users & access": no cost rows without money, no pay/contract fields without payroll.
+      const seesPay = canAccess(auth.perfil, 'payroll')
+      const hidePay = row => {
+        if (seesPay || !row) return row
+        const out = { ...row }
+        for (const k of [...PAY_FIELDS, 'banco', 'condicoes', 'contrato_doc', 'contrato_doc_nome']) delete out[k]
+        return out
+      }
+      const registryRows = (await runLiveOp(db, {
+        table: 'bar_registry',
+        mode: 'select',
+        columns: '*',
+        filters: [{ op: 'eq', k: 'bar_id', v: barId }],
+      })).data || []
       return res.status(200).json({
-        staff: staff || [],
-        people: peopleLive.data || [],
-        registry: (await runLiveOp(db, {
-          table: 'bar_registry',
-          mode: 'select',
-          columns: '*',
-          filters: [{ op: 'eq', k: 'bar_id', v: barId }],
-        })).data || [],
+        staff: (staff || []).map(hidePay),
+        people: (peopleLive.data || []).map(hidePay),
+        registry: canAccess(auth.perfil, 'money') ? registryRows : registryRows.filter(r => r.kind === 'fornecedor' || r.kind === 'parceiro'),
         goals: (await runLiveOp(db, {
           table: 'bar_goals',
           mode: 'select',
@@ -230,6 +310,14 @@ export default async function handler(req, res) {
 
     const body = bodyOf(req)
     const uid = auth.user?.id || ''
+
+    // Areas from "Users & access" (owner never limited; no list = today's behaviour). Registry rows use the stored kind.
+    let registryKind = ''
+    if (req.method === 'POST' && ['deleteRegistry', 'saveRegistry'].includes(body.action) && body.id) {
+      const hit = await runLiveOp(db, { table: 'bar_registry', mode: 'select', columns: 'id,kind', filters: [{ op: 'eq', k: 'id', v: body.id }, { op: 'eq', k: 'bar_id', v: barId }], wantSingle: 'maybe' })
+      registryKind = String(hit.data?.kind || '')
+    }
+    if (denyMissingArea(res, auth.perfil, staffActionAreas(req.method, body, { registryKind }))) return
 
     // ── Owner PIN for money and payroll ──────────────────────────────────────
     if (req.method === 'POST' && ['lockStatus', 'unlock', 'setLock'].includes(body.action)) {
@@ -646,6 +734,13 @@ export default async function handler(req, res) {
       const { email, password, nome, role, cargo, salario_hora, pin } = body
       if (!email || !password || !nome) return res.status(400).json({ error: 'email, password, name required' })
       const staffRole = role === 'caixa' ? 'caixa' : 'bar_staff'
+      // A limited manager's new login gets at most the manager's own areas.
+      const acessos = body.acessos === undefined
+        ? (isRestricted(auth.perfil) ? cleanAcessos(auth.perfil.acessos) : undefined)
+        : cleanAcessos(body.acessos)
+      if (acessos !== undefined && !canEditAccessOf(auth.perfil, { role: staffRole }, acessos)) {
+        return res.status(403).json({ error: 'You cannot give this login those areas' })
+      }
       const { data: created, error: cErr } = await admin.auth.admin.createUser({
         email: String(email).trim().toLowerCase(),
         password,
@@ -671,6 +766,7 @@ export default async function handler(req, res) {
       Object.assign(extraPatch, payExtras(body))
       if (pin) extraPatch.clock_pin_hash = hashSecret(String(pin))
       extraPatch.ativo = true
+      if (acessos !== undefined) extraPatch.acessos = acessos
       const extras = await saveStaffExtras(db, uid, extraPatch)
       if (!extras.ok && extras.error) {
         return res.status(400).json({ error: extras.error })
@@ -688,9 +784,22 @@ export default async function handler(req, res) {
       const { id } = body
       if (!id) return res.status(400).json({ error: 'id required' })
       const { data: existing } = await db.from('perfis').select('id,bar_id,role,nome').eq('id', id).single()
-      if (!existing || existing.bar_id !== barId) return res.status(404).json({ error: 'Staff not found' })
+      // Lane logins (bar_logins) have no perfis row: "Users & access" can switch them on/off, rename, set role and areas.
+      if (!existing) return patchLaneLogin(req, res, db, auth, barId, body)
+      if (existing.bar_id !== barId) return res.status(404).json({ error: 'Staff not found' })
       if (existing.role === 'cliente' && existing.id !== auth.user.id) {
         return res.status(403).json({ error: 'Cannot edit another owner' })
+      }
+      const managing = body.acessos !== undefined || body.ativo != null || body.role != null
+      if (managing && !canManageLogin(auth.perfil, existing)) {
+        return res.status(403).json({ error: 'You cannot change this login' })
+      }
+      if (body.role != null && !(['caixa', 'bar_staff'].includes(existing.role) && ['caixa', 'bar_staff'].includes(body.role))) {
+        return res.status(400).json({ error: 'Only till and floor logins can switch role' })
+      }
+      const nextAcessos = body.acessos === undefined ? undefined : cleanAcessos(body.acessos)
+      if (nextAcessos !== undefined && !canEditAccessOf(auth.perfil, existing, nextAcessos)) {
+        return res.status(403).json({ error: 'You cannot give this login those areas' })
       }
       const patch = {}
       const extraPatch = {}
@@ -699,6 +808,7 @@ export default async function handler(req, res) {
       if (body.ativo != null) extraPatch.ativo = !!body.ativo
       if (body.pin) extraPatch.clock_pin_hash = hashSecret(String(body.pin))
       if (body.role === 'caixa' || body.role === 'bar_staff') patch.role = body.role
+      if (nextAcessos !== undefined) extraPatch.acessos = nextAcessos
       if (Object.keys(patch).length) {
         const { error } = await db.from('perfis').update(patch).eq('id', id)
         if (error) return res.status(400).json({ error: error.message })
@@ -715,6 +825,7 @@ export default async function handler(req, res) {
         })
         if (body.drink_back != null && !drink.ok) return res.status(400).json({ error: drink.error })
       }
+      if (managing) forgetBarActors()
       return res.status(200).json({ ok: true })
     }
 

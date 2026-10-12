@@ -23,7 +23,8 @@
     "test:live-import": "node scripts/liveImport.test.mjs",
     "test:visual": "npm run build && node scripts/visual/shots.mjs visual-out",
     "test:staff-file": "node scripts/employeeFile.test.mjs",
-    "test:floor-status": "node scripts/floorStatus.test.mjs"
+    "test:floor-status": "node scripts/floorStatus.test.mjs",
+    "test:bar-access": "node scripts/barAccess.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

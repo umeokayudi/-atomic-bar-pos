@@ -6,6 +6,7 @@ import { LIVE_TABLES, ensureBarLiveReady, runLiveOp } from './_barLiveStore.js'
 import { areaOpen, loadLock } from './_barVault.js'
 import { resolveBarActor } from './_barLaneAuth.js'
 import { errText } from '../src/lib/errText.js'
+import { LIVE_TABLE_AREA, canAccessAny } from '../src/lib/barAccess.js'
 
 function sendResult(res, result) {
   if (result?.error) {
@@ -110,6 +111,7 @@ export default async function handler(req, res) {
   const admin = tryDrinksAdminClient()
   const auth = await resolveBarActor(req, admin)
   if (auth.error) return res.status(auth.status).json({ error: errText(auth.error, 'Unauthorized') })
+  if (auth.disabled && auth.perfil?.role !== 'cliente') return res.status(403).json({ error: 'This login is turned off' })
 
   const db = admin || (auth.token ? createStaffUserClient(auth.token) : null)
   if (!db) return res.status(500).json({ error: 'Database client unavailable' })
@@ -121,6 +123,15 @@ export default async function handler(req, res) {
     if (SECRET_TABLES.has(table)) return res.status(403).json({ error: 'Forbidden table' })
     if (!LIVE_TABLES.includes(table) && !PG_MENU_TABLES.has(table)) {
       return res.status(400).json({ error: 'Unknown table' })
+    }
+    const barRole = ['cliente', 'gerente', 'caixa', 'bar_staff'].includes(auth.perfil?.role)
+    // Login extras (pay, area list, on/off) change only through /api/bar-staff; the app never writes them here.
+    if (table === 'staff_extras' && barRole && (body.mode || 'select') !== 'select') {
+      return res.status(403).json({ error: 'Use the team screens to change staff details' })
+    }
+    // A login limited in "Users & access" reaches money/payroll/team tables only with that area.
+    if (LIVE_TABLE_AREA[table] && !canAccessAny(auth.perfil, LIVE_TABLE_AREA[table])) {
+      return res.status(403).json({ error: 'This login has no access to this area', area: LIVE_TABLE_AREA[table].split('|')[0], code: 'area' })
     }
     if (VAULT_TABLES[table]) {
       const lock = await loadLock(db, auth.perfil?.bar_id)

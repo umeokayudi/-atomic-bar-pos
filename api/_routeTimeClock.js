@@ -2,6 +2,7 @@ import { tryDrinksAdminClient, createStaffUserClient } from './_supabaseAdmin.js
 import { requireBarAccount, bearerToken } from './_requireStaff.js'
 import { secretsMatch } from './_hash.js'
 import { isInsideGeofence } from './_geo.js'
+import { canAccess, canAccessAny } from '../src/lib/barAccess.js'
 import { applyFilters, isMissingSchemaError, isRlsError, loadBarWithGeo, loadStaffWithExtras, listStaffWithExtras, runLiveOp, readLiveJson } from './_barLiveStore.js'
 
 function bodyOf(req) {
@@ -9,7 +10,8 @@ function bodyOf(req) {
 }
 
 function isManager(perfil) {
-  return perfil?.role === 'cliente' || perfil?.role === 'gerente'
+  // A manager limited in "Users & access" sees and marks everyone's clock only with the clock or team area.
+  return (perfil?.role === 'cliente' || perfil?.role === 'gerente') && canAccessAny(perfil, 'clock|team')
 }
 
 async function loadBar(db, barId) {
@@ -114,6 +116,9 @@ export default async function handler(req, res) {
     const manager = auth && !auth.error && isManager(auth.perfil)
     const managerMark = manager && body.managerMark === true
     if (auth && !auth.error) {
+      if (!manager && !canAccess(auth.perfil, 'clock')) {
+        return res.status(403).json({ error: 'This login has no access to this area', area: 'clock', code: 'area' })
+      }
       barId = auth.perfil.bar_id
       if (!staffId || !manager) staffId = auth.user?.id || auth.perfil.id
     }
