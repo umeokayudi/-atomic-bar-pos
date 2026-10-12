@@ -41,6 +41,7 @@ const PAGES = [
   { who: MANAGER, path: '/bar/pagamentos', name: 'bar-payments' },
   { who: MANAGER, path: '/bar/salarios', name: 'bar-salaries' },
   { who: MANAGER, path: '/bar/staff', name: 'bar-staff' },
+  { who: MANAGER, path: '/bar/usuarios', name: 'bar-users' },
   { who: MANAGER, path: '/bar/metas', name: 'bar-goals' },
   { who: MANAGER, path: '/bar/ponto', name: 'bar-clock' },
   { who: MANAGER, path: '/bar/fechamento', name: 'bar-close' },
