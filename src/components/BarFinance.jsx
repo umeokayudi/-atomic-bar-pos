@@ -16,7 +16,7 @@ import {
 } from '../lib/barClose'
 import { tokyoNightKey } from '../lib/tokyo'
 import { clockLabel, closeSettings } from '../lib/autoClose'
-import { monthRange, payrollFromPunches } from '../lib/timeClock'
+import { monthRange, payrollFromPunches, clockStaff } from '../lib/timeClock'
 import StaffPayCards from './StaffPayCards'
 import DayStaffBoard from './DayStaffBoard'
 import StaffDayReport from './StaffDayReport'
@@ -164,7 +164,7 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
       prevHq: prev ? { books: prev.books, payroll: prev.payroll, rent: prev.rent, pos: prev.pos } : null,
       clockReady: !!teamRes.clockReady,
       punches: teamRes.punches || [],
-      staff: teamRes.staff || [],
+      staff: clockStaff(teamRes.staff),
       punched: teamRes.punched || [],
       sheets: teamRes.sheets || [],
     }

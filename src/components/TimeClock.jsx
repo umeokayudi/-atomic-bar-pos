@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from './Auth'
 import { fmtYen, Spinner } from './utils'
 import { staffFetch } from '../lib/apiAuth'
-import { payrollFromPunches, monthRange, hoursBetween } from '../lib/timeClock'
+import { payrollFromPunches, monthRange, hoursBetween, clockStaff } from '../lib/timeClock'
 import { canManageBarTeam } from '../lib/access'
 import { loadBarTeam } from '../lib/barTeam'
 import StaffDayReport from './StaffDayReport'
@@ -44,7 +44,7 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
         manager ? loadBarTeam().catch(() => null) : Promise.resolve(null),
       ])
       setPunches(j.punches || [])
-      setStaff(team?.staff || [])
+      setStaff(clockStaff(team?.staff))
       const fromTeam = team?.goals?.adicional_noturno
       const flag = fromTeam == null ? j.adicional_noturno : fromTeam
       setNightPremium(flag !== false)
@@ -79,7 +79,7 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
     <div className="fade-in">
       <PageHeader title={t('clock.title')} subtitle={t('clock.selfHint')} />
       {err && <div className="pos-sale-err" style={{ marginBottom: 12 }}>{asReactText(err)}</div>}
-      {loading ? <Spinner /> : (
+      {loading ? <Spinner /> : clockStaff([perfil]).length > 0 && (
         <div className="card people-me">
           <div>
             <div className="people-me-kicker">{t('clock.you')}</div>

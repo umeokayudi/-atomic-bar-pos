@@ -160,3 +160,8 @@ export function payrollFromPunches(punches, staffList = [], { from, to } = {}, {
   }
   return Object.values(byStaff).sort((a, b) => b.hours - a.hours)
 }
+
+/** Till (caixa/POS) and owner logins are not employees: keep them off clock cards, pay and the day report. */
+export function clockStaff(staff) {
+  return (staff || []).filter(s => s && s.role !== 'caixa' && s.role !== 'cliente')
+}
