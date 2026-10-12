@@ -971,13 +971,19 @@ html .sdr-row-main { width: 100%; display: grid; grid-template-columns: 36px min
 .f3 { display: flex; flex-direction: column; gap: 8px; }
 .f3-tools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .f3-stage {
-  position: relative; height: min(64vh, 620px); min-height: 320px; overflow: hidden; perspective: 1600px; perspective-origin: 50% 30%;
+  position: relative; contain: layout paint; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; height: min(64vh, 620px); min-height: 320px; overflow: hidden; perspective: 1600px; perspective-origin: 50% 30%;
   border: 1px solid var(--c-border); border-radius: var(--radius-lg); cursor: grab; touch-action: none; user-select: none;
   background: radial-gradient(ellipse at 50% 20%, color-mix(in srgb, var(--c-accent) 8%, var(--c-surface-2)), var(--c-surface-2) 70%);
 }
-.f3-stage:active { cursor: grabbing; }
-.f3-world { position: absolute; left: 50%; top: 50%; transform-style: preserve-3d; transform-origin: 50% 50%; transition: transform .35s ease; }
-.f3-stage:active .f3-world { transition: none; }
+/* Only the camera node moves; it is the one layer the browser keeps ready to transform. */
+.f3-world { position: absolute; left: 50%; top: 50%; transform-style: preserve-3d; transform-origin: 50% 50%; transition: transform .35s ease; will-change: transform; --f3-spin: 0; }
+/* While a finger or the mouse is turning, tilting or pinching: follow it 1:1, skip hit tests on the
+   scene and drop the costly paint effects (shadows, label easing) until the camera settles. */
+.f3-stage.is-dragging { cursor: grabbing; }
+.f3-stage.is-dragging .f3-world { transition: none; pointer-events: none; }
+.f3-stage.is-dragging .f3-floor,
+.f3-stage.is-dragging .f3-surface .f3-top { box-shadow: none; }
+.f3-stage.is-dragging .f3-label { transition: none; }
 .f3-floor {
   position: absolute; inset: 0; border-radius: 4px; background-color: var(--c-surface);
   background-image:
@@ -1007,7 +1013,10 @@ html .sdr-row-main { width: 100%; display: grid; grid-template-columns: 36px min
 .f3-label {
   display: flex; flex-direction: column; align-items: center; gap: 1px; max-width: 92%; padding: 2px 6px; border: 0; border-radius: 6px;
   background: color-mix(in srgb, var(--c-surface) 82%, transparent); color: var(--c-text); font: inherit; line-height: 1.1; cursor: pointer; transition: transform .35s ease;
+  min-width: 44px; min-height: 44px; justify-content: center; touch-action: none;
+  transform: rotateZ(calc((var(--f3-spin, 0) + var(--f3-rot, 0)) * -1deg));
 }
+.f3-table.is-tappable { cursor: pointer; }
 .f3-label:disabled { cursor: default; }
 .f3-label strong { font-size: 13px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .f3-label small { font-size: 10px; color: var(--c-text-2); white-space: nowrap; }
