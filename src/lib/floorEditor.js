@@ -13,10 +13,36 @@ export const SHAPES = {
   door: { largura: 90, altura: 16, capacidade: 0 },
   stage: { largura: 300, altura: 150, capacidade: 0 },
   plant: { largura: 50, altura: 50, capacidade: 0 },
+  // Entertainment: no seats, no tab. Saved as forma 'stage' + nota "Fun: <kind>" (no migration needed).
+  darts: { largura: 60, altura: 60, capacidade: 0 },
+  pool: { largura: 230, altura: 130, capacidade: 0 },
+  karaoke: { largura: 90, altura: 90, capacidade: 0 },
+  tv: { largura: 140, altura: 20, capacidade: 0 },
+  arcade: { largura: 70, altura: 70, capacidade: 0 },
+  dj: { largura: 140, altura: 80, capacidade: 0 },
+  game: { largura: 100, altura: 100, capacidade: 0 },
+  dance: { largura: 250, altura: 250, capacidade: 0 },
 }
+export const FUN = new Set(['darts', 'pool', 'karaoke', 'tv', 'arcade', 'dj', 'game', 'dance'])
+export const isFun = forma => FUN.has(forma)
 /** Pieces of the room that are not tables: no tab, no seats, not counted in the service view. */
-export const DECOR = new Set(['wall', 'door', 'stage', 'plant'])
+export const DECOR = new Set(['wall', 'door', 'stage', 'plant', ...FUN])
 export const isDecor = forma => DECOR.has(forma)
+
+const FUN_NOTE = /^Fun:\s*([a-z]+)\s*$/im
+
+/** A floor_tables row as the app sees it: entertainment comes back as its own shape. */
+export function fromDbTable(row) {
+  const m = row?.forma === 'stage' && String(row?.nota || '').match(FUN_NOTE)
+  return m && FUN.has(m[1]) ? { ...row, forma: m[1] } : row
+}
+
+/** forma + nota to store (the database only knows the original shapes). */
+export function toDbShape(t) {
+  if (isFun(t.forma)) return { forma: 'stage', nota: `Fun: ${t.forma}` }
+  if (FUN_NOTE.test(String(t.nota || ''))) return { forma: t.forma, nota: null }
+  return { forma: t.forma }
+}
 export const GRID = 10
 export const MIN_SIZE = 10
 export const TABLE_COLORS = ['', '#3F7F67', '#83B7A0', '#C9A15B', '#B5655B', '#5B7FB5', '#8A6BB5', '#6B7A75']
@@ -131,7 +157,7 @@ export function toSavePayload(state) {
     : { id: s.id, nome: s.nome, cor: s.cor || null, ordem: i }))
   const tables = state.tables.map(t => {
     const row = {
-      nome: String(t.nome || '').trim() || '?', forma: t.forma, x: Math.round(t.x), y: Math.round(t.y),
+      nome: String(t.nome || '').trim() || '?', ...toDbShape(t), x: Math.round(t.x), y: Math.round(t.y),
       largura: Math.round(t.largura), altura: Math.round(t.altura), rotacao: Math.round(t.rotacao || 0),
       capacidade: Math.round(t.capacidade || 0), cor: t.cor || null, ativo: t.ativo !== false,
     }
@@ -181,4 +207,49 @@ export function fitZoom(viewW, viewH, layout, margin = 24) {
 
 export function isDirty(saved, current) {
   return JSON.stringify(toSavePayload({ ...saved, selected: null })) !== JSON.stringify(toSavePayload({ ...current, selected: null }))
+}
+
+export const FLOOR_SCALE_DEFAULTS = { pxPerM: 50, m2PerPerson: 1.5 }
+
+/** Floor scale from pos_settings (floor_px_m: pixels per metre, floor_m2_pessoa: standing m² per guest). */
+export function floorScale(settings = {}) {
+  const px = +settings?.floor_px_m
+  const m2 = +settings?.floor_m2_pessoa
+  return {
+    pxPerM: px >= 5 && px <= 500 ? px : FLOOR_SCALE_DEFAULTS.pxPerM,
+    m2PerPerson: m2 >= 0.3 && m2 <= 10 ? m2 : FLOOR_SCALE_DEFAULTS.m2PerPerson,
+  }
+}
+
+/**
+ * Size and capacity of a layout: real size in metres, area, area taken by furniture, seats,
+ * an estimate of standing guests on the free floor, and the entertainment pieces.
+ */
+export function floorMetrics(state, { pxPerM = 50, m2PerPerson = 1.5 } = {}) {
+  const px2 = pxPerM * pxPerM
+  const L = state?.layout || {}
+  const live = (state?.tables || []).filter(t => t.ativo !== false)
+  const areaM2 = (+L.largura * +L.altura) / px2 || 0
+  const blocks = live.filter(t => t.forma !== 'wall' && t.forma !== 'door' && t.forma !== 'dance')
+  const furnitureM2 = blocks.reduce((a, t) => a + (+t.largura * +t.altura) / px2, 0)
+  const freeM2 = Math.max(0, areaM2 - furnitureM2)
+  const tables = live.filter(t => !isDecor(t.forma))
+  const seats = tables.reduce((a, t) => a + Math.max(0, +t.capacidade || 0), 0)
+  const standing = m2PerPerson > 0 ? Math.floor(freeM2 / m2PerPerson) : 0
+  const fun = {}
+  for (const t of live) if (isFun(t.forma)) fun[t.forma] = (fun[t.forma] || 0) + 1
+  const r1 = v => Math.round(v * 10) / 10
+  return {
+    widthM: r1(+L.largura / pxPerM || 0),
+    heightM: r1(+L.altura / pxPerM || 0),
+    areaM2: r1(areaM2),
+    furnitureM2: r1(furnitureM2),
+    freeM2: r1(freeM2),
+    tables: tables.length,
+    seats,
+    standing,
+    capacity: seats + standing,
+    m2PerSeat: seats ? r1(areaM2 / seats) : 0,
+    fun: Object.entries(fun).map(([kind, n]) => ({ kind, n })),
+  }
 }

@@ -3,7 +3,7 @@ import { useI18n } from '../../lib/i18n'
 import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
 import { SEAT, seatSpots } from '../../lib/floor3d'
-import { isDecor } from '../../lib/floorEditor'
+import { isDecor, isFun } from '../../lib/floorEditor'
 
 // Heights in plan units (the plan is roughly 1 unit = 1 cm).
 const TABLE_H = { round: 34, square: 34, rect: 34, bar: 52, sofa: 26, wall: 120, door: 3, stage: 22, plant: 70 }
@@ -127,7 +127,7 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
                   <Box key={i} className="f3-seat" w={SEAT} d={SEAT} h={SEAT_H} round={tb.forma === 'round'} style={{ left: s.x, top: s.y }} />
                 ))}
                 <Box w={w} d={d} h={h} round={round} className="f3-surface">
-                  {decor ? (tb.forma === 'stage' && <span className="f3-label is-static" style={{ transform: `rotateZ(${-(cam.spin + (+tb.rotacao || 0))}deg)` }}><strong>{tb.nome}</strong></span>) : (
+                  {decor ? ((tb.forma === 'stage' || isFun(tb.forma)) && <span className="f3-label is-static" style={{ transform: `rotateZ(${-(cam.spin + (+tb.rotacao || 0))}deg)` }}><strong>{tb.nome}</strong></span>) : (
                   <button
                     type="button"
                     className="f3-label"

@@ -31,7 +31,8 @@ import UiPrefsPanel from './components/UiPrefsPanel'
 import { UiPrefsProvider, useUiPrefs, LAYOUTS } from './lib/uiPrefs'
 import { loadDashboard, invalidateDashboard } from './lib/loadDashboard'
 import { PortalHero, PortalKpi, PortalSurface, PortalAlert, WelcomeHeader } from './components/ui/PageLayout'
-import { InOutChart, LineChart, RankList, deltaPct } from './components/ui/Charts'
+import { deltaPct } from './components/ui/Charts'
+import FlexChart from './components/ui/FlexChart'
 import DashboardGrid from './components/ui/DashboardGrid'
 const PortalCliente = lazy(() => import('./components/PortalCliente'))
 const ComprasTab = lazy(() => import('./components/Compras'))
@@ -403,9 +404,11 @@ function Dashboard({ onNav }) {
           id: 'trend', title: t('dash.w.trend'), icon: 'cashflow', size: 'half',
           render: () => (
             <PortalSurface title={t('dash.w.trend')} sub={t('dash.trendSub')}>
-              <InOutChart
-                data={(data.chart || []).map(r => ({ label: shortMonth(r.month), in: r.faturamento || r.receita || 0, out: r.compras || 0 }))}
-                labels={[t('dash.billed'), t('dash.purchases')]}
+              <FlexChart
+                id="hq-trend"
+                rows={(data.chart || []).map(r => ({ label: shortMonth(r.month), in: r.faturamento || r.receita || 0, out: r.compras || 0 }))}
+                series={[{ key: 'in', label: t('dash.billed') }, { key: 'out', label: t('dash.purchases') }]}
+                kinds={['pair', 'columns', 'line', 'table']}
                 format={fmtYen}
                 empty={t('dash.noData')}
               />
@@ -416,7 +419,7 @@ function Dashboard({ onNav }) {
           id: 'profit', title: t('dashboard.chartTitle'), icon: 'result', size: 'half',
           render: () => (
             <PortalSurface title={t('dashboard.chartTitle')} sub={t('dashboard.chartSub')}>
-              <LineChart data={lucroChart} format={fmtYen} empty={t('dash.noData')} />
+              <FlexChart id="hq-profit" rows={lucroChart} format={fmtYen} empty={t('dash.noData')} kinds={['line', 'columns', 'table']} />
             </PortalSurface>
           ),
         },
@@ -424,7 +427,7 @@ function Dashboard({ onNav }) {
           id: 'topBars', title: t('dash.w.topBars'), icon: 'bars', size: 'half',
           render: () => (
             <PortalSurface title={t('dash.w.topBars')} sub={monthLabel(selMonth)}>
-              <RankList items={topBars} format={fmtYen} empty={t('dash.noData')} onPick={() => setDetailModal('receita')} />
+              <FlexChart id="hq-top-bars" rows={topBars} format={fmtYen} empty={t('dash.noData')} onPick={() => setDetailModal('receita')} kinds={['rank', 'bars', 'donut', 'columns', 'table']} />
             </PortalSurface>
           ),
         },

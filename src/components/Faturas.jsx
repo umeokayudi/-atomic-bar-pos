@@ -7,7 +7,7 @@ import { confirmFaturaPayment } from '../lib/faturaLedger'
 import { useI18n } from '../lib/i18n'
 import MarkPaidPopup from './MarkPaidPopup'
 import Icon from './ui/Icon'
-import { ColumnChart } from './ui/Charts'
+import FlexChart from './ui/FlexChart'
 
 // Local date key (toISOString shifts to UTC, which moved Tokyo dates one day back).
 const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -129,16 +129,16 @@ function Overview() {
         title={t('invoices.weeklyRevenue')}
         headerRight={<span style={{ fontSize:12, color:'var(--text2)' }}>{t('invoices.avgWeek', { amount: fmtYen(avgWeek) })}</span>}
       >
-        <ColumnChart
-          data={weeks.map(w => ({ label: w.label, value: w.total }))}
-          format={fmtYen} highlight="last" height={160} empty={t('dash.noData')}
+        <FlexChart
+          id="invoices-weekly" rows={weeks.map(w => ({ label: w.label, value: w.total }))}
+          format={fmtYen} highlight="last" height={160} empty={t('dash.noData')} kinds={['columns', 'line', 'table']}
         />
       </PortalSurface>
 
       <PortalSurface title={t('invoices.monthlyRevenue')}>
-        <ColumnChart
-          data={months.map(m => ({ label: m.label, value: m.total }))}
-          format={fmtYen} highlight="last" height={140} empty={t('dash.noData')}
+        <FlexChart
+          id="invoices-monthly" rows={months.map(m => ({ label: m.label, value: m.total }))}
+          format={fmtYen} highlight="last" height={140} empty={t('dash.noData')} kinds={['columns', 'line', 'table']}
         />
       </PortalSurface>
 

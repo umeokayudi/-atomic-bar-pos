@@ -3,15 +3,20 @@ import { supabase } from '../../lib/supabase'
 import { useI18n } from '../../lib/i18n'
 import { floorApi, isConflict } from '../../lib/comandas'
 import {
-  MIN_SIZE, SHAPES, TABLE_COLORS, addSector, isDecor, addTable, createHistory, duplicateTable, fitZoom, isDirty, pushHistory, redo,
+  MIN_SIZE, SHAPES, TABLE_COLORS, addSector, isDecor, isFun, addTable, floorMetrics, floorScale, createHistory, duplicateTable, fitZoom, isDirty, pushHistory, redo,
   removeSector, removeTable, toSavePayload, undo, updateTable, validateLayout,
 } from '../../lib/floorEditor'
 import Icon from '../ui/Icon'
 import Floor3D from './Floor3D'
+import { savePosSettings } from '../../lib/posSettingsStore'
 
-const SHAPE_ICON = { round: 'circle', square: 'square', rect: 'rect', bar: 'move', sofa: 'sofa', wall: 'wall', door: 'door', stage: 'stage', plant: 'plant' }
+const SHAPE_ICON = {
+  round: 'circle', square: 'square', rect: 'rect', bar: 'move', sofa: 'sofa', wall: 'wall', door: 'door', stage: 'stage', plant: 'plant',
+  darts: 'funDarts', pool: 'funPool', karaoke: 'funKaraoke', tv: 'funTv', arcade: 'funArcade', dj: 'funDj', game: 'funGame', dance: 'funDance',
+}
 const TABLE_SHAPES = Object.keys(SHAPES).filter(f => !isDecor(f))
-const ROOM_SHAPES = Object.keys(SHAPES).filter(isDecor)
+const ROOM_SHAPES = Object.keys(SHAPES).filter(f => isDecor(f) && !isFun(f))
+const FUN_SHAPES = Object.keys(SHAPES).filter(isFun)
 
 /**
  * Visual floor editor. Drag to move, corner handle to resize, arrows to nudge (Alt = 1px),
@@ -29,6 +34,27 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
   const [msg, setMsg] = useState(null) // { tone, text, conflict? }
   const viewRef = useRef(null)
   const dragRef = useRef(null)
+  const [scale, setScale] = useState(null) // { pxPerM, m2PerPerson } as typed
+  const [scaleMsg, setScaleMsg] = useState('')
+
+  useEffect(() => {
+    const barId = initialLayout?.bar_id
+    if (!barId) return
+    supabase.from('pos_settings').select('*').eq('bar_id', barId).maybeSingle()
+      .then(({ data }) => { const f = floorScale(data || {}); setScale({ pxPerM: String(f.pxPerM), m2PerPerson: String(f.m2PerPerson) }) })
+      .catch(() => setScale({ pxPerM: '50', m2PerPerson: '1.5' }))
+  }, [initialLayout?.bar_id])
+
+  async function saveScale() {
+    setScaleMsg('')
+    try {
+      const f = floorScale({ floor_px_m: +scale.pxPerM, floor_m2_pessoa: +scale.m2PerPerson })
+      const row = await savePosSettings(supabase, initialLayout.bar_id, { floor_px_m: f.pxPerM, floor_m2_pessoa: f.m2PerPerson })
+      setScaleMsg(row?.floor_px_m != null ? t('floor.m.saved') : t('viph.notStored'))
+    } catch (e) {
+      setScaleMsg(e.message)
+    }
+  }
 
   const load = useCallback(async (layoutRow) => {
     setBusy(true)
@@ -229,6 +255,13 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
             </button>
           ))}
         </div>
+        <div className="ui-row fe-add is-room" role="group" aria-label={t('floor.addFun')}>
+          {FUN_SHAPES.map(f => (
+            <button key={f} type="button" className="ui-btn is-sm is-ghost" onClick={() => commit(s => addTable(s, f, { nome: t(`floor.shape.${f}`) }))} title={t(`floor.shape.${f}`)}>
+              <Icon name={SHAPE_ICON[f]} size={14} /> <span className="fe-add-label">{t(`floor.shape.${f}`)}</span>
+            </button>
+          ))}
+        </div>
         <span className="ui-spacer" />
         <div className="ui-row" role="group" aria-label={t('floor.view')}>
           <button type="button" className="ui-btn is-icon is-sm" onClick={() => setHist(undo)} disabled={!hist.past.length} aria-label={t('floor.undo')} title="Ctrl+Z"><Icon name="undo" size={16} /></button>
@@ -277,7 +310,7 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
                     tabIndex={0}
                     aria-pressed={state.selected === tb.id}
                     aria-label={t('floor.tableAria', { name: tb.nome, n: tb.capacidade })}
-                    className={`fe-table is-${tb.forma}${isDecor(tb.forma) ? ' is-decor' : ''}${state.selected === tb.id ? ' is-selected' : ''}${tb.ativo === false ? ' is-off' : ''}`}
+                    className={`fe-table is-${tb.forma}${isDecor(tb.forma) ? ' is-decor' : ''}${isFun(tb.forma) ? ' is-fun' : ''}${state.selected === tb.id ? ' is-selected' : ''}${tb.ativo === false ? ' is-off' : ''}`}
                     style={{
                       left: tb.x, top: tb.y, width: tb.largura, height: tb.altura,
                       transform: tb.rotacao ? `rotate(${tb.rotacao}deg)` : undefined,
@@ -286,6 +319,7 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
                     onPointerDown={e => startDrag(e, tb, 'move')}
                     onFocus={() => state.selected !== tb.id && select(tb.id)}
                   >
+                    {isFun(tb.forma) && <Icon name={SHAPE_ICON[tb.forma]} size={18} className="fe-fun-icon" />}
                     <span className="fe-table-name">{tb.nome}</span>
                     {!isDecor(tb.forma) && <span className="fe-table-cap"><Icon name="people" size={11} /> {tb.capacidade}</span>}
                     {busyHere && <span className="fe-table-busy" title={t('floor.hasOpenTab')}><Icon name="lock" size={11} /></span>}
@@ -394,6 +428,43 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
               ))}
             </ul>
           </section>
+
+          {scale && (() => {
+            const m = floorMetrics(state, floorScale({ floor_px_m: +scale.pxPerM, floor_m2_pessoa: +scale.m2PerPerson }))
+            return (
+              <section className="ui-card fe-metrics" aria-label={t('floor.m.title')}>
+                <div className="ui-card-title"><Icon name="ruler" size={15} /> {t('floor.m.title')}</div>
+                <dl>
+                  <dt>{t('floor.m.size')}</dt><dd>{m.widthM} × {m.heightM} m</dd>
+                  <dt>{t('floor.m.area')}</dt><dd>{m.areaM2} m²</dd>
+                  <dt>{t('floor.m.furniture')}</dt><dd>{m.furnitureM2} m²</dd>
+                  <dt>{t('floor.m.free')}</dt><dd>{m.freeM2} m²</dd>
+                  <dt>{t('floor.m.tables')}</dt><dd>{m.tables}</dd>
+                  <dt>{t('floor.m.seats')}</dt><dd>{m.seats}</dd>
+                  <dt>{t('floor.m.standing')}</dt><dd>{m.standing}</dd>
+                  <dt>{t('floor.m.capacity')}</dt><dd>{m.capacity}</dd>
+                  <dt>{t('floor.m.perSeat')}</dt><dd>{m.m2PerSeat ? `${m.m2PerSeat} m²` : '—'}</dd>
+                  {m.fun.flatMap(f => [
+                    <dt key={`${f.kind}-t`}><Icon name={SHAPE_ICON[f.kind]} size={13} /> {t(`floor.shape.${f.kind}`)}</dt>,
+                    <dd key={`${f.kind}-d`}>{f.n}</dd>,
+                  ])}
+                </dl>
+                <div className="fe-grid2">
+                  <label className="ui-field"><span>{t('floor.m.scale')}</span>
+                    <input type="number" inputMode="numeric" min="5" max="500" value={scale.pxPerM} onChange={e => setScale(v => ({ ...v, pxPerM: e.target.value }))} />
+                  </label>
+                  <label className="ui-field"><span>{t('floor.m.perPerson')}</span>
+                    <input type="number" inputMode="decimal" min="0.3" max="10" step="0.1" value={scale.m2PerPerson} onChange={e => setScale(v => ({ ...v, m2PerPerson: e.target.value }))} />
+                  </label>
+                </div>
+                <p className="ui-muted">{t('floor.m.help')}</p>
+                <div className="ui-row">
+                  <button type="button" className="ui-btn is-sm" onClick={saveScale}><Icon name="save" size={14} /> {t('common.save')}</button>
+                  {scaleMsg && <span className="ui-muted" role="status">{scaleMsg}</span>}
+                </div>
+              </section>
+            )
+          })()}
 
           <section className="ui-card fe-layout-card">
             <div className="ui-card-title">{t('floor.layout')}</div>

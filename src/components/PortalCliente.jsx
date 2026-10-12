@@ -32,7 +32,8 @@ import {
 } from '../lib/clientAnalytics'
 import BarDesk from './BarDesk'
 import DashboardGrid from './ui/DashboardGrid'
-import { ColumnChart, RankList, deltaPct } from './ui/Charts'
+import { RankList, deltaPct } from './ui/Charts'
+import FlexChart from './ui/FlexChart'
 import { PageHeader, PortalHero, PortalKpi, PortalPills, PortalSurface, WelcomeHeader } from './ui/PageLayout'
 import { useDashboardLayout } from '../lib/dashboardLayout'
 import { aggregateHourlySales, computeDayMetrics } from '../lib/atomicPos'
@@ -336,7 +337,7 @@ function HomeTab({ bar, onTab }) {
       id: 'hourly', title: t('dash.w.hourly'), icon: 'result', size: 'half',
       render: () => (
         <PortalSurface title={t('dash.w.hourly')} sub={lastNightKey && lastNightKey !== tonightKey ? t('dash.lastNight', { date: fmtDate(lastNightKey) }) : t('dash.tonight')}>
-          <ColumnChart data={hourlyCols} format={fmtYen} empty={t('dash.noSalesYet')} ariaLabel={t('dash.w.hourly')} />
+          <FlexChart id="bar-hourly" rows={hourlyCols} format={fmtYen} empty={t('dash.noSalesYet')} ariaLabel={t('dash.w.hourly')} kinds={['columns', 'line', 'table']} />
         </PortalSurface>
       ),
     },
@@ -344,9 +345,9 @@ function HomeTab({ bar, onTab }) {
       id: 'spend', title: t('portal.home.monthlySpend'), icon: 'purchases', size: 'half',
       render: () => (
         <PortalSurface title={t('portal.home.monthlySpend')} sub={t('dash.spendSub')}>
-          <ColumnChart
-            data={monthlyData.map((v, i) => ({ label: monthLabels[i], value: v }))}
-            format={fmtYen} highlight="last" empty={t('portal.home.noDeliveriesYet')}
+          <FlexChart
+            id="bar-monthly-spend" rows={monthlyData.map((v, i) => ({ label: monthLabels[i], value: v }))}
+            format={fmtYen} highlight="last" empty={t('portal.home.noDeliveriesYet')} kinds={['columns', 'line', 'table']}
           />
         </PortalSurface>
       ),
@@ -441,7 +442,7 @@ function HomeTab({ bar, onTab }) {
       id: 'topCost', title: t('portal.home.topByCost'), icon: 'products', size: 'half', defaultHidden: true,
       render: () => (
         <PortalSurface title={t('portal.home.topByCost')} sub={t('portal.home.whatYouSpent', { days: periodo })} headerRight={periodChips}>
-          <RankList items={topRevenue.map(([label, value]) => ({ label, value }))} format={fmtYen} empty={t('common.noData')} />
+          <FlexChart id="bar-top-cost" rows={topRevenue.map(([label, value]) => ({ label, value }))} format={fmtYen} empty={t('common.noData')} kinds={['rank', 'bars', 'donut', 'columns', 'table']} />
         </PortalSurface>
       ),
     },
@@ -449,7 +450,7 @@ function HomeTab({ bar, onTab }) {
       id: 'topVolume', title: t('portal.home.topByVolume'), icon: 'package', size: 'half', defaultHidden: true,
       render: () => (
         <PortalSurface title={t('portal.home.topByVolume')} sub={t('portal.home.lastDays', { days: periodo })} headerRight={periodChips}>
-          <RankList items={topVolume.map(([label, value]) => ({ label, value }))} format={v => `${v} ${t('portal.home.units')}`} empty={t('common.noData')} />
+          <FlexChart id="bar-top-volume" rows={topVolume.map(([label, value]) => ({ label, value }))} format={v => `${v} ${t('portal.home.units')}`} empty={t('common.noData')} kinds={['rank', 'bars', 'donut', 'columns', 'table']} />
         </PortalSurface>
       ),
     },
