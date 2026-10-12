@@ -173,7 +173,7 @@ function HomeTab({ bar, onTab }) {
     Promise.all([
       supabase.from('vendas').select('id,bar_id,data,total,obs').eq('bar_id', bar.id).gte('data', since).order('data', { ascending: false }).limit(240),
       supabase.from('pedidos').select('id,status,total_estimado,criado_em').eq('bar_id', bar.id).order('criado_em', { ascending: false }).limit(40),
-      supabase.from('faturas').select('id,status,valor,total,pago,data_vencimento,periodo_fim,periodo_inicio,obs,notes,descricao,client_name,tipo').eq('bar_id', bar.id).order('data_vencimento', { ascending: false }).limit(24),
+      supabase.from('faturas').select('*').eq('bar_id', bar.id).order('data_vencimento', { ascending: false }).limit(24),
     ]).then(([vR, pR, fR]) => {
       setVendas(filterSupplierVendas(vR.data || []))
       setPedidos(pR.data || [])
