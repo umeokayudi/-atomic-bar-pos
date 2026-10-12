@@ -55,7 +55,6 @@ export default function BarSpacesTab({ bar, onTab }) {
   const [edit, setEdit] = useState(null)
   const [guestId, setGuestId] = useState('')
   const [walkName, setWalkName] = useState('')
-  const [clientQuery, setClientQuery] = useState('')
   const [party, setParty] = useState(1)
   const [hostNome, setHostNome] = useState('')
   const [seatMode, setSeatMode] = useState('seated')
@@ -135,7 +134,6 @@ export default function BarSpacesTab({ bar, onTab }) {
     from: vipFrom,
     to: vipTo,
   })
-  const namedClients = filterClients(money.clients, clientQuery).slice(0, 12)
 
   async function addSpace() {
     if (!form.nome.trim()) return
@@ -175,42 +173,6 @@ export default function BarSpacesTab({ bar, onTab }) {
       return
     }
     setEdit(null)
-    load()
-  }
-
-  async function addVipRoom() {
-    const used = new Set(spaces.map(s => s.nome))
-    let nome = ''
-    let ordem = 40
-    let capacidade = 6
-    for (let i = 1; i <= 3; i++) {
-      const candidate = `個室 VIP ${i}`
-      if (!used.has(candidate)) {
-        nome = candidate
-        ordem = 39 + i
-        capacidade = i === 2 ? 8 : 6
-        break
-      }
-    }
-    if (!nome) {
-      const n = vipRooms.length + 1
-      nome = `個室 VIP ${n}`
-      ordem = 39 + n
-    }
-    setSaving(true)
-    const { error } = await supabase.from('bar_spaces').insert({
-      bar_id: bar.id,
-      nome,
-      tipo: 'vip_room',
-      capacidade,
-      zona: 'vip',
-      ordem,
-    })
-    setSaving(false)
-    if (error) {
-      setLoadErr(errText(error))
-      return
-    }
     load()
   }
 
@@ -360,31 +322,9 @@ export default function BarSpacesTab({ bar, onTab }) {
       <section className="vip-rooms">
         <h2>{t('spaces.vip.title')}</h2>
         <p>{t('spaces.vip.lead', { hours: vip.totals.openLabel })}</p>
-        <label className="form-label">{t('spaces.vip.clientLabel')}</label>
-        <input
-          value={clientQuery}
-          onChange={e => setClientQuery(e.target.value)}
-          placeholder={t('spaces.vip.clientLabel')}
-          style={{ width: '100%', marginBottom: 6 }}
-        />
-        <p className="desk-note">{t('spaces.vip.clientHint')}</p>
-        {!namedClients.length && <div className="house-empty">{t('spaces.vip.clientEmpty')}</div>}
-        {!!namedClients.length && (
-          <ul className="vip-client-list">
-            {namedClients.map(row => (
-              <li key={row.key}>
-                <span>{row.nome}</span>
-                <b>{fmtYen(row.total)}</b>
-                <em>{t('spaces.vip.clientSplit', { vip: fmtYen(row.vip), floor: fmtYen(row.floor) })}</em>
-              </li>
-            ))}
-          </ul>
-        )}
-        <p className="desk-note">{t('spaces.vipHave', { count: vipRooms.length })}</p>
+        <p className="desk-note">{t('spaces.vip.clientInCrm')}</p>
+        <p className="desk-note">{t('spaces.vipHaveAdd', { count: vipRooms.length })}</p>
         <div className="vip-actions">
-          <button type="button" className="btn-primary" disabled={saving} onClick={addVipRoom}>
-            {t('spaces.addVip')}
-          </button>
           {!!vipRooms.length && onTab && (
             <button type="button" className="btn-primary" onClick={() => onTab('vip')}>
               {t('vip.open', { count: vipRooms.length })}

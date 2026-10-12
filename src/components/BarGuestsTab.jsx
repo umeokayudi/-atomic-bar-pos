@@ -19,6 +19,7 @@ import Icon from './ui/Icon'
 import { guestBalance } from '../lib/onAccount'
 import { loadLedger } from '../lib/onAccountStore'
 import { PageHeader } from './ui/PageLayout'
+import ClientPlaceSpend from './crm/ClientPlaceSpend'
 
 const emptyForm = {
   nome: '', telefone: '', line_id: '', email: '', aniversario: '',
@@ -332,6 +333,7 @@ export default function BarGuestsTab({ bar }) {
           )}
         </div>
       </div>
+      <ClientPlaceSpend bar={bar} />
     </div>
   )
 }
