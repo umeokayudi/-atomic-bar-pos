@@ -1,0 +1,61 @@
+/* Chart type picker, VIP hourly charge, pay-as-you-go guests and floor metrics. */
+
+.fc { display: grid; gap: 8px; min-width: 0; }
+.fc-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.fc-bar > * { min-width: 0; }
+.fc-kinds, .fc-series { display: inline-flex; gap: 2px; padding: 2px; background: var(--c-surface-2); border: 1px solid var(--c-border); border-radius: 9px; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.fc-kinds button, .fc-series button { border: 0; background: transparent; color: var(--c-text-3); min-height: 28px; min-width: 30px; padding: 0 8px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.fc-kinds button.is-on, .fc-series button.is-on { background: var(--c-surface); color: var(--c-text); box-shadow: var(--shadow-sm); }
+.fc.is-neutral .uc-col-bar.is-in, .fc.is-neutral .uc-legend i.is-in { background: var(--c-accent); }
+.fc.is-neutral .uc-col-bar.is-out, .fc.is-neutral .uc-legend i.is-out { background: color-mix(in srgb, var(--c-text-3) 45%, transparent); }
+.fc-table td, .fc-table th { white-space: nowrap; }
+
+/* VIP page: price per hour, calculator, charts */
+.viph { display: grid; gap: 14px; }
+.viph-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.viph-room { display: grid; gap: 10px; }
+.viph-room h3 { margin: 0; font-size: 15px; }
+.viph-row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.viph-row .ui-field { flex: 1 1 120px; min-width: 0; }
+.viph-cost { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 10px 12px; border-radius: 10px; background: var(--c-accent-soft); }
+.viph-cost strong { font-size: 20px; font-variant-numeric: tabular-nums; }
+.viph-hours { display: flex; gap: 6px; flex-wrap: wrap; }
+.viph-hours button { min-height: 34px; min-width: 44px; border-radius: 8px; border: 1px solid var(--c-border); background: var(--c-surface); color: var(--c-text); font-weight: 600; cursor: pointer; }
+.viph-hours button.is-on { background: var(--c-accent); color: var(--c-on-accent); border-color: var(--c-accent); }
+.viph-chart-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* Till: VIP rooms strip and the "time is up" sheet */
+.pvip { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px 0 6px; }
+.pvip-room { flex: 0 0 auto; display: grid; gap: 2px; min-width: 150px; text-align: left; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--c-border); background: var(--c-surface); color: var(--c-text); cursor: pointer; }
+.pvip-room strong { font-size: 13px; display: flex; gap: 6px; align-items: center; }
+.pvip-room span { font-size: 12px; color: var(--c-text-2); font-variant-numeric: tabular-nums; }
+.pvip-room.is-free { border-style: dashed; color: var(--c-text-2); }
+.pvip-room.is-soon { border-color: var(--c-warning); background: var(--c-warning-bg); }
+.pvip-room.is-over, .pvip-room.is-start { border-color: var(--c-danger); background: var(--c-danger-bg); animation: pvip-pulse 1.6s ease-in-out infinite; }
+@keyframes pvip-pulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--c-danger) 22%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .pvip-room.is-over, .pvip-room.is-start { animation: none; } }
+.pvip-ask { display: grid; gap: 10px; }
+.pvip-ask .pvip-big { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pvip-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.pvip-choices button { min-height: 52px; border-radius: 12px; border: 1px solid var(--c-border); background: var(--c-surface); color: var(--c-text); font-weight: 700; font-size: 14px; display: grid; gap: 2px; place-items: center; cursor: pointer; padding: 6px 10px; }
+.pvip-choices button small { font-weight: 500; color: var(--c-text-2); font-size: 12px; }
+.pvip-choices button.is-primary { background: var(--c-accent); border-color: var(--c-accent); color: var(--c-on-accent); }
+.pvip-choices button.is-primary small { color: inherit; opacity: .85; }
+
+/* Till: pay-as-you-go guests */
+.pwalk { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 0; }
+.pwalk-label { font-size: 12px; font-weight: 700; color: var(--c-text-2); display: inline-flex; gap: 4px; align-items: center; }
+.pwalk button { min-height: 34px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--c-border); background: var(--c-surface); color: var(--c-text); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.pwalk button.is-on { background: var(--c-accent); color: var(--c-on-accent); border-color: var(--c-accent); }
+.pwalk button em { font-style: normal; opacity: .75; margin-left: 4px; }
+.pwalk-toggle.is-on { background: var(--c-accent-soft) !important; color: var(--c-text) !important; }
+
+/* Floor editor: size, capacity, entertainment */
+.fe-metrics dl { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; margin: 0; font-size: 13px; }
+.fe-metrics dt { color: var(--c-text-2); }
+.fe-metrics dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.fe-table.is-fun { border-style: dashed; display: grid; place-items: center; align-content: center; gap: 2px; }
+.fe-table .fe-fun-icon { color: var(--fe-color, var(--c-accent)); }
+
+.fe-metrics { display: grid; gap: 10px; }
+.np-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }

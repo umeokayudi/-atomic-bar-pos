@@ -330,13 +330,14 @@ BEGIN
         largura = (t->>'largura')::numeric, altura = (t->>'altura')::numeric,
         rotacao = COALESCE((t->>'rotacao')::numeric, 0), capacidade = COALESCE((t->>'capacidade')::int, 2),
         cor = t->>'cor', ativo = COALESCE((t->>'ativo')::boolean, true),
+        nota = CASE WHEN t ? 'nota' THEN t->>'nota' ELSE nota END,
         sector_id = COALESCE((v_keymap->>(t->>'sector_key'))::uuid, (t->>'sector_id')::uuid)
       WHERE id = v_id;
     ELSE
-      INSERT INTO floor_tables (bar_id, layout_id, nome, forma, x, y, largura, altura, rotacao, capacidade, cor, ativo, sector_id)
+      INSERT INTO floor_tables (bar_id, layout_id, nome, forma, x, y, largura, altura, rotacao, capacidade, cor, ativo, nota, sector_id)
       VALUES (v_bar, p_layout, t->>'nome', COALESCE(t->>'forma', 'square'), (t->>'x')::numeric, (t->>'y')::numeric,
         (t->>'largura')::numeric, (t->>'altura')::numeric, COALESCE((t->>'rotacao')::numeric, 0),
-        COALESCE((t->>'capacidade')::int, 2), t->>'cor', COALESCE((t->>'ativo')::boolean, true),
+        COALESCE((t->>'capacidade')::int, 2), t->>'cor', COALESCE((t->>'ativo')::boolean, true), t->>'nota',
         COALESCE((v_keymap->>(t->>'sector_key'))::uuid, (t->>'sector_id')::uuid))
       RETURNING id INTO v_id;
     END IF;

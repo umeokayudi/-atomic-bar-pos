@@ -7,6 +7,7 @@
 import { cartTotal, lineUnitPrice } from './atomicPos.js'
 import { ticketChargeLines } from './nightTicket.js'
 import { parseCardMethod } from './posFloor.js'
+import { fromDbTable } from './floorEditor.js'
 
 export const OPEN_STATUSES = ['open', 'awaiting_payment']
 
@@ -316,7 +317,7 @@ export const floorApi = {
     ])
     if (s.error) throw s.error
     if (t.error) throw t.error
-    return { sectors: s.data || [], tables: t.data || [] }
+    return { sectors: s.data || [], tables: (t.data || []).map(fromDbTable) }
   },
   /** New empty layout (works with or without the migration). */
   async create(sb, { barId, nome, ativo = false }) {

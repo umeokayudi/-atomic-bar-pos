@@ -24,6 +24,8 @@ import { floorAvailable, floorApi, isConflict, loadOpenTabs, newKey, pendingToLi
 import Icon from '../ui/Icon'
 import TabPanel from '../floor/TabPanel'
 import CustomerPicker from './CustomerPicker'
+import PosVipRooms from './PosVipRooms'
+import { drinkCount, newWalkId, summarizeWalkIns, walkLine } from '../../lib/walkIn'
 
 const PAY = [
   { id: 'Cash', key: 'atomicPos.payCash', icon: 'payCash' },
@@ -117,6 +119,11 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], di
   const [codeText, setCodeText] = useState('')
   const [codeErr, setCodeErr] = useState('')
   const [night, setNight] = useState(null) // { summary } | { error }
+  // Quiet nights: sell drink by drink at the counter and still know it is the same person.
+  const walkKey = `pos-walk:${bar.id}`
+  const [walkMode, setWalkMode] = useState(() => readJson(walkKey, false))
+  const [walkLocal, setWalkLocal] = useState(() => readJson(`${walkKey}:${tokyoNightKey()}`, [])) // ids added on this device tonight
+  const [walkSel, setWalkSel] = useState('')
   const doneTimer = useRef(null)
   const searchRef = useRef(null)
 
@@ -124,6 +131,8 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], di
   useEffect(() => { writeJson(`${ordersKey}:active`, active) }, [active, ordersKey])
   useEffect(() => { writeJson(favKey, favs) }, [favs, favKey])
   useEffect(() => { writeJson(machineKey, machineId) }, [machineId, machineKey])
+  useEffect(() => { writeJson(walkKey, walkMode) }, [walkMode, walkKey])
+  useEffect(() => { writeJson(`${walkKey}:${tokyoNightKey()}`, walkLocal) }, [walkLocal, walkKey])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-pos-mode', 'quick')
@@ -153,7 +162,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], di
     const since = new Date(Date.now() - 30 * 86400000)
     Promise.all([
       supabase.from('pos_vendas').select('id').eq('bar_id', bar.id).limit(1),
-      supabase.from('bar_spaces').select('id,nome,tipo,zona,ordem,ativo').eq('bar_id', bar.id).eq('ativo', true).order('ordem'),
+      supabase.from('bar_spaces').select('id,nome,tipo,zona,ordem,ativo,capacidade,notas').eq('bar_id', bar.id).eq('ativo', true).order('ordem'),
       supabase.from('pos_vendas_itens')
         .select('drink_menu_id,produto_id,qtd,pos_vendas!inner(bar_id,data)')
         .eq('pos_vendas.bar_id', bar.id)
@@ -202,7 +211,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], di
       ({ data, error } = await supabase.from('pos_vendas').select('total,criado_em,data,obs,metodo_pagamento').eq('bar_id', bar.id).gte('data', from))
     }
     if (error) setNight(n => (n?.summary ? n : { error: error.message }))
-    else setNight({ summary: summarizeNight(data || [], nightKey) })
+    else setNight({ summary: summarizeNight(data || [], nightKey), walk: summarizeWalkIns(data || [], nightKey) })
   }, [bar.id])
 
   useEffect(() => {
@@ -333,6 +342,31 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], di
   const glance = tonightGlance({ summary: night?.summary || (night?.error ? null : todaySales && { drinksTotal: todaySales.total, ticketCount: todaySales.count }), tabs: openTabsMoney })
   const owedTotal = useMemo(() => ledgerBalances(ledger).reduce((a, b) => a + Math.max(0, b.balance), 0), [ledger])
   const owedCount = useMemo(() => ledgerBalances(ledger).filter(b => b.balance > 0).length, [ledger])
+  const walkPeople = useMemo(() => {
+    const map = new Map((night?.walk?.byPerson || []).map(p => [p.id, p]))
+    for (const id of walkLocal) if (!map.has(id)) map.set(id, { id, drinks: 0, spend: 0, tickets: 0, first: '~' })
+    return [...map.values()].sort((a, b) => String(a.first).localeCompare(String(b.first))).map((p, i) => ({ ...p, n: i + 1 }))
+  }, [night, walkLocal])
+
+  /** Room hours from the VIP sheet go on the room's tab (opened when there is none). Returns the tab name. */
+  async function addRoomCharge(room, line, pessoas = 1) {
+    if (server) {
+      const tab = srvTabs.find(x => x.status === 'open' && x.nome === room.nome)
+      const id = tab ? tab.id : await tabsApi.open(supabase, {
+        barId: bar.id, nome: room.nome, tableId: null, pessoas: Math.max(1, +pessoas || 1),
+        responsavel: perfil?.nome || null, servicePct: settings.service_pct, key: newKey('open'),
+      })
+      await tabsApi.addItems(supabase, id, pendingToLines([line]), newKey('add'))
+      await refreshTabs()
+      return room.nome
+    }
+    setOrders(prev => {
+      const id = Object.keys(prev).find(k => k !== COUNTER && !k.startsWith(SRV) && prev[k].spaceId === room.id)
+      if (id) return { ...prev, [id]: { ...prev[id], cart: [...(prev[id].cart || []), line], saleKey: undefined } }
+      return { ...prev, [`tab-${Date.now().toString(36)}`]: { label: room.nome, spaceId: room.id, cart: [line], openedAt: new Date().toISOString() } }
+    })
+    return room.nome
+  }
 
   function setCart(updater) {
     setOrders(prev => {
@@ -552,6 +586,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], di
       }
       const drinkLines = checkoutCart.filter(l => !['set', 'nominho', 'service', 'room_min'].includes(l.tipo_preco))
       const commission = agent ? drinkBackCommission(drinkLines, agent.comissao_pct) : null
+      const walkId = walkMode && active === COUNTER && !srvTab ? (walkSel || newWalkId()) : ''
       const obs = packTicketObs({
         details: tableOrder ? (srvTab?.nome || order.label) : '',
         castName: agent?.nome || '',
@@ -564,6 +599,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], di
         cardNote: card?.note || '',
         cardFee: card?.fee || 0,
         cardSurcharge: card?.surcharge || 0,
+        walk: walkId ? walkLine(walkId, drinkCount(drinkLines)) : '',
       })
       const saleGuestId = orderGuest?.id || (srvTab ? onAccountGuestId(tabPayments) : null)
       const legacy = {
@@ -597,6 +633,10 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], di
           .finally(() => refreshLedger())
       }
       rememberTop(drinkLines)
+      if (walkId) {
+        setWalkLocal(list => (list.includes(walkId) ? list : [...list, walkId]))
+        setWalkSel('')
+      }
       const onAccountAmount = ledgerRows.reduce((a, r) => a + r.valor, 0)
       setDone({
         total: chargedTotal, change: !srvTab && cash && !cash.exact ? Math.max(0, cash.change) : 0, method: pay,
@@ -681,6 +721,13 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], di
               <strong>{fmtYen(glance.openTotal)}</strong>
               <em>{t('onAccount.tabsCount', { n: glance.openCount })}</em>
             </div>
+            {(walkMode || walkPeople.length > 0) && (
+              <div className="pq-glance-cell" title={t('walk.glanceHint')}>
+                <span>{t('walk.glance')}</span>
+                <strong>{t('walk.peopleN', { n: walkPeople.length })}</strong>
+                <em>{t('walk.drinksN', { n: night?.walk?.drinks || 0 })}</em>
+              </div>
+            )}
             {ledgerReady !== false && (
               <button type="button" className="pq-glance-cell is-btn" onClick={() => { setFiadoSheet(true); refreshLedger() }} aria-label={t('onAccount.title')}>
                 <span>{t('onAccount.short')}</span>
@@ -690,6 +737,8 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], di
             )}
           </div>
         </div>
+
+        <PosVipRooms bar={bar} spaces={spaces} settings={settings} staffName={perfil?.nome || ''} userId={user?.id || null} onCharge={addRoomCharge} />
 
         {setupNeeded && <div className="pq-alert">{t('posQuick.setupNeeded')}</div>}
         {catalogError && !setupNeeded && <div className="pq-alert">{catalogError}</div>}
@@ -755,6 +804,20 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], di
             {lockedTab && <span className="ui-badge is-warning">{t('tabs.state.awaiting_payment')}</span>}
             <span className="ui-spacer" />
             <button type="button" className="ui-btn is-sm" onClick={() => setPanelTab(srvTab.id)}><Icon name="settings" size={14} /> {t('tabs.manage')}</button>
+          </div>
+        )}
+
+        {active === COUNTER && walkMode && (
+          <div className="pwalk" role="radiogroup" aria-label={t('walk.who')}>
+            <span className="pwalk-label"><Icon name="walkIn" size={13} /> {t('walk.who')}</span>
+            <button type="button" role="radio" aria-checked={!walkSel} className={!walkSel ? 'is-on' : ''} onClick={() => setWalkSel('')}>
+              <Icon name="plus" size={12} /> {t('walk.newPerson')}
+            </button>
+            {[...walkPeople].reverse().slice(0, 14).map(p => (
+              <button key={p.id} type="button" role="radio" aria-checked={walkSel === p.id} className={walkSel === p.id ? 'is-on' : ''} onClick={() => setWalkSel(p.id)}>
+                #{p.n}<em>{t('walk.drinksShort', { n: p.drinks })}</em>
+              </button>
+            ))}
           </div>
         )}
 
@@ -868,6 +931,11 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], di
                 <option value="">{t('posQuick.noCast')}</option>
                 {agents.filter(row => row.ativo !== false).map(row => <option key={row.id} value={row.id}>{row.nome}</option>)}
               </select>
+            )}
+            {active === COUNTER && (
+              <button type="button" className={`pwalk-toggle${walkMode ? ' is-on' : ''}`} aria-pressed={walkMode} onClick={() => { setWalkMode(v => !v); setWalkSel('') }} title={t('walk.modeHint')}>
+                <Icon name="walkIn" size={14} /> {t('walk.mode')}
+              </button>
             )}
             {tableOrder && !srvTab && (
               <button type="button" className={serviceOn ? 'is-on' : ''} onClick={() => setServiceOn(v => !v)}>

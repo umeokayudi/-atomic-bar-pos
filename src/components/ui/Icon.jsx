@@ -13,6 +13,7 @@ import {
   PanelLeftClose, PanelLeftOpen, Paperclip, Image as ImageIcon, FileText as FileDoc, Video, GripVertical, EyeOff, LayoutTemplate, ArrowUp, ArrowDown,
   TrendingDown, Percent, Coins, Package, PiggyBank, Check, Columns2, UserCheck, Scale, Warehouse,
   Download, Hand, UserX, Timer, Box as Cube, Crown, Siren, BellRing, CircleHelp, Sofa, BrickWall, DoorOpen, Music, Sprout, Palette,
+  ChartColumn, ChartLine, ChartPie, ChartBar, Table as TableIcon, ListOrdered, Mic, Tv, Gamepad2, Disc3, Ruler, Dices, CircleDot, Footprints,
 } from 'lucide-react'
 
 /** One name → one vector icon. Screens ask for a semantic name, never an emoji. */
@@ -53,6 +54,11 @@ const ICONS = {
   catBeer: Beer, catWine: WineGlass, catCocktail: Martini, catSoft: CupSoda, catShot: Flame, catFood: UtensilsCrossed,
   catSpirit: GlassWater, catSake: Grape,
   payCash: Banknote, payCard: CreditCard, payPhone: Smartphone,
+  // chart type picker
+  chartColumns: ChartColumn, chartLine: ChartLine, chartDonut: ChartPie, chartBars: ChartBar, chartTable: TableIcon, chartRank: ListOrdered, chartPair: Columns2,
+  // entertainment on the floor plan
+  funDarts: Target, funPool: CircleDot, funKaraoke: Mic, funTv: Tv, funArcade: Gamepad2, funDj: Disc3, funGame: Dices, funDance: Footprints,
+  ruler: Ruler, walkIn: Footprints,
 }
 
 export default function Icon({ name, size = 18, strokeWidth = 1.8, className = '', label, ...rest }) {

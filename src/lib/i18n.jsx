@@ -3,6 +3,8 @@ import enBase from '../locales/en'
 import jaBase from '../locales/ja'
 import enRedesign from '../locales/en.redesign'
 import jaRedesign from '../locales/ja.redesign'
+import enBarTools from '../locales/en.bartools'
+import jaBarTools from '../locales/ja.bartools'
 
 /** Deep merge (plain objects only) so new screens can keep their strings in their own file. */
 export function mergeDict(base, extra) {
@@ -14,8 +16,8 @@ export function mergeDict(base, extra) {
   }
   return out
 }
-const en = mergeDict(enBase, enRedesign)
-const ja = mergeDict(jaBase, jaRedesign)
+const en = mergeDict(mergeDict(enBase, enRedesign), enBarTools)
+const ja = mergeDict(mergeDict(jaBase, jaRedesign), jaBarTools)
 
 const LANG_KEY = 'jbm_drinks_lang'
 

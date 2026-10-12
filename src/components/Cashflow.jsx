@@ -12,7 +12,7 @@ import OpenInvoicesList from './OpenInvoicesList'
 import { AdminPage, PortalKpi, PortalSurface, PortalPills } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
 import Icon from './ui/Icon'
-import { HBarList, InOutChart } from './ui/Charts'
+import FlexChart from './ui/FlexChart'
 
 export default function Cashflow() {
   const { t } = useI18n()
@@ -166,10 +166,10 @@ function CashflowOverview() {
 
       <div className="ui-grid cols-2 cash-charts">
         <PortalSurface title={t('cashflow.weeklyFlow')} sub={t('cashflow.weeklyFlowSub')}>
-          <InOutChart data={weeks} format={fmtYen} labels={[t('cashflow.inflows'), t('cashflow.outflows')]} empty={t('dash.noData')} />
+          <FlexChart id="cash-weekly" rows={weeks} format={fmtYen} series={[{ key: 'in', label: t('cashflow.inflows') }, { key: 'out', label: t('cashflow.outflows') }]} kinds={['pair', 'columns', 'line', 'table']} empty={t('dash.noData')} />
         </PortalSurface>
         <PortalSurface title={t('cashflow.topExpenses')} sub={t('cashflow.topExpensesSub')}>
-          <HBarList items={topExpenses} format={fmtYen} empty={t('cashflow.noExpenses')} />
+          <FlexChart id="cash-top-expenses" rows={topExpenses} format={fmtYen} empty={t('cashflow.noExpenses')} kinds={['bars', 'donut', 'rank', 'columns', 'table']} />
         </PortalSurface>
       </div>
 

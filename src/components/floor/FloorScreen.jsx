@@ -5,7 +5,7 @@ import { useAuth } from '../Auth'
 import { useAiPageContext } from '../../lib/aiPanel'
 import { DEFAULT_POS_SETTINGS, settingsFromRow } from '../../lib/nightTicket'
 import { TABLE_STATES, floorApi, floorAvailable, floorPlanAvailable, loadOpenTabs, loadTabHistory, newKey, tableState, tabMoney, tabsApi } from '../../lib/comandas'
-import { fitZoom, isDecor } from '../../lib/floorEditor'
+import { fitZoom, isDecor, isFun } from '../../lib/floorEditor'
 import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
 import Floor3D from './Floor3D'
@@ -260,7 +260,7 @@ export default function FloorScreen({ bar, onOpenTill }) {
               <div className="fe-canvas" style={{ width: +layout.largura * zoom, height: +layout.altura * zoom }}>
                 <div className="fe-plane floor-live" style={{ width: +layout.largura, height: +layout.altura, transform: `scale(${zoom})` }}>
                   {decor.map(tb => (
-                    <div key={tb.id} className={`fe-table is-${tb.forma} is-decor`} aria-hidden="true"
+                    <div key={tb.id} className={`fe-table is-${tb.forma} is-decor${isFun(tb.forma) ? ' is-fun' : ''}`} aria-hidden="true"
                       style={{ left: +tb.x, top: +tb.y, width: +tb.largura, height: +tb.altura, transform: tb.rotacao ? `rotate(${tb.rotacao}deg)` : undefined, '--fe-color': tb.cor || undefined }}>
                       <span className="fe-table-name">{tb.nome}</span>
                     </div>

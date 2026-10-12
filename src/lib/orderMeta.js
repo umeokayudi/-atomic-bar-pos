@@ -1,7 +1,7 @@
 /** CAST / notes on JBM pedidos.obs and POS pos_vendas.obs — never touches vendas columns. */
 
 const CAST_RE = /^Cast:\s*(.+)$/im
-const META_LINE_RE = /^(Cast|Night|Svc|Nom|Set|RoomMin|Keep|Pay|Card|CardFee|CardSur):\s*.+$/gim
+const META_LINE_RE = /^(Cast|Night|Svc|Nom|Set|RoomMin|Keep|Pay|Card|CardFee|CardSur|Walk):\s*.+$/gim
 
 export function splitCastToken(raw) {
   const s = String(raw || '').trim()

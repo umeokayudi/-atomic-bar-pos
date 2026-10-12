@@ -19,6 +19,7 @@ import Icon from './ui/Icon'
 import { guestBalance } from '../lib/onAccount'
 import { loadLedger } from '../lib/onAccountStore'
 import { PageHeader } from './ui/PageLayout'
+import NewPeoplePanel from './NewPeoplePanel'
 
 const emptyForm = {
   nome: '', telefone: '', line_id: '', email: '', aniversario: '',
@@ -175,6 +176,7 @@ export default function BarGuestsTab({ bar }) {
     <div className="fade-in guests-book">
       <PageHeader title={t('guests.title')} subtitle={t('guests.subtitle')} />
       {loadErr && <div className="pos-sale-err" style={{ marginBottom: 12 }}>{asReactText(loadErr)}</div>}
+      <NewPeoplePanel bar={bar} />
 
       {(todayBirthdays.length > 0 || monthBirthdays.length > 0) && (
         <div className="card" style={{ marginBottom: 16, padding: 14 }}>

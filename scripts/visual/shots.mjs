@@ -55,6 +55,7 @@ const PAGES = [
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos' },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-counter', click: /Counter/ },
   { who: MANAGER, path: '/bar/vip', name: 'bar-vip' },
+  { who: MANAGER, path: '/bar/clientes', name: 'bar-guests' },
   { who: MANAGER, path: '/bar/pedidos', name: 'bar-supply' },
   { who: MANAGER, path: '/bar/pagamentos', name: 'bar-locked-money', vault: true },
   { who: MANAGER, path: '/bar/senha', name: 'bar-vault-settings', vault: 'owner' },

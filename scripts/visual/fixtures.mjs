@@ -24,6 +24,10 @@ const tables = [
   id: `00000000-0000-4000-8000-0000000f00${i}`, bar_id: BAR.id, layout_id: 'L1', nome, forma, x, y, largura, altura, rotacao: 0, capacidade,
   cor: null, sector_id: i >= 3 && i < 6 ? 'S1' : null, estado_manual: i === 2 ? 'reserved' : null, ativo: true,
 }))
+tables.push({
+  id: '00000000-0000-4000-8000-0000000f0099', bar_id: BAR.id, layout_id: 'L1', nome: 'Darts', forma: 'stage', nota: 'Fun: darts',
+  x: 60, y: 350, largura: 60, altura: 60, rotacao: 0, capacidade: 0, cor: null, sector_id: null, estado_manual: null, ativo: true,
+})
 
 const tab = (id, nome, table, minutes, items, status = 'open', pays = []) => ({
   id, bar_id: BAR.id, table_id: table, mesa_nome: tables.find(t => t.id === table)?.nome || null, nome, status, pessoas: 3,
@@ -40,14 +44,14 @@ const tabs = [
 ]
 
 const spaces = [
-  { id: 'sp1', bar_id: BAR.id, nome: '個室 VIP 1', tipo: 'vip_room', zona: 'vip', capacidade: 6, ordem: 1, ativo: true },
-  { id: 'sp2', bar_id: BAR.id, nome: '個室 VIP 2', tipo: 'vip_room', zona: 'vip', capacidade: 8, ordem: 2, ativo: true },
+  { id: 'sp1', bar_id: BAR.id, nome: '個室 VIP 1', tipo: 'vip_room', zona: 'vip', capacidade: 6, ordem: 1, ativo: true, notas: 'VipHour: 3000' },
+  { id: 'sp2', bar_id: BAR.id, nome: '個室 VIP 2', tipo: 'vip_room', zona: 'vip', capacidade: 8, ordem: 2, ativo: true, notas: 'VipHour: 4000' },
   { id: 'sp3', bar_id: BAR.id, nome: 'Counter 1', tipo: 'counter', zona: 'counter', capacidade: 1, ordem: 3, ativo: true },
 ]
 const guests = [{ id: 'g1', bar_id: BAR.id, nome: 'Tanaka-sama', ativo: true }, { id: 'g2', bar_id: BAR.id, nome: 'Mr. Smith', ativo: true }]
 const visits = [
-  { id: 'vi1', bar_id: BAR.id, space_id: 'sp1', status: 'seated', party_size: 4, inicio: ago(80), fim: null, guest_id: 'g1', host_nome: 'Aiko Tanaka', bar_guests: { nome: 'Tanaka-sama' } },
-  { id: 'vi2', bar_id: BAR.id, space_id: 'sp2', status: 'done', party_size: 6, inicio: ago(60 * 26), fim: ago(60 * 23), guest_id: 'g2', host_nome: 'Lucia Sato', bar_guests: { nome: 'Mr. Smith' } },
+  { id: 'vi1', bar_id: BAR.id, space_id: 'sp1', status: 'seated', party_size: 4, inicio: ago(80), fim: null, vip_eventos: [{ acao: 'cobrar', min: 60, valor: 3000, em: ago(80) }, { acao: 'livre', min: 30, valor: 0, em: ago(20) }], guest_id: 'g1', host_nome: 'Aiko Tanaka', bar_guests: { nome: 'Tanaka-sama' } },
+  { id: 'vi2', bar_id: BAR.id, space_id: 'sp2', status: 'done', party_size: 6, inicio: ago(60 * 26), fim: ago(60 * 23), vip_eventos: [{ acao: 'cobrar', min: 120, valor: 8000 }, { acao: 'livre', min: 120, valor: 0 }], guest_id: 'g2', host_nome: 'Lucia Sato', bar_guests: { nome: 'Mr. Smith' } },
   { id: 'vi3', bar_id: BAR.id, space_id: 'sp1', status: 'done', party_size: 2, inicio: ago(60 * 50), fim: ago(60 * 49), guest_id: null, host_nome: '', bar_guests: null },
 ]
 const posSales = [
@@ -55,6 +59,9 @@ const posSales = [
   { id: 'ps2', bar_id: BAR.id, total: 46200, space_id: 'sp2', visit_id: 'vi2', criado_em: ago(60 * 23 + 5), data: day(1), obs: 'Cast: Lucia Sato\nRoomMin: 10000' },
   { id: 'ps3', bar_id: BAR.id, total: 10000, space_id: 'sp1', visit_id: 'vi3', criado_em: ago(60 * 49 + 2), data: day(2), obs: 'RoomMin: 10000' },
   { id: 'ps4', bar_id: BAR.id, total: 3200, space_id: 'sp3', visit_id: null, criado_em: ago(45), data: day(0), obs: '' },
+  { id: 'ps5', bar_id: BAR.id, total: 1600, criado_em: ago(40), data: day(0), obs: 'Walk: wdemo1 2' },
+  { id: 'ps6', bar_id: BAR.id, total: 800, criado_em: ago(25), data: day(0), obs: 'Walk: wdemo2 1' },
+  { id: 'ps7', bar_id: BAR.id, total: 800, criado_em: ago(10), data: day(0), obs: 'Walk: wdemo1 1' },
 ]
 const staffOrders = [
   { id: 'so1', bar_id: BAR.id, staff_id: 'st1', staff_nome: 'Aiko Tanaka', from_id: MANAGER.id, from_nome: 'Gerente Demo', mensagem: 'VIP 1 needs ice and two clean glasses now', prioridade: 'urgent', status: 'sent', criado_em: ago(3) },

@@ -14,6 +14,8 @@ import RangeCalendar from './RangeCalendar'
 import { PageHeader, PortalKpi } from './ui/PageLayout'
 import { Spinner, fmtYen } from './utils'
 import Icon from './ui/Icon'
+import VipHoursPanel from './VipHoursPanel'
+import { readRoomMeta } from '../lib/vipBilling'
 
 function fmtWhen(ms) {
   if (!ms) return '—'
@@ -37,6 +39,7 @@ export default function BarVipTab({ bar, onTab }) {
   const [missing, setMissing] = useState(false)
   const [room, setRoom] = useState('all')
   const [, setTick] = useState(0)
+  const [reload, setReload] = useState(0)
 
   useEffect(() => {
     let alive = true
@@ -46,9 +49,9 @@ export default function BarVipTab({ bar, onTab }) {
         const since = addDays(tokyoNightKey(), -120)
         const [sR, vR, salesR, setR] = await withTimeout(Promise.all([
           supabase.from('bar_spaces').select('*').eq('bar_id', bar.id).order('ordem'),
-          supabase.from('bar_visits').select('id,space_id,status,party_size,inicio,fim,guest_id,pos_venda_id,host_nome,bar_guests(nome)').eq('bar_id', bar.id).order('inicio', { ascending: false }).limit(800),
+          supabase.from('bar_visits').select('id,space_id,status,party_size,inicio,fim,guest_id,pos_venda_id,host_nome,vip_eventos,bar_guests(nome)').eq('bar_id', bar.id).order('inicio', { ascending: false }).limit(800),
           supabase.from('pos_vendas').select('id,total,space_id,visit_id,criado_em,data,obs').eq('bar_id', bar.id).gte('data', since).order('criado_em', { ascending: false }).limit(2000),
-          supabase.from('pos_settings').select('room_min').eq('bar_id', bar.id).maybeSingle(),
+          supabase.from('pos_settings').select('*').eq('bar_id', bar.id).maybeSingle(),
         ]))
         if (!alive) return
         const fatal = sR.error || vR.error
@@ -59,6 +62,7 @@ export default function BarVipTab({ bar, onTab }) {
           visits: vR.data || [],
           sales: salesR.error ? [] : (salesR.data || []),
           roomMin: +setR.data?.room_min || DEFAULT_POS_SETTINGS.room_min,
+          settings: setR.data || {},
         })
       } catch (e) {
         if (alive) { setErr(errText(e)); setData({ spaces: [], visits: [], sales: [], roomMin: 0 }) }
@@ -67,7 +71,7 @@ export default function BarVipTab({ bar, onTab }) {
     load()
     const id = setInterval(() => { setTick(n => n + 1) }, 60000)
     return () => { alive = false; clearInterval(id) }
-  }, [bar.id])
+  }, [bar.id, reload])
 
   const rooms = useMemo(() => (data?.spaces || []).filter(s => s.ativo !== false && (s.tipo === 'vip_room' || s.zona === 'vip')), [data])
   const goals = peekBarTeam()?.goals || {}
@@ -126,7 +130,10 @@ export default function BarVipTab({ bar, onTab }) {
                       {v.host_nome && <small>{t('vip.hostBy', { name: v.host_nome })}</small>}
                     </p>
                   ) : <p className="vipx-who is-muted">{t('vip.freeNow')}</p>}
-                  <footer>{t('vip.minimum')}: <b>{fmtYen(data.roomMin)}</b></footer>
+                  <footer>
+                    {t('vip.minimum')}: <b>{fmtYen(data.roomMin)}</b>
+                    {readRoomMeta(r.notas).hourPrice > 0 && <> · {t('viph.perHour')}: <b>{fmtYen(readRoomMeta(r.notas).hourPrice)}</b></>}
+                  </footer>
                 </article>
               )
             })}
@@ -135,6 +142,15 @@ export default function BarVipTab({ bar, onTab }) {
       </section>
 
       <RangeCalendar from={from} to={to} onChange={(a, b) => { setFrom(a); setTo(b) }} />
+
+      {rooms.length > 0 && (
+        <VipHoursPanel
+          key={rooms.map(r => `${r.id}:${r.notas || ''}`).join('|')}
+          bar={bar} rooms={rooms} visits={data.visits} sales={data.sales} settings={data.settings}
+          from={from} to={to} abre={goals.abre ?? 20} fecha={goals.fecha ?? 5}
+          onSaved={() => setReload(n => n + 1)}
+        />
+      )}
 
       <div className="admin-kpi-grid vipx-kpis">
         <PortalKpi icon="vip" label={t('vip.kUses')} value={String(tot.uses)} sub={t('vip.kPeople', { n: tot.people })} />

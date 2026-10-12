@@ -71,6 +71,7 @@ export function packTicketObs({
   cardNote = '',
   cardFee = 0,
   cardSurcharge = 0,
+  walk = '',
 } = {}) {
   const head = []
   const castLine = withOrderCast('', { name: castName, id: castId })
@@ -86,6 +87,7 @@ export function packTicketObs({
   if (cardNote) head.push(`Card: ${String(cardNote).replace(/\n/g, ' ').trim()}`)
   if (Math.round(+cardFee || 0) > 0) head.push(`CardFee: ${Math.round(+cardFee)}`)
   if (Math.round(+cardSurcharge || 0) > 0) head.push(`CardSur: ${Math.round(+cardSurcharge)}`)
+  if (walk) head.push(String(walk))
   const body = orderDetailsFromObs(details)
   return [...head, body].filter(Boolean).join('\n')
 }
