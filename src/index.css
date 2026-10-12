@@ -3067,7 +3067,8 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
   gap: 8px;
-  max-height: min(34vh, 320px);
+  max-height: max(360px, calc(100vh - 340px));
+  max-height: max(360px, calc(100dvh - 340px));
   overflow-y: auto;
   padding-bottom: 8px;
 }
@@ -5307,3 +5308,6 @@ button.pq-charge {
 .staff-logins ul { list-style: none; margin: 6px 0 0; padding: 0; }
 .staff-logins li { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-top: 1px solid var(--border); }
 .staff-logins li em { font-style: normal; color: var(--text3); font-size: 12px; }
+
+.ord-send-modal { width: min(440px, 92vw); }
+.ord-send-modal .ord-meta-grid { margin-top: 10px; }

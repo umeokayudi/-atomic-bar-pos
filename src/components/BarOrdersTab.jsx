@@ -59,6 +59,7 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
   const [orderErr, setOrderErr] = useState('')
   const [sentMsg, setSentMsg] = useState('')
   const [qtyPopup, setQtyPopup] = useState(null)
+  const [sendOpen, setSendOpen] = useState(false)
   const [orderPreview, setOrderPreview] = useState(null)
   const [track, setTrack] = useState(null)
   const [trackErr, setTrackErr] = useState('')
@@ -159,7 +160,7 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
   async function enviarOrder() {
     if (items.length === 0) {
       setOrderErr(t('portal.orders.addOneItem'))
-      return
+      return false
     }
     setSaving(true)
     setOrderErr('')
@@ -180,7 +181,7 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
     if (submitted.error) {
       setOrderErr(schemaMissing(submitted.error) ? t('procurement.notConfigured') : submitted.error.message)
       setSaving(false)
-      return
+      return false
     }
 
     const { data: admins } = await supabase.from('perfis').select('id').eq('role', 'admin')
@@ -200,6 +201,7 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
     setItems([]); setObs(''); setEntrega('')
     setStep('way')
     load()
+    return true
   }
 
   function bumpQty(prodId, delta) {
@@ -356,21 +358,36 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
               {!visible.length && <p className="desk-note">{t('supply.noProducts')}</p>}
             </div>
 
-            <div className="ord-meta-grid">
-              <label>{t('portal.orders.deliveryDate')}
-                <input type="date" value={entrega} onChange={e => setEntrega(e.target.value)} />
-                <input type="time" value={entregaHora} onChange={e => setEntregaHora(e.target.value)} />
-              </label>
-            </div>
-            <label className="ord-details-label">{t('portal.orders.details')}
-              <textarea
-                className="ord-details-input"
-                rows={2}
-                value={obs}
-                onChange={e => setObs(e.target.value)}
-                placeholder={t('portal.orders.notesPlaceholder')}
-              />
-            </label>
+            {sendOpen && (
+              <div className="ord-modal-bg" onClick={() => !saving && setSendOpen(false)}>
+                <div className="ord-modal ord-send-modal" onClick={e => e.stopPropagation()}>
+                  <div className="ord-modal-title">{t('portal.orders.sendOrder')}</div>
+                  <div className="ord-composer-hint">{bottleCount} {t('portal.orders.items')} · {fmtYen(totalOrder)}</div>
+                  <div className="ord-meta-grid">
+                    <label>{t('portal.orders.deliveryDate')}
+                      <input type="date" value={entrega} onChange={e => setEntrega(e.target.value)} />
+                      <input type="time" value={entregaHora} onChange={e => setEntregaHora(e.target.value)} />
+                    </label>
+                  </div>
+                  <label className="ord-details-label">{t('portal.orders.details')}
+                    <textarea
+                      className="ord-details-input"
+                      rows={3}
+                      value={obs}
+                      onChange={e => setObs(e.target.value)}
+                      placeholder={t('portal.orders.notesPlaceholder')}
+                    />
+                  </label>
+                  {orderErr && <div className="pos-sale-err">{orderErr}</div>}
+                  <div className="ord-modal-actions">
+                    <button type="button" className="ord-ghost" disabled={saving} onClick={() => setSendOpen(false)}>{t('common.cancel')}</button>
+                    <button type="button" className="btn-primary" disabled={saving} onClick={async () => { if (await enviarOrder()) setSendOpen(false) }}>
+                      {saving ? t('portal.orders.sending') : t('portal.orders.sendOrder')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {qtyPopup && (
               <div className="ord-modal-bg" onClick={() => setQtyPopup(null)}>
@@ -394,12 +411,12 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
               <div className="ord-send-kicker">{bottleCount} {t('portal.orders.items')}</div>
               <div className="ord-send-end">
                 <div className="ord-send-total">{fmtYen(totalOrder)}</div>
-                <button type="button" className="btn-primary ord-send-btn" onClick={enviarOrder} disabled={saving || items.length === 0}>
-                  {saving ? t('portal.orders.sending') : t('portal.orders.sendOrder')}
+                <button type="button" className="btn-primary ord-send-btn" onClick={() => { setOrderErr(''); setSendOpen(true) }} disabled={saving || items.length === 0}>
+                  {t('portal.orders.sendOrder')}
                 </button>
               </div>
             </div>
-            {orderErr && <div className="pos-sale-err">{orderErr}</div>}
+            {orderErr && !sendOpen && <div className="pos-sale-err">{orderErr}</div>}
           </div>
         </>
       )}
