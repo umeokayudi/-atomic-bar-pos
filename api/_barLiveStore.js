@@ -613,7 +613,12 @@ export async function loadStaffWithExtras(admin, staffId) {
 }
 
 const PERFIL_EXTRA_KEYS = ['cargo', 'salario_hora', 'ativo', 'clock_pin_hash']
-const STAFF_ONLY_KEYS = ['drink_back', 'comissao_pct', 'salario_mes', 'dias', 'idiomas', 'estilo', 'contato', 'notas', 'aniversario']
+const STAFF_ONLY_KEYS = [
+  'drink_back', 'comissao_pct', 'salario_mes', 'dias', 'idiomas', 'estilo', 'contato', 'notas', 'aniversario',
+  // Employee file: photo and contract live in private storage (paths only here), the rest is plain text.
+  'email', 'endereco', 'foto', 'contrato_tipo', 'contrato_inicio', 'contrato_fim', 'contrato_doc', 'contrato_doc_nome',
+  'transporte', 'condicoes', 'banco',
+]
 
 export async function saveStaffExtras(admin, staffId, patch) {
   const perfilPatch = {}

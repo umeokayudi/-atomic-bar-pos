@@ -15,7 +15,7 @@ export const UNLOCK_HEADER = 'x-bar-unlock'
 
 // Registry kinds that are money (costs, card machines, tax); suppliers and partners are not.
 export const MONEY_KINDS = new Set(['cartao', 'energia', 'aluguel', 'outro', 'fixo', 'variavel', 'contador', 'imposto'])
-export const PAY_FIELDS = ['salario_hora', 'salario_mes', 'drink_back', 'comissao_pct']
+export const PAY_FIELDS = ['salario_hora', 'salario_mes', 'drink_back', 'comissao_pct', 'transporte']
 
 let processKey = null
 function signingKey() {

@@ -35,6 +35,32 @@ function profileExtras(body) {
   return extra
 }
 
+const CONTRACT_TYPES = ['seishain', 'part', 'gyomu', 'haken', 'trial', 'other']
+const isoDay = v => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : '')
+
+/** Employee file fields (people only). Photo and contract are private storage paths under staff-files/<bar>/. */
+function employeeExtras(body, barId) {
+  const extra = {}
+  const ownPath = v => {
+    const path = String(v || '')
+    return path.startsWith(`${STAFF_FILES}/${barId}/`) ? path : ''
+  }
+  if (body.foto != null) extra.foto = ownPath(body.foto)
+  if (body.contrato_tipo != null) extra.contrato_tipo = CONTRACT_TYPES.includes(body.contrato_tipo) ? body.contrato_tipo : ''
+  if (body.contrato_inicio != null) extra.contrato_inicio = isoDay(body.contrato_inicio)
+  if (body.contrato_fim != null) extra.contrato_fim = isoDay(body.contrato_fim)
+  if (body.contrato_doc != null) extra.contrato_doc = ownPath(body.contrato_doc)
+  if (body.contrato_doc_nome != null) extra.contrato_doc_nome = String(body.contrato_doc_nome || '').trim().slice(0, 120)
+  if (body.condicoes != null) extra.condicoes = String(body.condicoes || '').trim().slice(0, 2000)
+  if (body.banco != null) extra.banco = String(body.banco || '').trim().slice(0, 200)
+  return extra
+}
+
+const STAFF_FILES = 'staff-files'
+const STAFF_FILE_BUCKET = 'system-private'
+const STAFF_FILE_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf' }
+const STAFF_FILE_MAX = 3 * 1024 * 1024
+
 /** Registry rows only: how and when a cost is paid; which card machine, where it is used, where it pays out. */
 function costExtras(body) {
   const extra = {}
@@ -54,6 +80,7 @@ function payExtras(body) {
   if (body.drink_back != null) extra.drink_back = !!body.drink_back
   if (body.comissao_pct != null) extra.comissao_pct = +body.comissao_pct || 0
   if (body.drink_back === false) extra.comissao_pct = 0
+  if (body.transporte != null) extra.transporte = Math.max(0, Math.round(+body.transporte || 0))
   return extra
 }
 
@@ -259,7 +286,8 @@ export default async function handler(req, res) {
       || body.action === 'deleteRegistry'
     const needsPayroll = ['savePerson', 'createStaff'].includes(body.action) || req.method === 'PATCH'
     const sendsPay = PAY_FIELDS.some(k => body[k] != null)
-    if (needsMoney || (needsPayroll && sendsPay)) {
+    const sendsContract = body.action === 'uploadStaffFile' && body.kind === 'contrato'
+    if (needsMoney || (needsPayroll && sendsPay) || sendsContract) {
       const lock = await loadLock(db, barId)
       if (lockEnabled(lock)) {
         let area = needsMoney ? 'money' : 'payroll'
@@ -269,6 +297,33 @@ export default async function handler(req, res) {
         }
         if (area && !areaOpen(req, lock, area, { barId, uid })) return res.status(423).json({ error: 'Locked: enter the PIN first', locked: area })
       }
+    }
+
+    // Employee photo / contract: private bucket, written by the server only; the screen gets short signed links.
+    if (req.method === 'POST' && body.action === 'uploadStaffFile') {
+      if (!admin) return res.status(500).json({ error: 'SUPABASE_SERVICE_ROLE_KEY is not configured' })
+      const kind = body.kind === 'contrato' ? 'contrato' : 'foto'
+      const ext = STAFF_FILE_TYPES[String(body.contentType || '')]
+      if (!ext || (kind === 'foto' && ext === 'pdf')) return res.status(400).json({ error: 'Use a JPG, PNG, WebP or PDF file' })
+      const personId = String(body.personId || 'new').replace(/[^\w-]/g, '').slice(0, 64) || 'new'
+      const buf = Buffer.from(String(body.data || ''), 'base64')
+      if (!buf.length) return res.status(400).json({ error: 'Empty file' })
+      if (buf.length > STAFF_FILE_MAX) return res.status(400).json({ error: 'File too large (3 MB max)' })
+      const path = `${STAFF_FILES}/${barId}/${personId}/${kind}-${Date.now()}.${ext}`
+      const { error } = await admin.storage.from(STAFF_FILE_BUCKET).upload(path, buf, { contentType: body.contentType, upsert: false })
+      if (error) return res.status(400).json({ error: error.message || 'Upload failed' })
+      return res.status(200).json({ ok: true, path })
+    }
+
+    if (req.method === 'POST' && body.action === 'staffFileUrls') {
+      if (!admin) return res.status(200).json({ urls: {} })
+      const prefix = `${STAFF_FILES}/${barId}/`
+      const paths = [...new Set((Array.isArray(body.paths) ? body.paths : []).map(String))].filter(p => p.startsWith(prefix)).slice(0, 100)
+      if (!paths.length) return res.status(200).json({ urls: {} })
+      const { data } = await admin.storage.from(STAFF_FILE_BUCKET).createSignedUrls(paths, 600)
+      const urls = {}
+      for (const row of data || []) if (row?.signedUrl && row.path) urls[row.path] = row.signedUrl
+      return res.status(200).json({ urls })
     }
 
     if (req.method === 'POST' && body.action === 'pairTablet') {
@@ -546,7 +601,9 @@ export default async function handler(req, res) {
         salario_mes: +body.salario_mes || 0,
         drink_back: !!body.drink_back,
         comissao_pct: body.drink_back ? (+body.comissao_pct || 0) : 0,
+        transporte: Math.max(0, Math.round(+body.transporte || 0)),
         ...profileExtras(body),
+        ...employeeExtras(body, barId),
       }
       const existing = await runLiveOp(db, {
         table: 'bar_people',
@@ -638,7 +695,7 @@ export default async function handler(req, res) {
       const patch = {}
       const extraPatch = {}
       if (body.nome != null) patch.nome = body.nome
-      Object.assign(extraPatch, profileExtras(body), payExtras(body))
+      Object.assign(extraPatch, profileExtras(body), employeeExtras(body, barId), payExtras(body))
       if (body.ativo != null) extraPatch.ativo = !!body.ativo
       if (body.pin) extraPatch.clock_pin_hash = hashSecret(String(body.pin))
       if (body.role === 'caixa' || body.role === 'bar_staff') patch.role = body.role

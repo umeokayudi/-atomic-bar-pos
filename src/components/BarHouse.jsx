@@ -5,6 +5,9 @@ import { invalidateBarTeam, loadBarTeam, peekBarTeam } from '../lib/barTeam'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 import { tokyoMonthKey } from '../lib/tokyo'
+import EmployeeFile from './staff/EmployeeFile'
+import { contractState, initials, isSystemLogin } from '../lib/employeeFile'
+import { staffFileUrls } from '../lib/employeeFileApi'
 
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 const LANG_KEYS = ['ja', 'pt', 'en', 'zh', 'ko', 'es']
@@ -14,7 +17,11 @@ const ESTILO_KEYS = ['cute', 'cool', 'sexy', 'elegante', 'natural', 'gal', 'sist
 const EMPTY_PERSON = {
   nome: '', salario_hora: '', salario_mes: '', drink_back: false, comissao_pct: '10',
   cargo: '', dias: [], idiomas: [], estilo: '', contato: '', notas: '', aniversario: '',
+  email: '', endereco: '', foto: '', contrato_tipo: '', contrato_inicio: '', contrato_fim: '', contrato_doc: '', contrato_doc_nome: '',
+  transporte: '', condicoes: '', banco: '',
 }
+
+const FILE_KEYS = ['email', 'endereco', 'foto', 'contrato_tipo', 'contrato_inicio', 'contrato_fim', 'contrato_doc', 'contrato_doc_nome', 'condicoes', 'banco']
 
 const METODO_KEYS = ['transfer', 'debit', 'card', 'cash', 'konbini', 'other']
 const BANDEIRA_KEYS = ['visa', 'master', 'jcb', 'amex', 'diners', 'unionpay', 'ic', 'qr']
@@ -88,6 +95,9 @@ function personFrom(row, source) {
     contato: row.contato || '',
     notas: row.notas || '',
     aniversario: String(row.aniversario || '').slice(0, 10),
+    role: row.role || '',
+    transporte: +row.transporte || 0,
+    ...Object.fromEntries(FILE_KEYS.map(k => [k, row[k] || ''])),
   }
 }
 
@@ -423,72 +433,104 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
   )
 }
 
+function ContractBadge({ p }) {
+  const { t } = useI18n()
+  const c = contractState(p)
+  if (c.state === 'none') return <span className="staff-badge is-muted">{t('staffFile.noContract')}</span>
+  const type = p.contrato_tipo ? t(`staffFile.type.${p.contrato_tipo}`) : t('staffFile.contract')
+  if (c.state === 'ended') return <span className="staff-badge is-bad">{type} · {t('staffFile.ended')}</span>
+  if (c.state === 'ending') return <span className="staff-badge is-warn">{type} · {t('staffFile.endsIn', { days: c.days })}</span>
+  return <span className="staff-badge">{type}{p.contrato_fim ? ` · ${t('staffFile.until', { date: p.contrato_fim })}` : ''}</span>
+}
+
 function StaffBlock({ people, loading, busy, form, setForm, onSave, onRemove, onTill }) {
   const { t } = useI18n()
-  const filter = useListFilter(people)
+  const employees = useMemo(() => people.filter(p => !isSystemLogin(p)), [people])
+  const logins = useMemo(() => people.filter(isSystemLogin), [people])
+  const filter = useListFilter(employees)
+  const [urls, setUrls] = useState({})
+  const pathKey = employees.map(p => p.foto).concat(form ? [form.foto, form.contrato_doc] : []).filter(Boolean).join('|')
+
+  useEffect(() => {
+    let alive = true
+    if (!pathKey) return undefined
+    staffFileUrls(pathKey.split('|')).then(u => { if (alive) setUrls(prev => ({ ...prev, ...u })) }).catch(() => {})
+    return () => { alive = false }
+  }, [pathKey])
+
+  function open(p) {
+    setForm({
+      ...EMPTY_PERSON,
+      ...Object.fromEntries(FILE_KEYS.map(k => [k, p[k] || ''])),
+      id: p.id,
+      source: p.source,
+      nome: p.nome,
+      salario_hora: String(p.salario_hora || ''),
+      salario_mes: String(p.salario_mes || ''),
+      transporte: String(p.transporte || ''),
+      drink_back: p.drink_back,
+      comissao_pct: String(p.comissao_pct || 10),
+      cargo: p.cargo || '',
+      dias: asList(p.dias),
+      idiomas: asList(p.idiomas),
+      estilo: p.estilo || '',
+      contato: p.contato || '',
+      notas: p.notas || '',
+      aniversario: p.aniversario || '',
+    })
+  }
+
   return (
     <section className="house-block">
       <h1>{t('house.staffTitle')}</h1>
-      <p className="house-lead">{t('house.staffBody')}</p>
-      <FilterBar rows={people} filter={filter} dims={['cargo', 'dia', 'idioma', 'estilo']} />
-      {!people.length && !loading && <div className="house-empty">{t('house.empty')}</div>}
-      {!!people.length && !filter.filtered.length && <div className="house-empty">{t('house.filterEmpty')}</div>}
-      {filter.filtered.map(p => (
-        <div key={p.id} className="house-card">
-          <div>
-            <strong>{p.nome}</strong>
-            <div className="house-meta">
-              {fmtYen(p.salario_hora)}/h
-              {p.salario_mes > 0 ? ` · ${fmtYen(p.salario_mes)}${t('house.perMonth')}` : ''}
-              {' · '}
-              {p.drink_back ? `${t('house.withDrink')} ${p.comissao_pct}%` : t('house.noDrink')}
-            </div>
-            <Tags row={p} />
-          </div>
-          <div className="house-actions">
-            <button type="button" className="house-text" onClick={() => setForm({
-              id: p.id,
-              source: p.source,
-              nome: p.nome,
-              salario_hora: String(p.salario_hora || ''),
-              salario_mes: String(p.salario_mes || ''),
-              drink_back: p.drink_back,
-              comissao_pct: String(p.comissao_pct || 10),
-              cargo: p.cargo || '',
-              dias: asList(p.dias),
-              idiomas: asList(p.idiomas),
-              estilo: p.estilo || '',
-              contato: p.contato || '',
-              notas: p.notas || '',
-              aniversario: p.aniversario || '',
-            })}>{t('house.edit')}</button>
-            {p.source === 'house' && <button type="button" className="house-text" disabled={busy} onClick={() => onRemove(p)}>{t('house.remove')}</button>}
-          </div>
-        </div>
-      ))}
+      <p className="house-lead">{t('staffFile.lead')}</p>
       {form ? (
-        <div className="house-editor">
-          <label>{t('house.name')}<input value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} /></label>
-          <label>{t('house.phone')}<input value={form.contato || ''} onChange={e => setForm({ ...form, contato: e.target.value })} /></label>
-          <label>{t('house.birthday')}<input type="date" value={form.aniversario || ''} onChange={e => setForm({ ...form, aniversario: e.target.value })} /></label>
-          <ProfileFields form={form} setForm={setForm} profile={['cargo', 'dias', 'idiomas', 'estilo']} />
-          <label className="house-span">{t('house.notes')}<input value={form.notas || ''} onChange={e => setForm({ ...form, notas: e.target.value })} /></label>
-          <label>{t('house.hourly')}<input type="number" min="0" value={form.salario_hora} onChange={e => setForm({ ...form, salario_hora: e.target.value })} /></label>
-          <label>{t('house.monthly')}<input type="number" min="0" value={form.salario_mes} onChange={e => setForm({ ...form, salario_mes: e.target.value })} /></label>
-          <label className="house-check">
-            <input type="checkbox" checked={!!form.drink_back} onChange={e => setForm({ ...form, drink_back: e.target.checked })} />
-            {t('house.drinkYes')}
-          </label>
-          {form.drink_back && (
-            <label>{t('house.commission')}<input type="number" min="0" max="100" value={form.comissao_pct} onChange={e => setForm({ ...form, comissao_pct: e.target.value })} /></label>
-          )}
-          <div className="house-actions">
-            <button type="button" className="btn-primary" disabled={busy || !form.nome.trim()} onClick={onSave}>{busy ? t('common.wait') : t('house.save')}</button>
-            <button type="button" className="house-text" onClick={() => setForm(null)}>{t('house.cancel')}</button>
-          </div>
-        </div>
+        <EmployeeFile
+          form={form}
+          setForm={setForm}
+          urls={urls}
+          busy={busy}
+          onSave={onSave}
+          onCancel={() => setForm(null)}
+          profileFields={<ProfileFields form={form} setForm={setForm} profile={['cargo', 'dias', 'idiomas', 'estilo']} />}
+        />
       ) : (
-        <button type="button" className="btn-primary house-add" onClick={() => setForm({ ...EMPTY_PERSON, id: '', source: 'house' })}>{t('house.add')}</button>
+        <>
+          <FilterBar rows={employees} filter={filter} dims={['cargo', 'dia', 'idioma', 'estilo']} />
+          {!employees.length && !loading && <div className="house-empty">{t('staffFile.empty')}</div>}
+          {!!employees.length && !filter.filtered.length && <div className="house-empty">{t('house.filterEmpty')}</div>}
+          <div className="staff-grid">
+            {filter.filtered.map(p => (
+              <div key={p.id} className="house-card staff-card">
+                <button type="button" className="staff-card-main" onClick={() => open(p)}>
+                  <span className="staff-avatar">{p.foto && urls[p.foto] ? <img src={urls[p.foto]} alt="" /> : initials(p.nome)}</span>
+                  <span className="staff-card-text">
+                    <strong>{p.nome}</strong>
+                    <span className="house-meta">
+                      {p.cargo ? `${named(t, 'cargo', p.cargo)} · ` : ''}
+                      {fmtYen(p.salario_hora)}/h
+                      {p.salario_mes > 0 ? ` · ${fmtYen(p.salario_mes)}${t('house.perMonth')}` : ''}
+                    </span>
+                    {p.contato && <span className="house-meta">{p.contato}</span>}
+                    <ContractBadge p={p} />
+                  </span>
+                </button>
+                <div className="house-actions">
+                  <button type="button" className="house-text" onClick={() => open(p)}>{t('staffFile.open')}</button>
+                  {p.source === 'house' && <button type="button" className="house-text" disabled={busy} onClick={() => onRemove(p)}>{t('house.remove')}</button>}
+                </div>
+              </div>
+            ))}
+          </div>
+          <button type="button" className="btn-primary house-add" onClick={() => setForm({ ...EMPTY_PERSON, id: '', source: 'house' })}>{t('staffFile.add')}</button>
+          {!!logins.length && (
+            <details className="staff-logins">
+              <summary>{t('staffFile.loginsTitle', { count: logins.length })}</summary>
+              <p className="house-meta">{t('staffFile.loginsBody')}</p>
+              <ul>{logins.map(l => <li key={l.id}>{l.nome}<em>{l.role === 'caixa' ? t('staffFile.tillLogin') : t('staffFile.ownerLogin')}</em></li>)}</ul>
+            </details>
+          )}
+        </>
       )}
       <button type="button" className="house-text" style={{ marginTop: 10 }} onClick={onTill}>{t('house.openTill')}</button>
     </section>
@@ -562,7 +604,9 @@ export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
       salario_mes: +form.salario_mes || 0,
       drink_back: !!form.drink_back,
       comissao_pct: form.drink_back ? (+form.comissao_pct || 0) : 0,
+      transporte: +form.transporte || 0,
       ...profilePayload(form),
+      ...Object.fromEntries(FILE_KEYS.map(k => [k, form[k] || ''])),
     }
     const res = form.source === 'staff' && form.id
       ? await staffFetch('/api/bar-staff', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
