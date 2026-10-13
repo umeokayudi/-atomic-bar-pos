@@ -174,7 +174,7 @@ export default {
   payroll: { month: '対象月', status: 'ステータス' },
   shell: { collapseMenu: 'メニューを閉じる', expandMenu: 'メニューを開く' },
   search: { placeholder: 'システム内を検索…', screen: '画面', bar: 'バー', product: '商品', supplier: '仕入先', none: '見つかりません。' },
-  dock: { inicio: 'ホーム', pos: 'POS', mesas: 'フロア', pedidos: '仕入れ', ponto: '打刻', hoje: '今日', more: 'その他' },
+  dock: { inicio: 'ホーム', pos: 'POS', mesas: 'フロア', pedidos: '仕入れ', ponto: '打刻', hoje: '今日', shifts: 'シフト', salary: '給与', profile: 'マイページ', more: 'その他' },
   nav: {
     vault: 'パスワード', seating: '席と予約', jbmInvoices: 'JBM請求書', billsToPay: '支払予定', cardMachines: 'カード端末', costsOverview: 'コスト概要', supply: 'ドリンク仕入れ', vip: 'VIPルーム', ordens: 'スタッフ指示',
     crm: '顧客・CRM', marketing: 'マーケティング', consultoria: 'コンサルティング', ai: 'AIセンター', mesas: 'フロア・テーブル',

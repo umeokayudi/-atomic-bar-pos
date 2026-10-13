@@ -125,7 +125,7 @@ export const TABLES = {
 /** /api/bar-staff GET: team, registry (suppliers, rent, power...), goals, events, day sheets. */
 export const BAR_STAFF = {
   staff: [
-    { id: 'st1', nome: 'Aiko Tanaka', role: 'bar_staff', cargo: 'Bartender', salario_hora: 1600, drink_back: true, comissao_pct: 10, dias: ['Fri', 'Sat'], idiomas: ['JA', 'EN'], aniversario: '1998-10-20', source: 'house' },
+    { id: 'st1', nome: 'Aiko Tanaka', role: 'bar_staff', cargo: 'Bartender', salario_hora: 1600, drink_back: true, comissao_pct: 10, dias: ['Fri', 'Sat'], idiomas: ['JA', 'EN'], aniversario: '1998-10-20', telefone: '090-1234-5678', sexo: 'f', source: 'house' },
     { id: 'st2', nome: 'Ken Mori', role: 'bar_staff', cargo: 'Floor', salario_hora: 1300, drink_back: false, comissao_pct: 0, dias: ['Thu', 'Fri', 'Sat'], idiomas: ['JA'], source: 'house' },
     { id: 'st3', nome: 'Lucia Sato', role: 'bar_staff', cargo: 'Cast', salario_mes: 220000, drink_back: true, comissao_pct: 15, dias: ['Wed', 'Fri'], idiomas: ['PT', 'JA'], source: 'house' },
   ],

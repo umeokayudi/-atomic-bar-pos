@@ -42,6 +42,7 @@ const PAGES = [
   { who: MANAGER, path: '/bar/salarios', name: 'bar-salaries' },
   { who: MANAGER, path: '/bar/staff', name: 'bar-staff' },
   { who: MANAGER, path: '/bar/usuarios', name: 'bar-users' },
+  { who: MANAGER, path: '/bar/usuarios', name: 'bar-users-edit', click: /^Edit$/ },
   { who: MANAGER, path: '/bar/metas', name: 'bar-goals' },
   { who: MANAGER, path: '/bar/ponto', name: 'bar-clock' },
   { who: MANAGER, path: '/bar/fechamento', name: 'bar-close' },
@@ -70,6 +71,7 @@ const PAGES = [
   { who: STAFF, path: '/bar/pedidos', name: 'staff-supply' },
   { who: MANAGER, path: '/bar/ordens', name: 'bar-orders' },
   { who: STAFF, path: '/bar/hoje', name: 'staff-today' },
+  { who: STAFF, path: '/bar/hoje', name: 'staff-today-only', acessos: ['clock'] },
   { who: STAFF, path: '/bar/goals', name: 'staff-goals' },
   { who: MANAGER, path: '/bar/inicio', name: 'bar-home' },
   { who: MANAGER, path: '/bar/inicio', name: 'bar-home-rail', rail: true },
@@ -151,7 +153,7 @@ function fakeJwt(user) {
   return `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: user.id, role: 'authenticated', email: user.email, exp: Math.floor(Date.now() / 1000) + 86400 })}.sig`
 }
 
-async function mock(page, who, missing = [], vault = null) {
+async function mock(page, who, missing = [], vault = null, acessos = null) {
   const user = { id: who.id, email: who.email, aud: 'authenticated', role: 'authenticated', user_metadata: { nome: who.nome }, app_metadata: {} }
   await page.route(/supabase\.co\/auth\/v1\//, route => {
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(route.request().url().includes('/user') ? user : { access_token: fakeJwt(who), token_type: 'bearer', expires_in: 86400, refresh_token: 'r', user }) })
@@ -194,6 +196,9 @@ async function mock(page, who, missing = [], vault = null) {
       const on = vault ? { enabled: true, hasPin: true, areas: ['money', 'payroll'], minutes: 15 } : { enabled: false, hasPin: false, areas: [], minutes: 15 }
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...on, unlockedUntil: 0, canEdit: who.role !== 'gerente' || vault === 'owner' }) })
     }
+    if (req.method() === 'POST' && path === '/api/bar-staff' && (req.postDataJSON() || {}).action === 'myAccess') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ role: who.role, acessos, disabled: false }) })
+    }
     if (req.method() === 'GET' && path === '/api/bar-staff') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(BAR_STAFF) })
     }
@@ -227,7 +232,7 @@ async function main() {
           const errors = []
           page.on('pageerror', e => errors.push(String(e.message || e)))
           page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|ERR_|WebSocket|realtime|503/i.test(m.text())) errors.push(m.text()) })
-          await mock(page, pg.who, pg.missing, pg.vault)
+          await mock(page, pg.who, pg.missing, pg.vault, pg.acessos)
           const session = { access_token: fakeJwt(pg.who), token_type: 'bearer', expires_in: 86400, expires_at: Math.floor(Date.now() / 1000) + 86400, refresh_token: 'r', user: { id: pg.who.id, email: pg.who.email, aud: 'authenticated', role: 'authenticated', user_metadata: {}, app_metadata: {} } }
           await page.addInitScript(rail => { if (rail) localStorage.setItem('jbm_sidebar_collapsed', '1') }, !!pg.rail)
           await page.addInitScript(([s, th]) => {

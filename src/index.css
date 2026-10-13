@@ -5114,29 +5114,6 @@ button.pq-charge {
   cursor: pointer;
   touch-action: manipulation;
 }
-.emp-quick {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 18px;
-}
-.emp-quick button {
-  min-height: 72px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  border-radius: 14px;
-  border: 1px solid var(--border);
-  background: var(--bg2);
-  color: var(--text);
-  font-weight: 800;
-  font-size: 13px;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-.emp-quick button span { font-size: 22px; }
 .emp-section-label { font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text2); margin: 4px 0 8px; }
 .emp-two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .emp-two > .portal-surface-card { margin-bottom: 0; }
@@ -5184,11 +5161,111 @@ button.pq-charge {
 .emp-pay-net { font-size: 34px; font-weight: 800; margin-top: 4px; }
 .emp-pill { padding: 8px 14px; border-radius: 999px; background: rgba(255,255,255,0.14); font-weight: 800; font-size: 13px; }
 .emp-pill.is-paid { background: #34d399; color: #063; }
+/* Staff home ("Today"): phone-first, like a staff app. Greeting, clock card, month stats, shortcut tiles. */
+.emp-today { max-width: 720px; margin: 0 auto; }
+.emp-greet { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 2px 0 14px; }
+.emp-greet-kicker { font-size: 12px; font-weight: 700; color: var(--text2); letter-spacing: 0.04em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.emp-greet-title { font-size: 28px; line-height: 1.15; font-weight: 800; margin: 4px 0 0; color: var(--c-text, var(--text)); overflow-wrap: anywhere; }
+.emp-greet-avatar {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: none;
+  background: var(--navy);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.emp-clock-card {
+  padding: 18px;
+  margin-bottom: 12px;
+  border-radius: 20px;
+  background: var(--navy);
+  color: #fff;
+  box-shadow: var(--shadow);
+}
+.emp-clock-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.emp-clock-top .emp-status { margin-top: 0; }
+.emp-clock-since { font-size: 13px; font-weight: 700; opacity: 0.8; }
+.emp-clock-shift { display: flex; align-items: center; gap: 12px; margin: 16px 0; padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,0.08); }
+.emp-clock-shift > svg { flex: 0 0 auto; opacity: 0.8; }
+.emp-clock-shift-label { font-size: 12px; font-weight: 700; opacity: 0.75; }
+.emp-clock-shift-time { font-size: 22px; font-weight: 800; letter-spacing: 0.01em; margin-top: 2px; }
+.emp-clock-cta {
+  width: 100%;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: none;
+  border-radius: 16px;
+  background: #fff;
+  color: #10231b;
+  font-size: 20px;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.emp-clock-card.is-on .emp-clock-cta { background: #fde8e8; color: #9b1c1c; }
+.emp-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; }
+.emp-stats button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  min-height: 72px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg2);
+  color: var(--c-text, var(--text));
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.emp-stats span { font-size: 11px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.04em; }
+.emp-stats strong { font-size: 20px; font-weight: 800; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.emp-stats strong.is-good { color: var(--green); }
+.emp-stats small { font-size: 11px; color: var(--text2); }
+.emp-late { font-size: 12px; font-weight: 700; color: var(--red); margin: 0 0 8px; }
+.emp-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 18px; }
+.emp-tiles button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 84px;
+  padding: 10px 4px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg2);
+  color: var(--c-text, var(--text));
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.emp-tile-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: color-mix(in srgb, var(--navy) 10%, transparent); color: var(--navy); }
+[data-theme="classic"] .emp-tile-icon { color: var(--gold); background: color-mix(in srgb, var(--gold) 14%, transparent); }
+.emp-today .emp-two { margin-top: 4px; }
 @media (max-width: 760px) {
-  .emp-quick { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .emp-two { grid-template-columns: 1fr; }
   .emp-hero-cta { width: 100%; }
   .emp-hero-title { font-size: 22px; }
+}
+@media (max-width: 380px) {
+  .emp-greet-title { font-size: 24px; }
+  .emp-stats strong { font-size: 17px; }
+  .emp-tiles button { min-height: 76px; font-size: 11px; }
 }
 
 /* AI action proposals: shown under the AI reply, written only on Confirm */
@@ -5329,23 +5406,54 @@ button.pq-charge {
 .bar-users-chip.is-on { background: var(--navy); border-color: var(--navy); color: #fff; }
 .bar-users-chip.is-static { cursor: default; }
 .bar-users-chip:disabled { opacity: 0.45; cursor: not-allowed; }
-.bar-users-areas { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; }
-.bar-users-areas label {
+.bar-users-areas { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; }
+/* One area = one row: native checkbox at left, title + hint beside it, the whole row is the tap target. */
+.bar-users-area {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   align-items: flex-start;
-  padding: 8px 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
   font-size: 13px;
+  text-align: left;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
-.bar-users-areas label.is-off { opacity: 0.5; cursor: not-allowed; }
-.bar-users-areas label span { display: grid; gap: 2px; min-width: 0; }
-.bar-users-areas small { color: var(--text2); font-size: 11px; line-height: 1.35; }
+.bar-users-area:has(input:checked) { border-color: var(--navy); background: color-mix(in srgb, var(--navy) 6%, transparent); }
+/* The global input rule (width 100%, padding, border) must not reach the checkbox. */
+.bar-users-area input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  margin: 1px 0 0;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  accent-color: var(--navy);
+  cursor: inherit;
+}
+.bar-users-area.is-off { opacity: 0.5; cursor: not-allowed; }
+.bar-users-area span { display: grid; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.bar-users-area strong { font-size: 14px; line-height: 1.3; }
+.bar-users-areas small { color: var(--text2); font-size: 12px; line-height: 1.35; }
+.bar-users-note { font-size: 12px; color: var(--text2); background: var(--bg3, rgba(0,0,0,0.04)); border-radius: 10px; padding: 8px 10px; margin: 0 0 10px; }
+/* Male / Female switch, same height as the inputs beside it. */
+.bar-users-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 3px; border: 1px solid var(--border2, var(--border)); border-radius: var(--radius); background: var(--bg2); min-height: 40px; }
+.bar-users-seg button { border: 0; border-radius: calc(var(--radius) - 3px); background: transparent; color: var(--text2); font-weight: 700; cursor: pointer; min-height: 34px; touch-action: manipulation; }
+.bar-users-seg button.is-on { background: var(--navy); color: #fff; }
+.bar-users-contact { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; font-size: 12px; color: var(--text2); }
+.bar-users-contact a { display: inline-flex; align-items: center; gap: 4px; color: var(--c-text, var(--text)); font-weight: 700; text-decoration: none; }
 @media (max-width: 800px) {
   .bar-users-form { grid-template-columns: 1fr; }
   .bar-users-row { grid-template-columns: 1fr; }
+  .bar-users-areas { grid-template-columns: 1fr; }
+  .bar-users-form input, .bar-users-form select { min-height: 44px; font-size: 16px; }
+  .bar-users-seg { min-height: 44px; }
+  .bar-users-chip { flex: 0 0 auto; min-height: 36px; }
 }
 
 /* Phone order sheet: the drinks keep most of the room; payment details fold under one row until opened. */

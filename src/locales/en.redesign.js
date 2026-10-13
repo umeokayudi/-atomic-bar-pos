@@ -174,7 +174,7 @@ export default {
   payroll: { month: 'Month', status: 'Status' },
   shell: { collapseMenu: 'Collapse menu', expandMenu: 'Expand menu' },
   search: { placeholder: 'Search the system…', screen: 'Screen', bar: 'Bar', product: 'Product', supplier: 'Supplier', none: 'Nothing found.' },
-  dock: { inicio: 'Home', pos: 'POS', mesas: 'Floor', pedidos: 'Supply', ponto: 'Clock', hoje: 'Today', more: 'More' },
+  dock: { inicio: 'Home', pos: 'POS', mesas: 'Floor', pedidos: 'Supply', ponto: 'Clock', hoje: 'Today', shifts: 'Shifts', salary: 'Pay', profile: 'Me', more: 'More' },
   nav: {
     vault: 'Passwords', seating: 'Seating & bookings', jbmInvoices: 'JBM invoices', billsToPay: 'Bills to pay', cardMachines: 'Card machines', costsOverview: 'Costs overview', supply: 'Drink supply', vip: 'VIP rooms', ordens: 'Orders to staff',
     crm: 'Clients & CRM', marketing: 'Marketing', consultoria: 'Consulting', ai: 'AI Center', mesas: 'Floor & tables',

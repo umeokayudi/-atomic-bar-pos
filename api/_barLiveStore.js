@@ -618,6 +618,8 @@ const STAFF_ONLY_KEYS = [
   // Employee file: photo and contract live in private storage (paths only here), the rest is plain text.
   'email', 'endereco', 'foto', 'contrato_tipo', 'contrato_inicio', 'contrato_fim', 'contrato_doc', 'contrato_doc_nome',
   'transporte', 'condicoes', 'banco',
+  // "Users & access": phone and sex given when the login is made.
+  'telefone', 'sexo',
   // "Users & access": the bar areas this login may open (null / missing = what the role allows).
   'acessos',
 ]

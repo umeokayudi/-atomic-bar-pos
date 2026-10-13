@@ -30,8 +30,15 @@ export const TAB_AREA = {
   usuarios: 'users', senha: 'users',
 }
 
-/** Ready-made access sets. `full` clears the list (the role decides, as before). */
+/** Staff self-service tabs (/bar/<tab>): no area, so every login of the role may open them. */
+export const STAFF_SELF_TABS = ['hoje', 'profile', 'shifts', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary']
+
+/**
+ * Ready-made access sets. `full` clears the list (the role decides, as before).
+ * `staffOnly` is the staff app: the self-service tabs (no area) plus their own clock-in; no till, floor, drinks or money.
+ */
 export const ACCESS_PRESETS = [
+  { id: 'staffOnly', areas: ['clock'] },
   { id: 'till', areas: ['till'] },
   { id: 'tillFloor', areas: ['till', 'floor'] },
   { id: 'floorClock', areas: ['floor', 'clock'] },

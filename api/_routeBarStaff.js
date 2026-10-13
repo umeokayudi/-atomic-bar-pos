@@ -22,8 +22,16 @@ function asList(value) {
   return String(value).split(',').map(v => v.trim()).filter(Boolean)
 }
 
-function profileExtras(body) {
+/** Phone and sex from "Users & access" (staff_extras). Phone keeps digits and + - ( ) spaces; sex is 'm', 'f' or ''. */
+function contactExtras(body) {
   const extra = {}
+  if (body.telefone != null) extra.telefone = String(body.telefone || '').replace(/[^\d+\-() ]/g, '').trim().slice(0, 30)
+  if (body.sexo != null) extra.sexo = body.sexo === 'm' || body.sexo === 'f' ? body.sexo : ''
+  return extra
+}
+
+function profileExtras(body) {
+  const extra = contactExtras(body)
   if (body.cargo != null) extra.cargo = String(body.cargo || '').trim()
   if (body.dias != null) extra.dias = asList(body.dias)
   if (body.idiomas != null) extra.idiomas = asList(body.idiomas)
@@ -199,7 +207,7 @@ async function patchLaneLogin(req, res, db, auth, barId, body) {
     })
     if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not save' })
   }
-  const extraPatch = {}
+  const extraPatch = contactExtras(body)
   if (body.ativo != null) extraPatch.ativo = !!body.ativo
   if (nextAcessos !== undefined) extraPatch.acessos = nextAcessos
   if (Object.keys(extraPatch).length) {
@@ -763,7 +771,7 @@ export default async function handler(req, res) {
       const extraPatch = {}
       if (cargo || staffRole) extraPatch.cargo = cargo || staffRole
       if (salario_hora != null) extraPatch.salario_hora = +salario_hora || 0
-      Object.assign(extraPatch, payExtras(body))
+      Object.assign(extraPatch, payExtras(body), contactExtras(body))
       if (pin) extraPatch.clock_pin_hash = hashSecret(String(pin))
       extraPatch.ativo = true
       if (acessos !== undefined) extraPatch.acessos = acessos

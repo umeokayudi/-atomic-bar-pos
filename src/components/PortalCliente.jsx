@@ -66,11 +66,11 @@ const StaffAlerts = lazy(() => import('./StaffAlerts'))
 const EmployeeDesk = lazy(() => import('./EmployeeDesk'))
 import { fetchAllStockMovements } from '../lib/posSupply'
 import { coalesceStockMoves, decorateStockList, deliveryNoteMoves, posPourMoves, stockFlow, stockGlance } from '../lib/barStock'
-import { groupedNavForRole, primaryDockForRole, defaultBarTab, posAccessForRole, canManageBarTeam, isGerente, costAccessForRole, canPlaceDrinkOrders } from '../lib/access'
+import { groupedNavForRole, dockForLogin, defaultBarTab, posAccessForRole, canManageBarTeam, isGerente, costAccessForRole, canPlaceDrinkOrders } from '../lib/access'
 import { isTillKiosk, isClockKiosk, loginDoorFromHash, setDoorHash, doorAllowsRole } from '../lib/barDoors'
 import UiPrefsPanel from './UiPrefsPanel'
 import { useI18n } from '../lib/i18n'
-import { canOpenTab, filterNavGroups, firstOpenTab } from '../lib/barAccess'
+import { STAFF_SELF_TABS, canOpenTab, filterNavGroups, firstOpenTab } from '../lib/barAccess'
 import { useMyBarAccess } from '../lib/myBarAccess'
 import { tokyoMonthKey, tokyoNightKey } from '../lib/tokyo'
 import { buildBarCalendarEvents, dateInRange, invoiceInRange } from '../lib/barCalendar'
@@ -1898,11 +1898,11 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   const myAccess = useMyBarAccess(perfil)
   const access = { id: perfil?.id, role: perfil?.role, acessos: myAccess.acessos }
   const NAV_GROUPS = filterNavGroups(groupedNavForRole(perfil?.role), access)
-  const DOCK = primaryDockForRole(perfil?.role).filter(d => canOpenTab(access, d.id))
+  const DOCK = dockForLogin(perfil?.role, id => canOpenTab(access, id))
   const location = useLocation()
   const navigate = useNavigate()
   // Tabs reachable by URL (/bar/<tab>): the role's menu plus staff self-service sections, minus areas this login lacks.
-  const allowedTabs = [...NAV_GROUPS.flatMap(g => g.items.map(n => n.id)), ...DOCK.map(d => d.id), 'hoje', 'profile', 'shifts', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary', 'equipe', 'entregas', 'energia', 'aluguel', 'senha']
+  const allowedTabs = [...NAV_GROUPS.flatMap(g => g.items.map(n => n.id)), ...DOCK.map(d => d.id), ...STAFF_SELF_TABS, 'equipe', 'entregas', 'energia', 'aluguel', 'senha']
     .filter(id => canOpenTab(access, id))
   const homeTab = firstOpenTab(access, [defaultBarTab(perfil?.role), ...allowedTabs], defaultBarTab(perfil?.role))
   const tab = tabFromPath(location.pathname, 'bar', allowedTabs, homeTab)
@@ -2089,7 +2089,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         {tab==='senha' && isGerente(perfil?.role) && <TabHold><VaultSettings /></TabHold>}
         {tab==='custos'    && isGerente(perfil?.role) && <BarCostsTab bar={bar} onTab={selectTab} />}
         {tab==='metas' && canManageBarTeam(perfil?.role) && <TabHold><BarGoalsTab bar={bar} /></TabHold>}
-        {['hoje', 'profile', 'shifts', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary'].includes(tab) && perfil?.role === 'bar_staff' && <TabHold><EmployeeDesk section={tab} bar={bar} onTab={selectTab} /></TabHold>}
+        {STAFF_SELF_TABS.includes(tab) && perfil?.role === 'bar_staff' && <TabHold><EmployeeDesk section={tab} bar={bar} onTab={selectTab} /></TabHold>}
         {tab==='eventos' && canManageBarTeam(perfil?.role) && <TabHold><BarEventsTab bar={bar} /></TabHold>}
         {['fechamento', 'pagamentos', 'salarios'].some(id => opened.has(id)) && canManageBarTeam(perfil?.role) && (
           <div hidden={!['fechamento', 'pagamentos', 'salarios'].includes(tab)}>

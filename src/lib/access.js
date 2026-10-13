@@ -152,6 +152,24 @@ export function primaryDockForRole(role) {
   ]
 }
 
+// Self-service tabs that fill a staff dock when the login cannot open the till or supply ("Staff only").
+const STAFF_DOCK_SPARE = [
+  { id: 'shifts', icon: '🗓️', labelKey: 'nav.myShifts' },
+  { id: 'salary', icon: '💴', labelKey: 'nav.mySalary' },
+  { id: 'profile', icon: '👤', labelKey: 'nav.myProfile' },
+]
+
+/** The role's dock minus the tabs this login cannot open; a staff dock is topped up to four from STAFF_DOCK_SPARE. */
+export function dockForLogin(role, canOpen = () => true) {
+  const dock = primaryDockForRole(role).filter(d => canOpen(d.id))
+  if (role !== ROLES.bar_staff) return dock
+  for (const d of STAFF_DOCK_SPARE) {
+    if (dock.length >= 4) break
+    if (canOpen(d.id) && !dock.some(x => x.id === d.id)) dock.push(d)
+  }
+  return dock
+}
+
 export function posAccessForRole(role) {
   if (role === ROLES.caixa || role === ROLES.bar_staff) return 'cashier'
   if (isGerente(role)) return 'owner'

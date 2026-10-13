@@ -16,6 +16,8 @@ import Icon from './ui/Icon'
 import GoalGuide from './GoalGuide'
 import StaffQuickOrder from './StaffQuickOrder'
 import { personalGoalSource } from '../lib/goalDefinitions'
+import { useMyBarAccess } from '../lib/myBarAccess'
+import { canOpenTab } from '../lib/barAccess'
 
 const TITLES = {
   hoje: 'employee.today',
@@ -100,7 +102,32 @@ function greetingKey() {
   return 'employee.greetEvening'
 }
 
-function TodayView({ t, perfil, bar, pack, missing, onTab, competence }) {
+/** "2h 05m" since a punch; '' when the time is not usable. */
+function sinceLabel(value, now) {
+  const ms = now - new Date(value).getTime()
+  if (!Number.isFinite(ms) || ms < 0) return ''
+  const mins = Math.floor(ms / 60000)
+  return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, '0')}m`
+}
+
+// Shortcuts on the staff home, like a night-bar staff app: schedule, goals, sales, points, pay, profile.
+// Till and tasks only show when this login may open them ("Staff only" logins do not see them); the first
+// eight that are open fill two even rows, the rest stay in the menu.
+const TODAY_TILES = [
+  { id: 'pos', icon: 'pos', label: 'employee.tileTill' },
+  { id: 'pedidos', icon: 'tasks', label: 'employee.tileTasks' },
+  { id: 'shifts', icon: 'shifts', label: 'employee.tileShifts' },
+  { id: 'goals', icon: 'goals', label: 'employee.tileGoals' },
+  { id: 'result', icon: 'result', label: 'employee.tileResult' },
+  { id: 'points', icon: 'points', label: 'employee.tilePoints' },
+  { id: 'salary', icon: 'salary', label: 'employee.tilePay' },
+  { id: 'profile', icon: 'profile', label: 'employee.tileProfile' },
+  { id: 'rewards', icon: 'rewards', label: 'employee.tileRewards' },
+  { id: 'occurrences', icon: 'occurrences', label: 'employee.tileRecord' },
+]
+const TODAY_TILE_MAX = 8
+
+function TodayView({ t, perfil, bar, pack, missing, onTab, competence, canOpen }) {
   const punches = [...(pack?.punches || [])].sort((a, b) => new Date(a.punched_at) - new Date(b.punched_at))
   const last = punches[punches.length - 1]
   const onShift = last?.tipo === 'in'
@@ -108,6 +135,8 @@ function TodayView({ t, perfil, bar, pack, missing, onTab, competence }) {
   const nextPlan = (pack?.plans || [])
     .filter(p => new Date(p.ends_at).getTime() > now)
     .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at))[0]
+  // A night shift that starts within the next 18 hours (or is running) is "today's" shift.
+  const planToday = nextPlan && new Date(nextPlan.starts_at).getTime() - now < 18 * 3600000
   const monthPunches = punches.filter(p => monthOf(p.punched_at) === competence)
   const monthPlans = (pack?.plans || []).filter(p => monthOf(p.starts_at) === competence)
   const clock = hoursFromPunches(monthPunches, perfil?.id)
@@ -119,67 +148,107 @@ function TodayView({ t, perfil, bar, pack, missing, onTab, competence }) {
     ...(pack?.points || []).map(p => ({ id: `p-${p.id}`, at: p.created_at, title: p.reason, value: `+${p.points} pt` })),
     ...(pack?.rewards || []).filter(r => r.status !== 'cancelled').map(r => ({ id: `r-${r.id}`, at: r.created_at, title: r.title, value: fmtYen(r.amount) })),
   ].sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, 4)
+  const open = id => (canOpen ? canOpen(id) : true)
+  const tiles = TODAY_TILES.filter(tile => open(tile.id)).slice(0, TODAY_TILE_MAX)
+  const firstName = String(perfil?.nome || '').trim().split(/\s+/)[0] || ''
+  const since = onShift ? sinceLabel(last.punched_at, now) : ''
 
   return (
-    <>
-      <div className="emp-hero">
-        <div>
-          <div className="emp-hero-kicker">{bar?.nome || ''} · {fmtDay(now)}</div>
-          <div className="emp-hero-title">{t(greetingKey(), { name: perfil?.nome || '' })}</div>
+    <div className="emp-today">
+      <header className="emp-greet">
+        <div style={{ minWidth: 0 }}>
+          <div className="emp-greet-kicker">{bar?.nome || ''} · {fmtDay(now)}</div>
+          <h1 className="emp-greet-title">{t(greetingKey(), { name: firstName })}</h1>
+        </div>
+        <button type="button" className="emp-greet-avatar" onClick={() => onTab?.('profile')} aria-label={t('employee.profile')}>
+          {(perfil?.nome || perfil?.email || '?').slice(0, 1).toUpperCase()}
+        </button>
+      </header>
+
+      <section className={`emp-clock-card${onShift ? ' is-on' : ''}`}>
+        <div className="emp-clock-top">
           <div className={`emp-status${onShift ? ' is-on' : ''}`}>
             <span className="emp-dot" />
             {onShift ? t('employee.onShiftSince', { time: fmtTime(last.punched_at) }) : t('employee.offShift')}
           </div>
-          <div className="emp-hero-sub">
-            {nextPlan
-              ? `${t('employee.nextShift')}: ${fmtDay(nextPlan.starts_at)} ${fmtTime(nextPlan.starts_at)}–${fmtTime(nextPlan.ends_at)}`
-              : t('employee.noNextShift')}
-          </div>
+          {since && <div className="emp-clock-since">{t('employee.onShiftFor', { time: since })}</div>}
         </div>
-        <button type="button" className="emp-hero-cta" onClick={() => onTab?.('ponto')}>
-          {onShift ? t('employee.clockOutCta') : t('employee.clockInCta')}
-        </button>
-      </div>
+        <div className="emp-clock-shift">
+          <Icon name="shifts" size={18} />
+          {nextPlan ? (
+            <div>
+              <div className="emp-clock-shift-label">{planToday ? t('employee.todayShift') : t('employee.nextShift')}</div>
+              <div className="emp-clock-shift-time">
+                {planToday ? '' : `${fmtDay(nextPlan.starts_at)} `}{fmtTime(nextPlan.starts_at)}–{fmtTime(nextPlan.ends_at)}
+              </div>
+            </div>
+          ) : (
+            <div className="emp-clock-shift-label">{t('employee.noNextShift')}</div>
+          )}
+        </div>
+        {open('ponto') && (
+          <button type="button" className="emp-clock-cta" onClick={() => onTab?.('ponto')}>
+            <Icon name="clock" size={22} />
+            {onShift ? t('employee.clockOutCta') : t('employee.clockInCta')}
+          </button>
+        )}
+      </section>
 
-      <div className="emp-quick">
-        <button type="button" onClick={() => onTab?.('pos')}><Icon name="pos" size={18} />{t('employee.openTill')}</button>
-        <button type="button" onClick={() => onTab?.('pedidos')}><Icon name="tasks" size={18} />{t('nav.myTasks')}</button>
-        <button type="button" onClick={() => onTab?.('shifts')}><Icon name="shifts" size={18} />{t('nav.myShifts')}</button>
-        <button type="button" onClick={() => onTab?.('salary')}><Icon name="salary" size={18} />{t('nav.mySalary')}</button>
-      </div>
+      {!missing && (
+        <div className="emp-stats">
+          <button type="button" onClick={() => onTab?.('shifts')}>
+            <span>{t('employee.statHours')}</span>
+            <strong>{clock.workedHours}h</strong>
+            {plan.plannedHours ? <small>/ {plan.plannedHours}h</small> : null}
+          </button>
+          <button type="button" onClick={() => onTab?.('points')}>
+            <span>{t('employee.statPoints')}</span>
+            <strong>{sumPoints(monthPoints)}</strong>
+          </button>
+          <button type="button" onClick={() => onTab?.('salary')}>
+            <span>{t('employee.statPay')}</span>
+            <strong className="is-good">{fmtYen(totals.net)}</strong>
+          </button>
+        </div>
+      )}
+      {!missing && plan.lateMinutes > 0 && <p className="emp-late">{t('employee.lateMonth', { min: plan.lateMinutes })}</p>}
 
-      <StaffQuickOrder bar={bar} perfil={perfil} onTab={onTab} />
+      <div className="emp-section-label">{t('employee.shortcuts')}</div>
+      <nav className="emp-tiles" aria-label={t('employee.shortcuts')}>
+        {tiles.map(tile => (
+          <button key={tile.id} type="button" onClick={() => onTab?.(tile.id)}>
+            <span className="emp-tile-icon"><Icon name={tile.icon} size={20} /></span>
+            {t(tile.label)}
+          </button>
+        ))}
+      </nav>
+
+      {(open('pos') || open('mesas')) && <StaffQuickOrder bar={bar} perfil={perfil} onTab={onTab} />}
 
       {missing ? (
         <PortalSurface><Empty text={t('employee.schemaMissing')} /></PortalSurface>
       ) : (
-        <>
-          <div className="emp-section-label">{t('employee.thisMonth')}</div>
-          <div className="admin-kpi-grid" style={{ marginBottom: 16 }}>
-            <PortalKpi label={t('employee.workedHours')} value={`${clock.workedHours}h`} sub={plan.plannedHours ? `${t('employee.plannedHours')}: ${plan.plannedHours}h` : undefined} />
-            <PortalKpi label={t('employee.pointsMonth')} value={String(sumPoints(monthPoints))} />
-            <PortalKpi label={t('employee.late')} value={`${plan.lateMinutes} min`} color={plan.lateMinutes ? 'var(--red)' : undefined} />
-            <PortalKpi label={t('employee.netSoFar')} value={fmtYen(totals.net)} color="var(--green)" onClick={() => onTab?.('salary')} />
-          </div>
-          <div className="emp-two">
-            <PortalSurface title={t('employee.goals')} headerRight={goals.length > 3 ? <button type="button" className="emp-link" onClick={() => onTab?.('goals')}>{t('employee.seeAll')}</button> : null}>
-              {goals.length === 0 ? <Empty text={t('employee.noGoals')} icon="🎯" /> : goals.slice(0, 3).map(g => <GoalRow key={g.id} goal={g} t={t} />)}
-            </PortalSurface>
-            <PortalSurface title={t('employee.recent')}>
-              {recent.length === 0
-                ? <Empty text={t('employee.noRecent')} icon="⭐" />
-                : recent.map(r => <ListRow key={r.id} title={r.title} meta={fmtDay(r.at)} value={r.value} tone="good" />)}
-            </PortalSurface>
-          </div>
-        </>
+        <div className="emp-two">
+          <PortalSurface title={t('employee.goals')} headerRight={goals.length > 3 ? <button type="button" className="emp-link" onClick={() => onTab?.('goals')}>{t('employee.seeAll')}</button> : null}>
+            {goals.length === 0 ? <Empty text={t('employee.noGoals')} icon="🎯" /> : goals.slice(0, 3).map(g => <GoalRow key={g.id} goal={g} t={t} />)}
+          </PortalSurface>
+          <PortalSurface title={t('employee.recent')}>
+            {recent.length === 0
+              ? <Empty text={t('employee.noRecent')} icon="⭐" />
+              : recent.map(r => <ListRow key={r.id} title={r.title} meta={fmtDay(r.at)} value={r.value} tone="good" />)}
+          </PortalSurface>
+        </div>
       )}
-    </>
+    </div>
   )
 }
 
 export default function EmployeeDesk({ section = 'salary', bar, onTab }) {
   const { t } = useI18n()
   const { perfil } = useAuth()
+  // "Users & access": a "Staff only" login sees no till / tasks shortcuts.
+  const myAccess = useMyBarAccess(perfil)
+  const canOpen = id => canOpenTab({ id: perfil?.id, role: perfil?.role, acessos: myAccess.acessos }, id)
   const [competence, setCompetence] = useState(competenceNow())
   const [pack, setPack] = useState(null)
   const [err, setErr] = useState('')
@@ -224,7 +293,7 @@ export default function EmployeeDesk({ section = 'salary', bar, onTab }) {
     >
       {err && <PortalSurface><Empty text={err} /></PortalSurface>}
       {section === 'hoje' && (
-        <TodayView t={t} perfil={perfil} bar={bar} pack={pack} missing={missing} onTab={onTab} competence={competence} />
+        <TodayView t={t} perfil={perfil} bar={bar} pack={pack} missing={missing} onTab={onTab} competence={competence} canOpen={canOpen} />
       )}
       {missing && section !== 'hoje' && <PortalSurface><Empty text={t('employee.schemaMissing')} /></PortalSurface>}
       {!missing && section === 'profile' && (

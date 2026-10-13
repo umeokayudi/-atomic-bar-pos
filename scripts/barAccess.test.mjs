@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 import {
   ACCESS_PRESETS, BAR_AREAS, LIVE_TABLE_AREA, SENSITIVE_AREAS, TAB_AREA, canAccess, canAccessAny, canEditAccessOf, canManageLogin,
   canOpenTab, cleanAcessos, filterNavGroups, firstOpenTab, loginEmailFor, missingArea, presetAreas, presetFor, registryArea,
-  staffActionAreas,
+  STAFF_SELF_TABS, staffActionAreas,
 } from '../src/lib/barAccess.js'
-import { groupedNavForRole, primaryDockForRole } from '../src/lib/access.js'
+import { dockForLogin, groupedNavForRole, primaryDockForRole } from '../src/lib/access.js'
 
 let n = 0
 const test = (name, fn) => { fn(); n++; console.log(`ok ${n} - ${name}`) }
@@ -71,6 +71,29 @@ test('staff self-service tabs stay open; gated tabs follow the list', () => {
   assert.equal(canOpenTab(limitedManager, 'usuarios'), false)
   assert.equal(canOpenTab(limitedManager, 'senha'), false)
   assert.equal(canOpenTab(limitedManager, 'estoque'), true)
+})
+
+test('"Staff only" opens the staff app and own clock-in, nothing else; dock and home stay in the staff app', () => {
+  const staffOnly = { id: 's9', role: 'bar_staff', acessos: presetAreas('staffOnly') }
+  assert.equal(ACCESS_PRESETS[0].id, 'staffOnly')
+  assert.equal(presetFor(presetAreas('staffOnly')), 'staffOnly')
+  for (const id of STAFF_SELF_TABS) assert.equal(canOpenTab(staffOnly, id), true, id)
+  assert.equal(canOpenTab(staffOnly, 'ponto'), true)
+  for (const id of ['pos', 'mesas', 'pedidos', 'estoque', 'custos', 'salarios', 'staff', 'usuarios', 'fechamento', 'inicio']) {
+    assert.equal(canOpenTab(staffOnly, id), false, id)
+  }
+  // Same list on the server: live tables and bar-staff actions refuse it.
+  assert.equal(canAccessAny(staffOnly, LIVE_TABLE_AREA.staff_extras), false)
+  assert.equal(canAccessAny(staffOnly, LIVE_TABLE_AREA.bar_registry), false)
+  assert.equal(missingArea(staffOnly, staffActionAreas('POST', { action: 'saveGoals' })), 'team')
+  assert.equal(missingArea(staffOnly, ['till']), 'till')
+  const menu = filterNavGroups(groupedNavForRole('bar_staff'), staffOnly).flatMap(g => g.items.map(i => i.id))
+  assert.ok(!menu.some(id => ['pos', 'mesas', 'pedidos'].includes(id)))
+  assert.equal(firstOpenTab(staffOnly, ['hoje', ...menu], 'hoje'), 'hoje')
+  const dock = dockForLogin('bar_staff', id => canOpenTab(staffOnly, id)).map(d => d.id)
+  assert.deepEqual(dock, ['hoje', 'ponto', 'shifts', 'salary'])
+  assert.deepEqual(dockForLogin('bar_staff').map(d => d.id), primaryDockForRole('bar_staff').map(d => d.id))
+  assert.deepEqual(dockForLogin('caixa'), [])
 })
 
 test('filterNavGroups hides disallowed items and empty groups; no list keeps the menu as is', () => {
