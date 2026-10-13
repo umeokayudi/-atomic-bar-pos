@@ -5347,3 +5347,30 @@ button.pq-charge {
   .bar-users-form { grid-template-columns: 1fr; }
   .bar-users-row { grid-template-columns: 1fr; }
 }
+
+/* Phone order sheet: the drinks keep most of the room; payment details fold under one row until opened. */
+.pq-pay-toggle { display: none; }
+@media (max-width: 900px) {
+  .pq-lines { min-height: 30dvh; }
+  .pq-pay { gap: 8px; padding: 10px 12px; }
+  .pq-total strong { font-size: 28px; }
+  button.pq-pay-toggle {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    min-height: 46px; padding: 0 14px; border-radius: 14px;
+    border: 1px solid var(--border2); background: var(--bg); color: var(--text);
+    font-size: 15px; font-weight: 700; text-align: left;
+  }
+  .pq-pay-toggle > span:first-child { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pq-pay-toggle-more { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; color: var(--text2); font-size: 13px; }
+  .pq-pay.is-more .pq-pay-toggle-more svg { transform: rotate(180deg); }
+  .pq-pay:not(.is-more) .pq-pay-more { display: none; }
+  .pq-pay-more { display: grid; gap: 8px; max-height: 40dvh; overflow-y: auto; }
+  .pq-pays { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pq-pays button { min-height: 48px; display: flex; justify-content: center; gap: 8px; }
+  .pq-cash { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pq-cash > button { flex: 1 1 calc(33% - 8px); min-width: 0; }
+  .pq-options { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .pq-options select, .pq-options button { width: 100%; min-width: 0; }
+  .pq-charge { min-height: 60px; }
+}
+@media (min-width: 901px) { .pq-pay-more { display: contents; } }

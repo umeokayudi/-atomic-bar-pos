@@ -1193,6 +1193,7 @@ export default {
     postAdjustment: 'Post adjustment',
   },
   posQuick: {
+    moreOptions: 'Payment', lessOptions: 'Hide',
     search: 'Search drinks',
     tonight: 'Tonight',
     top: 'Most ordered',

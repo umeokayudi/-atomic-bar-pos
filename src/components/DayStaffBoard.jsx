@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { staffFetch } from '../lib/apiAuth'
 import { invalidateBarTeam, loadBarTeam, peekBarTeam } from '../lib/barTeam'
 import { addDays } from '../lib/barClose'
+import { clockStaff } from '../lib/timeClock'
 import { tokyoNightKey } from '../lib/tokyo'
 import { fmtYen } from './utils'
 import { useI18n } from '../lib/i18n'
@@ -10,7 +11,7 @@ import { errText } from '../lib/errText'
 function rosterOf(pack) {
   const seen = new Set()
   const rows = []
-  for (const p of [...(pack?.staff || []), ...(pack?.people || [])]) {
+  for (const p of [...clockStaff(pack?.staff), ...(pack?.people || [])]) {
     if (!p?.id || p.ativo === false || seen.has(p.id)) continue
     const nome = String(p.nome || p.email || '').trim()
     if (!nome) continue

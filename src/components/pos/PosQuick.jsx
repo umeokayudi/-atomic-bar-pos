@@ -102,6 +102,8 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], di
   const [tabSheet, setTabSheet] = useState(false)
   const [tabForm, setTabForm] = useState({ nome: '', pessoas: 2, tableId: '' })
   const [orderOpen, setOrderOpen] = useState(false)
+  // Phones: payment method, cash chips and customer fold away so the drinks on the order keep the room.
+  const [payMore, setPayMore] = useState(false)
   const [server, setServer] = useState(null) // null = checking, true = server tabs, false = device tabs
   const [srvTabs, setSrvTabs] = useState([])
   const [tabsLoaded, setTabsLoaded] = useState(false)
@@ -793,7 +795,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], di
           })}
         </div>
 
-        <div className="pq-pay">
+        <div className={`pq-pay${payMore ? ' is-more' : ''}`}>
           {(charges.lines.length > 0 || surchargeNow > 0 || srvMoney?.paid > 0) && (
             <div className="pq-extra">
               {charges.lines.map(line => (
@@ -814,6 +816,16 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], di
               <Icon name="send" size={18} /> {t('tabs.send', { n: cart.reduce((a, l) => a + l.qtd, 0) })}
             </button>
           )}
+
+          <button type="button" className="pq-pay-toggle" aria-expanded={payMore} onClick={() => setPayMore(v => !v)}>
+            <span>
+              <Icon name={PAY.find(row => row.id === pay)?.icon || 'payCash'} size={16} />
+              {[t(PAY.find(row => row.id === pay)?.key || 'atomicPos.payCash'), orderGuest?.nome, agents.find(row => row.id === agentId)?.nome].filter(Boolean).join(' · ')}
+            </span>
+            <span className="pq-pay-toggle-more">{t(payMore ? 'posQuick.lessOptions' : 'posQuick.moreOptions')}<Icon name="down" size={16} /></span>
+          </button>
+
+          <div className="pq-pay-more">
 
           <div className="pq-pays">
             {PAY.map(row => (
@@ -879,6 +891,8 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], di
                 {tableOrder && !srvTab ? t('posQuick.closeTab') : t('posQuick.clear')}
               </button>
             )}
+          </div>
+
           </div>
 
           {err && <div className="pq-alert" role="alert">{err}</div>}

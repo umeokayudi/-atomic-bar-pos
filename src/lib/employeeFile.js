@@ -2,9 +2,9 @@
 
 export const CONTRACT_TYPES = ['seishain', 'part', 'gyomu', 'haken', 'trial', 'other']
 
-/** Till (caixa) and owner logins are system accounts, not people on the payroll. */
+/** Till (caixa), tablet (lane) and owner logins are system accounts, not people on the payroll. */
 export function isSystemLogin(p) {
-  return p?.role === 'caixa' || p?.role === 'cliente'
+  return p?.role === 'caixa' || p?.role === 'cliente' || !!p?.lane
 }
 
 /** none · open (no end date) · active · ending (≤ 30 days left) · ended. */

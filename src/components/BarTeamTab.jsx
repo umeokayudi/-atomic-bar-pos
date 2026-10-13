@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from './Auth'
 import { fmtYen, Spinner, SectionTitle } from './utils'
 import { staffFetch } from '../lib/apiAuth'
-import { payrollFromPunches, monthRange } from '../lib/timeClock'
+import { payrollFromPunches, monthRange, clockStaff } from '../lib/timeClock'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 import { postClockMark } from './TimeClock'
@@ -31,7 +31,7 @@ export default function BarTeamTab({ bar, embedded = false }) {
         staffFetch(`/api/time-clock?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`).then(r => r.json()),
       ])
       if (team.error) setErr(errText(team.error))
-      setStaff(team.staff || [])
+      setStaff(clockStaff(team.staff))
       setPunches(clock.punches || [])
     } catch (e) {
       setErr(errText(e))

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { clockStaff } from '../lib/timeClock'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import { useI18n } from '../lib/i18n'
@@ -46,7 +47,7 @@ export default function StaffOrdersTab({ bar }) {
     let alive = true
     loadBarTeam().then(r => {
       if (!alive) return
-      const staff = (r.staff || []).filter(p => p?.id).map(p => ({ id: p.id, nome: p.nome || '', cargo: p.cargo || '' }))
+      const staff = clockStaff(r.staff).filter(p => p?.id).map(p => ({ id: p.id, nome: p.nome || '', cargo: p.cargo || '' }))
       setTeam(staff)
     }).catch(() => {})
     ordersInstalled(supabase, bar.id).then(ok => {

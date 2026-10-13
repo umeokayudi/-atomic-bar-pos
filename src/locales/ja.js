@@ -1193,6 +1193,7 @@ export default {
     postAdjustment: '調整を記録',
   },
   posQuick: {
+    moreOptions: '支払い', lessOptions: '閉じる',
     search: 'ドリンクを検索',
     tonight: '今夜',
     top: 'よく出る',

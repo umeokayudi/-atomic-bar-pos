@@ -55,6 +55,7 @@ const PAGES = [
   { who: MANAGER, path: '/bar/mesas', name: 'bar-floor-edit-3d', edit: true, click: /3D preview/ },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos' },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-counter', click: /Counter/ },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-order', click: /Counter/, taps: ['.pq-tile-hit', '.pq-tile-hit', '.pq-cartbar'], tapsBelow: 901 },
   { who: MANAGER, path: '/bar/vip', name: 'bar-vip' },
   { who: MANAGER, path: '/bar/pedidos', name: 'bar-supply' },
   { who: MANAGER, path: '/bar/pagamentos', name: 'bar-locked-money', vault: true },
@@ -250,6 +251,10 @@ async function main() {
           if (pg.click) {
             await page.getByRole('button', { name: pg.click }).first().click({ timeout: 5000 }).catch(e => errors.push(`click: ${e.message}`))
             await page.waitForTimeout(800)
+          }
+          for (const sel of (pg.tapsBelow && width >= pg.tapsBelow ? [] : pg.taps || [])) {
+            await page.locator(`${sel}:visible`).first().click({ timeout: 5000 }).catch(e => errors.push(`tap ${sel}: ${e.message}`))
+            await page.waitForTimeout(300)
           }
           if (pg.ask) {
             await page.locator('.ui-ask-ai:visible').first().click({ timeout: 5000 }).catch(e => errors.push(`ask ai: ${e.message}`))

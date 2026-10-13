@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { clockStaff } from '../lib/timeClock'
 import { fmtYen, Spinner } from './utils'
 import { staffFetch } from '../lib/apiAuth'
 import { invalidateBarTeam, loadBarTeam } from '../lib/barTeam'
@@ -80,7 +81,7 @@ export default function BarGoalsTab({ bar }) {
       fetchHqSnapshot().catch(() => null),
     ])
     if (teamRes.error) throw new Error(errText(teamRes.error))
-    const staff = teamRes.staff || []
+    const staff = clockStaff(teamRes.staff)
     const extra = (teamRes.people || []).filter(p => p?.id && !staff.some(s => s.id === p.id))
     const people = [...staff, ...extra].map(p => ({
       id: p.id,

@@ -1308,3 +1308,7 @@ html .easy-dock button { min-width: 0; padding: 4px 2px; }
 html[data-device="phone"] .easy-dock button { flex: 1 1 0; min-width: 0; }
 html[data-device="phone"] .mobile-search { display: block; margin: 0 0 14px; }
 html[data-device="phone"] .mobile-search .gsearch { width: 100%; height: 44px; border-radius: 999px; }
+
+/* Toggle rows never sit flush against the fields above them */
+* + .goal-modes { margin-top: 14px; }
+.goal-modes { gap: 10px; }
