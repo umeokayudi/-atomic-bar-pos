@@ -11,6 +11,7 @@ import { isMissingSchemaError, loadBarWithGeo, listStaffWithExtras, runLiveOp, s
 import { forgetBarActors } from './_barLaneAuth.js'
 import { canAccess, canEditAccessOf, canManageLogin, cleanAcessos, isRestricted, staffActionAreas } from '../src/lib/barAccess.js'
 import { denyMissingArea } from './_barAccess.js'
+import { canLinkLogin, carryFromPerson, personLinkPatch, remapIds, remapSheet } from '../src/lib/staffLink.js'
 
 function bodyOf(req) {
   return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
@@ -176,6 +177,96 @@ async function syncDrinkBackAgent(db, barId, staffId, { nome, drink_back, comiss
   return { ok: true }
 }
 
+/** One bar_people row of this bar, or null. */
+async function loadPerson(db, barId, personId) {
+  if (!personId) return null
+  const hit = await runLiveOp(db, {
+    table: 'bar_people',
+    mode: 'select',
+    columns: '*',
+    filters: [{ op: 'eq', k: 'id', v: String(personId) }, { op: 'eq', k: 'bar_id', v: barId }],
+    wantSingle: 'maybe',
+  })
+  return hit.data || null
+}
+
+/** Why `person` cannot be linked to `loginId` (missing, or already folded into another login), or ''. */
+function personLinkError(person, loginId) {
+  if (!person) return 'Employee not found'
+  if (person.merged_into && person.merged_into !== loginId) return 'This employee is already linked to another login'
+  return ''
+}
+
+/** Move the drink-back agent of the employee file onto the login, so commission history stays with the person. */
+async function retagDrinkBackAgent(db, barId, fromId, toId) {
+  const loaded = await loadAgents(db, barId)
+  if (loaded.error) return
+  const rows = loaded.rows || []
+  const hit = rows.find(a => a.notas === `staff:${fromId}` || a.staff_id === fromId)
+  if (!hit || rows.some(a => a.notas === `staff:${toId}` || a.staff_id === toId)) return
+  const patch = { notas: `staff:${toId}` }
+  if (loaded.live) await runLiveOp(db, { table: 'drink_back_agents', mode: 'update', filters: [{ op: 'eq', k: 'id', v: hit.id }], updatePatch: patch })
+  else await db.from('drink_back_agents').update(patch).eq('id', hit.id)
+}
+
+/** Goal people and day-sheet marks saved under the employee id now point at the login. */
+async function remapPersonRefs(db, barId, fromId, toId) {
+  const goals = await runLiveOp(db, { table: 'bar_goals', mode: 'select', columns: '*', filters: [{ op: 'eq', k: 'id', v: barId }], wantSingle: 'maybe' })
+  const pessoas = remapIds(goals.data?.pessoas, fromId, toId)
+  if (pessoas) {
+    await runLiveOp(db, { table: 'bar_goals', mode: 'update', filters: [{ op: 'eq', k: 'id', v: barId }], updatePatch: { pessoas }, wantSingle: true })
+  }
+  const sheets = await runLiveOp(db, { table: 'bar_day_sheet', mode: 'select', columns: '*', filters: [{ op: 'eq', k: 'bar_id', v: barId }] })
+  for (const sheet of sheets.data || []) {
+    const next = remapSheet(sheet, fromId, toId)
+    if (!next) continue
+    await runLiveOp(db, { table: 'bar_day_sheet', mode: 'update', filters: [{ op: 'eq', k: 'id', v: sheet.id }], updatePatch: { late: next.late, absent: next.absent }, wantSingle: true })
+  }
+}
+
+/**
+ * Link an employee file (bar_people) to a perfis login: copy the file onto the login's extras (person_id
+ * points back), name the login after the employee, mark the bar_people row merged (kept, never deleted)
+ * and move goal / day-sheet / drink-back references to the login id.
+ */
+async function linkPersonToLogin(db, barId, person, loginId, { rename = true } = {}) {
+  const extras = await saveStaffExtras(db, loginId, carryFromPerson(person))
+  if (!extras.ok) return { ok: false, error: extras.error || 'Could not save' }
+  if (rename && String(person.nome || '').trim()) {
+    await db.from('perfis').update({ nome: String(person.nome).trim().slice(0, 80) }).eq('id', loginId)
+  }
+  const marked = await runLiveOp(db, {
+    table: 'bar_people',
+    mode: 'update',
+    filters: [{ op: 'eq', k: 'id', v: person.id }, { op: 'eq', k: 'bar_id', v: barId }],
+    updatePatch: personLinkPatch(loginId),
+    wantSingle: true,
+  })
+  if (marked.error) return { ok: false, error: marked.error.message || 'Could not save' }
+  // A store that silently drops unknown columns would leave the employee listed twice: say so instead.
+  if (marked.data && marked.data.merged_into !== loginId) return { ok: false, error: 'Could not mark the employee file as linked' }
+  await retagDrinkBackAgent(db, barId, person.id, loginId).catch(() => {})
+  await remapPersonRefs(db, barId, person.id, loginId).catch(() => {})
+  return { ok: true }
+}
+
+/** Undo a link: the employee file shows on its own again; the login keeps the fields it already has. */
+async function unlinkLogin(db, barId, loginId, personId) {
+  if (personId) {
+    const person = await loadPerson(db, barId, personId)
+    if (person && person.merged_into === loginId) {
+      await runLiveOp(db, {
+        table: 'bar_people',
+        mode: 'update',
+        filters: [{ op: 'eq', k: 'id', v: person.id }, { op: 'eq', k: 'bar_id', v: barId }],
+        updatePatch: personLinkPatch(''),
+        wantSingle: true,
+      })
+    }
+  }
+  return saveStaffExtras(db, loginId, { person_id: '' })
+}
+
 /** PATCH for a lane login (bar_logins row of this bar): name, on/off, till/floor role, area list. Never the password hash. */
 async function patchLaneLogin(req, res, db, auth, barId, body) {
   const hit = await runLiveOp(db, {
@@ -282,7 +373,8 @@ export default async function handler(req, res) {
       })).data || []
       return res.status(200).json({
         staff: (staff || []).map(hidePay),
-        people: (peopleLive.data || []).map(hidePay),
+        // Employee files folded into a login (merged_into) show once, as that login.
+        people: (peopleLive.data || []).filter(p => !p.merged_into).map(hidePay),
         registry: canAccess(auth.perfil, 'money') ? registryRows : registryRows.filter(r => r.kind === 'fornecedor' || r.kind === 'parceiro'),
         goals: (await runLiveOp(db, {
           table: 'bar_goals',
@@ -737,6 +829,35 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true })
     }
 
+    // Link (or, with person_id empty, unlink) an existing login and an employee file from the Staff page.
+    if (req.method === 'POST' && body.action === 'linkPerson') {
+      if (!body.id) return res.status(400).json({ error: 'id required' })
+      const { data: login } = await db.from('perfis').select('id,bar_id,role,nome').eq('id', body.id).maybeSingle()
+      if (!login || login.bar_id !== barId) return res.status(404).json({ error: 'Staff not found' })
+      if (!canManageLogin(auth.perfil, login)) return res.status(403).json({ error: 'You cannot change this login' })
+      if (!canLinkLogin(login)) return res.status(400).json({ error: 'This login cannot have an employee file' })
+      const extra = await runLiveOp(db, { table: 'staff_extras', mode: 'select', columns: '*', filters: [{ op: 'eq', k: 'id', v: login.id }], wantSingle: 'maybe' })
+      const current = String(extra.data?.person_id || '')
+      const nextId = String(body.person_id || '')
+      if (nextId === current) return res.status(200).json({ ok: true, person_id: current })
+      let person = null
+      if (nextId) {
+        person = await loadPerson(db, barId, nextId)
+        const why = personLinkError(person, login.id)
+        if (why) return res.status(person ? 409 : 404).json({ error: why })
+      }
+      if (current) {
+        const undone = await unlinkLogin(db, barId, login.id, current)
+        if (!undone.ok) return res.status(400).json({ error: undone.error || 'Could not save' })
+      }
+      if (person) {
+        const linked = await linkPersonToLogin(db, barId, person, login.id)
+        if (!linked.ok) return res.status(400).json({ error: linked.error })
+      }
+      forgetBarActors()
+      return res.status(200).json({ ok: true, person_id: nextId })
+    }
+
     if (req.method === 'POST' && body.action === 'createStaff') {
       if (!admin) return res.status(503).json({ error: 'Creating a login needs SUPABASE_SERVICE_ROLE_KEY' })
       const { email, password, nome, role, cargo, salario_hora, pin } = body
@@ -749,17 +870,24 @@ export default async function handler(req, res) {
       if (acessos !== undefined && !canEditAccessOf(auth.perfil, { role: staffRole }, acessos)) {
         return res.status(403).json({ error: 'You cannot give this login those areas' })
       }
+      // A login for an employee already on the Staff page: checked before the auth user exists.
+      const person = body.person_id ? await loadPerson(db, barId, body.person_id) : null
+      if (body.person_id) {
+        const why = personLinkError(person, '')
+        if (why) return res.status(person ? 409 : 404).json({ error: why })
+      }
+      const loginName = String(person?.nome || nome).trim().slice(0, 80)
       const { data: created, error: cErr } = await admin.auth.admin.createUser({
         email: String(email).trim().toLowerCase(),
         password,
         email_confirm: true,
-        user_metadata: { nome },
+        user_metadata: { nome: loginName },
       })
       if (cErr) return res.status(400).json({ error: cErr.message })
       const uid = created.user.id
       const { error: pErr } = await admin.from('perfis').upsert({
         id: uid,
-        nome,
+        nome: loginName,
         email: String(email).trim().toLowerCase(),
         role: staffRole,
         bar_id: barId,
@@ -778,6 +906,13 @@ export default async function handler(req, res) {
       const extras = await saveStaffExtras(db, uid, extraPatch)
       if (!extras.ok && extras.error) {
         return res.status(400).json({ error: extras.error })
+      }
+      if (person) {
+        // The employee file brings its own pay, contract, photo, phone, sex and drink-back agent.
+        const linked = await linkPersonToLogin(db, barId, person, uid, { rename: false })
+        if (!linked.ok) return res.status(400).json({ error: linked.error, id: uid })
+        forgetBarActors()
+        return res.status(200).json({ ok: true, id: uid, email: String(email).trim().toLowerCase(), password, nome: loginName, person_id: person.id })
       }
       const drink = await syncDrinkBackAgent(db, barId, uid, {
         nome,

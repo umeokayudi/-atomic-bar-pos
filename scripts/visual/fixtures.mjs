@@ -141,11 +141,18 @@ export const TABLES = {
 /** /api/bar-staff GET: team, registry (suppliers, rent, power...), goals, events, day sheets. */
 export const BAR_STAFF = {
   staff: [
-    { id: 'st1', nome: 'Aiko Tanaka', role: 'bar_staff', cargo: 'Bartender', salario_hora: 1600, drink_back: true, comissao_pct: 10, dias: ['Fri', 'Sat'], idiomas: ['JA', 'EN'], aniversario: '1998-10-20', telefone: '090-1234-5678', sexo: 'f', source: 'house' },
-    { id: 'st2', nome: 'Ken Mori', role: 'bar_staff', cargo: 'Floor', salario_hora: 1300, drink_back: false, comissao_pct: 0, dias: ['Thu', 'Fri', 'Sat'], idiomas: ['JA'], source: 'house' },
-    { id: 'st3', nome: 'Lucia Sato', role: 'bar_staff', cargo: 'Cast', salario_mes: 220000, drink_back: true, comissao_pct: 15, dias: ['Wed', 'Fri'], idiomas: ['PT', 'JA'], source: 'house' },
+    { id: 'own1', nome: 'Owner Demo', role: 'cliente', email: 'owner@example.com', login_email: 'owner@example.com' },
+    { id: 'st1', nome: 'Aiko Tanaka', role: 'bar_staff', cargo: 'Bartender', salario_hora: 1600, drink_back: true, comissao_pct: 10, dias: ['Fri', 'Sat'], idiomas: ['JA', 'EN'], aniversario: '1998-10-20', contato: '090-1234-5678', sexo: 'f', source: 'house', email: 'aiko@example.com', login_email: 'aiko.bar@staff.example.com', person_id: 'pp0', acessos: ['clock'] },
+    { id: 'st2', nome: 'Ken Mori', role: 'bar_staff', cargo: 'Floor', salario_hora: 1300, drink_back: false, comissao_pct: 0, dias: ['Thu', 'Fri', 'Sat'], idiomas: ['JA'], source: 'house', email: 'ken.bar@staff.example.com', acessos: ['floor', 'clock'] },
+    { id: 'st3', nome: 'Lucia Sato', role: 'bar_staff', cargo: 'Cast', salario_mes: 220000, drink_back: true, comissao_pct: 15, dias: ['Wed', 'Fri'], idiomas: ['PT', 'JA'], source: 'house', email: 'lucia.bar@staff.example.com', contato: '080-5555-0101', sexo: 'f', person_id: 'pp9', acessos: ['till', 'floor'], ativo: false },
+    { id: 'ln1', nome: 'Front till', role: 'caixa', lane: true, email: 'till.bar@staff.example.com', acessos: ['till'] },
   ],
-  people: [],
+  // Employees registered on the Staff page that have no login yet (picked in "Users & access").
+  people: [
+    { id: 'pp1', nome: 'Mika Hayashi', cargo: 'cast', contato: '090-2222-3333', sexo: 'f', salario_hora: 1500, contrato_tipo: 'part' },
+    { id: 'pp2', nome: 'Rafael Costa', cargo: 'bar', contato: '080-4444-1212', sexo: 'm', salario_hora: 1400 },
+    { id: 'pp3', nome: 'Yuna Kim', cargo: 'caixa', salario_mes: 210000 },
+  ],
   registry: [
     { id: 'rg1', kind: 'aluguel', nome: 'Shibuya Realty', cargo: 'Mr. Ito', contato: '03-1234-5678', amount: 180000, vence_dia: 25, metodo: 'transfer' },
     { id: 'rg2', kind: 'energia', nome: 'Tokyo Power', amount: 32000, vence_dia: 10 },

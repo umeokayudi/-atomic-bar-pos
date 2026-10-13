@@ -622,6 +622,8 @@ const STAFF_ONLY_KEYS = [
   'telefone', 'sexo',
   // "Users & access": the bar areas this login may open (null / missing = what the role allows).
   'acessos',
+  // "Users & access": the employee file (bar_people id) this login was linked to.
+  'person_id',
 ]
 
 export async function saveStaffExtras(admin, staffId, patch) {
@@ -659,6 +661,8 @@ export async function saveStaffExtras(admin, staffId, patch) {
 }
 
 function mergeStaffExtra(row, extra) {
+  // The employee file may carry a contact e-mail (extras.email); keep the sign-in address apart.
+  if (row?.email && row.login_email == null) row = { ...row, login_email: row.email }
   if (!extra) return row
   const out = { ...row }
   for (const k of [...PERFIL_EXTRA_KEYS, ...STAFF_ONLY_KEYS]) {

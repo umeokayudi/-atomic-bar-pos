@@ -18,10 +18,10 @@ const EMPTY_PERSON = {
   nome: '', salario_hora: '', salario_mes: '', drink_back: false, comissao_pct: '10',
   cargo: '', dias: [], idiomas: [], estilo: '', contato: '', notas: '', aniversario: '',
   email: '', endereco: '', foto: '', contrato_tipo: '', contrato_inicio: '', contrato_fim: '', contrato_doc: '', contrato_doc_nome: '',
-  transporte: '', condicoes: '', banco: '',
+  transporte: '', condicoes: '', banco: '', sexo: '',
 }
 
-const FILE_KEYS = ['email', 'endereco', 'foto', 'contrato_tipo', 'contrato_inicio', 'contrato_fim', 'contrato_doc', 'contrato_doc_nome', 'condicoes', 'banco']
+const FILE_KEYS = ['email', 'endereco', 'foto', 'contrato_tipo', 'contrato_inicio', 'contrato_fim', 'contrato_doc', 'contrato_doc_nome', 'condicoes', 'banco', 'sexo']
 
 const METODO_KEYS = ['transfer', 'debit', 'card', 'cash', 'konbini', 'other']
 const BANDEIRA_KEYS = ['visa', 'master', 'jcb', 'amex', 'diners', 'unionpay', 'ic', 'qr']
@@ -92,7 +92,7 @@ function personFrom(row, source) {
     dias: asList(row.dias),
     idiomas: asList(row.idiomas),
     estilo: row.estilo || '',
-    contato: row.contato || '',
+    contato: row.contato || row.telefone || '',
     notas: row.notas || '',
     aniversario: String(row.aniversario || '').slice(0, 10),
     role: row.role || '',

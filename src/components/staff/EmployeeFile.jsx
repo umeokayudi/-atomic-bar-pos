@@ -48,7 +48,18 @@ export default function EmployeeFile({ form, setForm, urls, busy, onSave, onCanc
       </div>
 
       <h3 className="house-span">{t('staffFile.contact')}</h3>
-      <label>{t('house.phone')}<input value={form.contato || ''} onChange={e => set({ contato: e.target.value })} /></label>
+      <label>{t('house.phone')}<input type="tel" inputMode="tel" value={form.contato || ''} onChange={e => set({ contato: e.target.value })} /></label>
+      <div className="staff-sex">
+        <span>{t('staffFile.sex')}</span>
+        {/* Male / Female; tapping the chosen one again clears it. */}
+        <div className="staff-seg" role="radiogroup" aria-label={t('staffFile.sex')}>
+          {['m', 'f'].map(v => (
+            <button key={v} type="button" role="radio" aria-checked={form.sexo === v} className={form.sexo === v ? 'is-on' : ''} onClick={() => set({ sexo: form.sexo === v ? '' : v })}>
+              {t(`staffFile.sexes.${v}`)}
+            </button>
+          ))}
+        </div>
+      </div>
       <label>{t('staffFile.email')}<input type="email" value={form.email || ''} onChange={e => set({ email: e.target.value })} /></label>
       <label className="house-span">{t('staffFile.address')}<input value={form.endereco || ''} onChange={e => set({ endereco: e.target.value })} /></label>
       <label>{t('house.birthday')}<input type="date" value={form.aniversario || ''} onChange={e => set({ aniversario: e.target.value })} /></label>

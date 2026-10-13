@@ -2110,7 +2110,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         )}
         {tab==='drinkback' && canManageBarTeam(perfil?.role) && <TabHold><DrinkBackTab bar={bar} /></TabHold>}
         {tab==='equipe'    && canManageBarTeam(perfil?.role) && <TabHold><BarTeamTab bar={bar} /></TabHold>}
-        {tab==='usuarios'  && canManageBarTeam(perfil?.role) && <TabHold><BarUsersTab bar={bar} /></TabHold>}
+        {tab==='usuarios'  && canManageBarTeam(perfil?.role) && <TabHold><BarUsersTab bar={bar} onTab={selectTab} /></TabHold>}
         {tab==='clientes'  && canManageBarTeam(perfil?.role) && <TabHold><BarGuestsTab bar={bar} /></TabHold>}
         {tab==='espacos'   && canManageBarTeam(perfil?.role) && <TabHold><BarSpacesTab bar={bar} onTab={selectTab} /></TabHold>}
         {tab==='vip'       && canManageBarTeam(perfil?.role) && <TabHold><BarVipTab bar={bar} onTab={selectTab} /></TabHold>}

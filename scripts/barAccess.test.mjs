@@ -5,6 +5,10 @@ import {
   STAFF_SELF_TABS, staffActionAreas,
 } from '../src/lib/barAccess.js'
 import { dockForLogin, groupedNavForRole, primaryDockForRole } from '../src/lib/access.js'
+import {
+  LINK_CARRY_KEYS, canLinkLogin, carryFromPerson, isMerged, linkCandidates, matchPerson, personLinkPatch, remapIds, remapSheet,
+  suggestLoginId, visiblePeople,
+} from '../src/lib/staffLink.js'
 
 let n = 0
 const test = (name, fn) => { fn(); n++; console.log(`ok ${n} - ${name}`) }
@@ -166,6 +170,76 @@ test('login id becomes a bar-scoped sign-in email; emails pass through', () => {
   assert.equal(loginEmailFor('a', 'x'), '')
   assert.equal(loginEmailFor('bad id', 'x'), '')
   assert.equal(loginEmailFor('x@y', 'x'), '')
+})
+
+test('linking an employee needs the users area, like creating a login', () => {
+  assert.deepEqual(staffActionAreas('POST', { action: 'linkPerson', id: 'u1', person_id: 'p1' }), ['users'])
+  assert.equal(missingArea({ role: 'gerente', acessos: presetAreas('manager') }, staffActionAreas('POST', { action: 'linkPerson' })), 'users')
+})
+
+const aiko = {
+  id: 'p1', bar_id: 'b1', nome: 'Aiko Tanaka', contato: '090-1111-2222', sexo: 'f', salario_hora: 1600, drink_back: true, comissao_pct: 10,
+  foto: 'staff-files/b1/p1/foto-1.jpg', contrato_tipo: 'part', contrato_inicio: '2026-04-01', dias: ['fri', 'sat'], notas: '', banco: '',
+}
+
+test('the employee file is carried onto the login, empty fields never wipe the login', () => {
+  const out = carryFromPerson(aiko)
+  assert.equal(out.person_id, 'p1')
+  assert.equal(out.contato, '090-1111-2222')
+  assert.equal(out.sexo, 'f')
+  assert.equal(out.salario_hora, 1600)
+  assert.equal(out.foto, 'staff-files/b1/p1/foto-1.jpg')
+  assert.deepEqual(out.dias, ['fri', 'sat'])
+  assert.ok(!('notas' in out) && !('banco' in out), 'empty strings are not copied')
+  assert.ok(!('id' in out) && !('bar_id' in out) && !('nome' in out), 'ids and name stay with the login')
+  assert.notEqual(out.dias, aiko.dias, 'arrays are copied, not shared')
+  for (const k of Object.keys(out)) assert.ok(k === 'person_id' || LINK_CARRY_KEYS.includes(k), k)
+  assert.equal(carryFromPerson({ id: 'p2', drink_back: false, comissao_pct: 15 }).comissao_pct, 0)
+  assert.deepEqual(carryFromPerson(null), {})
+})
+
+test('a linked employee is marked merged, never deleted, and shows once', () => {
+  const mark = personLinkPatch('u1', '2026-10-13T00:00:00Z')
+  assert.deepEqual(mark, { merged_into: 'u1', login_id: 'u1', merged_at: '2026-10-13T00:00:00Z' })
+  assert.deepEqual(personLinkPatch(''), { merged_into: '', login_id: '', merged_at: '' })
+  const people = [{ ...aiko, ...mark }, { id: 'p2', nome: 'Ken Mori' }, { id: 'p3', nome: '' }]
+  assert.equal(isMerged(people[0]), true)
+  assert.deepEqual(visiblePeople(people).map(p => p.id), ['p2', 'p3'])
+  assert.deepEqual(linkCandidates(people).map(p => p.id), ['p2'], 'no merged, no nameless')
+  assert.deepEqual(linkCandidates(people, 'p1').map(p => p.id), ['p1', 'p2'], 'the one linked here stays pickable')
+  assert.equal(isMerged({ ...aiko, ...personLinkPatch('') }), false)
+})
+
+test('goal and day-sheet marks move from the employee id to the login id without doubles', () => {
+  const goals = [{ id: 'p1', nome: 'Aiko', noite: 3 }, { id: 'p2', nome: 'Ken', noite: 1 }]
+  assert.deepEqual(remapIds(goals, 'p1', 'u1'), [{ id: 'u1', nome: 'Aiko', noite: 3 }, { id: 'p2', nome: 'Ken', noite: 1 }])
+  assert.deepEqual(remapIds([{ id: 'p1' }, { id: 'u1', noite: 5 }], 'p1', 'u1'), [{ id: 'u1', noite: 5 }])
+  assert.equal(remapIds(goals, 'p9', 'u1'), null)
+  assert.equal(remapIds(goals, 'p1', 'p1'), null)
+  assert.equal(remapIds(null, 'p1', 'u1'), null)
+  const sheet = { id: 'b1:2026-10-10', late: [{ id: 'p1', nome: 'Aiko' }], absent: [{ id: 'p2', nome: 'Ken' }] }
+  assert.deepEqual(remapSheet(sheet, 'p1', 'u1'), { ...sheet, late: [{ id: 'u1', nome: 'Aiko' }] })
+  assert.equal(remapSheet(sheet, 'p7', 'u1'), null)
+})
+
+test('only real people logins take an employee file', () => {
+  assert.equal(canLinkLogin({ role: 'bar_staff' }), true)
+  assert.equal(canLinkLogin({ role: 'caixa' }), true)
+  assert.equal(canLinkLogin({ role: 'gerente' }), true)
+  assert.equal(canLinkLogin({ role: 'cliente' }), false)
+  assert.equal(canLinkLogin({ role: 'caixa', lane: true }), false)
+  assert.equal(canLinkLogin(null), false)
+})
+
+test('employee search and login-id suggestion', () => {
+  assert.equal(matchPerson({ nome: 'Lúcia Sato', cargo: 'cast' }, 'lucia'), true)
+  assert.equal(matchPerson({ nome: 'Aiko', contato: '090-1111' }, '090'), true)
+  assert.equal(matchPerson({ nome: 'Aiko' }, 'ken'), false)
+  assert.equal(matchPerson({ nome: 'Aiko' }, ''), true)
+  assert.equal(suggestLoginId('Aiko Tanaka'), 'aiko.tanaka')
+  assert.equal(suggestLoginId('Lúcia  Sato!'), 'lucia.sato')
+  assert.equal(suggestLoginId('あい'), '')
+  assert.equal(loginEmailFor(suggestLoginId('Aiko Tanaka'), 'b1'), 'aiko.tanaka.b1@staff.jbmtech.app')
 })
 
 console.log(`\n${n} tests passed`)

@@ -43,6 +43,11 @@ const PAGES = [
   { who: MANAGER, path: '/bar/staff', name: 'bar-staff' },
   { who: MANAGER, path: '/bar/usuarios', name: 'bar-users' },
   { who: MANAGER, path: '/bar/usuarios', name: 'bar-users-edit', click: /^Edit$/ },
+  { who: MANAGER, path: '/bar/usuarios', name: 'bar-users-edit-access', click: /^Edit$/, then: /Access$/ },
+  { who: MANAGER, path: '/bar/usuarios', name: 'bar-users-new', click: /New login/, taps: ['.bu-person'] },
+  { who: MANAGER, path: '/bar/usuarios', name: 'bar-users-new-access', click: /New login/, taps: ['.bu-person'], then: /^Next/ },
+  { who: MANAGER, path: '/bar/usuarios', name: 'bar-users-new-signin', click: /New login/, taps: ['.bu-person'], then: [/^Next/, /^Next/] },
+  { who: MANAGER, path: '/bar/staff', name: 'bar-staff-new', click: /^Add employee$/ },
   { who: MANAGER, path: '/bar/metas', name: 'bar-goals' },
   { who: MANAGER, path: '/bar/ponto', name: 'bar-clock' },
   { who: MANAGER, path: '/bar/fechamento', name: 'bar-close' },
@@ -271,8 +276,8 @@ async function main() {
             await page.locator('.pos-subnav .pos-chip', { hasText: pg.chip }).first().click({ timeout: 5000 }).catch(e => errors.push(`chip: ${e.message}`))
             await page.waitForTimeout(800)
           }
-          if (pg.then) {
-            await page.getByRole('button', { name: pg.then }).first().click({ timeout: 5000 }).catch(e => errors.push(`then: ${e.message}`))
+          for (const name of [].concat(pg.then || [])) {
+            await page.getByRole('button', { name }).first().click({ timeout: 5000 }).catch(e => errors.push(`then: ${e.message}`))
             await page.waitForTimeout(500)
           }
           if (pg.ask) {

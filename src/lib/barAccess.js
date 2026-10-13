@@ -139,7 +139,7 @@ export function staffActionAreas(method, body = {}, opts = {}) {
       return b.kind === 'contrato' ? ['team|users', 'payroll'] : ['team|users']
     case 'staffFileUrls':
       return ['team|users']
-    case 'pairTablet': case 'saveLocation':
+    case 'pairTablet': case 'saveLocation': case 'linkPerson':
       return ['users']
     case 'saveDaySheet':
       return ['team|clock']
