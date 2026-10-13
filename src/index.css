@@ -2235,10 +2235,78 @@ html[data-layout="tablet"] .app-main {
 }
 .pos-head-title { font-size: 22px; font-weight: 800; }
 .pos-head-sub { font-size: 13px; color: var(--text2); margin-top: 4px; }
-.pos-head-today { text-align: right; }
+.pos-head-today { display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
 .pos-head-label { font-size: 11px; color: var(--text2); text-transform: uppercase; }
 .pos-head-total { font-size: 20px; font-weight: 800; color: var(--green); }
 .pos-head-count { font-size: 11px; color: var(--text2); }
+
+/* POS secondary tabs (VIP, Drink Back, Prices, Discounts): form + list side by side, one column on phones. */
+.pos-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.pos-stat3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 20px; }
+.pos-mode-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.pos-list-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.pos-list-main { min-width: 0; flex: 1; }
+.pos-list-meta { font-size: 12px; color: var(--text2); overflow-wrap: anywhere; }
+.pos-mini-btn {
+  flex: 0 0 auto; font-size: 12px; font-weight: 600; padding: 7px 12px; min-height: 34px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--bg2); color: var(--text); cursor: pointer; white-space: nowrap;
+}
+.pos-form-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-bottom: 12px; }
+.pos-shot-form { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 8px; }
+.pos-hint { font-size: 12px; color: var(--text2); margin: 10px 0 8px; }
+.pos-new-drink { width: 100%; min-height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 15px; }
+.pos-price-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 14px; background: var(--bg2); overflow: hidden; }
+.pos-price-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 10px 12px;
+  background: transparent; border: none; border-radius: 0; text-align: left; color: var(--text); cursor: pointer;
+}
+.pos-price-row + .pos-price-row { border-top: 1px solid var(--border); }
+.pos-price-row:active { background: var(--bg3); }
+.pos-price-row > svg { flex: 0 0 auto; color: var(--text3); }
+.pos-price-thumb { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 10px; object-fit: cover; background: var(--bg3); }
+.pos-price-thumb.is-empty { display: inline-flex; align-items: center; justify-content: center; color: var(--text3); }
+.pos-price-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pos-price-name { font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pos-price-meta { font-size: 12px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pos-price-vip { color: var(--gold); font-weight: 600; }
+.pos-price-yen { flex: 0 0 auto; font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pos-sheet { display: flex; flex-direction: column; gap: 6px; }
+.pos-sheet input { width: 100%; }
+.pos-sheet .form-label { margin-top: 6px; }
+.pos-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.pos-sheet-head .ord-modal-title { min-width: 0; overflow-wrap: anywhere; }
+.pos-sheet-x {
+  flex: 0 0 auto; width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--bg2); color: var(--text); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.pos-sheet-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 10px; margin-bottom: 8px; }
+.pos-sheet-readout { min-height: 44px; display: flex; align-items: center; font-size: 18px; font-weight: 800; color: var(--green); }
+.pos-sheet-actions { margin-top: 12px; }
+.pos-sheet-actions > button { min-height: 48px; }
+
+@media (max-width: 720px) {
+  .pos-split { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .pos-shot-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .pos-shot-form > select { grid-column: 1 / -1; }
+  .pos-shot-form > button { grid-column: 1 / -1; min-height: 44px; }
+}
+@media (max-width: 640px) {
+  .pos-head-today {
+    width: 100%; display: grid; grid-template-columns: auto 1fr; align-items: baseline; column-gap: 10px;
+    text-align: left; padding: 10px 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg2);
+  }
+  .pos-head-label { grid-column: 1 / -1; }
+  .pos-head-count { justify-self: end; font-size: 12px; }
+  .pos-stat3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .hourly-chart { overflow-x: visible; gap: 2px; }
+  .hourly-col { min-width: 0; }
+  .hourly-val { display: none; }
+  .hourly-hour { white-space: nowrap; }
+  .hourly-hour.is-minor { visibility: hidden; }
+  .hourly-col:first-child .hourly-hour { align-self: flex-start; }
+  .ord-modal-bg.pos-sheet-bg { align-items: flex-end; padding: 0; }
+  .ord-modal.pos-sheet { max-width: none; border-radius: 20px 20px 0 0; max-height: 92vh; padding: 18px 16px calc(16px + env(safe-area-inset-bottom)); }
+}
 
 html[data-device="tablet"] .pos-grid {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));

@@ -602,6 +602,7 @@ export default {
     shotsBottle: 'Shots (bottle)',
     editDrink: 'Edit drink',
     newDrink: 'New drink',
+    tapDrinkToEdit: 'Tap a drink to change its price, VIP price or photo.',
     namePlaceholder: 'Name',
     costYen: 'Cost ¥',
     vipYen: 'VIP ¥',

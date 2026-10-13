@@ -12,7 +12,7 @@ const drinks = [
   ['Highball', 'Whisky', 800, 'HB'], ['Gin Tonic', 'Gin', 900, '12'], ['Mojito', 'Cocktail', 1000, '13'], ['Draft beer', 'Beer', 700, 'BR'],
   ['Lemon sour', 'Shochu', 650, '21'], ['Red wine', 'Wine', 900, 'RW'], ['Cola', 'Soft drink', 400, ''], ['Oolong tea', 'Soft drink', 400, ''],
   ['Margarita', 'Tequila', 1100, '31'], ['Moscow mule', 'Vodka', 950, '32'], ['Cuba libre', 'Rum', 900, '33'], ['Nachos', 'Food', 800, 'F1'],
-].map(([nome, categoria, preco_venda, codigo], i) => ({ id: `00000000-0000-4000-8000-0000000d00${String(i).padStart(2, '0')}`, bar_id: BAR.id, nome, categoria, preco_venda, codigo, preco_desconto: Math.round(preco_venda / 2) }))
+].map(([nome, categoria, preco_venda, codigo], i) => ({ id: `00000000-0000-4000-8000-0000000d00${String(i).padStart(2, '0')}`, bar_id: BAR.id, nome, categoria, preco_venda, codigo, preco_desconto: Math.round(preco_venda / 2), custo: Math.round(preco_venda * 0.3), margem: 0.7, ativo: true }))
 
 const tables = [
   ['1', 'square', 60, 60, 100, 100, 4], ['2', 'square', 220, 60, 100, 100, 4], ['3', 'round', 380, 60, 100, 100, 4],
@@ -120,6 +120,22 @@ export const TABLES = {
   bar_visits: visits,
   pos_vendas: posSales,
   staff_orders: staffOrders,
+  drink_back_agents: [
+    { id: 'dba1', bar_id: BAR.id, nome: 'Yuki Promotions', regiao: 'Shibuya', comissao_pct: 10, ativo: true },
+    { id: 'dba2', bar_id: BAR.id, nome: 'Marco Street Team', regiao: 'Roppongi · Azabu', comissao_pct: 15, ativo: true },
+    { id: 'dba3', bar_id: BAR.id, nome: 'Old partner', regiao: null, comissao_pct: 8, ativo: false },
+  ],
+  discount_codes: [
+    { id: 'dc1', bar_id: BAR.id, codigo: 'AUTUMN10', descricao: 'Autumn menu', tipo: 'percent', valor: 10, usos_atual: 4, max_usos: 50, ativo: true, criado_em: ago(3000) },
+    { id: 'dc2', bar_id: BAR.id, codigo: 'VIPNIGHT', descricao: 'VIP night', tipo: 'fixed', valor: 500, usos_atual: 12, max_usos: null, ativo: false, criado_em: ago(9000) },
+  ],
+  vip_members: [
+    { id: 'vm1', bar_id: BAR.id, nome: 'Takeshi Yamada', codigo: 'VIP-0012', tier: 'gold', ativo: true },
+    { id: 'vm2', bar_id: BAR.id, nome: 'Emma Clarke', codigo: null, tier: 'standard', ativo: true },
+  ],
+  vip_usages: [
+    { id: 'vu1', bar_id: BAR.id, vip_member_id: 'vm1', vip_members: { nome: 'Takeshi Yamada' }, nome: 'Highball', qtd: 2, preco_aplicado: 400, criado_em: ago(60) },
+  ],
 }
 
 /** /api/bar-staff GET: team, registry (suppliers, rent, power...), goals, events, day sheets. */

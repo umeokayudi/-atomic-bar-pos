@@ -57,6 +57,11 @@ const PAGES = [
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos' },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-counter', click: /Counter/ },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-order', click: /Counter/, taps: ['.pq-tile-hit', '.pq-tile-hit', '.pq-cartbar'], tapsBelow: 901 },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-vip', chip: /VIP/ },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-drinkback', chip: /Drink Back/ },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-prices', chip: /Prices/ },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-prices-drink', chip: /Prices/, then: /^Highball/, phoneOnly: true },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-discounts', chip: /Discounts/ },
   { who: MANAGER, path: '/bar/vip', name: 'bar-vip' },
   { who: MANAGER, path: '/bar/pedidos', name: 'bar-supply' },
   { who: MANAGER, path: '/bar/pagamentos', name: 'bar-locked-money', vault: true },
@@ -227,6 +232,7 @@ async function main() {
       for (const width of WIDTHS) {
         for (const pg of PAGES) {
           if (ONLY && !ONLY.includes(pg.name)) continue
+          if (pg.phoneOnly && width >= 700) continue
           const ctx = await browser.newContext({ viewport: { width, height: width < 700 ? 780 : 900 }, deviceScaleFactor: 1, hasTouch: width < 1024, colorScheme: themeName })
           const page = await ctx.newPage()
           const errors = []
@@ -260,6 +266,14 @@ async function main() {
           for (const sel of (pg.tapsBelow && width >= pg.tapsBelow ? [] : pg.taps || [])) {
             await page.locator(`${sel}:visible`).first().click({ timeout: 5000 }).catch(e => errors.push(`tap ${sel}: ${e.message}`))
             await page.waitForTimeout(300)
+          }
+          if (pg.chip) {
+            await page.locator('.pos-subnav .pos-chip', { hasText: pg.chip }).first().click({ timeout: 5000 }).catch(e => errors.push(`chip: ${e.message}`))
+            await page.waitForTimeout(800)
+          }
+          if (pg.then) {
+            await page.getByRole('button', { name: pg.then }).first().click({ timeout: 5000 }).catch(e => errors.push(`then: ${e.message}`))
+            await page.waitForTimeout(500)
           }
           if (pg.ask) {
             await page.locator('.ui-ask-ai:visible').first().click({ timeout: 5000 }).catch(e => errors.push(`ask ai: ${e.message}`))

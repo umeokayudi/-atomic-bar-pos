@@ -36,6 +36,7 @@ import { addCrmGuest } from '../lib/onAccountStore'
 import { forgetLiveSelects } from '../lib/barLiveClient'
 import PosPaySettings from './pos/PosPaySettings'
 import Icon from './ui/Icon'
+import { useUiPrefs } from '../lib/uiPrefs'
 
 const SUB_TAB_IDS = [
   { id: 'dashboard', key: 'tabDashboard', icon: 'dashboard' },
@@ -1021,7 +1022,7 @@ function PosVipTab({ bar, drinks, onUpdate }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+      <div className="pos-mode-row">
         {[['register', t('atomicPos.registerUse')], ['members', t('atomicPos.members')], ['history', t('atomicPos.history')]].map(([id, label]) => (
           <button key={id} onClick={() => setMode(id)} style={{
             padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 600,
@@ -1030,7 +1031,7 @@ function PosVipTab({ bar, drinks, onUpdate }) {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 20 }}>
+      <div className="pos-stat3">
         <StatCard label={t('atomicPos.vipMembers')} value={members.filter(m => m.ativo).length} />
         <StatCard label={t('atomicPos.usesThisMonth')} value={monthUsages.length} />
         <StatCard label={t('atomicPos.vipMonthTotal')} value={fmtYen(monthTotal)} />
@@ -1056,7 +1057,7 @@ function PosVipTab({ bar, drinks, onUpdate }) {
       )}
 
       {mode === 'members' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <div className="pos-split">
           <div className="card">
             <SectionTitle>{t('atomicPos.newMember')}</SectionTitle>
             <input placeholder={t('atomicPos.namePlaceholder')} value={memberForm.nome} onChange={e => setMemberForm({ ...memberForm, nome: e.target.value })} style={{ width: '100%', marginBottom: 8 }} />
@@ -1092,12 +1093,64 @@ function PosVipTab({ bar, drinks, onUpdate }) {
 }
 
 // ── PRICES (menu + shots) ─────────────────────────────────────────────────────
+const EMPTY_DRINK = { nome: '', categoria: 'Custom', preco_venda: '', custo: '', preco_desconto: '500', imagem_url: '' }
+const drinkToForm = d => ({ nome: d.nome, categoria: d.categoria, preco_venda: d.preco_venda, custo: d.custo, preco_desconto: d.preco_desconto || 500, imagem_url: d.imagem_url || '' })
+
+/** Phone: one drink's fields and actions in a bottom sheet (the table does not fit a phone). */
+function PosDrinkSheet({ sheet, setSheet, saving, onSave }) {
+  const { t } = useI18n()
+  const f = sheet.form
+  const set = patch => setSheet(s => ({ ...s, form: { ...s.form, ...patch } }))
+  const price = +f.preco_venda || 0
+  const margin = price > 0 ? Math.round(((price - (+f.custo || 0)) / price) * 100) : null
+  return (
+    <div className="ord-modal-bg pos-sheet-bg" onClick={() => !saving && setSheet(null)}>
+      <div className="ord-modal wide pos-sheet" role="dialog" aria-modal="true" aria-label={sheet.id ? t('atomicPos.editDrink') : t('atomicPos.newDrink')} onClick={e => e.stopPropagation()}>
+        <div className="pos-sheet-head">
+          <div className="ord-modal-title">{sheet.id ? f.nome || t('atomicPos.editDrink') : t('atomicPos.newDrink')}</div>
+          <button type="button" className="pos-sheet-x" onClick={() => setSheet(null)} aria-label={t('common.close')}><Icon name="close" size={18} /></button>
+        </div>
+        <label className="form-label">{t('atomicPos.namePlaceholder')}</label>
+        <input value={f.nome} onChange={e => set({ nome: e.target.value })} />
+        <div className="pos-sheet-grid">
+          <div>
+            <label className="form-label">{t('atomicPos.priceYen')}</label>
+            <input type="number" inputMode="numeric" value={f.preco_venda} onChange={e => set({ preco_venda: e.target.value })} />
+          </div>
+          <div>
+            <label className="form-label">{t('atomicPos.costYen')}</label>
+            <input type="number" inputMode="numeric" value={f.custo} onChange={e => set({ custo: e.target.value })} />
+          </div>
+          <div>
+            <label className="form-label">{t('atomicPos.vipYen')}</label>
+            <input type="number" inputMode="numeric" value={f.preco_desconto} onChange={e => set({ preco_desconto: e.target.value })} />
+          </div>
+          <div>
+            <label className="form-label">{t('atomicPos.colMargin')}</label>
+            <div className="pos-sheet-readout">{margin == null ? '—' : `${margin}%`}</div>
+          </div>
+        </div>
+        <PhotoField value={f.imagem_url || ''} onChange={url => set({ imagem_url: url })} scope="menu" name={f.nome} />
+        <div className="ord-modal-actions pos-sheet-actions">
+          <button type="button" className="ord-ghost" onClick={() => setSheet(null)} disabled={saving}>{t('common.cancel')}</button>
+          <button type="button" className="btn-primary" onClick={onSave} disabled={saving || !f.nome || !f.preco_venda}>
+            {saving ? t('common.saving') : sheet.id ? t('common.save') : t('common.add')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function PosPricesTab({ bar, drinks, onRefresh }) {
   const { t } = useI18n()
+  const { device } = useUiPrefs()
+  const phone = device === 'phone'
+  const [sheet, setSheet] = useState(null)
   const [priceMode, setPriceMode] = useState('menu')
   const [produtos, setProdutos] = useState([])
   const [pricing, setPricing] = useState({})
-  const [form, setForm] = useState({ nome: '', categoria: 'Custom', preco_venda: '', custo: '', preco_desconto: '500', imagem_url: '' })
+  const [form, setForm] = useState(EMPTY_DRINK)
   const [shotForm, setShotForm] = useState({ produto_id: '', drinks: '16', preco: '' })
   const [editId, setEditId] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -1111,28 +1164,40 @@ function PosPricesTab({ bar, drinks, onRefresh }) {
     })
   }, [bar, drinks])
 
-  async function saveDrink() {
-    if (!form.nome || !form.preco_venda) return
+  async function saveDrink(f, id) {
+    if (!f.nome || !f.preco_venda) return false
     setSaving(true)
-    const custo = +form.custo || 0
+    const custo = +f.custo || 0
     const payload = {
       bar_id: bar.id,
-      nome: form.nome,
-      categoria: form.categoria,
-      preco_venda: +form.preco_venda,
+      nome: f.nome,
+      categoria: f.categoria,
+      preco_venda: +f.preco_venda,
       custo,
-      margem: form.preco_venda > 0 ? (+form.preco_venda - custo) / +form.preco_venda : 0,
-      preco_desconto: +form.preco_desconto || 500,
+      margem: f.preco_venda > 0 ? (+f.preco_venda - custo) / +f.preco_venda : 0,
+      preco_desconto: +f.preco_desconto || 500,
       custom: true,
     }
     // Only sent when filled, so saving still works before sql/pos_start.sql adds the column.
-    if (form.imagem_url?.trim()) payload.imagem_url = form.imagem_url.trim()
-    if (editId) await supabase.from('drink_menu').update(payload).eq('id', editId)
-    else await supabase.from('drink_menu').insert(payload)
-    setForm({ nome: '', categoria: 'Custom', preco_venda: '', custo: '', preco_desconto: '500', imagem_url: '' })
-    setEditId(null)
+    if (f.imagem_url?.trim()) payload.imagem_url = f.imagem_url.trim()
+    const { error } = id
+      ? await supabase.from('drink_menu').update(payload).eq('id', id)
+      : await supabase.from('drink_menu').insert(payload)
     setSaving(false)
+    if (error) { alert(error.message); return false }
     onRefresh()
+    return true
+  }
+
+  async function saveInline() {
+    if (await saveDrink(form, editId)) {
+      setForm(EMPTY_DRINK)
+      setEditId(null)
+    }
+  }
+
+  async function saveSheet() {
+    if (await saveDrink(sheet.form, sheet.id)) setSheet(null)
   }
 
   async function saveShot() {
@@ -1151,7 +1216,7 @@ function PosPricesTab({ bar, drinks, onRefresh }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+      <div className="pos-mode-row">
         {[['menu', t('atomicPos.menuDrinks')], ['shots', t('atomicPos.shotsBottle')], ['payments', t('posCard.tab')]].map(([id, label]) => (
           <button key={id} onClick={() => setPriceMode(id)} style={{
             padding: '8px 14px', borderRadius: 10, fontSize: 12, fontWeight: 600,
@@ -1160,7 +1225,7 @@ function PosPricesTab({ bar, drinks, onRefresh }) {
         ))}
       </div>
 
-      {priceMode === 'menu' && (
+      {priceMode === 'menu' && !phone && (
         <>
           <div className="card" style={{ marginBottom: 16 }}>
             <SectionTitle>{editId ? t('atomicPos.editDrink') : t('atomicPos.newDrink')}</SectionTitle>
@@ -1169,7 +1234,7 @@ function PosPricesTab({ bar, drinks, onRefresh }) {
               <input placeholder={t('atomicPos.priceYen')} type="number" value={form.preco_venda} onChange={e => setForm({ ...form, preco_venda: e.target.value })} />
               <input placeholder={t('atomicPos.costYen')} type="number" value={form.custo} onChange={e => setForm({ ...form, custo: e.target.value })} />
               <input placeholder={t('atomicPos.vipYen')} type="number" value={form.preco_desconto} onChange={e => setForm({ ...form, preco_desconto: e.target.value })} />
-              <button className="btn-primary" onClick={saveDrink} disabled={saving}>{editId ? t('common.save') : t('common.add')}</button>
+              <button className="btn-primary" onClick={saveInline} disabled={saving}>{editId ? t('common.save') : t('common.add')}</button>
               <div style={{ gridColumn: '1 / -1' }}>
                 <PhotoField value={form.imagem_url || ''} onChange={url => setForm(f => ({ ...f, imagem_url: url }))} scope="menu" name={form.nome} />
               </div>
@@ -1184,11 +1249,39 @@ function PosPricesTab({ bar, drinks, onRefresh }) {
                   <td>{fmtYen(d.preco_venda)}</td>
                   <td style={{ color: 'var(--gold)' }}>{fmtYen(d.preco_desconto || 500)}</td>
                   <td>{Math.round((d.margem || 0) * 100)}%</td>
-                  <td><button onClick={() => { setEditId(d.id); setForm({ nome: d.nome, categoria: d.categoria, preco_venda: d.preco_venda, custo: d.custo, preco_desconto: d.preco_desconto || 500, imagem_url: d.imagem_url || '' }) }} style={{ fontSize: 11 }}>{t('common.edit')}</button></td>
+                  <td><button onClick={() => { setEditId(d.id); setForm(drinkToForm(d)) }} style={{ fontSize: 11 }}>{t('common.edit')}</button></td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </>
+      )}
+
+      {priceMode === 'menu' && phone && (
+        <>
+          <button type="button" className="btn-primary pos-new-drink" onClick={() => setSheet({ id: null, form: EMPTY_DRINK })}>
+            <Icon name="plus" size={16} /> {t('atomicPos.newDrink')}
+          </button>
+          <div className="pos-hint">{t('atomicPos.tapDrinkToEdit')}</div>
+          <div className="pos-price-list">
+            {drinks.map(d => (
+              <button type="button" key={d.id} className="pos-price-row" onClick={() => setSheet({ id: d.id, form: drinkToForm(d) })}>
+                {d.imagem_url
+                  ? <img className="pos-price-thumb" src={d.imagem_url} alt="" loading="lazy" />
+                  : <span className="pos-price-thumb is-empty"><Icon name="image" size={16} /></span>}
+                <span className="pos-price-main">
+                  <span className="pos-price-name">{d.nome}</span>
+                  <span className="pos-price-meta">
+                    <span className="pos-price-vip">{t('atomicPos.colVip')} {fmtYen(d.preco_desconto || 500)}</span>
+                    {' · '}{t('atomicPos.colMargin')} {Math.round((d.margem || 0) * 100)}%
+                  </span>
+                </span>
+                <span className="pos-price-yen">{fmtYen(d.preco_venda)}</span>
+                <Icon name="next" size={16} />
+              </button>
+            ))}
+          </div>
+          {sheet && <PosDrinkSheet sheet={sheet} setSheet={setSheet} saving={saving} onSave={saveSheet} />}
         </>
       )}
 
@@ -1197,7 +1290,7 @@ function PosPricesTab({ bar, drinks, onRefresh }) {
       {priceMode === 'shots' && (
         <>
           <div className="card" style={{ marginBottom: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 8 }}>
+            <div className="pos-shot-form">
               <select value={shotForm.produto_id} onChange={e => setShotForm({ ...shotForm, produto_id: e.target.value })}>
                 <option value="">{t('atomicPos.jbmProduct')}</option>
                 {produtos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
@@ -1272,7 +1365,7 @@ function PosDiscountTab({ bar, drinks, onUpdate }) {
   if (loading) return <Spinner />
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+    <div className="pos-split">
       <div className="card">
         <SectionTitle>{t('atomicPos.createDiscount')}</SectionTitle>
         <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
@@ -1300,14 +1393,14 @@ function PosDiscountTab({ bar, drinks, onUpdate }) {
       <div>
         {codes.map(c => (
           <div key={c.id} className="card" style={{ marginBottom: 8, padding: 14, opacity: c.ativo ? 1 : 0.5 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <div>
+            <div className="pos-list-row">
+              <div className="pos-list-main">
                 <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: 1 }}>{c.codigo}</div>
-                <div style={{ fontSize: 12, color: 'var(--text2)' }}>
+                <div className="pos-list-meta">
                   {c.tipo === 'percent' ? `${c.valor}% off` : fmtYen(c.valor)} · {t('atomicPos.usesLabel')} {c.usos_atual || 0}{c.max_usos ? `/${c.max_usos}` : ''}
                 </div>
               </div>
-              <button onClick={() => toggleCode(c.id, c.ativo)} style={{ fontSize: 11 }}>{c.ativo ? t('atomicPos.deactivate') : t('atomicPos.activate')}</button>
+              <button type="button" className="pos-mini-btn" onClick={() => toggleCode(c.id, c.ativo)}>{c.ativo ? t('atomicPos.deactivate') : t('atomicPos.activate')}</button>
             </div>
           </div>
         ))}
@@ -1338,13 +1431,13 @@ function HourlyChart({ data, height = 100 }) {
         const barH = Math.max(2, (d.total / max) * height)
         const hasData = d.total > 0
         return (
-          <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-            {hasData && <div style={{ fontSize: 9, color: 'var(--text2)', fontWeight: 600 }}>{fmtYen(d.total)}</div>}
+          <div key={i} className="hourly-col" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+            {hasData && <div className="hourly-val" style={{ fontSize: 9, color: 'var(--text2)', fontWeight: 600 }}>{fmtYen(d.total)}</div>}
             <div style={{
               width: '100%', maxWidth: 28, height: barH, borderRadius: '4px 4px 0 0',
               background: hasData ? 'var(--navy)' : 'var(--bg3)', opacity: hasData ? 1 : 0.3,
             }} title={`${d.label}: ${fmtYen(d.total)} (${d.count} ${t('atomicPos.salesWord')})`} />
-            <div style={{ fontSize: 9, color: 'var(--text3)' }}>{d.label.slice(0, 2)}h</div>
+            <div className={`hourly-hour${i % 3 ? ' is-minor' : ''}`} style={{ fontSize: 9, color: 'var(--text3)' }}>{d.label.slice(0, 2)}h</div>
           </div>
         )
       })}
@@ -1552,12 +1645,21 @@ function PosDrinkBackTab({ bar, onUpdate }) {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+    <div className="pos-split">
       <div className="card">
         <SectionTitle>{t('atomicPos.newAgent')}</SectionTitle>
+        <label className="form-label">{t('atomicPos.agentName')}</label>
         <input placeholder={t('atomicPos.agentName')} value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} style={{ width: '100%', marginBottom: 8 }} />
-        <input placeholder={t('atomicPos.region')} value={form.regiao} onChange={e => setForm({ ...form, regiao: e.target.value })} style={{ width: '100%', marginBottom: 8 }} />
-        <input type="number" placeholder={t('atomicPos.commissionPct')} value={form.comissao_pct} onChange={e => setForm({ ...form, comissao_pct: e.target.value })} style={{ width: '100%', marginBottom: 8 }} />
+        <div className="pos-form-pair">
+          <div>
+            <label className="form-label">{t('atomicPos.region')}</label>
+            <input placeholder={t('atomicPos.region')} value={form.regiao} onChange={e => setForm({ ...form, regiao: e.target.value })} style={{ width: '100%' }} />
+          </div>
+          <div>
+            <label className="form-label">{t('atomicPos.commissionPct')}</label>
+            <input type="number" inputMode="decimal" placeholder={t('atomicPos.commissionPct')} value={form.comissao_pct} onChange={e => setForm({ ...form, comissao_pct: e.target.value })} style={{ width: '100%' }} />
+          </div>
+        </div>
         <button className="btn-primary" onClick={saveAgent} disabled={saving} style={{ width: '100%', padding: 12 }}>
           {saving ? t('common.saving') : t('atomicPos.addAgent')}
         </button>
@@ -1567,14 +1669,14 @@ function PosDrinkBackTab({ bar, onUpdate }) {
           <div style={{ color: 'var(--text3)', fontSize: 13 }}>{t('atomicPos.noAgents')}</div>
         ) : agents.map(a => (
           <div key={a.id} className="card" style={{ marginBottom: 8, padding: 14, opacity: a.ativo ? 1 : 0.5 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <div>
+            <div className="pos-list-row">
+              <div className="pos-list-main">
                 <div style={{ fontWeight: 700 }}>{a.nome}</div>
-                <div style={{ fontSize: 12, color: 'var(--text2)' }}>
+                <div className="pos-list-meta">
                   {a.regiao || '—'} · {t('atomicPos.commissionShort', { pct: a.comissao_pct })}
                 </div>
               </div>
-              <button onClick={() => toggleAgent(a.id, a.ativo)} style={{ fontSize: 11 }}>
+              <button type="button" className="pos-mini-btn" onClick={() => toggleAgent(a.id, a.ativo)}>
                 {a.ativo ? t('atomicPos.deactivate') : t('atomicPos.activate')}
               </button>
             </div>

@@ -602,6 +602,7 @@ export default {
     shotsBottle: 'ショット（ボトル）',
     editDrink: 'ドリンク編集',
     newDrink: '新規ドリンク',
+    tapDrinkToEdit: 'ドリンクをタップして価格・VIP価格・写真を変更',
     namePlaceholder: '名前',
     costYen: '原価 ¥',
     vipYen: 'VIP ¥',
