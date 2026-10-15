@@ -3,7 +3,7 @@
 import { faturaRemaining } from './barPortal.js'
 import { nightKeyOfSale, paySplitFromObs, prevTokyoDateKey } from './nightClose.js'
 import { readTicketMeta } from './nightTicket.js'
-import { orderCastFromObs } from './orderMeta.js'
+import { personCredit } from './saleCredit.js'
 import { lastDayOfMonth, tokyoNightKey } from './tokyo.js'
 
 export const WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -303,13 +303,13 @@ export function paymentAgenda({
   return items.sort((a, b) => a.days - b.days || (rank[a.kind] ?? 12) - (rank[b.kind] ?? 12))
 }
 
-export function salaryBoard({ payroll = [], tickets = [], monthKey }) {
+export function salaryBoard({ payroll = [], tickets = [], agents = [], monthKey }) {
   const monthTickets = (tickets || []).filter(s => nightKeyOfSale(s).startsWith(monthKey))
   const rows = (payroll || []).map(p => {
-    const nome = String(p.nome || '').trim().toLowerCase()
-    const mine = monthTickets.filter(s => orderCastFromObs(s.obs).trim().toLowerCase() === nome)
-    const sales = mine.reduce((a, s) => a + (+s.total || 0), 0)
-    const comm = commissionOf(mine)
+    // Credited sales: tickets marked with this person (split equally when shared) or rung up by them.
+    const credit = personCredit(monthTickets, { id: p.staff_id, nome: p.nome }, { agents })
+    const sales = credit.sales
+    const comm = credit.commission
     const pay = Math.round(+p.pay || 0)
     const hours = +p.hours || 0
     const perHour = hours > 0 ? Math.round(pay / hours) : Math.round(+p.salario_hora || 0)

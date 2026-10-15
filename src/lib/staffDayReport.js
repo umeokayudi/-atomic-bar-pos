@@ -1,9 +1,8 @@
 /** Daily work report per employee for one bar night (06:00 → 05:59 JST). Pure: no fetch, no writes. */
 
 import { calcPayWithLateNight, lateNightHoursBetween, pairPunches } from './timeClock.js'
-import { nightWindow, nightKeyOfSale, saleNet } from './nightClose.js'
-import { readTicketMeta } from './nightTicket.js'
-import { orderCastFromObs, orderCastIdFromObs } from './orderMeta.js'
+import { nightWindow, nightKeyOfSale } from './nightClose.js'
+import { creditShares, isPerson, staffAliases } from './saleCredit.js'
 
 const TOKYO_TIME = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', hour12: false })
 
@@ -21,23 +20,20 @@ function inWindow(iso, win) {
   return !!iso && iso >= win.from && iso <= win.to
 }
 
-function ticketOwner(sale, person) {
-  const id = orderCastIdFromObs(sale?.obs) || sale?.drink_back_agent_id || ''
-  if (id) return id === person.id
-  const name = orderCastFromObs(sale?.obs).trim().toLowerCase()
-  return !!name && name === String(person.nome || '').trim().toLowerCase()
-}
-
 /**
  * One row per person on the roster (plus anyone who punched in without being on it).
  * status: working (clocked in, not out) · done (in and out) · absent (marked) · off (no punch).
  * late: marked late on the night sheet.
+ * sales: each ticket counts for the people marked on it, split equally, or for whoever rang it up when
+ * nobody is marked (saleCredit.js). agents: drink_back_agents, so agent ids on old tickets match staff.
  */
-export function staffDayReport({ night, punches = [], staff = [], tickets = [], sheet = null, nightPremium = true, now = new Date() } = {}) {
+export function staffDayReport({ night, punches = [], staff = [], tickets = [], agents = [], sheet = null, nightPremium = true, now = new Date() } = {}) {
   const win = nightWindow(night)
   const nightPunches = (punches || []).filter(p => inWindow(p.punched_at, win))
   const shifts = pairPunches(nightPunches)
   const nightTickets = (tickets || []).filter(s => nightKeyOfSale(s) === win.nightKey)
+  const aliases = staffAliases(agents)
+  const credits = nightTickets.map(s => creditShares(s, { aliases }))
   const lateIds = new Set((sheet?.late || []).map(p => p?.id).filter(Boolean))
   const absentIds = new Set((sheet?.absent || []).map(p => p?.id).filter(Boolean))
 
@@ -71,9 +67,9 @@ export function staffDayReport({ night, punches = [], staff = [], tickets = [], 
       lateHours += lh
       return { in: tokyoClock(inAt), out: tokyoClock(outAt), open: !!sh.open, hours: round2(h) }
     })
-    const sales = nightTickets.filter(s => ticketOwner(s, person))
-    const salesTotal = sales.reduce((a, s) => a + saleNet(s), 0)
-    const commission = sales.reduce((a, s) => a + (readTicketMeta(s.obs).commission || 0), 0)
+    const mineCredit = credits.map(rows => rows.find(r => isPerson(r, person, aliases))).filter(Boolean)
+    const salesTotal = mineCredit.reduce((a, r) => a + r.amount, 0)
+    const commission = mineCredit.reduce((a, r) => a + r.commission, 0)
     const pay = Math.round(calcPayWithLateNight(round2(hours), round2(lateHours), person.rate, nightPremium) || 0)
     let status = 'off'
     if (absentIds.has(person.id)) status = 'absent'
@@ -89,7 +85,7 @@ export function staffDayReport({ night, punches = [], staff = [], tickets = [], 
       hours: round2(hours),
       lateHours: round2(lateHours),
       pay,
-      tickets: sales.length,
+      tickets: mineCredit.length,
       sales: salesTotal,
       commission,
     }
@@ -111,7 +107,7 @@ export function staffDayReport({ night, punches = [], staff = [], tickets = [], 
       pay: worked.reduce((a, r) => a + r.pay, 0),
       sales: rows.reduce((a, r) => a + r.sales, 0),
       tickets: nightTickets.length,
-      unassigned: nightTickets.filter(s => !orderCastFromObs(s.obs) && !orderCastIdFromObs(s.obs) && !s.drink_back_agent_id).length,
+      unassigned: credits.filter(rows => !rows.length).length,
     },
   }
 }

@@ -50,6 +50,7 @@ const FloorScreen = lazy(() => import('./floor/FloorScreen'))
 const MarketingHub = lazy(() => import('./growth/MarketingHub'))
 const ConsultingHub = lazy(() => import('./growth/ConsultingHub'))
 const AtomicPosPanel = lazy(() => import('./AtomicPos'))
+const StaffPos = lazy(() => import('./pos/StaffPos'))
 const TimeClockPanel = lazy(() => import('./TimeClock'))
 const BarTeamTab = lazy(() => import('./BarTeamTab'))
 const BarUsersTab = lazy(() => import('./BarUsersTab'))
@@ -2102,7 +2103,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
             <HomeTab bar={bar} onTab={selectTab} />
           </div>
         )}
-        {tab==='pos'       && posAccess !== 'none' && <TabHold><AtomicPosPanel bar={bar} onOrder={posAccess === 'owner' ? () => selectTab('pedidos') : undefined} access={posAccess} /></TabHold>}
+        {tab==='pos'       && posAccess !== 'none' && <TabHold>{perfil?.role === 'bar_staff' ? <StaffPos bar={bar} /> : <AtomicPosPanel bar={bar} onOrder={posAccess === 'owner' ? () => selectTab('pedidos') : undefined} access={posAccess} />}</TabHold>}
         {tab==='ponto'     && <TabHold><TimeClockPanel bar={bar} onOpenStaff={() => selectTab('staff')} /></TabHold>}
         {['staff', 'fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'].some(id => opened.has(id)) && canManageBarTeam(perfil?.role) && (
           <div hidden={!['staff', 'fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'].includes(tab)}>
