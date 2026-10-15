@@ -39,6 +39,12 @@ export const LIVE_TABLES = [
   // Staff app: requests to the owner and the check-out day reports. Server routes only (secret in /api/bar/live-db).
   'staff_requests',
   'staff_day_reports',
+  // Staff schedule, fines and salary payouts. Server routes only (secret in /api/bar/live-db): staff read and
+  // write only their own availability and read only their own fines/payouts; the owner/manager writes the rest.
+  'staff_availability',
+  'staff_schedule',
+  'staff_fines',
+  'staff_payouts',
 ]
 
 // Tables that had a JSON copy before the migrations created them in Postgres (sql/pos_start.sql,

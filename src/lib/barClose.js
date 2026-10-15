@@ -4,6 +4,7 @@ import { faturaRemaining } from './barPortal.js'
 import { nightKeyOfSale, paySplitFromObs, prevTokyoDateKey } from './nightClose.js'
 import { readTicketMeta } from './nightTicket.js'
 import { personCredit } from './saleCredit.js'
+import { finesByStaff, payNet } from './staffFines.js'
 import { lastDayOfMonth, tokyoNightKey } from './tokyo.js'
 
 export const WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -303,8 +304,12 @@ export function paymentAgenda({
   return items.sort((a, b) => a.days - b.days || (rank[a.kind] ?? 12) - (rank[b.kind] ?? 12))
 }
 
-export function salaryBoard({ payroll = [], tickets = [], agents = [], monthKey }) {
+export function salaryBoard({ payroll = [], tickets = [], agents = [], monthKey, fines = [], advances = {}, payouts = [] }) {
   const monthTickets = (tickets || []).filter(s => nightKeyOfSale(s).startsWith(monthKey))
+  // Fines of the month (active only) and advances per person are taken from what is payable.
+  const fined = finesByStaff((fines || []).filter(f => String(f.day || '').startsWith(monthKey)))
+  const paidBy = {}
+  for (const p of payouts || []) if (p && p.month === monthKey && p.status !== 'cancelled') paidBy[p.staff_id] = p
   const rows = (payroll || []).map(p => {
     // Credited sales: tickets marked with this person (split equally when shared) or rung up by them.
     const credit = personCredit(monthTickets, { id: p.staff_id, nome: p.nome }, { agents })
@@ -320,10 +325,16 @@ export function salaryBoard({ payroll = [], tickets = [], agents = [], monthKey 
     else if (cover >= 1) hint = 'tight'
     else if (sales === 0 && hours > 0) hint = 'floor'
     else hint = 'costly'
+    const math = payNet({ hoursPay: pay, commission: comm, fines: fined[p.staff_id] || 0, advances: advances?.[p.staff_id] || 0 })
     return {
       id: p.staff_id,
       nome: p.nome,
       cargo: p.cargo || '',
+      gross: math.gross,
+      fines: math.fines,
+      advances: math.advances,
+      net: math.net,
+      paid: paidBy[p.staff_id] || null,
       hours,
       lateHours: +p.lateHours || 0,
       pay,
@@ -341,6 +352,10 @@ export function salaryBoard({ payroll = [], tickets = [], agents = [], monthKey 
   return {
     rows,
     total: rows.reduce((a, r) => a + r.pay, 0),
+    gross: rows.reduce((a, r) => a + r.gross, 0),
+    fines: rows.reduce((a, r) => a + r.fines, 0),
+    advances: rows.reduce((a, r) => a + r.advances, 0),
+    net: rows.reduce((a, r) => a + r.net, 0),
     save: costly.reduce((a, r) => a + r.pay, 0),
   }
 }

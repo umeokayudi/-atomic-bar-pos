@@ -11,7 +11,7 @@ import { isMissingSchemaError, loadBarWithGeo, listStaffWithExtras, runLiveOp, s
 import { forgetBarActors } from './_barLaneAuth.js'
 import { canAccess, canEditAccessOf, canManageLogin, cleanAcessos, isRestricted, staffActionAreas } from '../src/lib/barAccess.js'
 import { denyMissingArea } from './_barAccess.js'
-import { OWNER_ACTIONS, SELF_ACTIONS, handleOwnerAction, handleSelfAction } from './_staffSelf.js'
+import { OWNER_ACTIONS, PAY_WRITE_ACTIONS, SELF_ACTIONS, handleOwnerAction, handleSelfAction } from './_staffSelf.js'
 import { canLinkLogin, carryFromPerson, personLinkPatch, remapIds, remapSheet } from '../src/lib/staffLink.js'
 import { castRoster } from '../src/lib/staffPos.js'
 
@@ -502,7 +502,9 @@ export default async function handler(req, res) {
     const needsPayroll = ['savePerson', 'createStaff'].includes(body.action) || req.method === 'PATCH'
     const sendsPay = PAY_FIELDS.some(k => body[k] != null)
     const sendsContract = body.action === 'uploadStaffFile' && body.kind === 'contrato'
-    if (needsMoney || (needsPayroll && sendsPay) || sendsContract) {
+    // Fines and "salary paid" change what a person is paid: same PIN as pay fields.
+    const movesPay = PAY_WRITE_ACTIONS.has(body.action)
+    if (needsMoney || (needsPayroll && sendsPay) || sendsContract || movesPay) {
       const lock = await loadLock(db, barId)
       if (lockEnabled(lock)) {
         let area = needsMoney ? 'money' : 'payroll'

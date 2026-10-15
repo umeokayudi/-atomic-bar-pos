@@ -12,6 +12,10 @@ import { geminiGenerate } from './_gemini.js'
 import { earningsByDay, myGoalStatus, myNightSummary } from '../src/lib/staffNight.js'
 import { tokyoNightKey, tokyoWallToUtcMs } from '../src/lib/tokyo.js'
 import { nightWindow } from '../src/lib/nightClose.js'
+import {
+  addDays, canEditDay, cleanDays, cleanStart, isDayKey, mergeAvailability, myAttendance, openHourOf, scheduleWindow,
+} from '../src/lib/staffSchedule.js'
+import { canWriteFines, cleanFine, cleanFineSettings, cleanPayout, fineSettings, finesTotal, payNet } from '../src/lib/staffFines.js'
 
 const PRIVATE_BUCKET = 'system-private'
 const STAFF_FILES = 'staff-files'
@@ -21,8 +25,17 @@ const SIGNATURE_MAX = 90_000
 export const REQUEST_TYPES = ['problem', 'request', 'stock', 'other']
 export const REQUEST_STATUSES = ['open', 'seen', 'done']
 
-export const SELF_ACTIONS = new Set(['meDay', 'meProfile', 'meUploadPhoto', 'meRequests', 'meSendRequest', 'meEarnings'])
-export const OWNER_ACTIONS = new Set(['listRequests', 'answerRequest', 'listDayReports'])
+export const SELF_ACTIONS = new Set([
+  'meDay', 'meProfile', 'meUploadPhoto', 'meRequests', 'meSendRequest', 'meEarnings',
+  'meAvailability', 'meSaveAvailability', 'mePayouts',
+])
+export const OWNER_ACTIONS = new Set([
+  'listRequests', 'answerRequest', 'listDayReports',
+  'scheduleBoard', 'confirmSchedule', 'listFines', 'saveFine', 'cancelFine', 'saveFineSettings',
+  'markSalaryPaid', 'unmarkSalaryPaid', 'listPayouts',
+])
+/** Owner actions that change what someone is paid (PIN-locked like pay fields when the owner locked payroll). */
+export const PAY_WRITE_ACTIONS = new Set(['saveFine', 'cancelFine', 'saveFineSettings', 'markSalaryPaid', 'unmarkSalaryPaid'])
 
 const clip = (v, n) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n)
 const newId = () => globalThis.crypto?.randomUUID?.() || `sr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -238,6 +251,68 @@ function reportView(r) {
   }
 }
 
+// ── Schedule, fines, payouts (live tables, server only) ─────────────────────
+async function availabilityRows(db, barId, staffId) {
+  const filters = [{ op: 'eq', k: 'bar_id', v: barId }]
+  if (staffId) filters.push({ op: 'eq', k: 'staff_id', v: staffId })
+  const r = await runLiveOp(db, { table: 'staff_availability', mode: 'select', columns: '*', filters, limitN: 500 })
+  return Array.isArray(r.data) ? r.data : []
+}
+
+async function scheduleRows(db, barId, from, to) {
+  const r = await runLiveOp(db, {
+    table: 'staff_schedule', mode: 'select', columns: '*',
+    filters: [{ op: 'eq', k: 'bar_id', v: barId }, { op: 'gte', k: 'day', v: from }, { op: 'lte', k: 'day', v: to }],
+    limitN: 500,
+  })
+  return Array.isArray(r.data) ? r.data : []
+}
+
+async function fineRows(db, barId, { staffId, from, to } = {}) {
+  const filters = [{ op: 'eq', k: 'bar_id', v: barId }]
+  if (staffId) filters.push({ op: 'eq', k: 'staff_id', v: staffId })
+  if (from) filters.push({ op: 'gte', k: 'day', v: from })
+  if (to) filters.push({ op: 'lte', k: 'day', v: to })
+  const r = await runLiveOp(db, { table: 'staff_fines', mode: 'select', columns: '*', filters, orderBy: { k: 'day', ascending: false }, limitN: 1000 })
+  return Array.isArray(r.data) ? r.data : []
+}
+
+async function payoutRows(db, barId, { staffId, month } = {}) {
+  const filters = [{ op: 'eq', k: 'bar_id', v: barId }]
+  if (staffId) filters.push({ op: 'eq', k: 'staff_id', v: staffId })
+  if (month) filters.push({ op: 'eq', k: 'month', v: month })
+  const r = await runLiveOp(db, { table: 'staff_payouts', mode: 'select', columns: '*', filters, orderBy: { k: 'month', ascending: false }, limitN: 500 })
+  return Array.isArray(r.data) ? r.data : []
+}
+
+/** What a staff member sees of one of their fines. */
+function myFineView(f) {
+  return {
+    id: f.id, day: f.day, type: f.type, amount: f.amount, note: f.note, status: f.status || 'active',
+    late_minutes: f.late_minutes || 0, created_at: f.created_at, created_by_nome: f.created_by_nome || '',
+    cancelled_at: f.cancelled_at || null,
+  }
+}
+
+function myPayoutView(p) {
+  return {
+    id: p.id, month: p.month, gross: p.gross, fines: p.fines, advances: p.advances, deductions: p.deductions || 0,
+    net: p.net, paid_at: p.paid_at, status: p.status || 'paid', note: p.note || '',
+  }
+}
+
+async function upsertRow(db, table, row) {
+  const existing = await runLiveOp(db, { table, mode: 'select', columns: '*', filters: [{ op: 'eq', k: 'id', v: row.id }], wantSingle: 'maybe' })
+  return runLiveOp(db, {
+    table,
+    mode: existing.data ? 'update' : 'insert',
+    filters: [{ op: 'eq', k: 'id', v: row.id }],
+    insertRows: [row],
+    updatePatch: row,
+    wantSingle: true,
+  })
+}
+
 /** Staff self-service. `me` comes from the session (requireBarAccount), never from the body. */
 export async function handleSelfAction(res, { admin, db, auth, body }) {
   const barId = auth.perfil.bar_id
@@ -322,7 +397,61 @@ export async function handleSelfAction(res, { admin, db, auth, body }) {
     const rate = Math.max(0, +(extras.salario_hora ?? staff?.salario_hora ?? 0) || 0)
     const nightPremium = goals?.adicional_noturno !== false
     const out = earningsByDay({ punches: punches.data || [], sales: sales.sales, me, rate, nightPremium, from, to, agents })
-    return res.status(200).json({ from, to, rate, monthly: Math.max(0, +(extras.salario_mes || 0) || 0), nightPremium, ...out })
+    // Own fines (cancelled ones too, marked as such) and own attendance against the schedule.
+    const [fines, avail, schedules] = await Promise.all([
+      fineRows(db, barId, { staffId: meId, from, to }),
+      availabilityRows(db, barId, meId),
+      scheduleRows(db, barId, from, to),
+    ])
+    const mineOnly = fines.filter(f => String(f.staff_id) === String(meId))
+    const attendance = myAttendance({ meId, from, to, availability: avail, schedules, punches: punches.data || [], toleranceMin: fineSettings(goals).tolerance })
+    return res.status(200).json({
+      from, to, rate, monthly: Math.max(0, +(extras.salario_mes || 0) || 0), nightPremium, ...out,
+      fines: mineOnly.map(myFineView),
+      finesTotal: finesTotal(mineOnly, { staffId: meId, from, to }),
+      attendance,
+    })
+  }
+
+  if (body.action === 'meAvailability') {
+    const win = scheduleWindow()
+    const [rows, schedules, goals] = await Promise.all([
+      availabilityRows(db, barId, meId),
+      scheduleRows(db, barId, win.from, win.to),
+      barGoals(db, barId),
+    ])
+    const mine = rows.find(r => String(r.staff_id) === String(meId)) || null
+    const openHour = openHourOf(goals)
+    const confirmed = {}
+    for (const sc of schedules) {
+      const hit = (sc.people || []).find(p => String(p.id) === String(meId))
+      confirmed[sc.day] = hit ? { in: true, start: cleanStart(hit.start) } : { in: false }
+    }
+    const editable = []
+    for (let d = win.from; d <= win.to; d = addDays(d, 1)) if (canEditDay(d, { openHour })) editable.push(d)
+    return res.status(200).json({ ...win, openHour, days: mine?.days || {}, updated_at: mine?.updated_at || null, confirmed, editable })
+  }
+
+  if (body.action === 'meSaveAvailability') {
+    const win = scheduleWindow()
+    const goals = await barGoals(db, barId)
+    const openHour = openHourOf(goals)
+    const rows = await availabilityRows(db, barId, meId)
+    const mine = rows.find(r => String(r.staff_id) === String(meId)) || null
+    const merged = mergeAvailability(mine?.days || {}, cleanDays(body.days, win), { ...win, openHour })
+    // Keep about 3 months of history on the row.
+    const keepFrom = addDays(win.from, -92)
+    const days = Object.fromEntries(Object.entries(merged.days).filter(([d]) => d >= keepFrom))
+    // The row id and staff_id come from the session: a body cannot write someone else's days.
+    const row = { id: `${barId}:${meId}`, bar_id: barId, staff_id: meId, staff_nome: me.nome, days, updated_at: new Date().toISOString() }
+    const saved = await upsertRow(db, 'staff_availability', row)
+    if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not save' })
+    return res.status(200).json({ ok: true, days, locked: merged.locked })
+  }
+
+  if (body.action === 'mePayouts') {
+    const rows = await payoutRows(db, barId, { staffId: meId })
+    return res.status(200).json({ payouts: rows.filter(p => String(p.staff_id) === String(meId) && p.status !== 'cancelled').slice(0, 24).map(myPayoutView) })
   }
 
   return res.status(400).json({ error: 'Unknown action' })
@@ -354,6 +483,130 @@ export async function handleOwnerAction(res, { admin, db, auth, body }) {
     }
     return res.status(200).json({ ok: true, request: { ...hit.data, ...patch } })
   }
+  const actor = { id: auth.user?.id || auth.perfil.id || '', nome: auth.perfil.nome || '' }
+
+  if (body.action === 'scheduleBoard') {
+    const win = scheduleWindow()
+    const from = isDayKey(body.from) ? body.from : win.from
+    const to = isDayKey(body.to) && body.to >= from ? body.to : win.to
+    if ((Date.parse(to) - Date.parse(from)) / 86400000 > 62) return res.status(400).json({ error: 'Pick 2 months or less' })
+    const [y1, m1, d1] = from.split('-').map(Number)
+    const [availability, schedules, fines, goals, punches] = await Promise.all([
+      availabilityRows(db, barId),
+      scheduleRows(db, barId, from, to),
+      fineRows(db, barId, { from, to }),
+      barGoals(db, barId),
+      listPunches(db, { barId, from: new Date(tokyoWallToUtcMs(y1, m1, d1, 6)).toISOString(), to: nightWindow(to).to }),
+    ])
+    return res.status(200).json({
+      from, to, openHour: openHourOf(goals), settings: fineSettings(goals),
+      availability: availability.map(r => ({ staff_id: r.staff_id, staff_nome: r.staff_nome, days: r.days || {}, updated_at: r.updated_at })),
+      schedules, fines, punches: punches.data || [],
+    })
+  }
+
+  if (body.action === 'confirmSchedule') {
+    const day = String(body.day || '')
+    if (!isDayKey(day)) return res.status(400).json({ error: 'day required' })
+    const seen = new Set()
+    const people = []
+    for (const p of Array.isArray(body.people) ? body.people : []) {
+      const id = clip(p?.id, 64)
+      if (!id || seen.has(id)) continue
+      seen.add(id)
+      people.push({ id, nome: clip(p?.nome, 80), start: cleanStart(p?.start) })
+      if (people.length >= 80) break
+    }
+    const row = { id: `${barId}:${day}`, bar_id: barId, day, people, confirmed_by: actor.id, confirmed_by_nome: actor.nome, confirmed_at: new Date().toISOString() }
+    const saved = await upsertRow(db, 'staff_schedule', row)
+    if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not save' })
+    return res.status(200).json({ ok: true, schedule: row })
+  }
+
+  if (body.action === 'listFines') {
+    const from = isDayKey(body.from) ? body.from : ''
+    const to = isDayKey(body.to) ? body.to : ''
+    return res.status(200).json({ fines: await fineRows(db, barId, { from, to, staffId: body.staff_id ? clip(body.staff_id, 64) : '' }) })
+  }
+
+  if (PAY_WRITE_ACTIONS.has(body.action) && !canWriteFines(auth.perfil)) {
+    return res.status(403).json({ error: 'Only the owner or a manager can do this' })
+  }
+
+  if (body.action === 'saveFine') {
+    const { fine, error } = cleanFine(body, { today: tokyoNightKey() })
+    if (error) return res.status(400).json({ error })
+    const row = {
+      id: newId(), bar_id: barId, ...fine, status: 'active',
+      created_by: actor.id, created_by_nome: actor.nome, created_at: new Date().toISOString(),
+      cancelled_by: '', cancelled_by_nome: '', cancelled_at: null, cancel_note: '',
+    }
+    const saved = await runLiveOp(db, { table: 'staff_fines', mode: 'insert', insertRows: [row], wantSingle: true })
+    if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not save' })
+    if (admin) await notifyStaff(admin, row.staff_id, { tipo: 'staff_fine', titulo: actor.nome || 'Manager', mensagem: `${row.day} · ¥${row.amount}${row.note ? ` · ${row.note}` : ''}`.slice(0, 200) })
+    return res.status(200).json({ ok: true, fine: row })
+  }
+
+  if (body.action === 'cancelFine') {
+    const hit = await runLiveOp(db, {
+      table: 'staff_fines', mode: 'select', columns: '*',
+      filters: [{ op: 'eq', k: 'id', v: String(body.id || '') }, { op: 'eq', k: 'bar_id', v: barId }], wantSingle: 'maybe',
+    })
+    if (!hit.data) return res.status(404).json({ error: 'Fine not found' })
+    if (hit.data.status === 'cancelled') return res.status(200).json({ ok: true, fine: hit.data })
+    // Never deleted: the row keeps who cancelled it and when (audit trail).
+    const patch = { status: 'cancelled', cancelled_by: actor.id, cancelled_by_nome: actor.nome, cancelled_at: new Date().toISOString(), cancel_note: clip(body.note, 300) }
+    const saved = await runLiveOp(db, { table: 'staff_fines', mode: 'update', filters: [{ op: 'eq', k: 'id', v: hit.data.id }], updatePatch: patch, wantSingle: true })
+    if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not save' })
+    return res.status(200).json({ ok: true, fine: { ...hit.data, ...patch } })
+  }
+
+  if (body.action === 'saveFineSettings') {
+    const patch = cleanFineSettings(body)
+    const existing = await runLiveOp(db, { table: 'bar_goals', mode: 'select', columns: '*', filters: [{ op: 'eq', k: 'id', v: barId }], wantSingle: 'maybe' })
+    const base = existing.data || { id: barId, bar_id: barId, noite: 0, hora: 0, semana: 0, turno: 0, lucro: 0, abre: 20, fecha: 5, corta: 0, pessoas: [] }
+    const row = { ...base, ...patch, id: barId, bar_id: barId }
+    const saved = await runLiveOp(db, {
+      table: 'bar_goals', mode: existing.data ? 'update' : 'insert', filters: [{ op: 'eq', k: 'id', v: barId }],
+      insertRows: [row], updatePatch: row, wantSingle: true,
+    })
+    if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not save' })
+    return res.status(200).json({ ok: true, settings: fineSettings(row) })
+  }
+
+  if (body.action === 'markSalaryPaid') {
+    const { payout, error } = cleanPayout(body)
+    if (error) return res.status(400).json({ error })
+    // Fines are counted here from the fines table (the number on the screen is not trusted).
+    const [y, m] = payout.month.split('-').map(Number)
+    const last = String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')
+    const fines = finesTotal(await fineRows(db, barId, { staffId: payout.staff_id }), { staffId: payout.staff_id, from: `${payout.month}-01`, to: `${payout.month}-${last}` })
+    const math = payNet({ hoursPay: body.hoursPay ?? body.pay, commission: body.commission ?? body.comm, rewards: body.rewards, fines, advances: payout.advances, deductions: payout.deductions })
+    const row = {
+      id: `${barId}:${payout.staff_id}:${payout.month}`, bar_id: barId, ...payout, gross: math.gross, fines: math.fines, net: math.net,
+      status: 'paid', paid_at: new Date().toISOString(), paid_by: actor.id, paid_by_nome: actor.nome,
+    }
+    const saved = await upsertRow(db, 'staff_payouts', row)
+    if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not save' })
+    if (admin) await notifyStaff(admin, row.staff_id, { tipo: 'staff_payout', titulo: actor.nome || 'Owner', mensagem: `${row.month} · ¥${row.net}` })
+    return res.status(200).json({ ok: true, payout: row })
+  }
+
+  if (body.action === 'unmarkSalaryPaid') {
+    const id = String(body.id || '')
+    const hit = await runLiveOp(db, { table: 'staff_payouts', mode: 'select', columns: '*', filters: [{ op: 'eq', k: 'id', v: id }, { op: 'eq', k: 'bar_id', v: barId }], wantSingle: 'maybe' })
+    if (!hit.data) return res.status(404).json({ error: 'Payment not found' })
+    const patch = { status: 'cancelled', cancelled_by: actor.id, cancelled_by_nome: actor.nome, cancelled_at: new Date().toISOString() }
+    const saved = await runLiveOp(db, { table: 'staff_payouts', mode: 'update', filters: [{ op: 'eq', k: 'id', v: id }], updatePatch: patch, wantSingle: true })
+    if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not save' })
+    return res.status(200).json({ ok: true, payout: { ...hit.data, ...patch } })
+  }
+
+  if (body.action === 'listPayouts') {
+    const month = /^\d{4}-\d{2}$/.test(String(body.month || '')) ? body.month : ''
+    return res.status(200).json({ payouts: (await payoutRows(db, barId, { month })).filter(p => p.status !== 'cancelled') })
+  }
+
   if (body.action === 'listDayReports') {
     const filters = [{ op: 'eq', k: 'bar_id', v: barId }]
     if (dayKey(body.night)) filters.push({ op: 'eq', k: 'night_key', v: body.night })

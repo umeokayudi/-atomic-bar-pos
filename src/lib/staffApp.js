@@ -16,8 +16,9 @@ export const STAFF_APP_TABS = [
 
 /** Screens in the full-screen "More" menu. Work screens show only when "Users & access" allows them. */
 export const STAFF_MORE_ITEMS = [
-  { id: 'shifts', icon: 'shifts', labelKey: 'staffApp.more.shifts' },
   { id: 'salary', icon: 'salary', labelKey: 'staffApp.more.earnings' },
+  { id: 'schedule', icon: 'calendar', labelKey: 'staffApp.more.schedule' },
+  { id: 'shifts', icon: 'shifts', labelKey: 'staffApp.more.shifts' },
   { id: 'reports', icon: 'send', labelKey: 'staffApp.more.reports' },
   { id: 'profile', icon: 'profile', labelKey: 'staffApp.more.profile' },
   { id: 'occurrences', icon: 'occurrences', labelKey: 'staffApp.more.occurrences' },
@@ -31,14 +32,14 @@ const FOLDED = {
   hoje: 'hoje', goals: 'performance', result: 'performance', points: 'performance', rewards: 'performance',
   performance: 'performance',
   ponto: 'ponto', clock: 'ponto',
-  shifts: 'shifts', salary: 'salary', reports: 'reports', profile: 'profile', occurrences: 'occurrences', settings: 'settings',
+  shifts: 'shifts', salary: 'salary', earnings: 'salary', pay: 'salary', schedule: 'schedule', availability: 'schedule', reports: 'reports', profile: 'profile', occurrences: 'occurrences', settings: 'settings',
 }
 
 /** Work screens a staff login may open from the app (only when "Users & access" allows them). */
 export const STAFF_WORK_TABS = ['pos', 'mesas', 'pedidos']
 
 /** Self-service screens of the app (no area: every login of the role may open them). */
-export const STAFF_APP_SELF = ['hoje', 'performance', 'shifts', 'salary', 'reports', 'profile', 'occurrences', 'settings']
+export const STAFF_APP_SELF = ['hoje', 'performance', 'schedule', 'shifts', 'salary', 'reports', 'profile', 'occurrences', 'settings']
 
 /** The staff app is for bar staff, and for any non-owner login set to "Staff only". */
 export function usesStaffApp(perfil, acessos = perfil?.acessos) {

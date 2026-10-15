@@ -31,7 +31,7 @@ export const TAB_AREA = {
 }
 
 /** Staff self-service tabs (/bar/<tab>): no area, so every login of the role may open them. */
-export const STAFF_SELF_TABS = ['hoje', 'profile', 'shifts', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary', 'performance', 'reports', 'settings']
+export const STAFF_SELF_TABS = ['hoje', 'profile', 'shifts', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary', 'performance', 'reports', 'settings', 'schedule']
 
 /**
  * Ready-made access sets. `full` clears the list (the role decides, as before).
@@ -145,6 +145,12 @@ export function staffActionAreas(method, body = {}, opts = {}) {
       return ['team|clock']
     case 'listRequests': case 'answerRequest': case 'listDayReports':
       return ['team|clock']
+    case 'scheduleBoard': case 'confirmSchedule':
+      return ['team|clock']
+    case 'listFines':
+      return ['team|clock|payroll']
+    case 'saveFine': case 'cancelFine': case 'saveFineSettings': case 'markSalaryPaid': case 'unmarkSalaryPaid': case 'listPayouts':
+      return ['payroll']
     case 'saveEvent':
       return ['clients']
     case 'saveGoals':
