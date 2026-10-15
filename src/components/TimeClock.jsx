@@ -16,6 +16,7 @@ import { prevTokyoDateKey } from '../lib/nightClose'
 import { meDay } from '../lib/staffSelfApi'
 import { useClockPunch } from './staff/ClockPunch'
 import { OwnerDayReports, OwnerLocation } from './staff/OwnerStaffTools'
+import OwnerSchedule from './staff/OwnerSchedule'
 
 const SALE_COLS = 'id,total,refunded,criado_em,data,obs,metodo_pagamento,drink_back_agent_id,criado_por'
 const SALE_COLS_SLIM = 'id,total,criado_em,data,obs,metodo_pagamento,drink_back_agent_id,criado_por'
@@ -148,6 +149,11 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
           >
             {punch.busy ? t('common.wait') : (meRow.open ? t('clock.bigOut') : t('clock.bigIn'))}
           </button>
+        </div>
+      )}
+      {manager && !loading && (
+        <div style={{ marginTop: 16 }}>
+          <OwnerSchedule />
         </div>
       )}
       {manager && (

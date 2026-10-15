@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../Auth'
 import { supabase } from '../../lib/supabase'
 import { staffFetch } from '../../lib/apiAuth'
-import { comparePlan, paymentLabel, statementTotals } from '../../lib/payrollCore'
+import { comparePlan } from '../../lib/payrollCore'
 import { monthRange, pairPunches } from '../../lib/timeClock'
 import { punchGeoFlag } from '../../lib/clockGeo'
-import { earningsRange, statementInRange } from '../../lib/staffNight'
+import { earningsRange } from '../../lib/staffNight'
 import { shiftMonthKey, tokyoDateKey, tokyoMonthKey } from '../../lib/tokyo'
 import { meEarnings, meRequests, meSendRequest, meUploadPhoto } from '../../lib/staffSelfApi'
 import { fileToSquareJpeg } from '../../lib/imageSquare'
@@ -14,7 +14,7 @@ import { errText } from '../../lib/errText'
 import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
 import { LanguageToggle, ThemeToggle } from '../UiPrefsPanel'
-import { Avatar, Card, Note, Row, Seg, Stat, fmtDay, fmtHours, fmtTime } from './staffUi'
+import { Avatar, Card, Note, Row, Stat, fmtDay, fmtHours, fmtTime } from './staffUi'
 
 const byNewest = (rows, key = 'created_at') => [...(rows || [])].sort((a, b) => String(b[key] || '').localeCompare(String(a[key] || '')))
 const sumPoints = rows => (rows || []).reduce((s, p) => s + (+p.points || 0), 0)
@@ -172,91 +172,6 @@ export function ShiftsScreen({ t, pack: currentPack, missing: currentMissing, co
         </Card>
       </div>
       <p className="sa-muted">{t('employee.lateNotDeducted')}</p>
-    </div>
-  )
-}
-
-// ── Earnings (driver-app style) ──────────────────────────────────────────────
-function DayBars({ days, t }) {
-  const max = Math.max(1, ...days.map(d => d.hoursPay + d.commission))
-  const step = days.length > 16 ? Math.ceil(days.length / 8) : 1
-  return (
-    <div className="sa-chart" role="img" aria-label={t('staffApp.pay.chart')}>
-      {days.map((d, i) => {
-        const v = d.hoursPay + d.commission
-        return (
-          <div key={d.day} className="sa-chart-col" title={`${d.day} · ${fmtYen(v)}`}>
-            <div className="sa-chart-bar"><div style={{ height: `${Math.round((v / max) * 100)}%` }} className={v ? '' : 'is-zero'} /></div>
-            <span>{i % step === 0 ? Number(d.day.slice(8)) : ''}</span>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-export function EarningsScreen({ t, pack, missing }) {
-  const today = tokyoDateKey()
-  const [kind, setKind] = useState('week')
-  const [custom, setCustom] = useState({ from: today.slice(0, 8) + '01', to: today })
-  const range = earningsRange(kind, today, custom)
-  const { loading, data, err } = useEarnings(range.from, range.to)
-  const lines = statementInRange(pack?.lines || [], range.from, range.to)
-  const status = pack?.period?.status || 'draft'
-  const closed = kind === 'month' && ['approved', 'paid'].includes(status)
-  const tot = data?.totals || { hoursPay: 0, commission: 0, sales: 0, hours: 0, tickets: 0 }
-  const total = tot.hoursPay + tot.commission + (missing ? 0 : lines.rewards - lines.advances - lines.deductions)
-  const net = statementTotals(pack?.lines || []).net
-  return (
-    <div className="sa-screen">
-      <h1 className="sa-title">{t('staffApp.more.earnings')}</h1>
-      <Seg
-        label={t('staffApp.pay.period')}
-        value={kind}
-        onChange={setKind}
-        options={[
-          { id: 'day', label: t('staffApp.pay.day') },
-          { id: 'week', label: t('staffApp.pay.week') },
-          { id: 'month', label: t('staffApp.pay.month') },
-          { id: 'custom', label: t('staffApp.pay.custom') },
-        ]}
-      />
-      {kind === 'custom' && (
-        <div className="sa-range">
-          <label><span>{t('staffApp.pay.from')}</span><input type="date" value={custom.from} max={today} onChange={e => e.target.value && setCustom(c => ({ ...c, from: e.target.value }))} /></label>
-          <label><span>{t('staffApp.pay.to')}</span><input type="date" value={custom.to} max={today} onChange={e => e.target.value && setCustom(c => ({ ...c, to: e.target.value }))} /></label>
-        </div>
-      )}
-      <section className="sa-earn">
-        <span className="sa-earn-range">{range.from === range.to ? fmtDay(`${range.from}T12:00:00+09:00`) : `${fmtDay(`${range.from}T12:00:00+09:00`)} – ${fmtDay(`${range.to}T12:00:00+09:00`)}`}</span>
-        <strong className="sa-earn-total">{loading ? '…' : fmtYen(total)}</strong>
-        <span className={`sa-earn-tag${closed ? ' is-closed' : ''}`}>{closed ? t(`employee.status_${paymentLabel(status)}`) : t('staffApp.pay.estimate')}</span>
-        {data?.days?.length > 1 && <DayBars days={data.days} t={t} />}
-      </section>
-      {err && <Note>{t('staffApp.pay.unavailable')}</Note>}
-      <Card title={t('staffApp.pay.breakdown')}>
-        <Row title={t('staffApp.pay.hoursPay')} meta={data ? t('staffApp.pay.hoursAt', { hours: fmtHours(tot.hours), rate: fmtYen(data.rate) }) : ''} value={fmtYen(tot.hoursPay)} />
-        <Row title={t('staffApp.pay.commission')} meta={t('staffApp.out.tickets', { n: tot.tickets })} value={fmtYen(tot.commission)} tone="good" />
-        <Row title={t('staffApp.pay.sales')} meta={t('staffApp.pay.salesNote')} value={fmtYen(tot.sales)} tone="muted-plain" />
-        {missing ? (
-          <Note>{t('staffApp.payrollSoon')}</Note>
-        ) : (
-          <>
-            <Row title={t('employee.rewards')} value={fmtYen(lines.rewards)} tone="good" />
-            <Row title={t('employee.advance')} value={lines.advances ? `−${fmtYen(lines.advances)}` : fmtYen(0)} tone={lines.advances ? 'bad' : undefined} />
-            <Row title={t('employee.deductions')} value={lines.deductions ? `−${fmtYen(lines.deductions)}` : fmtYen(0)} tone={lines.deductions ? 'bad' : undefined} />
-          </>
-        )}
-        {data?.monthly > 0 && <Note>{t('staffApp.pay.monthly', { amount: fmtYen(data.monthly) })}</Note>}
-      </Card>
-      {!missing && (pack?.lines || []).length > 0 && (
-        <Card title={t('employee.statement')} right={<b className="sa-pill">{t('employee.net')} {fmtYen(net)}</b>}>
-          {(pack.lines || []).map(row => (
-            <Row key={row.id || `${row.type}-${row.source_id}`} title={t(`employee.type_${row.type}`)} meta={row.description || ''} value={fmtYen(row.amount)} tone={+row.amount < 0 ? 'bad' : undefined} />
-          ))}
-        </Card>
-      )}
-      <p className="sa-muted">{t('staffApp.pay.footnote')}</p>
     </div>
   )
 }

@@ -22,6 +22,7 @@ import DayStaffBoard from './DayStaffBoard'
 import StaffDayReport from './StaffDayReport'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
+import { listFines, listPayouts, markSalaryPaid, unmarkSalaryPaid } from '../lib/staffSelfApi'
 
 function money(n) {
   return fmtYen(Math.round(+n || 0))
@@ -152,6 +153,44 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
   const [view, setView] = useState('week')
   const [pack, setPack] = useState(null)
   const [days, setDays] = useState({ dia_mes: 1, dia_salario: 25, dia_drink: 10 })
+  const [payExtra, setPayExtra] = useState({ fines: [], payouts: [] })
+  const [payBusy, setPayBusy] = useState('')
+
+  // Salary board: this month's fines (taken from pay) and who was already marked paid.
+  async function loadPayExtra() {
+    if (section !== 'salarios') return
+    const month = tokyoNightKey().slice(0, 7)
+    const [f, p] = await Promise.all([
+      listFines(`${month}-01`, `${month}-31`).then(j => j.fines || []).catch(() => []),
+      listPayouts(month).then(j => j.payouts || []).catch(() => []),
+    ])
+    setPayExtra({ fines: f, payouts: p })
+  }
+  useEffect(() => { loadPayExtra() }, [bar?.id, section]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function markPaid(row, month) {
+    setPayBusy(row.id); setErr('')
+    try {
+      await markSalaryPaid({ month, staff_id: row.id, staff_nome: row.nome, pay: row.pay, comm: row.comm, advances: row.advances })
+      await loadPayExtra()
+    } catch (e) {
+      setErr(errText(e))
+    } finally {
+      setPayBusy('')
+    }
+  }
+  async function unmarkPaid(row) {
+    if (!row.paid?.id) return
+    setPayBusy(row.id); setErr('')
+    try {
+      await unmarkSalaryPaid(row.paid.id)
+      await loadPayExtra()
+    } catch (e) {
+      setErr(errText(e))
+    } finally {
+      setPayBusy('')
+    }
+  }
 
   function packFrom(teamRes, hq) {
     const prev = hq?.prev
@@ -267,6 +306,8 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
     payroll: punched.length ? punched : (pack.hq?.payroll || []),
     tickets: pack.tickets,
     monthKey: night.slice(0, 7),
+    fines: payExtra.fines,
+    payouts: payExtra.payouts,
   })
 
   return (
@@ -407,7 +448,10 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
           <div className="goal-hero">
             <div>
               <div className="goal-hero-kicker">{t('portal.salary.total')}</div>
-              <div className="goal-hero-value">{money(board.total)}</div>
+              <div className="goal-hero-value">{money(board.net)}</div>
+              <div className="goal-hero-goal">
+                {t('payBoard.heroSplit', { gross: money(board.gross), fines: money(board.fines), advances: money(board.advances) })}
+              </div>
               <div className="goal-hero-goal">
                 {board.save > 0
                   ? t('portal.salary.save', { amount: money(board.save) })
@@ -426,7 +470,7 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
             </button>
           </div>
           <section className="desk-card">
-            <StaffPayCards rows={board.rows} showPay nightPremium={nightPremium} />
+            <StaffPayCards rows={board.rows} showPay nightPremium={nightPremium} busyId={payBusy} onMarkPaid={row => markPaid(row, night.slice(0, 7))} onUnmarkPaid={unmarkPaid} />
             <div className="desk-more" style={{ marginTop: 12 }}>
               <button type="button" onClick={() => onTab?.('staff')}>{t('portal.salary.openStaff')}</button>
               <button type="button" onClick={() => onTab?.('ponto')}>{t('nav.portalClock')}</button>

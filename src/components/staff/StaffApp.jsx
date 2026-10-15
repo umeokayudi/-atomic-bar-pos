@@ -14,7 +14,11 @@ import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
 import { useClockPunch } from './ClockPunch'
 import { Avatar, Card, Note, Row, Stat, fmtDay, fmtHours, fmtTime, useNow } from './staffUi'
-import { EarningsScreen, OccurrencesScreen, PerformanceScreen, ProfileScreen, ReportsScreen, SettingsScreen, ShiftsScreen } from './StaffScreens'
+import { OccurrencesScreen, PerformanceScreen, ProfileScreen, ReportsScreen, SettingsScreen, ShiftsScreen } from './StaffScreens'
+
+import { PayHubScreen } from './PayHub'
+import { NextShiftsCard, ScheduleScreen, useMySchedule } from './ScheduleScreen'
+import { tokyoNightKey } from '../../lib/tokyo'
 
 const StaffAlerts = lazy(() => import('../StaffAlerts'))
 function BarMark({ brand, size = 36 }) {
@@ -82,7 +86,7 @@ function TonightCard({ t, day, onTab }) {
   )
 }
 
-function HomeScreen({ t, perfil, profile, bar, clock, punch, canClock, day, monthHours, pack, missing, onTab }) {
+function HomeScreen({ t, perfil, profile, bar, clock, punch, canClock, day, monthHours, pack, missing, onTab, schedule }) {
   const firstName = String(profile?.nome || perfil?.nome || '').trim().split(/\s+/)[0] || ''
   const goals = (pack?.goals || []).slice(0, 3)
   return (
@@ -94,10 +98,11 @@ function HomeScreen({ t, perfil, profile, bar, clock, punch, canClock, day, mont
       <ClockCard t={t} clock={clock} punch={punch} canClock={canClock} />
       <div className="sa-wide">
         <TonightCard t={t} day={day} onTab={onTab} />
+        <NextShiftsCard t={t} schedule={schedule} today={tokyoNightKey()} onOpen={() => onTab('schedule')} />
         <div className="sa-stats">
           <Stat label={t('employee.statHours')} value={fmtHours(monthHours)} sub={t('employee.thisMonth')} onClick={() => onTab('shifts')} />
           <Stat label={t('staffApp.home.tonightSales')} value={fmtYen(day?.summary?.sales || 0)} onClick={() => onTab('performance')} />
-          <Stat label={t('staffApp.home.earnings')} value={t('staffApp.home.open')} onClick={() => onTab('salary')} />
+          <Stat label={t('staffApp.home.earnings')} value={t('staffApp.home.open')} sub={t('staffApp.home.earningsSub')} onClick={() => onTab('salary')} />
         </div>
         <Card title={t('employee.goals')} right={<button type="button" className="sa-link" onClick={() => onTab('performance')}>{t('employee.seeAll')}</button>}>
           {missing ? <Note>{t('staffApp.payrollSoon')}</Note> : goals.length === 0 ? <Note icon="goals">{t('employee.noGoals')}</Note> : goals.map(g => {
@@ -206,6 +211,7 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
   const [toast, setToast] = useState('')
   const meId = perfil?.id
   const competence = tokyoMonthKey()
+  const schedule = useMySchedule()
 
   useEffect(() => { if (brand.name) rememberStaffBrand(brand) }, [brand])
 
@@ -302,11 +308,12 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
       <Suspense fallback={null}><div className="sa-alerts"><StaffAlerts /></div></Suspense>
 
       <main className="sa-main">
-        {screen === 'hoje' && <HomeScreen {...shared} clock={clock} punch={punch} canClock={canClock} day={day} monthHours={monthHours} />}
+        {screen === 'hoje' && <HomeScreen {...shared} clock={clock} punch={punch} canClock={canClock} day={day} monthHours={monthHours} schedule={schedule} />}
         {screen === 'ponto' && <ClockScreen t={t} clock={clock} punch={punch} canClock={canClock} venue={venue} punches={punches} />}
         {screen === 'performance' && <PerformanceScreen {...shared} day={day} />}
         {screen === 'shifts' && <ShiftsScreen {...shared} />}
-        {screen === 'salary' && <EarningsScreen {...shared} />}
+        {screen === 'salary' && <PayHubScreen {...shared} />}
+        {screen === 'schedule' && <ScheduleScreen {...shared} today={tokyoNightKey()} schedule={schedule} />}
         {screen === 'reports' && <ReportsScreen {...shared} />}
         {screen === 'profile' && <ProfileScreen {...shared} onProfile={setProfile} signOut={signOut} />}
         {screen === 'occurrences' && <OccurrencesScreen {...shared} />}
