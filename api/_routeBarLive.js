@@ -19,7 +19,8 @@ function sendResult(res, result) {
   return res.status(200).json({ data: result.data, error: null })
 }
 
-const SECRET_TABLES = new Set(['bar_logins', 'bar_sessions', 'bar_locks'])
+// staff_requests / staff_day_reports: only /api/bar-staff reads them (own rows for staff, the bar's for owner/manager).
+const SECRET_TABLES = new Set(['bar_logins', 'bar_sessions', 'bar_locks', 'staff_requests', 'staff_day_reports'])
 // Raw rows behind the owner's PIN: cost registry (money) and pay per person (payroll). The app reads them via /api/bar-staff.
 const VAULT_TABLES = { bar_registry: 'money', staff_extras: 'payroll' }
 const PG_MENU_TABLES = new Set(['drink_menu', 'bar_pricing', 'bars'])

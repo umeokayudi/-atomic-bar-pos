@@ -24,7 +24,9 @@
     "test:visual": "npm run build && node scripts/visual/shots.mjs visual-out",
     "test:staff-file": "node scripts/employeeFile.test.mjs",
     "test:floor-status": "node scripts/floorStatus.test.mjs",
-    "test:bar-access": "node scripts/barAccess.test.mjs"
+    "test:bar-access": "node scripts/barAccess.test.mjs",
+    "test:staff-app": "node scripts/staffApp.test.mjs",
+    "test:time-clock": "node scripts/timeClockRoute.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

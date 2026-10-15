@@ -36,6 +36,9 @@ export const LIVE_TABLES = [
   'floor_sectors',
   'floor_tables',
   'bar_guest_ledger',
+  // Staff app: requests to the owner and the check-out day reports. Server routes only (secret in /api/bar/live-db).
+  'staff_requests',
+  'staff_day_reports',
 ]
 
 // Tables that had a JSON copy before the migrations created them in Postgres (sql/pos_start.sql,
@@ -234,6 +237,8 @@ async function saveTable(admin, table, rows) {
     const { error } = await admin.storage.from(LIVE_BUCKET).upload(pathFor(table), body, {
       upsert: true,
       contentType: 'application/json',
+      // No CDN copy: another instance must read this version, not one cached for an hour (lost clock-outs).
+      cacheControl: '0',
     })
     if (error) throw new Error(error.message)
   } catch {
@@ -447,23 +452,8 @@ async function seedAtomic(admin) {
     id: codeId, bar_id: barId, codigo: 'WELCOME-10', tipo: 'percent', valor: 10, ativo: true,
     usos_atual: 0, criado_em: new Date().toISOString(),
   }])
-  await saveTable(admin, 'pos_vendas', [])
-  await saveTable(admin, 'pos_vendas_itens', [])
-  await saveTable(admin, 'vip_usages', [])
-  await saveTable(admin, 'discount_usages', [])
-  await saveTable(admin, 'time_clock', [])
-  await saveTable(admin, 'bar_geo', [])
-  await saveTable(admin, 'staff_extras', [])
-  await saveTable(admin, 'bar_people', [])
-  await saveTable(admin, 'bar_registry', [])
-  await saveTable(admin, 'bar_goals', [])
-  await saveTable(admin, 'bar_events', [])
-  await saveTable(admin, 'bar_logins', [])
-  await saveTable(admin, 'bar_sessions', [])
-  await saveTable(admin, 'bar_overhead', [])
-  await saveTable(admin, 'bar_hq_meta', [])
-  await saveTable(admin, 'pos_shifts', [])
-  await saveTable(admin, 'pos_settings', [])
+  // The other tables are not written here: a missing file already reads as empty, and writing [] over them
+  // (when bar_spaces merely failed to load) wiped real punches, logins and staff files.
 }
 
 const POS_LOGIN_ID = '11111111-1111-4111-8111-111111111111'

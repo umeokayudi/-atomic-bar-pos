@@ -11,16 +11,30 @@ import StaffPayCards from './StaffPayCards'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 
-export async function postClockMark({ barId, staffId, tipo, managerMark }) {
+export async function postClockMark({ barId, staffId, tipo, managerMark, position, geoError, justification }) {
   const res = await staffFetch('/api/time-clock', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tipo, staff_id: staffId, managerMark: !!managerMark, bar_id: barId }),
+    body: JSON.stringify({
+      tipo,
+      staff_id: staffId,
+      managerMark: !!managerMark,
+      bar_id: barId,
+      ...(position ? { lat: position.lat, lng: position.lng, accuracy: position.accuracy } : {}),
+      ...(geoError ? { geo_error: geoError } : {}),
+      ...(justification ? { justification } : {}),
+    }),
   })
   const text = await res.text()
   let json = {}
   try { json = text ? JSON.parse(text) : {} } catch { json = { error: text.slice(0, 160) } }
-  if (!res.ok) throw new Error(errText(json.error, json.message || `Clock failed (${res.status})`))
+  if (!res.ok) {
+    const err = new Error(errText(json.error, json.message || `Clock failed (${res.status})`))
+    err.code = json.code || ''
+    err.geoStatus = json.geo_status || ''
+    err.distance = json.distance_m ?? null
+    throw err
+  }
   return json
 }
 

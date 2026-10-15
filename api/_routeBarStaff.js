@@ -11,6 +11,7 @@ import { isMissingSchemaError, loadBarWithGeo, listStaffWithExtras, runLiveOp, s
 import { forgetBarActors } from './_barLaneAuth.js'
 import { canAccess, canEditAccessOf, canManageLogin, cleanAcessos, isRestricted, staffActionAreas } from '../src/lib/barAccess.js'
 import { denyMissingArea } from './_barAccess.js'
+import { OWNER_ACTIONS, SELF_ACTIONS, handleOwnerAction, handleSelfAction } from './_staffSelf.js'
 import { canLinkLogin, carryFromPerson, personLinkPatch, remapIds, remapSheet } from '../src/lib/staffLink.js'
 
 function bodyOf(req) {
@@ -337,6 +338,18 @@ export default async function handler(req, res) {
         disabled: owner ? false : !!me.disabled,
       })
     }
+    // Staff app self-service (own day, profile photo, requests, earnings): any active bar login, own rows only.
+    if (SELF_ACTIONS.has(early.action)) {
+      const me = await requireBarAccount(req, admin)
+      if (me.error) return res.status(me.status).json({ error: me.error })
+      const selfDb = admin || (me.token ? createStaffUserClient(me.token) : null)
+      if (!selfDb) return res.status(500).json({ error: 'Database client unavailable' })
+      try {
+        return await handleSelfAction(res, { admin, db: selfDb, auth: me, body: early })
+      } catch (e) {
+        return res.status(500).json({ error: e.message || 'Failed' })
+      }
+    }
   }
 
   const auth = await requireBarAccount(req, admin, { roles: ['cliente', 'gerente'] })
@@ -514,6 +527,10 @@ export default async function handler(req, res) {
       return res.status(200).json({ urls })
     }
 
+    if (req.method === 'POST' && OWNER_ACTIONS.has(body.action)) {
+      return handleOwnerAction(res, { admin, db, auth, body })
+    }
+
     if (req.method === 'POST' && body.action === 'pairTablet') {
       const code = randomTabletCode()
       const saved = await saveBarGeo(db, barId, { tablet_token_hash: hashSecret(code) })
@@ -562,6 +579,16 @@ export default async function handler(req, res) {
         dj,
         dj_nome: dj ? String(body.dj_nome || '').trim().slice(0, 80) : '',
         dj_custo: dj ? Math.max(0, Math.round(+body.dj_custo || 0)) : 0,
+      }
+      // Tonight's mission and each person's role (shown to staff when they clock in).
+      if (body.missao != null) row.missao = String(body.missao || '').trim().slice(0, 300)
+      if (body.roles && typeof body.roles === 'object' && !Array.isArray(body.roles)) {
+        const roles = {}
+        for (const [k, v] of Object.entries(body.roles).slice(0, 80)) {
+          const text = String(v || '').trim().slice(0, 80)
+          if (k && text) roles[String(k).slice(0, 64)] = text
+        }
+        row.roles = roles
       }
       const existing = await runLiveOp(db, {
         table: 'bar_day_sheet',
@@ -649,6 +676,7 @@ export default async function handler(req, res) {
         corta: hour('corta', 0),
         pessoas,
       }
+      if (body.missao != null) row.missao = String(body.missao || '').trim().slice(0, 300)
       if (body.mes != null) row.mes = Math.max(0, Math.round(+body.mes || 0))
       if (body.fecha_semana != null) row.fecha_semana = ((Math.round(+body.fecha_semana) % 7) + 7) % 7
       if (body.dia_salario != null) row.dia_salario = Math.max(1, Math.min(28, Math.round(+body.dia_salario || 25)))
