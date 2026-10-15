@@ -13,6 +13,7 @@ import {
   PanelLeftClose, PanelLeftOpen, Paperclip, Image as ImageIcon, FileText as FileDoc, Video, GripVertical, EyeOff, LayoutTemplate, ArrowUp, ArrowDown,
   TrendingDown, Percent, Coins, Package, PiggyBank, Check, Columns2, UserCheck, Scale, Warehouse,
   Download, Hand, UserX, Timer, Box as Cube, Crown, Siren, BellRing, CircleHelp, Sofa, BrickWall, DoorOpen, Music, Sprout, Palette,
+  MapPin, Inbox,
 } from 'lucide-react'
 
 /** One name → one vector icon. Screens ask for a semantic name, never an emoji. */
@@ -44,6 +45,7 @@ const ICONS = {
   piggy: PiggyBank, check: Check, sizeWide: RectangleHorizontal, sizeHalf: Columns2, userCheck: UserCheck,
   scale: Scale, warehouse: Warehouse,
   cube: Cube, vip: Crown, ordens: Siren, alert: BellRing, help: CircleHelp, sofa: Sofa, wall: BrickWall, door: DoorOpen, stage: Music, plant: Sprout, palette: Palette,
+  location: MapPin, inbox: Inbox,
   download: Download, print: Printer, wave: Hand, userOff: UserX, timer: Timer,
   hoje: Sun, star: Star, edit: Pencil, eye: Eye, reopen: RotateCcw, people: People, phone: Smartphone,
   // table states

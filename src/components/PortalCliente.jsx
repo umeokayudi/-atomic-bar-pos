@@ -64,6 +64,7 @@ const BarVipTab = lazy(() => import('./BarVipTab'))
 const StaffOrdersTab = lazy(() => import('./StaffOrdersTab'))
 const StaffAlerts = lazy(() => import('./StaffAlerts'))
 const EmployeeDesk = lazy(() => import('./EmployeeDesk'))
+const StaffApp = lazy(() => import('./staff/StaffApp'))
 import { fetchAllStockMovements } from '../lib/posSupply'
 import { coalesceStockMoves, decorateStockList, deliveryNoteMoves, posPourMoves, stockFlow, stockGlance } from '../lib/barStock'
 import { groupedNavForRole, dockForLogin, defaultBarTab, posAccessForRole, canManageBarTeam, isGerente, costAccessForRole, canPlaceDrinkOrders } from '../lib/access'
@@ -72,6 +73,7 @@ import UiPrefsPanel from './UiPrefsPanel'
 import { useI18n } from '../lib/i18n'
 import { STAFF_SELF_TABS, canOpenTab, filterNavGroups, firstOpenTab } from '../lib/barAccess'
 import { useMyBarAccess } from '../lib/myBarAccess'
+import { usesStaffApp } from '../lib/staffApp'
 import { tokyoMonthKey, tokyoNightKey } from '../lib/tokyo'
 import { buildBarCalendarEvents, dateInRange, invoiceInRange } from '../lib/barCalendar'
 import { birthdayThisMonth, decorateSpaces } from '../lib/barCrm'
@@ -1998,6 +2000,32 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
           )}
           {clockKiosk && <TabHold><TimeClockPanel bar={bar} /></TabHold>}
         </main>
+      </div>
+    )
+  }
+
+  // Staff logins (and "Staff only" logins) get the separate employee app: no HQ sidebar, bottom tabs, phone first.
+  if (usesStaffApp(perfil, myAccess.acessos)) {
+    const canOpen = id => canOpenTab(access, id)
+    return (
+      <div className="app-shell is-staff-app">
+        <AutoClose bar={bar} />
+        <TabHold>
+          <StaffApp
+            bar={bar}
+            tab={tab}
+            onTab={selectTab}
+            signOut={signOut}
+            canOpen={canOpen}
+            renderWork={id => (
+              <TabHold>
+                {id === 'pos' && posAccess !== 'none' && <AtomicPosPanel bar={bar} access={posAccess === 'owner' ? 'cashier' : posAccess} />}
+                {id === 'mesas' && posAccess !== 'none' && <FloorScreen bar={bar} onOpenTill={() => selectTab('pos')} />}
+                {id === 'pedidos' && canPlaceDrinkOrders(perfil?.role) && <BarOrdersTab bar={bar} manager={false} />}
+              </TabHold>
+            )}
+          />
+        </TabHold>
       </div>
     )
   }

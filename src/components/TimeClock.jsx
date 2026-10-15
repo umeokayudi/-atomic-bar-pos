@@ -11,7 +11,7 @@ import StaffPayCards from './StaffPayCards'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 
-export async function postClockMark({ barId, staffId, tipo, managerMark, position, geoError, justification }) {
+export async function postClockMark({ barId, staffId, tipo, managerMark, position, geoError, justification, extra }) {
   const res = await staffFetch('/api/time-clock', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -23,6 +23,7 @@ export async function postClockMark({ barId, staffId, tipo, managerMark, positio
       ...(position ? { lat: position.lat, lng: position.lng, accuracy: position.accuracy } : {}),
       ...(geoError ? { geo_error: geoError } : {}),
       ...(justification ? { justification } : {}),
+      ...(extra || {}),
     }),
   })
   const text = await res.text()
