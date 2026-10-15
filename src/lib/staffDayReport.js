@@ -3,6 +3,13 @@
 import { calcPayWithLateNight, lateNightHoursBetween, pairPunches } from './timeClock.js'
 import { nightWindow, nightKeyOfSale } from './nightClose.js'
 import { creditShares, isPerson, staffAliases } from './saleCredit.js'
+import { punchGeoFlag } from './clockGeo.js'
+
+/** The GPS flag of a punch, slim enough to keep in a report (null when the punch was at the bar or manual). */
+function geoOf(punch) {
+  const f = punchGeoFlag(punch)
+  return f ? { geo_status: f.status, distance_m: f.distance, geo_error: f.error, justification: f.justification } : null
+}
 
 const TOKYO_TIME = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', hour12: false })
 
@@ -65,7 +72,7 @@ export function staffDayReport({ night, punches = [], staff = [], tickets = [], 
       }
       hours += h
       lateHours += lh
-      return { in: tokyoClock(inAt), out: tokyoClock(outAt), open: !!sh.open, hours: round2(h) }
+      return { in: tokyoClock(inAt), out: tokyoClock(outAt), open: !!sh.open, hours: round2(h), geoIn: geoOf(sh.clockIn), geoOut: geoOf(sh.clockOut) }
     })
     const mineCredit = credits.map(rows => rows.find(r => isPerson(r, person, aliases))).filter(Boolean)
     const salesTotal = mineCredit.reduce((a, r) => a + r.amount, 0)

@@ -9,6 +9,7 @@ import { cancelOrder, listBarOrders, orderStats, ordersInstalled, sendOrders } f
 import { tokyoClock } from '../lib/staffDayReport'
 import { PageHeader } from './ui/PageLayout'
 import Icon from './ui/Icon'
+import { StaffInbox } from './staff/OwnerStaffTools'
 
 const POLL_MS = 20000
 const DUE = [0, 10, 30, 60]
@@ -106,6 +107,7 @@ export default function StaffOrdersTab({ bar }) {
     <div className="fade-in sord">
       <PageHeader title={t('orders.title')} subtitle={t('orders.lead')} />
       {installed === false && <div className="ui-card desk-note sord-fallback"><Icon name="info" size={15} /> {t('orders.fallback')}</div>}
+      <div style={{ marginBottom: 16 }}><StaffInbox /></div>
 
       <div className="sord-grid">
         <form className="ui-card sord-compose" onSubmit={send}>

@@ -10,6 +10,30 @@ import { PageHeader } from './ui/PageLayout'
 import StaffPayCards from './StaffPayCards'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
+import { supabase } from '../lib/supabase'
+import { canAccess } from '../lib/barAccess'
+import { prevTokyoDateKey } from '../lib/nightClose'
+import { meDay } from '../lib/staffSelfApi'
+import { useClockPunch } from './staff/ClockPunch'
+import { OwnerDayReports, OwnerLocation } from './staff/OwnerStaffTools'
+
+const SALE_COLS = 'id,total,refunded,criado_em,data,obs,metodo_pagamento,drink_back_agent_id,criado_por'
+const SALE_COLS_SLIM = 'id,total,criado_em,data,obs,metodo_pagamento,drink_back_agent_id,criado_por'
+
+/** Till tickets of the month (with who rang them up) and the drink-back agents, for the day report's sales credit. */
+async function loadReportSales(barId, fromDay) {
+  try {
+    const from = prevTokyoDateKey(fromDay)
+    let r = await supabase.from('pos_vendas').select(SALE_COLS).eq('bar_id', barId).gte('data', from).order('criado_em')
+    if (r.error && /refunded/.test(r.error.message || '')) {
+      r = await supabase.from('pos_vendas').select(SALE_COLS_SLIM).eq('bar_id', barId).gte('data', from).order('criado_em')
+    }
+    const a = await supabase.from('drink_back_agents').select('*').eq('bar_id', barId)
+    return { tickets: r.error ? [] : (r.data || []), agents: a.error ? [] : (a.data || []) }
+  } catch {
+    return { tickets: [], agents: [] }
+  }
+}
 
 export async function postClockMark({ barId, staffId, tipo, managerMark, position, geoError, justification, extra }) {
   const res = await staffFetch('/api/time-clock', {
@@ -46,8 +70,11 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
   const [staff, setStaff] = useState([])
   const [nightPremium, setNightPremium] = useState(true)
   const [loading, setLoading] = useState(true)
-  const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [venue, setVenue] = useState(null)
+  const [teamBar, setTeamBar] = useState(null)
+  const [day, setDay] = useState(null)
+  const [sales, setSales] = useState({ tickets: [], agents: [] })
   const range = monthRange()
   const manager = canManageBarTeam(perfil?.role)
 
@@ -59,6 +86,8 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
         manager ? loadBarTeam().catch(() => null) : Promise.resolve(null),
       ])
       setPunches(j.punches || [])
+      setVenue(j.venue || null)
+      setTeamBar(team?.bar || null)
       setStaff(clockStaff(team?.staff))
       const fromTeam = team?.goals?.adicional_noturno
       const flag = fromTeam == null ? j.adicional_noturno : fromTeam
@@ -71,6 +100,12 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
   }
 
   useEffect(() => { load() }, [bar.id])
+  useEffect(() => {
+    let live = true
+    loadReportSales(bar.id, range.from.slice(0, 10)).then(r => { if (live) setSales(r) })
+    if (perfil?.role !== 'cliente') meDay().then(d => { if (live) setDay(d) }).catch(() => {})
+    return () => { live = false }
+  }, [bar.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const meId = perfil?.id
   const rows = payrollFromPunches(punches, [{ id: meId, nome: perfil?.nome, salario_hora: perfil?.salario_hora || 0 }], range, { nightPremium })
@@ -78,22 +113,22 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
   const last = [...punches].filter(p => p.staff_id === meId)[0]
   const liveHours = last?.tipo === 'in' ? hoursBetween(last.punched_at, new Date().toISOString()) : 0
 
-  async function mark(tipo) {
-    if (!meId) return
-    setErr(''); setBusy(true)
-    try {
-      await postClockMark({ barId: bar.id, staffId: meId, tipo, managerMark: manager })
-      await load()
-    } catch (e) {
-      setErr(errText(e))
-    }
-    setBusy(false)
-  }
+  // Same check-in / check-out flow as the staff app: GPS (reason when outside), read-and-agree, day summary.
+  // The owner's own marks are not geo-checked by the server, so the owner skips the GPS step.
+  const punch = useClockPunch({
+    barId: bar.id,
+    meId,
+    venue: perfil?.role === 'cliente' ? null : venue,
+    day,
+    openIn: last?.tipo === 'in' ? { at: last.punched_at, id: last.id } : null,
+    onDone: () => load(),
+  })
 
   return (
     <div className="fade-in">
       <PageHeader title={t('clock.title')} subtitle={t('clock.selfHint')} />
-      {err && <div className="pos-sale-err" style={{ marginBottom: 12 }}>{asReactText(err)}</div>}
+      {(err || punch.err) && <div className="pos-sale-err" style={{ marginBottom: 12 }}>{asReactText(err || punch.err)}</div>}
+      {punch.sheet}
       {loading ? <Spinner /> : clockStaff([perfil]).length > 0 && (
         <div className="card people-me">
           <div>
@@ -108,10 +143,10 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
           <button
             type="button"
             className={meRow.open ? 'people-out people-me-btn' : 'people-in people-me-btn'}
-            disabled={!meId || busy}
-            onClick={() => mark(meRow.open ? 'out' : 'in')}
+            disabled={!meId || punch.busy}
+            onClick={() => { setErr(''); punch.start(meRow.open ? 'out' : 'in') }}
           >
-            {busy ? t('common.wait') : (meRow.open ? t('clock.bigOut') : t('clock.bigIn'))}
+            {punch.busy ? t('common.wait') : (meRow.open ? t('clock.bigOut') : t('clock.bigIn'))}
           </button>
         </div>
       )}
@@ -127,8 +162,16 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
             onlyId={manager ? undefined : meId}
             staff={manager ? staff : [{ id: meId, nome: perfil?.nome, salario_hora: perfil?.salario_hora || 0 }]}
             punches={punches}
+            tickets={sales.tickets}
+            agents={sales.agents}
             nightPremium={nightPremium}
           />
+        </div>
+      )}
+      {manager && !loading && (
+        <div className="own-tools">
+          <OwnerLocation bar={teamBar || venue && { lat: venue.lat, lng: venue.lng, geofence_m: venue.radius_m }} canEdit={canAccess(perfil, 'users')} onSaved={load} />
+          <OwnerDayReports />
         </div>
       )}
       {manager && onOpenStaff && (

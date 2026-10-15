@@ -35,6 +35,8 @@ export default function DayStaffBoard() {
   const [dj, setDj] = useState(false)
   const [djNome, setDjNome] = useState('')
   const [djCusto, setDjCusto] = useState('')
+  const [missao, setMissao] = useState('')
+  const [roles, setRoles] = useState({})
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState('')
 
@@ -53,6 +55,8 @@ export default function DayStaffBoard() {
     setDj(!!row?.dj)
     setDjNome(row?.dj_nome || '')
     setDjCusto(row?.dj ? String(row.dj_custo ?? '') : '')
+    setMissao(row?.missao || '')
+    setRoles(row?.roles && typeof row.roles === 'object' ? row.roles : {})
   }, [pack, night])
 
   const people = rosterOf(pack)
@@ -89,6 +93,8 @@ export default function DayStaffBoard() {
           dj,
           dj_nome: djNome,
           dj_custo: dj ? djCusto : 0,
+          missao,
+          roles: Object.fromEntries(Object.entries(roles).filter(([, v]) => String(v || '').trim())),
         }),
       })
       const json = await res.json().catch(() => ({}))
@@ -146,6 +152,21 @@ export default function DayStaffBoard() {
             )
           })}
         </ul>
+      )}
+      <label className="day-board-mission">
+        {t('dayBoardExtra.mission')}
+        <input value={missao} maxLength={300} disabled={busy} placeholder={t('dayBoardExtra.missionPh')} onChange={e => { setMissao(e.target.value); setNote('') }} />
+      </label>
+      {!!people.length && (
+        <fieldset className="day-board-roles">
+          <legend>{t('dayBoardExtra.roles')}</legend>
+          {people.filter(p => !absent.some(a => a.id === p.id)).map(person => (
+            <label key={person.id}>
+              <span>{person.nome}</span>
+              <input value={roles[person.id] || ''} maxLength={80} disabled={busy} placeholder={t('dayBoardExtra.rolePh')} onChange={e => { const v = e.target.value; setRoles(r => ({ ...r, [person.id]: v })); setNote('') }} />
+            </label>
+          ))}
+        </fieldset>
       )}
       <div className="goal-modes">
         <button type="button" className={dj ? 'is-on' : ''} disabled={busy} onClick={() => setDj(true)}>{t('portal.close.boardDjYes')}</button>

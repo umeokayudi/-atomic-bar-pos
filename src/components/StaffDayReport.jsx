@@ -7,6 +7,7 @@ import { useI18n } from '../lib/i18n'
 import { fmtYen } from './utils'
 import Icon from './ui/Icon'
 import { downloadHtmlAsPdf, elementToHtml } from '../lib/pdfFile'
+import { PunchGeoBadge } from './staff/ClockPunch'
 
 const STATUS_ICON = { working: 'clock', done: 'ok', absent: 'userOff', off: 'hide' }
 
@@ -20,7 +21,7 @@ function hoursLabel(h) {
  * late/absent from the night sheet, sales and commission from till tickets tagged with their name.
  * Read-only. Download as CSV or print.
  */
-export default function StaffDayReport({ staff = [], tickets = [], sheets = [], punches = [], nightPremium = true, onlyId }) {
+export default function StaffDayReport({ staff = [], tickets = [], agents = [], sheets = [], punches = [], nightPremium = true, onlyId }) {
   const { t } = useI18n()
   const today = tokyoNightKey()
   const [night, setNight] = useState(today)
@@ -40,10 +41,10 @@ export default function StaffDayReport({ staff = [], tickets = [], sheets = [], 
 
   const report = useMemo(() => {
     const sheet = (sheets || []).find(s => s.night_key === night) || null
-    const r = staffDayReport({ night, punches: nightPunches || punches, staff, tickets, sheet, nightPremium })
+    const r = staffDayReport({ night, punches: nightPunches || punches, staff, tickets, agents, sheet, nightPremium })
     if (onlyId) r.rows = r.rows.filter(row => row.id === onlyId)
     return r
-  }, [night, nightPunches, punches, staff, tickets, sheets, nightPremium, onlyId])
+  }, [night, nightPunches, punches, staff, tickets, agents, sheets, nightPremium, onlyId])
 
   function download() {
     const csv = staffDayCsv(report)
@@ -116,12 +117,13 @@ export default function StaffDayReport({ staff = [], tickets = [], sheets = [], 
                 <span className="sdr-badges">
                   <span className={`sdr-badge is-${r.status}`}><Icon name={STATUS_ICON[r.status]} size={13} /> {t(`staffDay.st.${r.status}`)}</span>
                   {r.late && <span className="sdr-badge is-late"><Icon name="timer" size={13} /> {t('staffDay.late')}</span>}
+                  {r.blocks.some(b => b.geoIn || b.geoOut) && <span className="sdr-badge is-late"><Icon name="location" size={13} /> GPS</span>}
                 </span>
               </button>
               {(open === r.id || onlyId) && (
                 <div className="sdr-detail">
                   <dl>
-                    <div><dt>{t('staffDay.shifts')}</dt><dd>{r.blocks.length ? r.blocks.map((b, i) => <span key={i}>{b.in} – {b.out || t('staffDay.now')} ({hoursLabel(b.hours)})</span>) : '—'}</dd></div>
+                    <div><dt>{t('staffDay.shifts')}</dt><dd>{r.blocks.length ? r.blocks.map((b, i) => <span key={i}>{b.in} – {b.out || t('staffDay.now')} ({hoursLabel(b.hours)}){b.geoIn && <> <PunchGeoBadge punch={b.geoIn} /></>}{b.geoOut && <> <PunchGeoBadge punch={b.geoOut} /></>}</span>) : '—'}</dd></div>
                     <div><dt>{t('staffDay.lateNight')}</dt><dd>{hoursLabel(r.lateHours)}</dd></div>
                     <div><dt>{t('staffDay.pay')}</dt><dd>{fmtYen(r.pay)}</dd></div>
                     {withSales && <div><dt>{t('staffDay.tickets')}</dt><dd>{r.tickets}</dd></div>}

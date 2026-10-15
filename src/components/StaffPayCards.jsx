@@ -2,6 +2,7 @@ import { fmtYen } from './utils'
 import { hoursBetween } from '../lib/timeClock'
 import { tokyoParts } from '../lib/tokyo'
 import { useI18n } from '../lib/i18n'
+import { PunchGeoBadge } from './staff/ClockPunch'
 
 function pad(n) {
   return String(n).padStart(2, '0')
@@ -63,8 +64,8 @@ export default function StaffPayCards({ rows = [], showPay = false, nightPremium
                     const hours = sh.open && start ? hoursBetween(start, new Date().toISOString()) : sh.hours
                     return (
                       <tr key={`${start || i}-${i}`}>
-                        <td>{when(start)}</td>
-                        <td>{sh.open ? t('clock.openShift') : when(end)}</td>
+                        <td>{when(start)}<PunchGeoBadge punch={sh.clockIn} /></td>
+                        <td>{sh.open ? t('clock.openShift') : when(end)}<PunchGeoBadge punch={sh.clockOut} /></td>
                         <td>{hours}h{sh.lateHours ? ` · ${t('clock.lateShort', { hours: sh.lateHours })}` : ''}</td>
                       </tr>
                     )

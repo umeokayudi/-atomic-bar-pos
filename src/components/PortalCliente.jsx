@@ -2021,7 +2021,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
             canOpen={canOpen}
             renderWork={id => (
               <TabHold>
-                {id === 'pos' && posAccess !== 'none' && <AtomicPosPanel bar={bar} access={posAccess === 'owner' ? 'cashier' : posAccess} />}
+                {id === 'pos' && posAccess !== 'none' && (perfil?.role === 'bar_staff' ? <StaffPos bar={bar} /> : <AtomicPosPanel bar={bar} access={posAccess === 'owner' ? 'cashier' : posAccess} />)}
                 {id === 'mesas' && posAccess !== 'none' && <FloorScreen bar={bar} onOpenTill={() => selectTab('pos')} />}
                 {id === 'pedidos' && canPlaceDrinkOrders(perfil?.role) && <BarOrdersTab bar={bar} manager={false} />}
               </TabHold>

@@ -254,12 +254,13 @@ button.sa-stat { cursor: pointer; touch-action: manipulation; }
   background: var(--c-surface); border-top: 1px solid var(--c-border); box-shadow: 0 -4px 16px rgba(0,0,0,.06);
 }
 .sa-tabs button {
-  flex: 1 1 0; max-width: 112px; min-width: 0; min-height: 56px;
+  flex: 1 1 0; max-width: 112px; min-width: 0; min-height: 56px; padding: 0 2px;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   border: 0; border-radius: 12px; background: transparent; color: var(--c-text-3);
   font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; touch-action: manipulation;
 }
 .sa-tabs button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 420px) { .sa-tabs { gap: 2px; padding-left: max(4px, var(--safe-left)); padding-right: max(4px, var(--safe-right)); } .sa-tabs button { font-size: 10.5px; letter-spacing: -.01em; } }
 .sa-tabs button.is-on { color: var(--c-accent); background: var(--c-accent-soft); }
 
 /* "More": full-screen menu */
@@ -348,6 +349,7 @@ body.sa-lock { overflow: hidden; }
   background: var(--c-warning-bg); color: var(--c-warning); vertical-align: middle; max-width: 100%;
 }
 .geo-badge em { font-style: normal; font-weight: 600; color: var(--c-text-2); overflow-wrap: anywhere; }
+.own-tools { display: grid; gap: 16px; margin-top: 16px; }
 .own-loc, .own-reports, .own-inbox { display: grid; gap: 10px; }
 .own-loc-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 .own-loc-row label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; color: var(--c-text-2); }
@@ -368,4 +370,8 @@ body.sa-lock { overflow: hidden; }
 .day-board-roles { display: grid; gap: 8px; }
 .day-board-roles label { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 8px; align-items: center; font-size: 13px; }
 .day-board-roles input { min-height: 40px; }
-.login-staff-brand { display: flex; align-items: center; gap: 10px; justify-content: center; margin-bottom: 12px; font-weight: 800; }
+.login-staff-brand { display: flex; align-items: center; gap: 10px; justify-content: center; margin-top: 14px; font-weight: 800; color: #fff; --sa-brand: var(--gold, #0f766e); }
+.day-board-mission { display: grid; gap: 4px; margin: 10px 0; font-size: 13px; font-weight: 700; }
+.day-board-mission input { min-height: 40px; }
+.day-board-roles { border: 0; padding: 0; margin: 0 0 10px; }
+.day-board-roles legend { font-size: 13px; font-weight: 700; margin-bottom: 6px; }

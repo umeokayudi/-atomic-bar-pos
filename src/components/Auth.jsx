@@ -11,6 +11,7 @@ import {
 } from '../lib/barLanes'
 import { setHashForRole } from '../lib/barDoors'
 import { asReactText, errText } from '../lib/errText'
+import { readStaffBrand } from '../lib/staffApp'
 
 const AuthContext = createContext(null)
 export const useAuth = () => useContext(AuthContext)
@@ -159,6 +160,8 @@ export function LoginPage() {
   const [pass,  setPass]  = useState('')
   const [err,   setErr]   = useState('')
   const [busy,  setBusy]  = useState(false)
+  // A staff login on this device saw this bar last: greet them with the bar's name and colour, not only ours.
+  const [staffBrand] = useState(() => readStaffBrand())
 
   const submit = async () => {
     setErr('')
@@ -208,6 +211,14 @@ export function LoginPage() {
       <div style={{ width: '100%', maxWidth: 400, position: 'relative' }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <LogoLogin />
+          {staffBrand && (
+            <div className="login-staff-brand">
+              <span className="sa-barmark" style={{ width: 32, height: 32, ...(staffBrand.color ? { background: staffBrand.color } : {}) }} aria-hidden="true">
+                {staffBrand.logo ? <img src={staffBrand.logo} alt="" /> : staffBrand.initials}
+              </span>
+              <span>{t('login.staffOf', { bar: staffBrand.name })}</span>
+            </div>
+          )}
         </div>
 
         <div style={{

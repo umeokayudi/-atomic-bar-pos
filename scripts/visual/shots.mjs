@@ -9,6 +9,8 @@ import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { ADMIN, MANAGER, STAFF, TABLES, BAR_STAFF, PUNCHES } from './fixtures.mjs'
 import { castRoster } from '../../src/lib/staffPos.js'
+import { earningsByDay, earningsRange, myGoalStatus, myNightSummary } from '../../src/lib/staffNight.js'
+import { tokyoNightKey } from '../../src/lib/tokyo.js'
 import {
   monthDashboardStats, buildDashboardAlertas, entregasDetalheForMonth, buildDashboardCalendar,
 } from '../../api/_dashboardMonth.js'
@@ -90,10 +92,50 @@ const PAGES = [
   { who: STAFF, path: '/bar/pos', name: 'staff-pos-cast', phoneOnly: true, taps: ['.pq-tile-hit', '.pq-cartbar', '.pq-pay-toggle', '.pq-castbtn', '.pq-cast-list button:nth-child(2)'] },
   { who: STAFF, path: '/bar/pos', name: 'staff-pos-cast-wide', wideOnly: true, taps: ['.pq-tile-hit', '.pq-castbtn', '.pq-cast-list button:nth-child(2)'] },
   { who: STAFF, path: '/bar/pos', name: 'staff-pos-mine', taps: ['.pq-glance.is-mine .is-btn'] },
+  { who: STAFF, path: '/bar/performance', name: 'staff-app-performance' },
+  { who: STAFF, path: '/bar/ponto', name: 'staff-app-clock' },
+  { who: STAFF, path: '/bar/ponto', name: 'staff-app-clock-out', taps: ['.sa-clock-cta'], geo: true },
+  { who: STAFF, path: '/bar/ponto', name: 'staff-app-clock-nogps', taps: ['.sa-clock-cta'] },
+  { who: STAFF, path: '/bar/hoje', name: 'staff-app-more', taps: ['.sa-tabs button:last-child'] },
+  { who: STAFF, path: '/bar/shifts', name: 'staff-app-shifts' },
+  { who: STAFF, path: '/bar/salary', name: 'staff-app-earnings' },
+  { who: STAFF, path: '/bar/reports', name: 'staff-app-reports' },
+  { who: STAFF, path: '/bar/profile', name: 'staff-app-profile' },
+  { who: STAFF, path: '/bar/settings', name: 'staff-app-settings' },
   { who: MANAGER, path: '/bar/inicio', name: 'bar-home' },
   { who: MANAGER, path: '/bar/inicio', name: 'bar-home-rail', rail: true },
 ]
 const ONLY = process.env.PAGES ? process.env.PAGES.split(',') : null
+
+const VENUE = { configured: true, lat: 35.6595, lng: 139.7005, radius_m: 150 }
+
+/** Staff self-service and owner inbox actions of /api/bar-staff, from the fixtures with the real helpers. */
+const SELF_MOCK = {
+  meDay: who => {
+    const me = { id: who.id, nome: who.nome }
+    const night = tokyoNightKey()
+    const summary = myNightSummary({ sales: TABLES.pos_vendas, items: TABLES.pos_vendas_itens || [], me, night, agents: TABLES.drink_back_agents })
+    const goals = { pessoas: [{ id: who.id, noite: 60000, semana: 300000 }] }
+    return { night, mission: 'Greet every guest by name and offer the bottle set before 22:00.', role: 'Bartender · bar top', barGoal: 400000, goal: myGoalStatus({ goals, meId: who.id, mySales: summary.sales }), summary, nightPremium: true }
+  },
+  meProfile: who => ({ id: who.id, nome: who.nome, cargo: 'Bartender', email: who.email, telefone: '090-1234-5678', foto_url: '' }),
+  meRequests: () => ({ requests: [
+    { id: 'rq1', tipo: 'stock', texto: 'Lime is almost out — 4 left.', status: 'done', criado_em: new Date(Date.now() - 86400000).toISOString(), answer: 'Ordered, arrives tomorrow.', answered_by: 'Gerente Demo' },
+    { id: 'rq2', tipo: 'request', texto: 'Can I swap Saturday with Ken?', status: 'open', criado_em: new Date(Date.now() - 3600000).toISOString() },
+  ] }),
+  meEarnings: who => {
+    const { from, to } = earningsRange('week')
+    const out = earningsByDay({ punches: PUNCHES, sales: TABLES.pos_vendas, me: { id: who.id, nome: who.nome }, rate: 1600, nightPremium: true, from, to, agents: TABLES.drink_back_agents })
+    return { from, to, rate: 1600, monthly: 0, nightPremium: true, ...out }
+  },
+  listRequests: () => ({ requests: [
+    { id: 'rq2', staff_id: 'st1', staff_nome: 'Aiko Tanaka', tipo: 'request', texto: 'Can I swap Saturday with Ken?', status: 'open', criado_em: new Date(Date.now() - 3600000).toISOString() },
+    { id: 'rq3', staff_id: 'st2', staff_nome: 'Ken Mori', tipo: 'problem', texto: 'Ice machine is leaking under the counter.', status: 'seen', criado_em: new Date(Date.now() - 7200000).toISOString() },
+  ] }),
+  listDayReports: () => ({ reports: [
+    { id: 'dr1', staff_id: 'st2', staff_nome: 'Ken Mori', night_key: tokyoNightKey(), out_at: new Date(Date.now() - 1200000).toISOString(), role: 'Floor', mission: 'Greet every guest by name.', goal: { target: 50000, missed: true }, summary: { sales: 38000, commission: 0, drinkBackCount: 2 }, notes: 'Busy at 23:00, table 4 waited.', improve: 'Ask the bar for help earlier when two tables order at once.', ai_report: 'Ken worked 3h on the floor and sold ¥38,000 (goal ¥50,000). He noted a rush at 23:00 and plans to ask for help earlier.' },
+  ] }),
+}
 
 function filterRows(rows, params) {
   let out = rows
@@ -216,6 +258,10 @@ async function mock(page, who, missing = [], vault = null, acessos = null) {
     if (req.method() === 'POST' && path === '/api/bar-staff' && (req.postDataJSON() || {}).action === 'castRoster') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ people: castRoster(BAR_STAFF.staff, TABLES.drink_back_agents) }) })
     }
+    const action = req.method() === 'POST' && path === '/api/bar-staff' ? (req.postDataJSON() || {}).action : ''
+    if (action && SELF_MOCK[action]) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(SELF_MOCK[action](who)) })
+    }
     if (req.method() === 'POST' && path === '/api/bar-staff' && (req.postDataJSON() || {}).action === 'myAccess') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ role: who.role, acessos, disabled: false }) })
     }
@@ -223,7 +269,7 @@ async function mock(page, who, missing = [], vault = null, acessos = null) {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(BAR_STAFF) })
     }
     if (req.method() === 'GET' && (path === '/api/time-clock' || path === '/api/bar/time-clock')) {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ punches: PUNCHES, adicional_noturno: true }) })
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ punches: PUNCHES, adicional_noturno: true, venue: VENUE }) })
     }
     if (req.method() === 'GET' && path === '/api/bar/hq-sync') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(hqSnapshot()) })
@@ -249,7 +295,7 @@ async function main() {
           if (ONLY && !ONLY.includes(pg.name)) continue
           if (pg.phoneOnly && width >= 700) continue
           if (pg.wideOnly && width < 901) continue
-          const ctx = await browser.newContext({ viewport: { width, height: width < 700 ? 780 : 900 }, deviceScaleFactor: 1, hasTouch: width < 1024, colorScheme: themeName })
+          const ctx = await browser.newContext({ viewport: { width, height: width < 700 ? 780 : 900 }, deviceScaleFactor: 1, hasTouch: width < 1024, colorScheme: themeName, ...(pg.geo ? { permissions: ['geolocation'], geolocation: { latitude: VENUE.lat, longitude: VENUE.lng, accuracy: 20 } } : {}) })
           const page = await ctx.newPage()
           const errors = []
           page.on('pageerror', e => errors.push(String(e.message || e)))

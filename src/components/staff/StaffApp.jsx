@@ -7,7 +7,7 @@ import { tokyoMonthKey } from '../../lib/tokyo'
 import { monthRange } from '../../lib/timeClock'
 import { punchGeoFlag } from '../../lib/clockGeo'
 import {
-  barBrand, bottomTabFor, elapsedLabel, myClockState, staffAppTabFor, staffAppTabsFor, staffMoreItemsFor,
+  barBrand, bottomTabFor, rememberStaffBrand, elapsedLabel, myClockState, staffAppTabFor, staffAppTabsFor, staffMoreItemsFor,
 } from '../../lib/staffApp'
 import { meDay, meProfile } from '../../lib/staffSelfApi'
 import { fmtYen } from '../utils'
@@ -17,23 +17,6 @@ import { Avatar, Card, Note, Row, Stat, fmtDay, fmtHours, fmtTime, useNow } from
 import { EarningsScreen, OccurrencesScreen, PerformanceScreen, ProfileScreen, ReportsScreen, SettingsScreen, ShiftsScreen } from './StaffScreens'
 
 const StaffAlerts = lazy(() => import('../StaffAlerts'))
-const BRAND_KEY = 'staff_app_brand'
-
-/** Last bar seen by a staff login on this device: the sign-in screen shows its name and colour. */
-export function readStaffBrand() {
-  try {
-    const raw = localStorage.getItem(BRAND_KEY)
-    const b = raw ? JSON.parse(raw) : null
-    return b && b.name ? b : null
-  } catch {
-    return null
-  }
-}
-
-function rememberBrand(brand) {
-  try { localStorage.setItem(BRAND_KEY, JSON.stringify({ name: brand.name, initials: brand.initials, color: brand.color, logo: brand.logo })) } catch { /* storage blocked */ }
-}
-
 function BarMark({ brand, size = 36 }) {
   return (
     <span className="sa-barmark" style={{ width: size, height: size, ...(brand.color ? { background: brand.color } : {}) }} aria-hidden="true">
@@ -224,7 +207,7 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
   const meId = perfil?.id
   const competence = tokyoMonthKey()
 
-  useEffect(() => { if (brand.name) rememberBrand(brand) }, [brand])
+  useEffect(() => { if (brand.name) rememberStaffBrand(brand) }, [brand])
 
   const loadPunches = useCallback(async () => {
     const range = monthRange()
@@ -290,6 +273,8 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
       if (p.tipo === 'in') open = p
       else if (p.tipo === 'out' && open) { h += (Date.parse(p.punched_at) - Date.parse(open.punched_at)) / 3600e3; open = null }
     }
+    // The shift in progress counts up to now (an open shift older than 20h is a forgotten clock-out: left out).
+    if (open && Date.now() - Date.parse(open.punched_at) < 20 * 3600e3) h += Math.max(0, (Date.now() - Date.parse(open.punched_at)) / 3600e3)
     return Math.round(h * 100) / 100
   }, [punches, meId])
 
@@ -328,8 +313,8 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
         {screen === 'settings' && <SettingsScreen {...shared} signOut={signOut} />}
         {work && (
           <div className="sa-work">
-            {/* HOOK(staff-pos): the mobile till, sales attribution to this staff member and cast splits are built in
-                AtomicPos by another branch; the staff app only opens it here with the cashier access. */}
+            {/* HOOK(staff-pos): the POS tab renders the staff till (pos/StaffPos: attribution + equal cast split via
+                saleCredit) for bar_staff, else AtomicPos with cashier access. PortalCliente supplies it. */}
             {renderWork?.(screen)}
           </div>
         )}
