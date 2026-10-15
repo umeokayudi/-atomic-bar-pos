@@ -3,7 +3,7 @@ export default {
   staffApp: {
     nav: 'Staff app',
     tabHome: 'Home',
-    tabPerformance: 'Performance',
+    tabPerformance: 'Results',
     tabPos: 'POS',
     tabClock: 'Clock',
     tabMore: 'More',
