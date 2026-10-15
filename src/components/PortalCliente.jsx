@@ -1523,7 +1523,7 @@ function FaturasTab({ bar }) {
         periodoInicio: faturaEmissao(fatura),
         periodoFim: faturaPeriodoFim(fatura),
       })
-      printRyoshushoHtml(html)
+      printRyoshushoHtml(html, `ryoshusho-${numero}`)
       await savePaymentRyoshusho(supabase, {
         barId: bar.id,
         numero,

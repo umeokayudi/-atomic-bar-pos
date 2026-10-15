@@ -62,7 +62,7 @@ export default function PortalRecibosTab({ bar }) {
         periodoInicio: faturaEmissao(item.fatura),
         periodoFim: faturaPeriodoFim(item.fatura),
       })
-      printRyoshushoHtml(html)
+      printRyoshushoHtml(html, `ryoshusho-${numero}`)
       await savePaymentRyoshusho(supabase, {
         barId: bar.id,
         numero,

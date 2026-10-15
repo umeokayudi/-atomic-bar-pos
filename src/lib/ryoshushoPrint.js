@@ -1,3 +1,4 @@
+import { downloadHtmlAsPdf } from './pdfFile'
 const DEFAULT_EMITENTE = {
   nome: 'JBM Drinks',
   registro: 'T1234567890123',
@@ -78,16 +79,11 @@ ${emitente.registro ? `<br>登録番号 ${emitente.registro}` : ''}
 </div></body></html>`
 }
 
-export function printRyoshushoHtml(html) {
-  const printWin = window.open('', '_blank', 'width=800,height=900')
-  if (!printWin) {
-    alert('Permita pop-ups para imprimir ou salvar o recibo em PDF.')
-    return false
-  }
-  printWin.document.write(html)
-  printWin.document.close()
-  printWin.focus()
-  setTimeout(() => printWin.print(), 500)
+/** Downloads the receipt as a PDF file and opens it, ready to send to a group (no print dialog). */
+export function printRyoshushoHtml(html, name = 'ryoshusho') {
+  downloadHtmlAsPdf(html, name).then(res => {
+    if (!res.ok) alert('PDF error: ' + (res.error?.message || res.error))
+  })
   return true
 }
 
