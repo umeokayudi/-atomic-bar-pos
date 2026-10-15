@@ -11,6 +11,7 @@ import { ADMIN, MANAGER, STAFF, TABLES, BAR_STAFF, PUNCHES } from './fixtures.mj
 import { castRoster } from '../../src/lib/staffPos.js'
 import { earningsByDay, earningsRange, myGoalStatus, myNightSummary } from '../../src/lib/staffNight.js'
 import { tokyoNightKey } from '../../src/lib/tokyo.js'
+import { addDays, scheduleWindow } from '../../src/lib/staffSchedule.js'
 import {
   monthDashboardStats, buildDashboardAlertas, entregasDetalheForMonth, buildDashboardCalendar,
 } from '../../api/_dashboardMonth.js'
@@ -99,6 +100,13 @@ const PAGES = [
   { who: STAFF, path: '/bar/hoje', name: 'staff-app-more', taps: ['.sa-tabs button:last-child'] },
   { who: STAFF, path: '/bar/shifts', name: 'staff-app-shifts' },
   { who: STAFF, path: '/bar/salary', name: 'staff-app-earnings' },
+  { who: STAFF, path: '/bar/salary', name: 'staff-pay-hub' },
+  { who: STAFF, path: '/bar/salary', name: 'staff-pay-day', taps: ['.sa-cal-cell.has-pay'] },
+  { who: STAFF, path: '/bar/schedule', name: 'staff-schedule' },
+  { who: STAFF, path: '/bar/hoje', name: 'staff-home-schedule' },
+  { who: MANAGER, path: '/bar/ponto', name: 'owner-schedule-board' },
+  { who: MANAGER, path: '/bar/ponto', name: 'owner-fine-sheet', taps: ['.osb-fine-btn'] },
+  { who: MANAGER, path: '/bar/salarios', name: 'owner-salary-fines' },
   { who: STAFF, path: '/bar/reports', name: 'staff-app-reports' },
   { who: STAFF, path: '/bar/profile', name: 'staff-app-profile' },
   { who: STAFF, path: '/bar/settings', name: 'staff-app-settings' },
@@ -123,11 +131,72 @@ const SELF_MOCK = {
     { id: 'rq1', tipo: 'stock', texto: 'Lime is almost out — 4 left.', status: 'done', criado_em: new Date(Date.now() - 86400000).toISOString(), answer: 'Ordered, arrives tomorrow.', answered_by: 'Gerente Demo' },
     { id: 'rq2', tipo: 'request', texto: 'Can I swap Saturday with Ken?', status: 'open', criado_em: new Date(Date.now() - 3600000).toISOString() },
   ] }),
-  meEarnings: who => {
-    const { from, to } = earningsRange('week')
+  meEarnings: (who, body = {}) => {
+    const { from, to } = body.from ? body : earningsRange('week')
     const out = earningsByDay({ punches: PUNCHES, sales: TABLES.pos_vendas, me: { id: who.id, nome: who.nome }, rate: 1600, nightPremium: true, from, to, agents: TABLES.drink_back_agents })
-    return { from, to, rate: 1600, monthly: 0, nightPremium: true, ...out }
+    // A few fictional past nights so the pay calendar and day list are not empty.
+    const today = tokyoNightKey()
+    for (const [back, hours, comm] of [[2, 5, 1200], [3, 6, 2400], [6, 4.5, 800], [9, 6, 3000]]) {
+      const row = out.days.find(d => d.day === addDays(today, -back))
+      if (row) { row.hours = hours; row.hoursPay = Math.round(hours * 1600); row.commission = comm; row.tickets = 3; row.sales = comm * 10 }
+    }
+    out.totals = out.days.reduce((a, r) => ({ hours: a.hours + r.hours, hoursPay: a.hoursPay + r.hoursPay, sales: a.sales + r.sales, commission: a.commission + r.commission, tickets: a.tickets + r.tickets }), { hours: 0, hoursPay: 0, sales: 0, commission: 0, tickets: 0 })
+    const fineDay = addDays(today, -6)
+    const fines = fineDay >= from && fineDay <= to ? [{ id: 'f1', day: fineDay, type: 'late', amount: 1000, note: 'Late by 25 min', status: 'active', created_by_nome: 'Gerente Demo' }] : []
+    const attendance = {}
+    if (fineDay >= from && fineDay <= to) attendance[fineDay] = { status: 'late', lateMinutes: 25, start: '20:00' }
+    const absentDay = addDays(today, -4)
+    if (absentDay >= from && absentDay <= to) attendance[absentDay] = { status: 'absent', lateMinutes: 0, start: '20:00' }
+    return { from, to, rate: 1600, monthly: 0, nightPremium: true, ...out, fines, finesTotal: fines.reduce((a, f) => a + f.amount, 0), attendance }
   },
+  meAvailability: () => {
+    const today = tokyoNightKey()
+    const win = scheduleWindow(today)
+    const days = {}
+    const confirmed = {}
+    for (const n of [1, 2, 5, 8, 9]) days[addDays(today, n)] = { start: n === 5 ? '21:00' : '20:00' }
+    confirmed[addDays(today, 1)] = { in: true, start: '20:00' }
+    confirmed[addDays(today, 2)] = { in: false }
+    const editable = []
+    for (let d = today; d <= win.to; d = addDays(d, 1)) editable.push(d)
+    return { ...win, openHour: 20, days, confirmed, editable, updated_at: new Date().toISOString() }
+  },
+  mePayouts: () => {
+    const now = tokyoNightKey().slice(0, 7)
+    const [y, m] = now.split('-').map(Number)
+    const key = back => { const d = new Date(Date.UTC(y, m - 1 - back, 1)); return d.toISOString().slice(0, 7) }
+    return { payouts: [[1, 182000, 3000, 10000], [2, 171500, 0, 0], [3, 196000, 2000, 20000], [4, 158000, 0, 5000], [5, 188500, 1000, 0]].map(([back, gross, fines, adv]) => ({
+      id: `po${back}`, month: key(back), gross, fines, advances: adv, deductions: 0, net: gross - fines - adv, paid_at: `${key(back - 1)}-25T10:00:00+09:00`, status: 'paid',
+    })) }
+  },
+  scheduleBoard: () => {
+    const today = tokyoNightKey()
+    const win = scheduleWindow(today)
+    const ago = (day, h, min) => new Date(Date.parse(`${day}T${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}:00+09:00`)).toISOString()
+    const yest = addDays(today, -1)
+    const mark = list => Object.fromEntries(list.map(([d, s]) => [d, { start: s }]))
+    return {
+      from: win.from, to: win.to, openHour: 20,
+      settings: { absent: 5000, late: 1000, lateEvery: 15, tolerance: 10 },
+      availability: [
+        { staff_id: 'st1', staff_nome: 'Aiko Tanaka', days: mark([[yest, '20:00'], [today, '20:00'], [addDays(today, 1), '20:00'], [addDays(today, 2), '21:00']]) },
+        { staff_id: 'st2', staff_nome: 'Ken Mori', days: mark([[yest, '20:00'], [today, '21:00'], [addDays(today, 2), '20:00']]) },
+        { staff_id: 'pp1', staff_nome: 'Mika Hayashi', days: mark([[yest, '20:30'], [addDays(today, 1), '20:00']]) },
+      ],
+      schedules: [{ day: yest, people: [{ id: 'st1', nome: 'Aiko Tanaka', start: '20:00' }, { id: 'st2', nome: 'Ken Mori', start: '20:00' }, { id: 'pp1', nome: 'Mika Hayashi', start: '20:30' }] }],
+      fines: [],
+      punches: [
+        { id: 'y1', staff_id: 'st1', tipo: 'in', punched_at: ago(yest, 19, 55) },
+        { id: 'y2', staff_id: 'st2', tipo: 'in', punched_at: ago(yest, 20, 28) },
+        ...PUNCHES,
+      ],
+    }
+  },
+  listFines: () => ({ fines: [
+    { id: 'f1', staff_id: 'st2', staff_nome: 'Ken Mori', day: addDays(tokyoNightKey(), -6), type: 'late', amount: 1000, note: 'Late by 25 min', status: 'active', created_by_nome: 'Gerente Demo', created_at: new Date(Date.now() - 5 * 86400000).toISOString() },
+    { id: 'f2', staff_id: 'st1', staff_nome: 'Aiko Tanaka', day: addDays(tokyoNightKey(), -9), type: 'absent', amount: 5000, note: '', status: 'cancelled', created_by_nome: 'Gerente Demo', created_at: new Date(Date.now() - 8 * 86400000).toISOString(), cancelled_by_nome: 'Owner Demo', cancelled_at: new Date(Date.now() - 7 * 86400000).toISOString(), cancel_note: 'Was sick' },
+  ] }),
+  listPayouts: () => ({ payouts: [] }),
   listRequests: () => ({ requests: [
     { id: 'rq2', staff_id: 'st1', staff_nome: 'Aiko Tanaka', tipo: 'request', texto: 'Can I swap Saturday with Ken?', status: 'open', criado_em: new Date(Date.now() - 3600000).toISOString() },
     { id: 'rq3', staff_id: 'st2', staff_nome: 'Ken Mori', tipo: 'problem', texto: 'Ice machine is leaking under the counter.', status: 'seen', criado_em: new Date(Date.now() - 7200000).toISOString() },
@@ -260,7 +329,7 @@ async function mock(page, who, missing = [], vault = null, acessos = null) {
     }
     const action = req.method() === 'POST' && path === '/api/bar-staff' ? (req.postDataJSON() || {}).action : ''
     if (action && SELF_MOCK[action]) {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(SELF_MOCK[action](who)) })
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(SELF_MOCK[action](who, req.postDataJSON() || {})) })
     }
     if (req.method() === 'POST' && path === '/api/bar-staff' && (req.postDataJSON() || {}).action === 'myAccess') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ role: who.role, acessos, disabled: false }) })

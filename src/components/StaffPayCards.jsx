@@ -52,7 +52,7 @@ export default function StaffPayCards({ rows = [], showPay = false, nightPremium
                     <span className="sa-chip is-ok">{t('payBoard.paidOn', { date: when(row.paid.paid_at), amount: fmtYen(row.paid.net) })}</span>
                     {onUnmarkPaid && <button type="button" className="ui-btn" disabled={busyId === row.id} onClick={() => onUnmarkPaid(row)}>{t('payBoard.undo')}</button>}
                   </div>
-                ) : onMarkPaid ? (
+                ) : onMarkPaid && row.gross > 0 ? (
                   <button type="button" className="btn-primary timecard-paybtn" disabled={busyId === row.id} onClick={() => onMarkPaid(row)}>
                     {busyId === row.id ? t('common.wait') : t('payBoard.markPaid', { amount: fmtYen(row.net) })}
                   </button>

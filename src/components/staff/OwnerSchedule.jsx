@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '../Auth'
 import { useI18n } from '../../lib/i18n'
 import { canAccess } from '../../lib/barAccess'
@@ -80,8 +81,9 @@ export function FineSheet({ initial, roster, onClose, onSaved }) {
       setBusy(false)
     }
   }
-  return (
-    <div className="sa-sheet-wrap" role="dialog" aria-modal="true" aria-label={t('fines.applyTitle')} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+  // Portal: the page animates in (transform), which would trap the sheet under the phone's bottom bar.
+  return createPortal(
+    <div className="sa-sheet-wrap is-top" role="dialog" aria-modal="true" aria-label={t('fines.applyTitle')} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="sa-sheet fine-sheet">
         <div className="sa-sheet-grip" />
         <div className="sa-sheet-head">
@@ -130,7 +132,8 @@ export function FineSheet({ initial, roster, onClose, onSaved }) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

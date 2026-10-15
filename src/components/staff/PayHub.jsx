@@ -297,7 +297,7 @@ export function PayHubScreen({ t, pack: currentPack, missing: currentMissing, co
         </Card>
 
         {kind === 'month' && (
-          <Card title={t('staffApp.pay.calendar')} right={<span className="sa-cal-legend"><i className="is-worked" />{t('staffApp.pay.mark_worked')} <i className="is-absent" />{t('staffApp.pay.mark_absent')} <i className="is-fine" />{t('staffApp.pay.mark_fine')}</span>}>
+          <Card className="sa-card-cal" title={t('staffApp.pay.calendar')} right={<span className="sa-cal-legend"><i className="is-worked" />{t('staffApp.pay.mark_worked')} <i className="is-absent" />{t('staffApp.pay.mark_absent')} <i className="is-fine" />{t('staffApp.pay.mark_fine')}</span>}>
             <Calendar t={t} month={month} days={data?.days} finesByDay={finesByDay} attendance={data?.attendance} today={today} onPick={setPicked} />
           </Card>
         )}

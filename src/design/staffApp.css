@@ -549,3 +549,13 @@ i.is-fine { background: #d97706; }
 .timecard-pay-lines .is-net b { font-size: 17px; color: var(--c-accent); }
 .timecard-paid { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .timecard-paid .ui-btn, .timecard-paybtn { min-height: 44px; }
+
+/* Calendar card: tighter sides so 7 day cells stay ≥ 44px wide at 375px. */
+.sa-card.sa-card-cal { padding-left: 8px; padding-right: 8px; }
+.sa-card-cal .sa-card-head { padding: 0 6px; }
+.sa-card-cal .sa-cal { gap: 2px; }
+/* Owner pages: the fine sheet is portalled to <body>, above the phone bottom bar. */
+.sa-sheet-wrap.is-top { z-index: 1000; }
+.sa-sheet-wrap.is-top *, .sa-sheet-wrap.is-top *::before, .sa-sheet-wrap.is-top *::after { box-sizing: border-box; }
+.sa-sheet-wrap.is-top .sa-sheet { max-width: 560px; }
+.sa-screen > .sa-muted:last-of-type { margin-bottom: 8px; }
