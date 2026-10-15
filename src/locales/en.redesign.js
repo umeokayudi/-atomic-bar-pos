@@ -392,4 +392,17 @@ export default {
     errStore: 'The on-account book cannot be reached from this device right now.',
     pendingSave: 'Sale saved. {n} on-account record(s) are waiting on this device and will be sent automatically.',
   },
+  // Staff POS (src/components/pos/StaffPos.jsx) and the multi-person cast picker on every till.
+  staffPos: {
+    title: 'My POS', me: 'Me', meNamed: '{name} (me)',
+    mySales: 'My sales tonight', myTonight: 'My sales tonight',
+    myHint: 'Sales credited to you tonight. A sale shared with others counts in equal parts.',
+    details: 'Details', byTicket: 'by ticket',
+    castTitle: 'Who worked this sale?', castHint: 'Tap to mark who worked it',
+    castRule: 'The sale counts for the people marked here. With nobody marked it counts for whoever rings it up.',
+    splitHint: 'Split equally between {n} people', nobody: 'Nobody',
+    mineTitle: 'My sales tonight', mineEmpty: 'No sales credited to you tonight yet.',
+    share: 'your part {pct}', shared: 'shared by {n}', rangBy: 'rung by you', ticketTotal: 'ticket {amount}',
+    loadErr: 'Could not load tonight\'s sales: {error}', teamErr: 'Team list not available; you can still mark yourself.',
+  },
 }

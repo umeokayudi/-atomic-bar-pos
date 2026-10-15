@@ -143,7 +143,7 @@ async function computeHqSnapshot(admin, barId, barNome = '', mes, { lite = false
     pgOrLive(admin, 'pos_vendas', [
       { op: 'eq', k: 'bar_id', v: barId },
       { op: 'gte', k: 'data', v: historyCut },
-    ], 'id,total,data,obs,criado_em,metodo_pagamento,drink_back_agent_id'),
+    ], 'id,total,data,obs,criado_em,metodo_pagamento,drink_back_agent_id,criado_por'),
     pgOrLive(admin, 'time_clock', [
       { op: 'eq', k: 'bar_id', v: barId },
       { op: 'gte', k: 'punched_at', v: prevRange.from },
@@ -184,6 +184,8 @@ async function computeHqSnapshot(admin, barId, barNome = '', mes, { lite = false
     obs: String(s.obs || '').slice(0, 400),
     metodo_pagamento: s.metodo_pagamento || null,
     drink_back_agent_id: s.drink_back_agent_id || null,
+    // Login that rang it up (server-stamped): sales nobody was marked on count for this person.
+    criado_por: s.criado_por || null,
   })
   const posMonthTotal = posMonthRows.reduce((a, s) => a + (+s.total || 0), 0)
 

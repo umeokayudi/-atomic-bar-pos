@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { fmtYen, Spinner, SectionTitle } from './utils'
 import { useI18n } from '../lib/i18n'
 import { tokyoMonthKey } from '../lib/tokyo'
-import { readTicketMeta } from '../lib/nightTicket'
+import { personCredit, staffAliases } from '../lib/saleCredit'
 
 export default function DrinkBackTab({ bar }) {
   const { t } = useI18n()
@@ -60,11 +60,11 @@ export default function DrinkBackTab({ bar }) {
 
   if (loading) return <Spinner text={t('house.drinkBackTitle')} />
 
+  // A ticket shared by several people counts for each of them in equal parts (saleCredit.js).
+  const aliases = staffAliases(agents)
   const rows = agents.map(agent => {
-    const mine = sales.filter(s => s.drink_back_agent_id === agent.id)
-    const revenue = mine.reduce((sum, s) => sum + (+s.total || 0), 0)
-    const commission = mine.reduce((sum, s) => sum + (readTicketMeta(s.obs).commission || 0), 0)
-    return { ...agent, tickets: mine.length, revenue, commission }
+    const mine = personCredit(sales, { id: agent.id, agentId: agent.id, nome: agent.nome }, { aliases, castOnly: true })
+    return { ...agent, tickets: mine.tickets, revenue: mine.sales, commission: mine.commission }
   })
   const totalRevenue = rows.reduce((sum, r) => sum + r.revenue, 0)
   const totalCommission = rows.reduce((sum, r) => sum + r.commission, 0)

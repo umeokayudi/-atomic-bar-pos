@@ -4710,6 +4710,37 @@ button.pq-glance-cell:hover { background: var(--bg3); }
 .pq-custbtn-name strong { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pq-custbtn-name span { font-size: 12px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pq-onacc-note { font-size: 13px; color: var(--text2); }
+
+/* Who worked the sale (one or more people; equal split). */
+.pq-cast-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 8px; }
+.pq-cast-list button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  min-width: 0;
+  padding: 6px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border2);
+  background: var(--bg);
+  font-size: 15px;
+  font-weight: 700;
+  text-align: left;
+}
+.pq-cast-list button.is-on { border-color: var(--pq-accent, #0b7a53); background: color-mix(in srgb, var(--pq-accent, #0b7a53) 10%, var(--bg2)); color: var(--pq-accent, #0b7a53); }
+.pq-options button.pq-castbtn.is-set { border-style: solid; border-color: var(--pq-accent); background: color-mix(in srgb, var(--pq-accent) 8%, var(--bg2)); }
+.pq-cast-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.pq-cast-actions { display: flex; gap: 8px; }
+.pq-cast-actions button { min-height: 56px; padding: 0 22px; border-radius: 14px; border: 0; font-size: 17px; font-weight: 800; }
+.pq-cast-actions .pq-cast-done { flex: 1; background: var(--navy); color: white !important; }
+
+/* Staff POS: her own sales tonight. */
+.pq-glance.is-mine .pq-glance-cell strong { color: var(--pq-accent); }
+.staff-pos-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.staff-pos-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 8px 12px; border-radius: 12px; background: var(--bg); }
+.staff-pos-list li > div { display: grid; min-width: 0; line-height: 1.25; }
+.staff-pos-list li span { font-size: 12px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.staff-pos-list .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pq-discount { display: grid; gap: 10px; padding-top: 4px; border-top: 1px solid var(--border); }
 .pq-discount h3 { margin: 6px 0 0; font-size: 15px; }
 

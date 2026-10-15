@@ -4,8 +4,7 @@ import { aggregateHourlySales } from './atomicPos.js'
 import { faturaRemaining } from './barPortal.js'
 import { cardCash, commissionOf, tenderOf } from './barClose.js'
 import { nightKeyOfSale, prevTokyoDateKey } from './nightClose.js'
-import { readTicketMeta } from './nightTicket.js'
-import { orderCastFromObs, orderCastIdFromObs } from './orderMeta.js'
+import { creditBoard } from './saleCredit.js'
 import { tokyoNightKey, tokyoDateKey } from './tokyo.js'
 
 function daysBetween(fromKey, toKey) {
@@ -28,6 +27,7 @@ export function buildBarDesk({
   hq = null,
   invoices = [],
   registry = [],
+  agents = [],
   today = tokyoDateKey(),
   nightKey = tokyoNightKey(),
 } = {}) {
@@ -103,21 +103,8 @@ export function buildBarDesk({
   const hourly = [...hourlyAll.slice(18), ...hourlyAll.slice(0, 6)]
   const peak = hourly.reduce((best, h) => (h.total > best.total ? h : best), hourly[0])
 
-  const castMap = new Map()
-  for (const s of monthTickets) {
-    const name = orderCastFromObs(s.obs)
-    const id = orderCastIdFromObs(s.obs) || s.drink_back_agent_id || ''
-    if (!name && !id) continue
-    const key = id || name
-    const prev = castMap.get(key) || { id: key, name: name || 'Cast', sales: 0, commission: 0, tickets: 0 }
-    if (name) prev.name = name
-    prev.sales += +s.total || 0
-    prev.tickets += 1
-    const comm = readTicketMeta(s.obs).commission
-    if (comm) prev.commission += comm
-    castMap.set(key, prev)
-  }
-  const cast = [...castMap.values()].sort((a, b) => b.sales - a.sales)
+  // People marked on tickets (one ticket with several people is split equally between them).
+  const cast = creditBoard(monthTickets, { agents, castOnly: true }).map(r => ({ ...r, name: r.name || 'Cast' }))
 
   return {
     monthKey,

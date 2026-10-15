@@ -58,6 +58,8 @@ export function packTicketObs({
   details = '',
   castName = '',
   castId = '',
+  cast = null,
+  commissionBy = null,
   nightKey = '',
   servicePct = null,
   nominho = 0,
@@ -73,7 +75,8 @@ export function packTicketObs({
   cardSurcharge = 0,
 } = {}) {
   const head = []
-  const castLine = withOrderCast('', { name: castName, id: castId })
+  // cast: several people on one sale ([{ name, id }]); castName/castId: the old single cast.
+  const castLine = withOrderCast('', Array.isArray(cast) && cast.length ? cast : { name: castName, id: castId })
   if (castLine) head.push(castLine)
   if (nightKey) head.push(`Night: ${nightKey}`)
   if (payNote) head.push(String(payNote).startsWith('Pay:') ? payNote : `Pay: ${payNote}`)
@@ -83,6 +86,9 @@ export function packTicketObs({
   if (+roomMin > 0) head.push(`RoomMin: ${Math.round(+roomMin)}`)
   if (keepId && +keepPourPct > 0) head.push(`Keep: ${keepId}:${Math.round(+keepPourPct)}`)
   if (commission != null && commission !== '') head.push(`Comm: ${Math.round(+commission || 0)}`)
+  // Drink-back of each person when several share the sale: "CommBy: id=600;id2=0" (saleCredit.js reads it).
+  const by = Object.entries(commissionBy || {}).filter(([id]) => id).map(([id, v]) => `${String(id).replace(/[=;\s]/g, '')}=${Math.round(+v || 0)}`)
+  if (by.length) head.push(`CommBy: ${by.join(';')}`)
   if (cardNote) head.push(`Card: ${String(cardNote).replace(/\n/g, ' ').trim()}`)
   if (Math.round(+cardFee || 0) > 0) head.push(`CardFee: ${Math.round(+cardFee)}`)
   if (Math.round(+cardSurcharge || 0) > 0) head.push(`CardSur: ${Math.round(+cardSurcharge)}`)

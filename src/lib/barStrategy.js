@@ -2,7 +2,7 @@
 
 import { aggregateHourlySales } from './atomicPos.js'
 import { nightKeyOfSale } from './nightClose.js'
-import { orderCastFromObs } from './orderMeta.js'
+import { creditBoard } from './saleCredit.js'
 import { tokyoDateKey, tokyoParts } from './tokyo.js'
 
 const WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -60,13 +60,7 @@ export function whatWorked(tickets = []) {
     .map(d => ({ ...d, avg: d.nights ? Math.round(d.sales / d.nights) : 0 }))
     .sort((a, b) => b.avg - a.avg)
   const hours = aggregateHourlySales(tickets).filter(h => h.total > 0).sort((a, b) => b.total - a.total)
-  const cast = new Map()
-  for (const s of tickets || []) {
-    const name = orderCastFromObs(s.obs)
-    if (!name) continue
-    cast.set(name, (cast.get(name) || 0) + (+s.total || 0))
-  }
-  const topCast = [...cast.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([nome, sales]) => ({ nome, sales }))
+  const topCast = creditBoard(tickets, { castOnly: true }).filter(r => r.name).slice(0, 3).map(r => ({ nome: r.name, sales: r.sales }))
   return {
     nights: nights.length,
     bestDays: days.slice(0, 2),
