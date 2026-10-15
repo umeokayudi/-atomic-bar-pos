@@ -216,6 +216,20 @@ test('night summary: my tickets by id or name, what I sold and the drink-backs I
   assert.deepEqual(s.drinkBacks, [{ nome: 'Lady drink', qtd: 3 }])
 })
 
+test('night summary: a sale shared by two people counts half for me (shared sale-credit rule)', () => {
+  const shared = [{ id: 'x1', obs: 'Cast: Aiko|st1; Ken|st2\nComm: 1001', total: 10001, criado_em: '2026-10-14T13:00:00Z' }]
+  const s = myNightSummary({ sales: shared, items: [], me: ME, night: '2026-10-14' })
+  assert.deepEqual([s.tickets, s.sales, s.commission, s.shared], [1, 5001, 501, 1])
+  const ken = myNightSummary({ sales: shared, items: [], me: { id: 'st2', nome: 'Ken' }, night: '2026-10-14' })
+  assert.equal(ken.sales + s.sales, 10001, 'shares add up to the sale')
+  // An agent linked to the staff login is the same person.
+  const viaAgent = [{ id: 'x2', obs: 'Cast: Aiko|ag1', total: 4000, criado_em: '2026-10-14T13:00:00Z' }]
+  assert.equal(myNightSummary({ sales: viaAgent, me: ME, night: '2026-10-14', agents: [{ id: 'ag1', staff_id: 'st1' }] }).sales, 4000)
+  // Nobody marked: whoever rang it up.
+  const rung = [{ id: 'x3', obs: '', criado_por: 'st1', total: 2500, criado_em: '2026-10-14T13:00:00Z' }]
+  assert.equal(myNightSummary({ sales: rung, me: ME, night: '2026-10-14' }).sales, 2500)
+})
+
 test('goal status: missed only when a personal night target is set and not reached', () => {
   const goals = { pessoas: [{ id: 'st1', nome: 'Aiko', noite: 20000, semana: 90000 }] }
   assert.deepEqual(myGoalStatus({ goals, meId: 'st1', mySales: 17000 }), { target: 20000, week: 90000, reached: false, missed: true, pct: 85 })

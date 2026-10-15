@@ -1,24 +1,19 @@
 /**
- * One employee's night and earnings from data that already exists (till tickets tagged with the cast,
- * time-clock punches, pay fields). Pure: the server and the staff app share it. Nothing here writes.
+ * One employee's night and earnings from data that already exists (till tickets, time-clock punches, pay
+ * fields). Pure: the server and the staff app share it. Nothing here writes.
  *
- * Sales attribution: a ticket is "mine" when its cast tag names me (id or name) — the same rule as the
- * daily staff report. HOOK(staff-pos): when the till records the seller / a cast split on each ticket,
- * extend `ticketShare` to return my share instead of 0/1.
+ * Sales credit uses the shared rule in saleCredit.js (people marked on the ticket share it equally, else
+ * the drink-back agent, else whoever rang it up), so the staff app, the day report and payroll agree.
  */
 
 import { calcPayWithLateNight, pairPunches, lateNightHoursBetween } from './timeClock.js'
-import { nightKeyOfSale, saleNet } from './nightClose.js'
-import { readTicketMeta } from './nightTicket.js'
-import { orderCastFromObs, orderCastIdFromObs } from './orderMeta.js'
+import { nightKeyOfSale } from './nightClose.js'
+import { creditFor, staffAliases } from './saleCredit.js'
 import { tokyoDateKey } from './tokyo.js'
 
-/** My share of a ticket: 1 when the cast tag names me, else 0. */
-export function ticketShare(sale, me) {
-  const id = orderCastIdFromObs(sale?.obs) || sale?.drink_back_agent_id || sale?.staff_id || ''
-  if (id) return id === me?.id ? 1 : 0
-  const name = orderCastFromObs(sale?.obs).trim().toLowerCase()
-  return name && name === String(me?.nome || '').trim().toLowerCase() ? 1 : 0
+/** My part of a ticket: { amount, commission, share } or null (see saleCredit.creditFor). */
+export function myCredit(sale, me, aliases) {
+  return creditFor(sale, me, { aliases })
 }
 
 function lineName(it) {
@@ -42,16 +37,23 @@ function tally(lines) {
  * What I sold and drank on one night.
  * sales: till tickets (pos_vendas) · items: their lines (pos_vendas_itens) · me: { id, nome } · night: 'YYYY-MM-DD'
  */
-export function myNightSummary({ sales = [], items = [], me, night }) {
-  const mine = (sales || []).filter(s => (!night || nightKeyOfSale(s) === night) && ticketShare(s, me) > 0)
-  const ids = new Set(mine.map(s => s.id))
+export function myNightSummary({ sales = [], items = [], me, night, agents = [] }) {
+  const aliases = staffAliases(agents)
+  const mine = []
+  for (const s of sales || []) {
+    if (night && nightKeyOfSale(s) !== night) continue
+    const hit = myCredit(s, me, aliases)
+    if (hit) mine.push({ sale: s, ...hit })
+  }
+  const ids = new Set(mine.map(r => r.sale.id))
   const lines = (items || []).filter(it => ids.has(it.pos_venda_id || it.venda_id))
   const drinks = lines.filter(isForCast)
   return {
     night: night || '',
     tickets: mine.length,
-    sales: mine.reduce((a, s) => a + saleNet(s), 0),
-    commission: mine.reduce((a, s) => a + (readTicketMeta(s.obs).commission || 0), 0),
+    sales: mine.reduce((a, r) => a + r.amount, 0),
+    commission: mine.reduce((a, r) => a + r.commission, 0),
+    shared: mine.filter(r => r.share < 1).length,
     sold: tally(lines.filter(it => !isForCast(it))).slice(0, 12),
     drinkBacks: tally(drinks).slice(0, 12),
     drinkBackCount: drinks.reduce((a, it) => a + Math.max(0, +it.qtd || 0), 0),
@@ -108,7 +110,8 @@ export function earningsRange(kind, today = tokyoDateKey(), custom = {}) {
  * the clock pays it), commission from my tickets, sales credited to me. Payroll lines (rewards, advances,
  * deductions) are added by the caller from the pay statement.
  */
-export function earningsByDay({ punches = [], sales = [], me, rate = 0, nightPremium = true, from, to, now = new Date() }) {
+export function earningsByDay({ punches = [], sales = [], me, rate = 0, nightPremium = true, from, to, now = new Date(), agents = [] }) {
+  const aliases = staffAliases(agents)
   const days = daysBetween(from, to)
   const byDay = Object.fromEntries(days.map(k => [k, { day: k, hours: 0, lateHours: 0, hoursPay: 0, sales: 0, commission: 0, tickets: 0, open: false }]))
   const mine = (punches || []).filter(p => p && p.staff_id === me?.id)
@@ -131,11 +134,12 @@ export function earningsByDay({ punches = [], sales = [], me, rate = 0, nightPre
     row.hoursPay += calcPayWithLateNight(hours, late, rate, nightPremium)
   }
   for (const s of sales || []) {
-    if (!ticketShare(s, me)) continue
     const row = byDay[nightKeyOfSale(s)]
     if (!row) continue
-    row.sales += saleNet(s)
-    row.commission += readTicketMeta(s.obs).commission || 0
+    const hit = myCredit(s, me, aliases)
+    if (!hit) continue
+    row.sales += hit.amount
+    row.commission += hit.commission
     row.tickets += 1
   }
   const list = days.map(k => byDay[k])

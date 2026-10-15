@@ -13,6 +13,7 @@ import { canAccess, canEditAccessOf, canManageLogin, cleanAcessos, isRestricted,
 import { denyMissingArea } from './_barAccess.js'
 import { OWNER_ACTIONS, SELF_ACTIONS, handleOwnerAction, handleSelfAction } from './_staffSelf.js'
 import { canLinkLogin, carryFromPerson, personLinkPatch, remapIds, remapSheet } from '../src/lib/staffLink.js'
+import { castRoster } from '../src/lib/staffPos.js'
 
 function bodyOf(req) {
   return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
@@ -348,6 +349,19 @@ export default async function handler(req, res) {
         return await handleSelfAction(res, { admin, db: selfDb, auth: me, body: early })
       } catch (e) {
         return res.status(500).json({ error: e.message || 'Failed' })
+      }
+    }
+    // Staff POS: who can be marked on a sale (name and id only, never pay, contact or access fields).
+    if (early.action === 'castRoster') {
+      const me = await requireBarAccount(req, admin)
+      if (me.error) return res.status(me.status).json({ error: me.error })
+      const db = admin || (me.token ? createStaffUserClient(me.token) : null)
+      if (!db) return res.status(500).json({ error: 'Database client unavailable' })
+      try {
+        const [staff, agents] = await Promise.all([listStaffWithExtras(db, me.perfil.bar_id), loadAgents(db, me.perfil.bar_id)])
+        return res.status(200).json({ people: castRoster(staff, agents.rows) })
+      } catch (e) {
+        return res.status(500).json({ error: e?.message || 'Could not load the team' })
       }
     }
   }

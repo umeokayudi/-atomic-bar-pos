@@ -31,6 +31,9 @@ import { CASH_CHIPS, cashSettle, isCashMethod, payRecordNote } from '../lib/posP
 import { printGuestReceipt } from '../lib/guestReceipt'
 import { drinkBackCommission } from '../lib/drinkBackPay'
 import PosQuick from './pos/PosQuick'
+import { personCredit, staffAliases } from '../lib/saleCredit'
+import { fetchCastRoster } from '../lib/castRoster'
+import { castRoster } from '../lib/staffPos'
 import { discountGuestError } from '../lib/onAccount'
 import { addCrmGuest } from '../lib/onAccountStore'
 import { forgetLiveSelects } from '../lib/barLiveClient'
@@ -1461,7 +1464,7 @@ function PosDashboardTab({ bar, todaySales, salesList, onOrder }) {
         supabase.from('estoque_movimentos').select('produto_id,tipo,qtd').eq('bar_id', bar.id),
         supabase.from('estoque_regras').select('produto_id,minimo').eq('bar_id', bar.id),
         supabase.from('produtos_public').select('id,nome,categoria').eq('ativo', true),
-        supabase.from('drink_back_agents').select('id,nome,comissao_pct').eq('bar_id', bar.id).eq('ativo', true),
+        supabase.from('drink_back_agents').select('id,nome,comissao_pct,notas').eq('bar_id', bar.id).eq('ativo', true),
         supabase.from('pos_vendas').select('total,obs,drink_back_agent_id').eq('bar_id', bar.id).eq('data', todayKey()).not('drink_back_agent_id', 'is', null),
         supabase.from('pedidos').select('id,status,obs,total_estimado,pedidos_itens(produto_id,qtd,produtos(nome))').eq('bar_id', bar.id).in('status', ['pendente', 'confirmado']),
       ])
@@ -1473,14 +1476,12 @@ function PosDashboardTab({ bar, todaySales, salesList, onOrder }) {
 
       const agents = aR.data || []
       const sales = sR.data || []
+      // Shared tickets count for each person in equal parts (saleCredit.js).
+      const aliases = staffAliases(agents)
       const agentMap = {}
-      for (const s of sales) {
-        if (!s.drink_back_agent_id) continue
-        if (!agentMap[s.drink_back_agent_id]) agentMap[s.drink_back_agent_id] = { total: 0, count: 0, comissao: 0 }
-        agentMap[s.drink_back_agent_id].total += +s.total || 0
-        agentMap[s.drink_back_agent_id].count += 1
-        const posted = String(s.obs || '').match(/^Comm:\s*([\d.]+)/m)
-        agentMap[s.drink_back_agent_id].comissao += posted ? Math.round(+posted[1]) : 0
+      for (const a of agents) {
+        const mine = personCredit(sales, { id: a.id, agentId: a.id, nome: a.nome }, { aliases, castOnly: true })
+        agentMap[a.id] = { total: mine.sales, count: mine.tickets, comissao: mine.commission }
       }
       setAgentStats(agents.map(a => ({
         ...a,
@@ -1698,6 +1699,7 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
   const [discountCodes, setDiscountCodes] = useState([])
   const [vipMembers, setVipMembers] = useState([])
   const [drinkBackAgents, setDrinkBackAgents] = useState([])
+  const [team, setTeam] = useState(null) // people who can be marked on a sale (staff + agents); null = agents only
   const [todaySales, setTodaySales] = useState({ count: 0, total: 0 })
   const [salesList, setSalesList] = useState([])
   const [posErr, setPosErr] = useState('')
@@ -1706,6 +1708,12 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
   const [classicTill, setClassicTill] = useState(false)
 
   useEffect(() => { init() }, [bar])
+  useEffect(() => {
+    let live = true
+    fetchCastRoster().then(people => { if (live) setTeam(people) })
+    return () => { live = false }
+  }, [bar])
+  const castPeople = useMemo(() => (team ? (team.length ? team : castRoster([], drinkBackAgents)) : null), [team, drinkBackAgents])
 
   async function init({ quiet = false } = {}) {
     // A refresh after a sale keeps the till on screen; only the first load shows the spinner.
@@ -1821,6 +1829,7 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
                 drinks={drinks}
                 shots={shots}
                 agents={drinkBackAgents}
+                castPeople={castPeople}
                 discountCodes={discountCodes}
                 todaySales={todaySales}
                 catalogError={catalogErr}

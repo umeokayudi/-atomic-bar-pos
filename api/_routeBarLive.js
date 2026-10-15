@@ -7,6 +7,7 @@ import { areaOpen, loadLock } from './_barVault.js'
 import { resolveBarActor } from './_barLaneAuth.js'
 import { errText } from '../src/lib/errText.js'
 import { LIVE_TABLE_AREA, canAccessAny } from '../src/lib/barAccess.js'
+import { guardSalePatch, stampSaleRows } from './_posSaleStamp.js'
 
 function sendResult(res, result) {
   if (result?.error) {
@@ -170,9 +171,12 @@ export default async function handler(req, res) {
         const scoped = scopedFilters(auth, table, spec.filters, { ...row })
         return scoped.row
       })
+      // Who rang the sale up comes from the signed-in login, never from the browser.
+      spec.insertRows = stampSaleRows(table, spec.insertRows, auth)
       const bad = spec.insertRows.find(r => r && auth.perfil.bar_id && r.bar_id && r.bar_id !== auth.perfil.bar_id && ['cliente', 'gerente', 'caixa', 'bar_staff'].includes(auth.perfil.role))
       if (bad) return res.status(403).json({ error: 'bar_id mismatch' })
     } else {
+      if (spec.mode === 'update') spec.updatePatch = guardSalePatch(table, spec.updatePatch, auth)
       const scoped = scopedFilters(auth, table, spec.filters, null)
       if (scoped.error) return res.status(403).json({ error: scoped.error })
       spec.filters = scoped.filters

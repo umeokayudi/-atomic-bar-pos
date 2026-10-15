@@ -6,6 +6,7 @@ import { tokyoNightKey } from '../lib/tokyo'
 import { useI18n } from '../lib/i18n'
 import { fmtYen } from './utils'
 import Icon from './ui/Icon'
+import { downloadHtmlAsPdf, elementToHtml } from '../lib/pdfFile'
 
 const STATUS_ICON = { working: 'clock', done: 'ok', absent: 'userOff', off: 'hide' }
 
@@ -55,12 +56,12 @@ export default function StaffDayReport({ staff = [], tickets = [], sheets = [], 
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
-  function print() {
-    document.body.classList.add('print-sdr')
-    const done = () => { document.body.classList.remove('print-sdr'); window.removeEventListener('afterprint', done) }
-    window.addEventListener('afterprint', done)
-    window.print()
-    setTimeout(done, 1500)
+  // PDF file (downloaded and opened, ready to send to a group) instead of the print dialog.
+  async function print(e) {
+    const el = e.currentTarget.closest('.sdr')
+    if (!el) return
+    const res = await downloadHtmlAsPdf(elementToHtml(el, { hide: ['.sdr-tools'] }), `daily-report-${report.night}`)
+    if (!res.ok) alert('PDF error: ' + (res.error?.message || res.error))
   }
 
   const tot = report.totals
@@ -82,7 +83,7 @@ export default function StaffDayReport({ staff = [], tickets = [], sheets = [], 
             <button type="button" className="ui-btn is-ghost is-icon is-sm" disabled={night >= today} onClick={() => setNight(nextTokyoDateKey(night))} aria-label={t('staffDay.next')}><Icon name="next" size={16} /></button>
           </div>
           {!onlyId && <button type="button" className="ui-btn is-sm" onClick={download}><Icon name="download" size={15} /> CSV</button>}
-          <button type="button" className="ui-btn is-sm" onClick={print}><Icon name="print" size={15} /> {t('staffDay.print')}</button>
+          <button type="button" className="ui-btn is-sm" onClick={print}><Icon name="download" size={15} /> PDF</button>
         </div>
       </div>
 

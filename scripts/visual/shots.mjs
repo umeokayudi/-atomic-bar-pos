@@ -8,6 +8,7 @@ import { chromium } from '@playwright/test'
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { ADMIN, MANAGER, STAFF, TABLES, BAR_STAFF, PUNCHES } from './fixtures.mjs'
+import { castRoster } from '../../src/lib/staffPos.js'
 import {
   monthDashboardStats, buildDashboardAlertas, entregasDetalheForMonth, buildDashboardCalendar,
 } from '../../api/_dashboardMonth.js'
@@ -35,6 +36,7 @@ const PAGES = [
   { who: ADMIN, path: '/hq/products', name: 'hq-products' },
   { who: ADMIN, path: '/hq/procurement', name: 'hq-procurement' },
   { who: ADMIN, path: '/hq/sales', name: 'hq-sales' },
+  { who: MANAGER, path: '/bar/estoque', name: 'bar-settings-pop', taps: ['.ui-prefs-toggle'] },
   { who: MANAGER, path: '/bar/estoque', name: 'bar-stock' },
   { who: MANAGER, path: '/bar/custos', name: 'bar-costs' },
   { who: MANAGER, path: '/bar/faturas', name: 'bar-invoices' },
@@ -83,6 +85,11 @@ const PAGES = [
   { who: STAFF, path: '/bar/hoje', name: 'staff-today' },
   { who: STAFF, path: '/bar/hoje', name: 'staff-today-only', acessos: ['clock'] },
   { who: STAFF, path: '/bar/goals', name: 'staff-goals' },
+  { who: STAFF, path: '/bar/pos', name: 'staff-pos' },
+  { who: STAFF, path: '/bar/pos', name: 'staff-pos-order', taps: ['.pq-tile-hit', '.pq-tile-hit', '.pq-cartbar', '.pq-pay-toggle'], tapsBelow: 901 },
+  { who: STAFF, path: '/bar/pos', name: 'staff-pos-cast', phoneOnly: true, taps: ['.pq-tile-hit', '.pq-cartbar', '.pq-pay-toggle', '.pq-castbtn', '.pq-cast-list button:nth-child(2)'] },
+  { who: STAFF, path: '/bar/pos', name: 'staff-pos-cast-wide', wideOnly: true, taps: ['.pq-tile-hit', '.pq-castbtn', '.pq-cast-list button:nth-child(2)'] },
+  { who: STAFF, path: '/bar/pos', name: 'staff-pos-mine', taps: ['.pq-glance.is-mine .is-btn'] },
   { who: MANAGER, path: '/bar/inicio', name: 'bar-home' },
   { who: MANAGER, path: '/bar/inicio', name: 'bar-home-rail', rail: true },
 ]
@@ -206,6 +213,9 @@ async function mock(page, who, missing = [], vault = null, acessos = null) {
       const on = vault ? { enabled: true, hasPin: true, areas: ['money', 'payroll'], minutes: 15 } : { enabled: false, hasPin: false, areas: [], minutes: 15 }
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...on, unlockedUntil: 0, canEdit: who.role !== 'gerente' || vault === 'owner' }) })
     }
+    if (req.method() === 'POST' && path === '/api/bar-staff' && (req.postDataJSON() || {}).action === 'castRoster') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ people: castRoster(BAR_STAFF.staff, TABLES.drink_back_agents) }) })
+    }
     if (req.method() === 'POST' && path === '/api/bar-staff' && (req.postDataJSON() || {}).action === 'myAccess') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ role: who.role, acessos, disabled: false }) })
     }
@@ -238,6 +248,7 @@ async function main() {
         for (const pg of PAGES) {
           if (ONLY && !ONLY.includes(pg.name)) continue
           if (pg.phoneOnly && width >= 700) continue
+          if (pg.wideOnly && width < 901) continue
           const ctx = await browser.newContext({ viewport: { width, height: width < 700 ? 780 : 900 }, deviceScaleFactor: 1, hasTouch: width < 1024, colorScheme: themeName })
           const page = await ctx.newPage()
           const errors = []

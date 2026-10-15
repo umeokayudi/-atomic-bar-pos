@@ -385,4 +385,17 @@ export default {
     errStore: '現在この端末からツケ台帳に接続できません。',
     pendingSave: '会計は保存済み。ツケ記録 {n}件はこの端末に保留中で、自動で送信されます。',
   },
+  // スタッフPOS と複数キャスト選択
+  staffPos: {
+    title: 'マイPOS', me: '自分', meNamed: '{name}（自分）',
+    mySales: '今夜の自分の売上', myTonight: '今夜の自分の売上',
+    myHint: '今夜あなたに計上された売上。複数人の会計は人数で均等に分けます。',
+    details: '詳細', byTicket: '伝票別',
+    castTitle: 'この会計の担当は？', castHint: 'タップして担当を選ぶ',
+    castRule: 'ここで選んだ人に売上が計上されます。誰も選ばない場合はレジを打った人に計上されます。',
+    splitHint: '{n}人で均等に分配', nobody: 'なし',
+    mineTitle: '今夜の自分の売上', mineEmpty: '今夜はまだ売上がありません。',
+    share: '持ち分 {pct}', shared: '{n}人で分配', rangBy: '自分が打った会計', ticketTotal: '伝票 {amount}',
+    loadErr: '今夜の売上を読み込めません: {error}', teamErr: 'チーム一覧を取得できません。自分は選べます。',
+  },
 }

@@ -65,6 +65,16 @@ async function barGoals(db, barId) {
   return r.data || {}
 }
 
+/** Drink-back agents of the bar (an agent linked to a staff login is the same person for sales credit). */
+async function barAgents(db, barId) {
+  try {
+    const r = await runLiveOp(db, { table: 'drink_back_agents', mode: 'select', columns: '*', filters: [{ op: 'eq', k: 'bar_id', v: barId }] })
+    return Array.isArray(r.data) ? r.data : []
+  } catch {
+    return []
+  }
+}
+
 async function daySheet(db, barId, night) {
   const r = await runLiveOp(db, { table: 'bar_day_sheet', mode: 'select', columns: '*', filters: [{ op: 'eq', k: 'id', v: `${barId}:${night}` }], wantSingle: 'maybe' })
   return r.data || null
@@ -98,13 +108,14 @@ function roleFor(sheet, me, extras) {
 
 /** Tonight for one person: mission, role, the bar's and my goals, what I sold so far. */
 async function dayFor(db, { barId, me, night = tokyoNightKey() }) {
-  const [goals, sheet, extras, sales] = await Promise.all([
+  const [goals, sheet, extras, sales, agents] = await Promise.all([
     barGoals(db, barId),
     daySheet(db, barId, night),
     staffExtras(db, me.id),
     loadBarSales(db, barId, night, night, { withItems: true }),
+    barAgents(db, barId),
   ])
-  const summary = myNightSummary({ ...sales, me, night })
+  const summary = myNightSummary({ ...sales, me, night, agents })
   return {
     night,
     mission: clip(sheet?.missao || goals?.missao || '', 300),
@@ -300,16 +311,17 @@ export async function handleSelfAction(res, { admin, db, auth, body }) {
     const [y1, m1, d1] = from.split('-').map(Number)
     const fromIso = new Date(tokyoWallToUtcMs(y1, m1, d1, 6)).toISOString()
     const toIso = nightWindow(to).to
-    const [staff, extras, goals, punches, sales] = await Promise.all([
+    const [staff, extras, goals, punches, sales, agents] = await Promise.all([
       loadStaffWithExtras(db, meId),
       staffExtras(db, meId),
       barGoals(db, barId),
       listPunches(db, { barId, staffId: meId, from: fromIso, to: toIso }),
       loadBarSales(db, barId, from, to),
+      barAgents(db, barId),
     ])
     const rate = Math.max(0, +(extras.salario_hora ?? staff?.salario_hora ?? 0) || 0)
     const nightPremium = goals?.adicional_noturno !== false
-    const out = earningsByDay({ punches: punches.data || [], sales: sales.sales, me, rate, nightPremium, from, to })
+    const out = earningsByDay({ punches: punches.data || [], sales: sales.sales, me, rate, nightPremium, from, to, agents })
     return res.status(200).json({ from, to, rate, monthly: Math.max(0, +(extras.salario_mes || 0) || 0), nightPremium, ...out })
   }
 

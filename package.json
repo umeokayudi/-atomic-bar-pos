@@ -26,10 +26,13 @@
     "test:floor-status": "node scripts/floorStatus.test.mjs",
     "test:bar-access": "node scripts/barAccess.test.mjs",
     "test:staff-app": "node scripts/staffApp.test.mjs",
-    "test:time-clock": "node scripts/timeClockRoute.test.mjs"
+    "test:time-clock": "node scripts/timeClockRoute.test.mjs",
+    "test:sale-credit": "node scripts/saleCredit.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.2",
     "lucide-react": "^0.453.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
