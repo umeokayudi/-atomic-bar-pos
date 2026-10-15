@@ -203,7 +203,7 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.payroll_audit(text, uuid, uuid, jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.payroll_audit(text, uuid, uuid, jsonb) FROM PUBLIC, anon, authenticated;
 
 CREATE OR REPLACE FUNCTION public.payroll_open_period(p_competence text)
 RETURNS uuid

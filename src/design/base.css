@@ -1312,3 +1312,14 @@ html[data-device="phone"] .mobile-search .gsearch { width: 100%; height: 44px; b
 /* Toggle rows never sit flush against the fields above them */
 * + .goal-modes { margin-top: 14px; }
 .goal-modes { gap: 10px; }
+
+/* Settings popover (gear in the header): a themed card, options never cut off */
+html .ui-prefs-wrap.is-chrome .ui-prefs-popover { width: 300px; max-width: calc(100vw - 24px); padding: 14px; gap: 14px; overflow: visible; background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 14px; box-shadow: var(--shadow-lg, 0 16px 40px rgba(0,0,0,.18)); color: var(--c-text); }
+html .ui-prefs-wrap.is-chrome .ui-prefs-popover .layout-toggle { display: flex; flex-direction: column; gap: 8px; padding: 0; border: 0; background: none; }
+html .ui-prefs-wrap.is-chrome .ui-prefs-popover .theme-toggle-label { color: var(--c-text-2); font-size: 11px; letter-spacing: .06em; }
+html .ui-prefs-wrap.is-chrome .ui-prefs-popover .ui-seg,
+html .ui-prefs-wrap.is-chrome .ui-prefs-popover .theme-pill { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); width: 100%; overflow: visible; padding: 4px; gap: 4px; background: var(--c-surface-2); border: 1px solid var(--c-border); border-radius: 10px; }
+html .ui-prefs-wrap.is-chrome .ui-prefs-popover .ui-seg button,
+html .ui-prefs-wrap.is-chrome .ui-prefs-popover .theme-pill button { min-width: 0; min-height: 40px; padding: 0 6px; justify-content: center; gap: 6px; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--c-text-2); background: transparent; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html .ui-prefs-wrap.is-chrome .ui-prefs-popover .ui-seg button[aria-checked="true"],
+html .ui-prefs-wrap.is-chrome .ui-prefs-popover .theme-pill button.on { background: var(--c-accent); color: var(--c-on-accent, #fff); box-shadow: none; }

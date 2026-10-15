@@ -1911,7 +1911,8 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   const [menuOpen, setMenuOpen] = useState(false)
   const [door, setDoor] = useState(() => loginDoorFromHash())
   const { t } = useI18n()
-  const overdueAlerts = useBarOverdueAlerts(bar?.id)
+  // Invoice due dates and bill checks are the owner's money alarms: only logins that can open the money area get them in the bell.
+  const overdueAlerts = useBarOverdueAlerts(isGerente(perfil?.role) && canOpenTab(access, 'faturas') ? bar?.id : null)
   const { setCtx: setAiCtx } = useAiPanel()
   // Money and payroll screens can sit behind the owner's PIN (checked by /api/bar-staff); Ask AI waits for it too.
   const vault = useVaultLock(isGerente(perfil?.role) ? tab : null)

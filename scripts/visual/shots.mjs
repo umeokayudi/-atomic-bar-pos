@@ -35,6 +35,7 @@ const PAGES = [
   { who: ADMIN, path: '/hq/products', name: 'hq-products' },
   { who: ADMIN, path: '/hq/procurement', name: 'hq-procurement' },
   { who: ADMIN, path: '/hq/sales', name: 'hq-sales' },
+  { who: MANAGER, path: '/bar/estoque', name: 'bar-settings-pop', taps: ['.ui-prefs-toggle'] },
   { who: MANAGER, path: '/bar/estoque', name: 'bar-stock' },
   { who: MANAGER, path: '/bar/custos', name: 'bar-costs' },
   { who: MANAGER, path: '/bar/faturas', name: 'bar-invoices' },
