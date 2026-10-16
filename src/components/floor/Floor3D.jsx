@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { useI18n } from '../../lib/i18n'
 import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
-import { SEAT, seatSpots } from '../../lib/floor3d'
+import { SEAT, contentBounds, fitScale, guestSpots, seatSpots } from '../../lib/floor3d'
 import { isDecor } from '../../lib/floorEditor'
 
 // Heights in plan units (the plan is roughly 1 unit = 1 cm).
@@ -15,17 +15,36 @@ const VIEWS = {
   front: { tilt: 68, spin: 0 },
   top: { tilt: 0, spin: 0 },
 }
-const ZOOM_MIN = 0.5
-const ZOOM_MAX = 3
+const ZOOM_MIN = 0.4
+const ZOOM_MAX = 4
 // A finger that moves less than this (screen px) between down and up is a tap, not a drag.
 const TAP_SLOP = 8
 // A tap that lands just outside a table still opens it when it is this close (screen px), so small
 // tables on a phone get an effective target of about 44 px.
 const TAP_REACH = 22
+// Walk-inside view: eye height in plan units, walking speed (units per second) and turn speed (deg/s).
+const EYE = 80
+const WALK = 220
+const TURN = 90
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y)
 const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 })
+const angle = (a, b) => (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI
+const rad = d => (d * Math.PI) / 180
+
+function readPref(key, fallback) {
+  try {
+    const v = localStorage.getItem(`f3.${key}`)
+    return v == null ? fallback : JSON.parse(v)
+  } catch { return fallback }
+}
+function writePref(key, value) {
+  try { localStorage.setItem(`f3.${key}`, JSON.stringify(value)) } catch { /* private mode */ }
+}
+
+/** Centre of a table in plan units. */
+const centerOf = tb => ({ x: +tb.x + (+tb.largura || 0) / 2, y: +tb.y + (+tb.altura || 0) / 2 })
 
 /** A box with a top face and four sides, standing on the floor at (x, y). */
 function Box({ w, d, h, round, className = '', style, children, top }) {
@@ -46,19 +65,33 @@ function Box({ w, d, h, round, className = '', style, children, top }) {
   )
 }
 
+/** One guest: stands at a seat, faces the camera, and now and then walks a short loop and comes back. */
+function Guest({ g }) {
+  return (
+    <div className="f3-guest" style={{ left: g.x, top: g.y, '--wx': `${g.wx}px`, '--wy': `${g.wy}px`, '--dur': `${g.dur}s`, '--delay': `${g.delay}s` }}>
+      <div className={`f3-guest-walk${g.roam ? ' is-roam' : ''}`}>
+        <div className="f3-guest-bb" style={{ '--guest': g.color }}>
+          <i className="f3-guest-head" />
+          <b className="f3-guest-body" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /**
- * The static part of the scene: walls, tables, seats and labels. It does not depend on the camera,
- * so turning, tilting or zooming never re-renders it; labels face the viewer through the
- * `--f3-spin` custom property the camera writes on the world node.
+ * The static part of the scene: floor, walls, tables, seats, guests and labels. It does not depend on
+ * the camera, so turning, tilting or zooming never re-renders it; labels and guests face the viewer
+ * through the `--f3-spin` custom property the camera writes on the world node.
  */
-const Scene = memo(function Scene({ W, D, tables, sectors, live, tappable, onKeyOpen, t }) {
+const Scene = memo(function Scene({ area, tables, sectors, live, tappable, selectedId, onKeyOpen, t }) {
   const sectorColor = id => sectors.find(s => s.id === id)?.cor
   return (
     <>
-      <div className="f3-floor" />
-      <Box className="f3-wall" w={W} d={6} h={WALL_H} style={{ left: 0, top: -6 }} />
-      <Box className="f3-wall" w={6} d={D} h={WALL_H} style={{ left: -6, top: 0 }} />
-      <Box className="f3-wall is-low" w={6} d={D} h={WALL_H / 3} style={{ left: W, top: 0 }} />
+      <div className="f3-floor" style={{ left: area.x, top: area.y, width: area.w, height: area.h }} />
+      <Box className="f3-wall" w={area.w} d={6} h={WALL_H} style={{ left: area.x, top: area.y - 6 }} />
+      <Box className="f3-wall" w={6} d={area.h} h={WALL_H} style={{ left: area.x - 6, top: area.y }} />
+      <Box className="f3-wall is-low" w={6} d={area.h} h={WALL_H / 3} style={{ left: area.x + area.w, top: area.y }} />
       {tables.map(tb => {
         const w = +tb.largura
         const d = +tb.altura
@@ -66,16 +99,19 @@ const Scene = memo(function Scene({ W, D, tables, sectors, live, tappable, onKey
         const decor = isDecor(tb.forma)
         const color = tb.cor || DECOR_COLOR[tb.forma] || sectorColor(tb.sector_id) || 'var(--c-accent)'
         const seats = decor || tb.forma === 'sofa' ? [] : seatSpots(tb.forma, w, d, tb.capacidade)
+        const guests = live && !decor ? guestSpots(tb, tb.pessoas) : []
         const round = tb.forma === 'round' || tb.forma === 'plant'
         const label = live ? `${tb.nome}: ${t(`tabs.state.${tb.state}`)}${tb.open?.length ? `, ${fmtYen(tb.money.total)}` : ''}` : t('floor.tableAria', { name: tb.nome, n: tb.capacidade })
         const canTap = !decor && tappable
+        const selected = !decor && String(tb.id) === selectedId
         return (
           <div
             key={tb.id}
             data-f3-id={canTap ? tb.id : undefined}
-            className={`f3-table is-${tb.forma}${decor ? ' is-decor' : ''}${live && !decor ? ` st-${tb.state}` : ''}${tb.ativo === false ? ' is-off' : ''}${canTap ? ' is-tappable' : ''}`}
-            style={{ left: +tb.x, top: +tb.y, width: w, height: d, transform: tb.rotacao ? `rotateZ(${tb.rotacao}deg)` : undefined, '--f3-rot': +tb.rotacao || 0, ...(live && !decor ? null : { '--f3-color': color }) }}
+            className={`f3-table is-${tb.forma}${decor ? ' is-decor' : ''}${live && !decor ? ` st-${tb.state}` : ''}${tb.ativo === false ? ' is-off' : ''}${canTap ? ' is-tappable' : ''}${selected ? ' is-selected' : ''}`}
+            style={{ left: +tb.x, top: +tb.y, width: w, height: d, transform: `translateZ(var(--f3-lift, 0px)) rotateZ(${+tb.rotacao || 0}deg)`, '--f3-rot': +tb.rotacao || 0, ...(live && !decor ? null : { '--f3-color': color }) }}
           >
+            {selected && <div className="f3-glow" />}
             {seats.map((s, i) => (
               <Box key={i} className="f3-seat" w={SEAT} d={SEAT} h={SEAT_H} round={tb.forma === 'round'} style={{ left: s.x, top: s.y }} />
             ))}
@@ -94,6 +130,12 @@ const Scene = memo(function Scene({ W, D, tables, sectors, live, tappable, onKey
                 </button>
               )}
             </Box>
+            {guests.map((g, i) => <Guest key={i} g={g} />)}
+            {selected && (
+              <div className="f3-pin" style={{ left: w / 2, top: d / 2, '--h': `${h + 30}px` }} aria-hidden="true">
+                <div className="f3-pin-bb"><Icon name="downArrow" size={22} /></div>
+              </div>
+            )}
           </div>
         )
       })}
@@ -103,70 +145,166 @@ const Scene = memo(function Scene({ W, D, tables, sectors, live, tappable, onKey
 
 /**
  * 3D view of a floor layout, drawn with CSS 3D transforms (no WebGL, no extra library).
- * One finger (or the mouse) drags to turn and tilt, two fingers pinch to zoom and move, the wheel
- * zooms, buttons give preset views. The camera lives in a ref and is written straight to the world
- * node's transform once per animation frame, so moving it never re-renders React.
- * Tables keep their real size, position, rotation and seats. `live` tables carry a service state;
- * a tap on a table (a press that moved less than TAP_SLOP) calls `onTable`.
+ *
+ * Map view: one finger (or the mouse) moves the map, or turns and tilts it in "Turn" mode; the right
+ * mouse button or Shift does the other one. Two fingers pinch to zoom, move and twist. The wheel zooms.
+ * "Crop" draws only the part of the room that has tables and frames it; the frame button fits it again.
+ * A tap on a table (or a row in the side list) picks it: it rises, the camera centres on it and a
+ * card shows what is going on there. With `confirm`, a second tap or the card's Open button calls
+ * `onTable`; without it the first tap already does.
+ *
+ * Walk view (POV): the camera stands inside the room at eye height. Drag sideways to look around and
+ * up or down to walk; the arrow pad, arrow keys or WASD do the same.
+ *
+ * `live` tables carry a service state and the number of guests on their open tabs; guests are drawn
+ * at the table and now and then get up for a short walk.
+ * The camera lives in refs and is written straight to the world node once per animation frame, so
+ * moving it never re-renders React.
  */
-export default function Floor3D({ layout, tables = [], sectors = [], onTable, live = false }) {
+export default function Floor3D({ layout, tables = [], sectors = [], onTable, live = false, confirm = live }) {
   const { t } = useI18n()
   const W = +layout.largura || 900
   const D = +layout.altura || 500
   const [view, setView] = useState('persp')
+  const [mode, setModeState] = useState('map')
+  const [drag, setDragState] = useState(() => readPref('drag', 'move'))
+  const [crop, setCropState] = useState(() => readPref('crop', true))
+  // The editor has its own side panel, so the table list is a service-view thing.
+  const [listPref, setShowListState] = useState(() => readPref('list', true))
+  const showList = live && listPref
+  const [selectedId, setSelectedId] = useState(null)
 
   const stageRef = useRef(null)
   const worldRef = useRef(null)
-  const cam = useRef({ ...VIEWS.persp, zoom: 1, px: 0, py: 0 })
+  const cam = useRef({ ...VIEWS.persp, zoom: 1, px: 0, py: 0, cx: W / 2, cy: D / 2 })
+  const pov = useRef({ x: W / 2, y: D, yaw: 0, pitch: 0 })
   const fit = useRef(1)
+  const persp = useRef(600)
   const frame = useRef(0)
   const pointers = useRef(new Map())
   const gesture = useRef(null)
+  const modeRef = useRef(mode)
+  modeRef.current = mode
+  const dragRef = useRef(drag)
+  dragRef.current = drag
+  const walking = useRef({ fwd: 0, turn: 0, last: 0, raf: 0 })
 
   const onTableRef = useRef(onTable)
   onTableRef.current = onTable
   const byId = useMemo(() => new Map(tables.map(tb => [String(tb.id), tb])), [tables])
   const byIdRef = useRef(byId)
   byIdRef.current = byId
+  const selectedRef = useRef(selectedId)
+  selectedRef.current = selectedId
+
+  // The tables' footprint only changes when the plan does, not on every live refresh.
+  const geomKey = tables.map(tb => `${tb.id}:${tb.x}:${tb.y}:${tb.largura}:${tb.altura}:${tb.rotacao || 0}`).join('|')
+  const bounds = useMemo(() => contentBounds(tables, W, D), [geomKey, W, D]) // eslint-disable-line react-hooks/exhaustive-deps
+  const area = useMemo(() => (crop ? bounds : { x: 0, y: 0, w: W, h: D }), [crop, bounds, W, D])
+  const areaRef = useRef(area)
+  areaRef.current = area
+
+  const setMode = m => setModeState(m)
+  const setDrag = v => { setDragState(v); writePref('drag', v) }
+  const setCrop = v => { setCropState(v); writePref('crop', v) }
+  const setShowList = v => { setShowListState(v); writePref('list', v) }
 
   const apply = useCallback(() => {
     frame.current = 0
     const el = worldRef.current
     if (!el) return
-    const c = cam.current
-    el.style.transform = `translate3d(${c.px}px, ${c.py}px, 0) scale(${fit.current * c.zoom}) rotateX(${c.tilt}deg) rotateZ(${c.spin}deg)`
+    if (modeRef.current === 'pov') {
+      const p = pov.current
+      el.style.transform = `translateZ(${persp.current - 1}px) rotateX(${90 + p.pitch}deg) rotateZ(${p.yaw}deg) translate3d(${-p.x}px, ${-p.y}px, ${-EYE}px)`
+    } else {
+      const c = cam.current
+      el.style.transform = `translate3d(${c.px}px, ${c.py}px, 0) scale(${fit.current * c.zoom}) rotateX(${c.tilt}deg) rotateZ(${c.spin}deg) translate3d(${-c.cx}px, ${-c.cy}px, 0)`
+    }
   }, [])
   const schedule = useCallback(() => {
     if (!frame.current) frame.current = requestAnimationFrame(apply)
   }, [apply])
-  // Labels turn to face the viewer. Updated when the camera settles, not on every frame of a drag.
+  // Labels and guests turn to face the viewer. Updated when the camera settles, not on every frame of a drag.
   const settleLabels = useCallback(() => {
-    worldRef.current?.style.setProperty('--f3-spin', String(cam.current.spin))
+    const spin = modeRef.current === 'pov' ? pov.current.yaw : cam.current.spin
+    worldRef.current?.style.setProperty('--f3-spin', String(Math.round(spin * 10) / 10))
   }, [])
 
-  useEffect(() => () => cancelAnimationFrame(frame.current), [])
-
-  useLayoutEffect(() => {
+  /** Fit the scale to the stage for the current view angle. */
+  const refit = useCallback(() => {
     const el = stageRef.current
-    if (!el) return undefined
-    const measure = () => {
-      fit.current = clamp((el.clientWidth - 32) / (Math.max(W, D) * 1.05), 0.25, 1.4)
-      schedule()
-    }
-    fit.current = clamp((el.clientWidth - 32) / (Math.max(W, D) * 1.05), 0.25, 1.4)
-    apply() // first paint already has the camera, no jump
-    settleLabels()
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null
-    ro?.observe(el)
-    return () => ro?.disconnect()
-  }, [W, D, apply, schedule, settleLabels])
+    if (!el) return
+    const a = areaRef.current
+    const c = cam.current
+    fit.current = fitScale(el.clientWidth, el.clientHeight, a.w, a.h, c.tilt, c.spin)
+    persp.current = clamp(Math.round(el.clientWidth * 0.55), 320, 900)
+  }, [])
 
-  // Wheel / trackpad zoom. Native listeners so they can call preventDefault.
+  /** Centre the area, reset zoom and pan, fit it to the stage. */
+  const frameArea = useCallback(() => {
+    const a = areaRef.current
+    Object.assign(cam.current, { zoom: 1, px: 0, py: 0, cx: a.x + a.w / 2, cy: a.y + a.h / 2 })
+    refit()
+    schedule()
+  }, [refit, schedule])
+
+  useEffect(() => () => {
+    cancelAnimationFrame(frame.current)
+    cancelAnimationFrame(walking.current.raf)
+  }, [])
+
+  // First paint already has the camera framed on the area, no jump. Re-frame when the area changes.
+  useLayoutEffect(() => {
+    frameArea()
+    apply()
+    settleLabels()
+  }, [area, frameArea, apply, settleLabels])
+
+  useEffect(() => {
+    const el = stageRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return undefined
+    const ro = new ResizeObserver(() => { refit(); schedule() })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [refit, schedule])
+
+  // Mode switches re-place the camera.
+  useLayoutEffect(() => {
+    apply()
+    settleLabels()
+  }, [mode, apply, settleLabels])
+
+  // Drop a selection whose table went away.
+  useEffect(() => {
+    if (selectedId && !byId.has(selectedId)) setSelectedId(null)
+  }, [byId, selectedId])
+
+  /** Keep the walker inside the room. */
+  const clampPov = () => {
+    const p = pov.current
+    p.x = clamp(p.x, -200, W + 200)
+    p.y = clamp(p.y, -200, D + 200)
+  }
+  const walkBy = (fwd, strafe = 0) => {
+    const p = pov.current
+    const a = rad(p.yaw)
+    // Forward is plan -y turned by the yaw; right is plan +x turned by the yaw.
+    p.x += -Math.sin(a) * fwd + Math.cos(a) * strafe
+    p.y += -Math.cos(a) * fwd - Math.sin(a) * strafe
+    clampPov()
+  }
+
+  // Wheel / trackpad zoom (walks in POV). Native listeners so they can call preventDefault.
   useEffect(() => {
     const el = stageRef.current
     if (!el) return undefined
     const wheel = e => {
       e.preventDefault()
+      if (modeRef.current === 'pov') {
+        walkBy(-e.deltaY * 0.6)
+        schedule()
+        return
+      }
       const c = cam.current
       c.zoom = clamp(c.zoom * Math.exp(-e.deltaY * 0.0015), ZOOM_MIN, ZOOM_MAX)
       schedule()
@@ -174,40 +312,99 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
     // Taps are resolved from pointer events. Cancel the click the browser would synthesise after a
     // touch, or it would land on whatever just opened under the finger (e.g. a drawer's scrim on iPad).
     const touchEnd = e => { if (e.cancelable) e.preventDefault() }
+    const menu = e => e.preventDefault()
     el.addEventListener('wheel', wheel, { passive: false })
     el.addEventListener('touchend', touchEnd, { passive: false })
+    el.addEventListener('contextmenu', menu)
     return () => {
       el.removeEventListener('wheel', wheel)
       el.removeEventListener('touchend', touchEnd)
+      el.removeEventListener('contextmenu', menu)
     }
-  }, [schedule])
+  }, [schedule]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Held walk buttons and keys: move every frame while held.
+  const walkLoop = useCallback(ts => {
+    const w = walking.current
+    const dt = w.last ? Math.min(0.05, (ts - w.last) / 1000) : 0
+    w.last = ts
+    if (!w.fwd && !w.turn) { w.raf = 0; w.last = 0; settleLabels(); return }
+    pov.current.yaw += w.turn * TURN * dt
+    walkBy(w.fwd * WALK * dt)
+    apply()
+    w.raf = requestAnimationFrame(walkLoop)
+  }, [apply, settleLabels]) // eslint-disable-line react-hooks/exhaustive-deps
+  const hold = useCallback((fwd, turn) => {
+    const w = walking.current
+    w.fwd = fwd
+    w.turn = turn
+    if ((fwd || turn) && !w.raf) w.raf = requestAnimationFrame(walkLoop)
+  }, [walkLoop])
+
+  useEffect(() => {
+    if (mode !== 'pov') return undefined
+    const keys = new Set()
+    const sync = () => {
+      const f = (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 1 : 0)
+      // A positive yaw turns the walker left.
+      const r = (keys.has('a') || keys.has('arrowleft') ? 1 : 0) - (keys.has('d') || keys.has('arrowright') ? 1 : 0)
+      hold(f, r)
+    }
+    const isField = e => /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName || '') || e.target?.isContentEditable
+    const onDown = e => {
+      const k = e.key.toLowerCase()
+      if (isField(e) || !['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) return
+      e.preventDefault()
+      keys.add(k)
+      sync()
+    }
+    const onUp = e => { keys.delete(e.key.toLowerCase()); sync() }
+    const onBlur = () => { keys.clear(); sync() }
+    window.addEventListener('keydown', onDown)
+    window.addEventListener('keyup', onUp)
+    window.addEventListener('blur', onBlur)
+    return () => {
+      window.removeEventListener('keydown', onDown)
+      window.removeEventListener('keyup', onUp)
+      window.removeEventListener('blur', onBlur)
+      hold(0, 0)
+    }
+  }, [mode, hold])
 
   function startDrag() {
     const el = stageRef.current
     if (!el || el.classList.contains('is-dragging')) return
     el.classList.add('is-dragging')
-    setView(null)
+    if (modeRef.current === 'map') setView(null)
   }
 
   /** (Re)start the gesture from the pointers that are down now. */
-  function begin(moved, target = null) {
+  function begin(moved, target = null, alt = false) {
     const pts = [...pointers.current.values()]
     const c = cam.current
+    const p = pov.current
     if (pts.length >= 2) {
-      gesture.current = { kind: 'pinch', moved: true, d: Math.max(1, dist(pts[0], pts[1])), m: mid(pts[0], pts[1]), zoom: c.zoom, px: c.px, py: c.py }
+      gesture.current = {
+        kind: 'pinch', moved: true, d: Math.max(1, dist(pts[0], pts[1])), m: mid(pts[0], pts[1]), a: angle(pts[0], pts[1]),
+        zoom: c.zoom, px: c.px, py: c.py, spin: c.spin, pos: { x: p.x, y: p.y },
+      }
     } else if (pts.length === 1) {
-      gesture.current = { kind: 'turn', moved, target, x: pts[0].x, y: pts[0].y, spin: c.spin, tilt: c.tilt }
+      const turn = alt ? dragRef.current !== 'turn' : dragRef.current === 'turn'
+      gesture.current = {
+        kind: modeRef.current === 'pov' ? 'look' : turn ? 'turn' : 'pan',
+        moved, target, x: pts[0].x, y: pts[0].y, spin: c.spin, tilt: c.tilt, px: c.px, py: c.py, yaw: p.yaw, pos: { x: p.x, y: p.y },
+      }
     } else {
       gesture.current = null
     }
   }
 
   function down(e) {
-    if (e.pointerType === 'mouse' && e.button !== 0) return
+    if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 2) return
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
     try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* pointer already gone */ }
     if (pointers.current.size === 1) {
-      begin(false, e.target.closest?.('[data-f3-id]')?.getAttribute('data-f3-id') ?? null)
+      begin(false, e.target.closest?.('[data-f3-id]')?.getAttribute('data-f3-id') ?? null, e.button === 2 || e.shiftKey)
     } else {
       begin(true)
       startDrag()
@@ -215,29 +412,47 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
   }
 
   function move(e) {
-    const p = pointers.current.get(e.pointerId)
+    const pt = pointers.current.get(e.pointerId)
     const g = gesture.current
-    if (!p || !g) return
-    p.x = e.clientX
-    p.y = e.clientY
+    if (!pt || !g) return
+    pt.x = e.clientX
+    pt.y = e.clientY
     const c = cam.current
+    const p = pov.current
     if (g.kind === 'pinch') {
       const pts = [...pointers.current.values()]
       if (pts.length < 2) return
       const m = mid(pts[0], pts[1])
-      c.zoom = clamp((g.zoom * dist(pts[0], pts[1])) / g.d, ZOOM_MIN, ZOOM_MAX)
-      c.px = g.px + m.x - g.m.x
-      c.py = g.py + m.y - g.m.y
+      if (modeRef.current === 'pov') {
+        p.x = g.pos.x
+        p.y = g.pos.y
+        walkBy((dist(pts[0], pts[1]) - g.d) * 1.5)
+      } else {
+        c.zoom = clamp((g.zoom * dist(pts[0], pts[1])) / g.d, ZOOM_MIN, ZOOM_MAX)
+        c.px = g.px + m.x - g.m.x
+        c.py = g.py + m.y - g.m.y
+        c.spin = g.spin + (angle(pts[0], pts[1]) - g.a)
+      }
     } else {
-      const dx = p.x - g.x
-      const dy = p.y - g.y
+      const dx = pt.x - g.x
+      const dy = pt.y - g.y
       if (!g.moved) {
         if (Math.hypot(dx, dy) < TAP_SLOP) return
         g.moved = true
         startDrag()
       }
-      c.spin = g.spin + dx * 0.4
-      c.tilt = clamp(g.tilt - dy * 0.3, 0, 80)
+      if (g.kind === 'look') {
+        p.yaw = g.yaw + dx * 0.3 // drag the room: pulling it right turns you left
+        p.x = g.pos.x
+        p.y = g.pos.y
+        walkBy(dy * 1.2)
+      } else if (g.kind === 'turn') {
+        c.spin = g.spin + dx * 0.4
+        c.tilt = clamp(g.tilt - dy * 0.3, 0, 80)
+      } else {
+        c.px = g.px + dx
+        c.py = g.py + dy
+      }
     }
     schedule()
   }
@@ -245,11 +460,11 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
   function up(e) {
     if (!pointers.current.has(e.pointerId)) return
     const g = gesture.current
-    const wasTap = e.type === 'pointerup' && g?.kind === 'turn' && !g.moved && pointers.current.size === 1
+    const wasTap = e.type === 'pointerup' && g && g.kind !== 'pinch' && !g.moved && pointers.current.size === 1
     const at = { x: e.clientX, y: e.clientY }
     pointers.current.delete(e.pointerId)
     if (pointers.current.size) {
-      begin(true) // a finger is still down after a pinch: keep turning from here, never a tap
+      begin(true) // a finger is still down after a pinch: keep going from here, never a tap
       return
     }
     gesture.current = null
@@ -258,9 +473,21 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
     if (wasTap) tap(g.target, at)
   }
 
+  /** Centre the map camera on a table and come a little closer. */
+  const flyTo = useCallback(tb => {
+    if (modeRef.current !== 'map') return
+    const c = centerOf(tb)
+    Object.assign(cam.current, { cx: c.x, cy: c.y, px: 0, py: 0, zoom: Math.max(cam.current.zoom, 1.35) })
+    schedule()
+  }, [schedule])
+
+  const pick = useCallback((tb, { fly = true } = {}) => {
+    const id = String(tb.id)
+    setSelectedId(id)
+    if (fly) flyTo(tb)
+  }, [flyTo])
+
   function tap(id, at) {
-    const open = onTableRef.current
-    if (!open) return
     let hit = id
     if (!hit) {
       // Forgiving hit test: the nearest table top within reach of the finger.
@@ -271,13 +498,21 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
         if (d < best) { best = d; hit = node.getAttribute('data-f3-id') }
       }
     }
-    const tb = hit != null && byIdRef.current.get(hit)
-    if (tb) open(tb)
+    const tb = hit != null && byIdRef.current.get(String(hit))
+    if (!tb) { setSelectedId(null); return }
+    if (!confirm || selectedRef.current === String(tb.id)) {
+      setSelectedId(String(tb.id))
+      onTableRef.current?.(tb)
+      return
+    }
+    pick(tb, { fly: modeRef.current === 'map' })
   }
 
   const onKeyOpen = useCallback(id => {
     const tb = byIdRef.current.get(String(id))
-    if (tb) onTableRef.current?.(tb)
+    if (!tb) return
+    setSelectedId(String(tb.id))
+    onTableRef.current?.(tb)
   }, [])
 
   function preset(patch, key = null) {
@@ -287,48 +522,185 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
     settleLabels()
   }
   const turn = deg => preset({ spin: cam.current.spin + deg })
-  const zoomBy = dz => preset({ zoom: clamp(+(cam.current.zoom + dz).toFixed(2), ZOOM_MIN, ZOOM_MAX) }, view)
-  const reset = () => preset({ ...VIEWS.persp, zoom: 1, px: 0, py: 0 }, 'persp')
+  const zoomBy = dz => preset({ zoom: clamp(+(cam.current.zoom * (1 + dz)).toFixed(2), ZOOM_MIN, ZOOM_MAX) }, view)
+  const reframe = () => {
+    Object.assign(cam.current, VIEWS[view || 'persp'])
+    setView(view || 'persp')
+    frameArea()
+    settleLabels()
+  }
+
+  /** Stand somewhere sensible: in front of a table looking at it, or at the door, or at the front of the room. */
+  function enterPov(tb = null) {
+    const a = areaRef.current
+    const p = pov.current
+    const target = tb || (selectedRef.current && byIdRef.current.get(selectedRef.current))
+    if (target) {
+      const c = centerOf(target)
+      const back = Math.max(+target.largura || 0, +target.altura || 0) / 2 + 110
+      // Stand south of the table when there is room, else north, and look at it.
+      const south = c.y + back < D + 150
+      Object.assign(p, { x: c.x, y: south ? c.y + back : c.y - back, yaw: south ? 0 : 180, pitch: -12 })
+    } else {
+      // From the front edge of the room, looking in.
+      Object.assign(p, { x: a.x + a.w / 2, y: a.y + a.h + 60, yaw: 0, pitch: -14 })
+    }
+    clampPov()
+    refit()
+    setMode('pov')
+  }
+  function exitPov() {
+    hold(0, 0)
+    setMode('map')
+  }
 
   const tappable = !!onTable
   const scene = useMemo(
-    () => <Scene W={W} D={D} tables={tables} sectors={sectors} live={live} tappable={tappable} onKeyOpen={onKeyOpen} t={t} />,
-    [W, D, tables, sectors, live, tappable, onKeyOpen, t],
+    () => <Scene area={area} tables={tables} sectors={sectors} live={live} tappable={tappable} selectedId={selectedId} onKeyOpen={onKeyOpen} t={t} />,
+    [area, tables, sectors, live, tappable, selectedId, onKeyOpen, t],
   )
 
+  const selected = selectedId ? byId.get(selectedId) : null
+  const listed = useMemo(
+    () => tables.filter(tb => !isDecor(tb.forma) && tb.ativo !== false)
+      .sort((a, b) => String(a.nome).localeCompare(String(b.nome), undefined, { numeric: true })),
+    [tables],
+  )
+  const guestsTotal = live ? listed.reduce((n, tb) => n + (+tb.pessoas || 0), 0) : 0
+
+  const holdProps = (fwd, trn) => ({
+    onPointerDown: e => { e.preventDefault(); try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* gone */ } hold(fwd, trn) },
+    onPointerUp: () => hold(0, 0),
+    onPointerCancel: () => hold(0, 0),
+    onLostPointerCapture: () => hold(0, 0),
+    onContextMenu: e => e.preventDefault(),
+  })
+
   return (
-    <div className="f3">
+    <div className={`f3${showList ? ' has-list' : ''}`}>
       <div className="f3-tools" role="group" aria-label={t('floor.view3d')}>
-        <div className="ui-seg" role="radiogroup" aria-label={t('floor.camera')}>
-          {Object.keys(VIEWS).map(k => (
-            <button key={k} type="button" role="radio" aria-checked={view === k} onClick={() => preset({ ...VIEWS[k] }, k)}>
-              {t(`floor.cam.${k}`)}
-            </button>
-          ))}
-        </div>
-        <span className="ui-spacer" />
-        <button type="button" className="ui-btn is-icon is-sm" onClick={() => turn(-45)} aria-label={t('floor.turnLeft')}><Icon name="undo" size={16} /></button>
-        <button type="button" className="ui-btn is-icon is-sm" onClick={() => turn(45)} aria-label={t('floor.turnRight')}><Icon name="reopen" size={16} /></button>
-        <button type="button" className="ui-btn is-icon is-sm" onClick={reset} aria-label={t('floor.resetView')} title={t('floor.resetView')}><Icon name="fit" size={16} /></button>
-        <button type="button" className="ui-btn is-icon is-sm" onClick={() => zoomBy(-0.15)} aria-label={t('floor.zoomOut')}><Icon name="zoomOut" size={16} /></button>
-        <button type="button" className="ui-btn is-icon is-sm" onClick={() => zoomBy(0.15)} aria-label={t('floor.zoomIn')}><Icon name="zoomIn" size={16} /></button>
+        {mode === 'map' ? (
+          <>
+            <div className="ui-seg" role="radiogroup" aria-label={t('floor.dragMode')}>
+              <button type="button" role="radio" aria-checked={drag === 'move'} onClick={() => setDrag('move')}><Icon name="move" size={14} />{t('floor.dragMove')}</button>
+              <button type="button" role="radio" aria-checked={drag === 'turn'} onClick={() => setDrag('turn')}><Icon name="rotate3d" size={14} />{t('floor.dragTurn')}</button>
+            </div>
+            <div className="ui-seg" role="radiogroup" aria-label={t('floor.camera')}>
+              {Object.keys(VIEWS).map(k => (
+                <button key={k} type="button" role="radio" aria-checked={view === k} onClick={() => { preset({ ...VIEWS[k] }, k); refit(); schedule() }}>
+                  {t(`floor.cam.${k}`)}
+                </button>
+              ))}
+            </div>
+            <span className="ui-spacer" />
+            <button type="button" className="ui-btn is-icon is-sm f3-turnbtn" onClick={() => turn(-45)} aria-label={t('floor.turnLeft')} title={t('floor.turnLeft')}><Icon name="undo" size={16} /></button>
+            <button type="button" className="ui-btn is-icon is-sm f3-turnbtn" onClick={() => turn(45)} aria-label={t('floor.turnRight')} title={t('floor.turnRight')}><Icon name="reopen" size={16} /></button>
+            <button type="button" className="ui-btn is-icon is-sm" onClick={() => zoomBy(-0.2)} aria-label={t('floor.zoomOut')} title={t('floor.zoomOut')}><Icon name="zoomOut" size={16} /></button>
+            <button type="button" className="ui-btn is-icon is-sm" onClick={() => zoomBy(0.2)} aria-label={t('floor.zoomIn')} title={t('floor.zoomIn')}><Icon name="zoomIn" size={16} /></button>
+            <button type="button" className="ui-btn is-icon is-sm" onClick={reframe} aria-label={t('floor.resetView')} title={t('floor.resetView')}><Icon name="fit" size={16} /></button>
+            <button type="button" className="ui-btn is-sm f3-toggle" aria-pressed={crop} onClick={() => setCrop(!crop)} title={t('floor.cropHint')} aria-label={t('floor.crop')}><Icon name="crop" size={15} /><span className="f3-tlabel">{t('floor.crop')}</span></button>
+            <button type="button" className="ui-btn is-sm f3-toggle" onClick={() => enterPov()} title={t('floor.povHint')} aria-label={t('floor.pov')}><Icon name="pov" size={15} /><span className="f3-tlabel">{t('floor.pov')}</span></button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="ui-btn is-sm is-primary" onClick={exitPov}><Icon name="map" size={15} />{t('floor.povExit')}</button>
+            <span className="ui-muted f3-povnote">{t('floor.povHint')}</span>
+            <span className="ui-spacer" />
+          </>
+        )}
+        {live && (
+          <button type="button" className="ui-btn is-sm f3-toggle" aria-pressed={showList} onClick={() => setShowList(!showList)} aria-label={t('floor.tableList')}><Icon name="list" size={15} /><span className="f3-tlabel">{t('floor.tableList')}</span></button>
+        )}
       </div>
 
-      <div
-        ref={stageRef}
-        className="f3-stage"
-        onPointerDown={down}
-        onPointerMove={move}
-        onPointerUp={up}
-        onPointerCancel={up}
-        onLostPointerCapture={up}
-        aria-label={t('floor.view3dHint')}
-      >
-        <div ref={worldRef} className="f3-world" style={{ width: W, height: D, marginLeft: -W / 2, marginTop: -D / 2 }}>
-          {scene}
+      <div className="f3-body">
+        <div className={`f3-view${mode === 'pov' ? ' is-pov' : ''}`}>
+          <div
+            ref={stageRef}
+            className={`f3-stage${mode === 'pov' ? ' is-pov' : ''}`}
+            style={mode === 'pov' ? { perspective: `${persp.current}px` } : undefined}
+            onPointerDown={down}
+            onPointerMove={move}
+            onPointerUp={up}
+            onPointerCancel={up}
+            onLostPointerCapture={up}
+            aria-label={mode === 'pov' ? t('floor.povHint') : t('floor.view3dHint')}
+          >
+            <div ref={worldRef} className="f3-world">
+              {scene}
+            </div>
+          </div>
+
+          {live && guestsTotal > 0 && (
+            <div className="f3-badge" aria-live="polite"><Icon name="people" size={13} /> {t('floor.guestsNow', { n: guestsTotal })}</div>
+          )}
+
+          {selected && (
+            <div className={`f3-card${live ? ` st-${selected.state}` : ''}`} role="status">
+              <div className="f3-card-main">
+                <strong>{selected.nome}</strong>
+                <small>
+                  {live ? t(`tabs.state.${selected.state}`) : t('tabs.people', { n: selected.capacidade })}
+                  {live && (+selected.pessoas > 0) ? ` · ${t('floor.guestsAt', { n: selected.pessoas, cap: selected.capacidade || '–' })}` : ''}
+                  {live && selected.open?.length ? ` · ${fmtYen(selected.money.total)}` : ''}
+                </small>
+              </div>
+              <div className="f3-card-actions">
+                {mode === 'map' && (
+                  <button type="button" className="ui-btn is-sm is-icon" onClick={() => enterPov(selected)} aria-label={t('floor.viewFrom')} title={t('floor.viewFrom')}><Icon name="pov" size={16} /></button>
+                )}
+                {onTable && <button type="button" className="ui-btn is-sm is-primary" onClick={() => onTableRef.current?.(selected)}>{t('floor.openSel')}</button>}
+                <button type="button" className="ui-btn is-sm is-icon" onClick={() => setSelectedId(null)} aria-label={t('common.close')}><Icon name="close" size={16} /></button>
+              </div>
+            </div>
+          )}
+
+          {mode === 'pov' && (
+            <div className="f3-pad" aria-label={t('floor.povPad')} role="group">
+              <span />
+              <button type="button" className="ui-btn is-icon" aria-label={t('floor.walkFwd')} {...holdProps(1, 0)}><Icon name="up" size={18} /></button>
+              <span />
+              <button type="button" className="ui-btn is-icon" aria-label={t('floor.lookLeft')} {...holdProps(0, 1)}><Icon name="back" size={18} /></button>
+              <button type="button" className="ui-btn is-icon" aria-label={t('floor.walkBack')} {...holdProps(-1, 0)}><Icon name="downArrow" size={18} /></button>
+              <button type="button" className="ui-btn is-icon" aria-label={t('floor.lookRight')} {...holdProps(0, -1)}><Icon name="next" size={18} /></button>
+            </div>
+          )}
         </div>
+
+        {showList && (
+          <aside className="f3-list" aria-label={t('floor.tableList')}>
+            <ul>
+              {listed.map(tb => {
+                const on = String(tb.id) === selectedId
+                return (
+                  <li key={tb.id}>
+                    <button
+                      type="button"
+                      className={`f3-row${live ? ` st-${tb.state}` : ''}${on ? ' is-on' : ''}`}
+                      style={live ? undefined : { '--st': tb.cor || sectors.find(s => s.id === tb.sector_id)?.cor || 'var(--c-accent)' }}
+                      aria-pressed={on}
+                      onClick={() => {
+                        if (on && confirm) onTableRef.current?.(tb)
+                        else if (!confirm) { pick(tb); onTableRef.current?.(tb) }
+                        else pick(tb)
+                      }}
+                    >
+                      <i className="f3-dot" />
+                      <span className="f3-row-name">{tb.nome}</span>
+                      <span className="f3-row-sub">
+                        {live ? t(`tabs.state.${tb.state}`) : t('tabs.people', { n: tb.capacidade })}
+                        {live && +tb.pessoas > 0 && <> · <Icon name="people" size={11} /> {tb.pessoas}</>}
+                      </span>
+                      {live && tb.open?.length > 0 && <span className="f3-row-money num">{fmtYen(tb.money.total)}</span>}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </aside>
+        )}
       </div>
-      <p className="desk-note f3-hint"><Icon name="move" size={13} /> {t('floor.view3dHint')}</p>
+      <p className="desk-note f3-hint"><Icon name="move" size={13} /> {mode === 'pov' ? t('floor.povHint') : t(confirm ? 'floor.view3dHintPick' : 'floor.view3dHint')}</p>
     </div>
   )
 }
