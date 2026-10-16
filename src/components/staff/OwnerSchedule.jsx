@@ -5,17 +5,20 @@ import { useI18n } from '../../lib/i18n'
 import { canAccess } from '../../lib/barAccess'
 import { loadBarTeam, peekBarTeam } from '../../lib/barTeam'
 import { clockStaff } from '../../lib/timeClock'
-import { addDays, attendanceFor, scheduleBoard as buildBoard, scheduleWindow } from '../../lib/staffSchedule'
+import {
+  DEFAULT_RULES, WEEKDAY_KEYS, addDays, attendanceFor, deadlineMs, scheduleBoard as buildBoard, scheduleWindow, spanLabel, weekCheck,
+} from '../../lib/staffSchedule'
 import { FINE_TYPES, fineSettings, finesTotal, suggestFine } from '../../lib/staffFines'
 import { tokyoNightKey } from '../../lib/tokyo'
-import { cancelFine, confirmSchedule, listFines, saveFine, saveFineSettings, scheduleBoard } from '../../lib/staffSelfApi'
+import { cancelFine, confirmSchedule, listFines, remindSchedule, saveFine, saveFineSettings, saveScheduleRules, scheduleBoard } from '../../lib/staffSelfApi'
 import { errText } from '../../lib/errText'
 import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
 import { fmtDay, fmtTime } from './staffUi'
-import { START_TIMES } from './ScheduleScreen'
+import { END_TIMES, START_TIMES } from './ScheduleScreen'
 
 const noon = key => `${key}T12:00:00+09:00`
+const hoursOf = p => (p?.start ? `${p.start}${p.end ? `–${p.end}` : ''}` : '')
 
 /** Everyone who can be scheduled: logins of the bar (not the owner/tills) and registered employees. */
 export function rosterOf(pack) {
@@ -139,14 +142,14 @@ export function FineSheet({ initial, roster, onClose, onSaved }) {
 
 function ConfirmEditor({ t, row, roster, onCancel, onSaved }) {
   const markedIds = new Set(row.marked.map(p => p.id))
-  const [picked, setPicked] = useState(() => Object.fromEntries(row.expected.map(p => [p.id, p.start || ''])))
+  const [picked, setPicked] = useState(() => Object.fromEntries(row.expected.map(p => [p.id, { start: p.start || '', end: p.end || '' }])))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const people = [...roster].sort((a, b) => (markedIds.has(b.id) - markedIds.has(a.id)) || a.nome.localeCompare(b.nome))
   async function save() {
     setBusy(true); setErr('')
     try {
-      const list = people.filter(p => p.id in picked).map(p => ({ id: p.id, nome: p.nome, start: picked[p.id] }))
+      const list = people.filter(p => p.id in picked).map(p => ({ id: p.id, nome: p.nome, start: picked[p.id].start, end: picked[p.id].end }))
       await confirmSchedule(row.day, list)
       onSaved()
     } catch (e) {
@@ -162,15 +165,21 @@ function ConfirmEditor({ t, row, roster, onCancel, onSaved }) {
         return (
           <div key={p.id} className={`osb-edit-row${on ? ' is-on' : ''}`}>
             <label>
-              <input type="checkbox" checked={on} onChange={() => setPicked(x => { const o = { ...x }; if (on) delete o[p.id]; else o[p.id] = row.marked.find(m => m.id === p.id)?.start || ''; return o })} />
+              <input type="checkbox" checked={on} onChange={() => setPicked(x => { const o = { ...x }; const m = row.marked.find(mk => mk.id === p.id); if (on) delete o[p.id]; else o[p.id] = { start: m?.start || '', end: m?.end || '' }; return o })} />
               <span>{p.nome}</span>
               {markedIds.has(p.id) && <em className="sa-chip is-ok">{t('ownerSchedule.marked')}</em>}
             </label>
             {on && (
-              <select aria-label={t('schedule.startAt')} value={picked[p.id] || ''} onChange={e => setPicked(x => ({ ...x, [p.id]: e.target.value }))}>
-                <option value="">{t('schedule.anyTime')}</option>
-                {START_TIMES.map(tm => <option key={tm} value={tm}>{tm}</option>)}
-              </select>
+              <span className="osb-hours">
+                <select aria-label={t('schedule.startAt')} value={picked[p.id].start || ''} onChange={e => setPicked(x => ({ ...x, [p.id]: { ...x[p.id], start: e.target.value } }))}>
+                  <option value="">{t('schedule.anyTime')}</option>
+                  {START_TIMES.map(tm => <option key={tm} value={tm}>{tm}</option>)}
+                </select>
+                <select aria-label={t('schedule.endAt')} value={picked[p.id].end || ''} onChange={e => setPicked(x => ({ ...x, [p.id]: { ...x[p.id], end: e.target.value } }))}>
+                  <option value="">{t('schedule.noEnd')}</option>
+                  {END_TIMES.map(tm => <option key={tm} value={tm}>{tm}</option>)}
+                </select>
+              </span>
             )}
           </div>
         )
@@ -181,6 +190,128 @@ function ConfirmEditor({ t, row, roster, onCancel, onSaved }) {
         <button type="button" className="btn-primary" disabled={busy} onClick={save}>{busy ? t('common.wait') : t('ownerSchedule.confirmN', { n: Object.keys(picked).length })}</button>
       </div>
     </div>
+  )
+}
+
+/** The owner's rules for sending next week: required, deadline, reminder, least nights, end time. */
+function ScheduleRulesCard({ t, rules, onSaved }) {
+  const [v, setV] = useState(rules)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  useEffect(() => { setV(rules) }, [rules])
+  async function save() {
+    setBusy(true); setMsg('')
+    try {
+      const j = await saveScheduleRules(v)
+      setMsg(t('scheduleRules.saved'))
+      onSaved(j.rules)
+    } catch (e) {
+      setMsg(errText(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const num = (k, label, min, max) => (
+    <label key={k}>
+      {label}
+      <input type="number" inputMode="numeric" min={min} max={max} step="1" value={v[k]} disabled={busy} onChange={e => setV(x => ({ ...x, [k]: e.target.value }))} />
+    </label>
+  )
+  return (
+    <section className="desk-card osb-settings osb-rules">
+      <h3><Icon name="settings" size={17} /> {t('scheduleRules.title')}</h3>
+      <p className="desk-note">{t('scheduleRules.lead')}</p>
+      <label className="osb-toggle">
+        <input type="checkbox" checked={!!v.required} disabled={busy} onChange={e => setV(x => ({ ...x, required: e.target.checked }))} />
+        <span><strong>{t('scheduleRules.required')}</strong><small>{t('scheduleRules.requiredHint')}</small></span>
+      </label>
+      <label className="osb-toggle">
+        <input type="checkbox" checked={!!v.needEnd} disabled={busy} onChange={e => setV(x => ({ ...x, needEnd: e.target.checked }))} />
+        <span><strong>{t('scheduleRules.needEnd')}</strong><small>{t('scheduleRules.needEndHint')}</small></span>
+      </label>
+      <div className="house-editor">
+        <label>
+          {t('scheduleRules.deadlineDay')}
+          <select value={v.deadlineDay} disabled={busy} onChange={e => setV(x => ({ ...x, deadlineDay: +e.target.value }))}>
+            {WEEKDAY_KEYS.map((k, i) => <option key={k} value={i}>{t(`schedule.wd_${k}`)}</option>)}
+          </select>
+        </label>
+        <label>
+          {t('scheduleRules.deadlineHour')}
+          <select value={v.deadlineHour} disabled={busy} onChange={e => setV(x => ({ ...x, deadlineHour: +e.target.value }))}>
+            {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{`${String(h).padStart(2, '0')}:00`}</option>)}
+          </select>
+        </label>
+        {num('remindDays', t('scheduleRules.remindDays'), 0, 6)}
+        {num('minNights', t('scheduleRules.minNights'), 0, 7)}
+      </div>
+      <p className="desk-note">{t('scheduleRules.summary', { day: t(`schedule.wd_${WEEKDAY_KEYS[+v.deadlineDay || 0]}`), hour: `${String(+v.deadlineHour || 0).padStart(2, '0')}:00`, n: +v.remindDays || 0 })}</p>
+      <button type="button" className="btn-primary" disabled={busy} onClick={save}>{busy ? t('common.wait') : t('common.save')}</button>
+      {msg && <p className="desk-note" role="status">{msg}</p>}
+    </section>
+  )
+}
+
+/** Who sent next week (start and end on every night), who did not, and a reminder for the late ones. */
+function SubmissionsCard({ t, roster, availability, rules, nextWeek }) {
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  if (!nextWeek) return null
+  const byId = new Map((availability || []).map(r => [String(r.staff_id), r]))
+  const rows = roster.map(p => {
+    const r = byId.get(String(p.id))
+    const check = weekCheck(r?.days || {}, { ...nextWeek, rules })
+    const sent = !!r?.weeks?.[nextWeek.from]?.submitted_at && check.ok
+    const nights = []
+    for (let d = nextWeek.from; d <= nextWeek.to; d = addDays(d, 1)) if (r?.days?.[d]) nights.push({ day: d, ...r.days[d] })
+    return { ...p, sent, sentAt: sent ? r.weeks[nextWeek.from].submitted_at : null, nights }
+  }).sort((a, b) => (a.sent - b.sent) || a.nome.localeCompare(b.nome))
+  const pending = rows.filter(r => !r.sent)
+  const deadline = deadlineMs(nextWeek.from, rules)
+  const left = deadline - Date.now()
+  async function remind() {
+    setBusy(true); setMsg('')
+    try {
+      const j = await remindSchedule(pending.map(p => p.id))
+      setMsg(t('scheduleRules.reminded', { n: j.reminded ?? pending.length }))
+    } catch (e) {
+      setMsg(errText(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <section className="desk-card osb-subs">
+      <div className="osb-head">
+        <h3><Icon name="send" size={17} /> {t('scheduleRules.subsTitle', { from: fmtDay(noon(nextWeek.from), { month: 'short', day: 'numeric' }), to: fmtDay(noon(nextWeek.to), { month: 'short', day: 'numeric' }) })}</h3>
+        <b className="sa-pill">{rows.length - pending.length}/{rows.length}</b>
+      </div>
+      <p className="desk-note">
+        {left > 0
+          ? t('scheduleRules.deadlineIn', { when: `${fmtDay(deadline, { weekday: 'short', month: 'numeric', day: 'numeric' })} ${fmtTime(deadline)}`, left: spanLabel(left) })
+          : t('scheduleRules.deadlinePassed', { when: `${fmtDay(deadline, { weekday: 'short', month: 'numeric', day: 'numeric' })} ${fmtTime(deadline)}` })}
+      </p>
+      <ul className="osb-people">
+        {!rows.length && <li className="osb-none">{t('ownerSchedule.nobody')}</li>}
+        {rows.map(r => (
+          <li key={r.id} className={r.sent ? 'is-ok' : 'is-missing'}>
+            <span className="osb-name">
+              {r.nome}
+              <small> · {r.nights.length ? r.nights.map(n => `${fmtDay(noon(n.day), { weekday: 'short' })} ${hoursOf(n) || '?'}`).join(', ') : t('scheduleRules.noNights')}</small>
+            </span>
+            {r.sent
+              ? <span className="sa-chip is-ok"><Icon name="check" size={12} /> {t('scheduleRules.sent')}</span>
+              : <span className={`sa-chip ${left > 0 ? 'is-outside' : 'is-bad'}`}>{t('scheduleRules.pending')}</span>}
+          </li>
+        ))}
+      </ul>
+      {pending.length > 0 && (
+        <button type="button" className="ui-btn" disabled={busy} onClick={remind}>
+          <Icon name="bell" size={16} /> {busy ? t('common.wait') : t('scheduleRules.remindN', { n: pending.length })}
+        </button>
+      )}
+      {msg && <p className="desk-note" role="status">{msg}</p>}
+    </section>
   )
 }
 
@@ -276,6 +407,7 @@ export default function OwnerSchedule() {
   const [editing, setEditing] = useState('')
   const [fine, setFine] = useState(null)
   const [settings, setSettings] = useState(null)
+  const [rules, setRules] = useState(null)
   const month = today.slice(0, 7)
   const [fines, setFines] = useState([])
   const loadFines = useCallback(() => listFines(`${month}-01`, `${month}-31`).then(j => setFines(j.fines || [])).catch(() => setFines([])), [month])
@@ -283,6 +415,7 @@ export default function OwnerSchedule() {
   useEffect(() => { loadBarTeam().then(j => { if (j && !j.error) setTeam(j) }).catch(() => {}) }, [])
   useEffect(() => { loadFines() }, [loadFines])
   useEffect(() => { if (board.data?.settings) setSettings(board.data.settings) }, [board.data])
+  useEffect(() => { if (board.data?.rules) setRules(board.data.rules) }, [board.data])
 
   const roster = rosterOf(team)
   const cfg = settings || fineSettings({})
@@ -337,7 +470,7 @@ export default function OwnerSchedule() {
                       const amount = suggestFine(a, cfg)
                       return (
                         <li key={a.id} className={`is-${a.status}`}>
-                          <span className="osb-name">{a.nome || a.id}{a.start ? <small> · {a.start}</small> : null}{a.inAt ? <small> · {t('ownerSchedule.in', { time: fmtTime(a.inAt) })}</small> : null}</span>
+                          <span className="osb-name">{a.nome || a.id}{a.start ? <small> · {hoursOf(a)}</small> : null}{a.inAt ? <small> · {t('ownerSchedule.in', { time: fmtTime(a.inAt) })}</small> : null}</span>
                           <StatusChip t={t} a={a} />
                           {canSuggest && (fined
                             ? <span className="sa-chip">{t('ownerSchedule.fined')}</span>
@@ -357,6 +490,8 @@ export default function OwnerSchedule() {
           </button>
         )}
       </section>
+      <SubmissionsCard t={t} roster={roster} availability={board.data?.availability} rules={rules || DEFAULT_RULES} nextWeek={board.data?.nextWeek} />
+      <ScheduleRulesCard t={t} rules={rules || DEFAULT_RULES} onSaved={r => setRules(r)} />
       <FinesList t={t} fines={fines} canEdit={canFine} onChanged={() => { loadFines(); board.reload() }} />
       <FineSettingsCard t={t} settings={cfg} canEdit={canFine} onSaved={s => setSettings(s)} />
       {fine && <FineSheet initial={fine} roster={roster} onClose={() => setFine(null)} onSaved={() => { loadFines(); board.reload() }} />}

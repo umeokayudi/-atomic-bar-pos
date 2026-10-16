@@ -6,8 +6,9 @@
  */
 import assert from 'node:assert/strict'
 import {
-  addDays, attendanceFor, canEditDay, cleanDays, expectedFor, mergeAvailability, myAttendance, openHourOf, scheduleBoard,
-  scheduleWeeks, scheduleWindow, startMs,
+  addDays, attendanceFor, canEditDay, cleanDays, cleanScheduleRules, deadlineMs, endMs, expectedFor, mergeAvailability, myAttendance,
+  nextWeekOf, openHourOf, scheduleBoard, scheduleRules, scheduleWeeks, scheduleWindow, shiftCountdown, spanLabel, startMs,
+  submissionStatus, validWeeks, weekCheck,
 } from '../src/lib/staffSchedule.js'
 import {
   canWriteFines, cleanFine, cleanPayout, fineSettings, finesByStaff, finesTotal, finesVisibleTo, payNet, paymentHistory, suggestFine,
@@ -173,6 +174,79 @@ await test('payment history: bar payouts first, HQ approved/paid periods fill th
   assert.equal(paymentHistory({ payouts: Array.from({ length: 20 }, (_, i) => ({ month: `2025-${String((i % 12) + 1).padStart(2, '0')}`, net: i })), limit: 6 }).length, 6)
 })
 
+// ── Pure: end times, next week's rules, deadline, reminder, countdown ───────
+await test('end time: kept only when set; an end before the start is the next morning', () => {
+  const d = cleanDays({ '2026-10-20': { start: '20:00', end: '02:00' }, '2026-10-21': { start: '21:00', end: 'x' } }, { from: '2026-10-19', to: '2026-10-25' })
+  assert.deepEqual(d['2026-10-20'], { start: '20:00', end: '02:00' })
+  assert.deepEqual(d['2026-10-21'], { start: '21:00' })
+  assert.equal(endMs('2026-10-20', '20:00', '02:00') - startMs('2026-10-20', '20:00'), 6 * 3600e3)
+  assert.equal(endMs('2026-10-20', '18:00', '23:30') - startMs('2026-10-20', '18:00'), 5.5 * 3600e3)
+  const r = mergeAvailability({ '2026-10-20': { start: '20:00' } }, { '2026-10-20': { start: '20:00', end: '03:00' } }, { now: at(2026, 10, 25, 15) })
+  assert.deepEqual(r.locked, ['2026-10-20'], 'changing only the end of a locked night is refused too')
+})
+
+await test('rules: defaults, owner patch clamped; next week and its deadline', () => {
+  assert.deepEqual(scheduleRules({}), { required: true, deadlineDay: 4, deadlineHour: 18, remindDays: 2, minNights: 0, needEnd: true })
+  const patch = cleanScheduleRules({ required: false, deadlineDay: 9, deadlineHour: 21, remindDays: 3, minNights: 2, needEnd: false })
+  assert.deepEqual(patch, { escala_obrigatoria: false, escala_prazo_dia: 6, escala_prazo_hora: 21, escala_lembrete_dias: 3, escala_min_noites: 2, escala_exigir_fim: false })
+  assert.equal(scheduleRules(patch).required, false)
+  assert.deepEqual(nextWeekOf('2026-10-15'), { from: '2026-10-19', to: '2026-10-25' })
+  assert.deepEqual(nextWeekOf('2026-10-19'), { from: '2026-10-26', to: '2026-11-01' }, 'on Monday, next week is the following one')
+  // Default: Friday 18:00 of the week before.
+  assert.equal(deadlineMs('2026-10-19', scheduleRules({})), tokyoWallToUtcMs(2026, 10, 16, 18, 0))
+})
+
+await test('weekCheck + submission: start/end on every night, least nights, sent flag, reminder window, overdue', () => {
+  const rules = scheduleRules({ escala_min_noites: 2 })
+  const wk = { from: '2026-10-19', to: '2026-10-25', rules }
+  assert.equal(weekCheck({ '2026-10-20': { start: '20:00', end: '02:00' } }, wk).tooFew, true)
+  const c = weekCheck({ '2026-10-20': { start: '20:00', end: '02:00' }, '2026-10-21': { start: '20:00' } }, wk)
+  assert.deepEqual(c.noEnd, ['2026-10-21'])
+  assert.equal(c.ok, false)
+  const days = { '2026-10-20': { start: '20:00', end: '02:00' }, '2026-10-22': { start: '21:00', end: '03:00' } }
+  assert.equal(weekCheck(days, wk).ok, true)
+  // Wednesday 15:00: before the reminder window (Fri 18:00 − 2 days = Wed 18:00).
+  let st = submissionStatus({ row: { days }, rules, today: '2026-10-14', now: at(2026, 10, 14, 15) })
+  assert.equal(st.mustSend, true)
+  assert.equal(st.remind, false)
+  st = submissionStatus({ row: { days }, rules, today: '2026-10-14', now: at(2026, 10, 14, 19) })
+  assert.equal(st.remind, true)
+  st = submissionStatus({ row: { days }, rules, today: '2026-10-16', now: at(2026, 10, 16, 19) })
+  assert.equal(st.overdue, true)
+  st = submissionStatus({ row: { days, weeks: { '2026-10-19': { submitted_at: 'x' } } }, rules, today: '2026-10-16', now: at(2026, 10, 16, 19) })
+  assert.equal(st.submitted, true)
+  assert.equal(st.mustSend, false)
+  assert.equal(st.remind, false)
+  // Owner turned the rule off: nothing blocks.
+  assert.equal(submissionStatus({ row: null, rules: scheduleRules({ escala_obrigatoria: false }), today: '2026-10-14' }).mustSend, false)
+  // Editing a sent week into something invalid drops the "sent".
+  assert.deepEqual(Object.keys(validWeeks({ '2026-10-19': { submitted_at: 'x' } }, days, rules)), ['2026-10-19'])
+  assert.deepEqual(validWeeks({ '2026-10-19': { submitted_at: 'x' } }, { '2026-10-20': days['2026-10-20'] }, rules), {})
+})
+
+await test('countdown: before start, late not in, came late, time left, over, done', () => {
+  const s = { day: '2026-10-20', start: '20:00', end: '02:00', toleranceMin: 10 }
+  let c = shiftCountdown({ ...s, now: at(2026, 10, 20, 18, 30) })
+  assert.equal(c.phase, 'before')
+  assert.equal(spanLabel(c.msToStart), '1h 30m')
+  assert.equal(shiftCountdown({ ...s, now: at(2026, 10, 20, 20, 5) }).phase, 'due', 'inside the tolerance')
+  c = shiftCountdown({ ...s, now: at(2026, 10, 20, 20, 25) })
+  assert.equal(c.phase, 'late')
+  assert.equal(c.lateMinutes, 25)
+  c = shiftCountdown({ ...s, inAt: at(2026, 10, 20, 20, 20).toISOString(), now: at(2026, 10, 20, 23) })
+  assert.equal(c.phase, 'on')
+  assert.equal(c.lateMinutes, 20)
+  assert.equal(spanLabel(c.msToEnd), '3h 00m')
+  assert.ok(c.pct > 40 && c.pct < 60)
+  c = shiftCountdown({ ...s, inAt: at(2026, 10, 20, 19, 55).toISOString(), now: at(2026, 10, 21, 2, 30) })
+  assert.equal(c.phase, 'over')
+  assert.equal(c.lateMinutes, 0)
+  c = shiftCountdown({ ...s, inAt: at(2026, 10, 20, 19, 55).toISOString(), outAt: at(2026, 10, 21, 2).toISOString(), now: at(2026, 10, 21, 2, 30) })
+  assert.equal(c.phase, 'done')
+  assert.equal(shiftCountdown({ ...s, now: at(2026, 10, 21, 3) }).phase, 'missed')
+  assert.equal(shiftCountdown({ day: '2026-10-20', start: '' }), null)
+})
+
 // ── /api/bar-staff end to end (fake Supabase, live tables in memory) ────────
 process.env.VITE_SUPABASE_URL = 'http://supabase.test'
 process.env.VITE_SUPABASE_ANON_KEY = 'anon-test'
@@ -292,6 +366,48 @@ await test('API schedule board + confirm, fine settings, salary paid (fines coun
   assert.equal(r.body.payouts.length, 1)
   r = await call(P.ken, { action: 'mePayouts' })
   assert.equal(r.body.payouts.length, 0, 'Ken does not see Aiko\'s payment')
+})
+
+await test('API next week: send needs start+end; the status, rules and owner reminder', async () => {
+  const nw = nextWeekOf(tonight)
+  const d1 = nw.from
+  const d2 = addDays(nw.from, 2)
+  let r = await call(P.ken, { action: 'meAvailability' })
+  assert.equal(r.status, 200)
+  assert.equal(r.body.status.mustSend, true, 'required by default')
+  assert.equal(r.body.rules.needEnd, true)
+  r = await call(P.ken, { action: 'meSaveAvailability', days: { [d1]: { start: '20:00' } }, submitWeek: nw.from })
+  assert.equal(r.status, 400, 'no end time')
+  r = await call(P.ken, { action: 'meSaveAvailability', days: { [d1]: { start: '20:00', end: '02:00' }, [d2]: { start: '21:00', end: '03:00' } }, submitWeek: nw.from })
+  assert.equal(r.status, 200, JSON.stringify(r.body))
+  assert.ok(r.body.weeks[nw.from].submitted_at)
+  assert.equal(r.body.status.submitted, true)
+  r = await call(P.ken, { action: 'meAvailability' })
+  assert.equal(r.body.status.mustSend, false)
+  assert.deepEqual(r.body.days[d1], { start: '20:00', end: '02:00' })
+  // Owner sets rules (min 3 nights): Ken's week no longer follows them, so it counts as not sent.
+  r = await call(P.ken, { action: 'saveScheduleRules', minNights: 3 })
+  assert.equal(r.status, 403)
+  r = await call(P.boss, { action: 'saveScheduleRules', minNights: 3, deadlineDay: 3, deadlineHour: 20, remindDays: 1 })
+  assert.equal(r.status, 200, JSON.stringify(r.body))
+  assert.equal(r.body.rules.minNights, 3)
+  r = await call(P.ken, { action: 'meAvailability' })
+  assert.equal(r.body.status.mustSend, true)
+  r = await call(P.boss, { action: 'scheduleBoard' })
+  assert.equal(r.body.rules.deadlineDay, 3)
+  assert.deepEqual(r.body.nextWeek, nw)
+  assert.ok(r.body.availability.find(a => a.staff_id === P.ken.id).weeks[nw.from])
+  r = await call(P.ken, { action: 'remindSchedule', staff_ids: [P.aiko.id] })
+  assert.equal(r.status, 403)
+  r = await call(P.mgr, { action: 'remindSchedule', staff_ids: [P.ken.id, P.ken.id] })
+  assert.equal(r.status, 200)
+  // Confirm with an end time: the staff app gets it for the countdown.
+  r = await call(P.mgr, { action: 'confirmSchedule', day: d1, people: [{ id: P.ken.id, nome: 'Ken', start: '20:00', end: '02:00' }] })
+  assert.equal(r.status, 200)
+  r = await call(P.ken, { action: 'meAvailability' })
+  if (d1 <= r.body.to) assert.deepEqual(r.body.confirmed[d1], { in: true, start: '20:00', end: '02:00' })
+  assert.equal(typeof r.body.tolerance, 'number')
+  await call(P.boss, { action: 'saveScheduleRules', minNights: 0 })
 })
 
 console.log(`\n${n} tests passed`)
