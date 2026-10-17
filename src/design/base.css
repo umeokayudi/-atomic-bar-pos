@@ -436,6 +436,19 @@ html[data-pointer="coarse"] .fe-resize { width: 28px; height: 28px; }
 .floor-money { font-size: 11px; color: var(--c-text-2); }
 /* Small cards: every line stays on one line so the table name is never pushed out of view. */
 .floor-live .fe-table > * { flex-shrink: 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Live plan: each table sits in a spot that also holds the people on its open tabs. */
+.floor-spot { position: absolute; }
+.floor-spot > .fe-table { position: absolute; }
+.floor-guest {
+  position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle at 50% 32%, #f1c9a5 0 28%, var(--guest) 30% 100%); box-shadow: 0 0 0 2px var(--c-surface), 0 1px 3px rgba(0,0,0,.3);
+  transform: scale(min(calc(1 / var(--fz, 1)), 1.6));
+}
+/* Small cards keep a readable name (same size on screen at any zoom) and the state as an icon. */
+.floor-live .fe-table.is-compact { padding: 0; gap: 0; overflow: visible; }
+.floor-live .fe-table.is-compact > * { overflow: visible; }
+.floor-live .fe-table.is-compact .fe-table-name { font-size: calc(12px / var(--fz, 1)); }
+.floor-live .fe-table.is-compact .floor-state svg { width: calc(12px / var(--fz, 1)); height: calc(12px / var(--fz, 1)); }
 .floor-legend { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .floor-legend select { min-height: 34px; }
 .floor-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: var(--radius-pill); border: 1px solid color-mix(in srgb, var(--st) 50%, transparent); background: color-mix(in srgb, var(--st) 12%, transparent); font-size: 12px; color: var(--c-text); }
@@ -1008,14 +1021,24 @@ html .sdr-row-main { width: 100%; display: grid; grid-template-columns: 36px min
 .f3-seat .f3-top { border-radius: 5px; background: color-mix(in srgb, var(--c-text) 22%, var(--c-surface)); }
 .f3-seat .f3-top.is-round { border-radius: 50%; }
 .f3-seat .f3-side, .f3-seat .f3-layer { background: color-mix(in srgb, var(--c-text) 38%, var(--c-surface)); }
+.f3-wall.is-cut { transform: scaleZ(var(--f3-wallk, 1)); }
 .f3-wall .f3-top { background: color-mix(in srgb, var(--c-text) 30%, var(--c-surface)); }
 .f3-wall .f3-side { background: color-mix(in srgb, var(--c-text) 16%, var(--c-surface)); }
 .f3-label {
-  display: flex; flex-direction: column; align-items: center; gap: 1px; max-width: 92%; padding: 2px 6px; border: 0; border-radius: 6px;
-  background: color-mix(in srgb, var(--c-surface) 82%, transparent); color: var(--c-text); font: inherit; line-height: 1.1; cursor: pointer; transition: transform .35s ease;
-  min-width: 44px; min-height: 44px; justify-content: center; touch-action: none;
-  transform: rotateZ(calc((var(--f3-spin, 0) + var(--f3-rot, 0)) * -1deg));
+  display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 3px 8px; border: 0; border-radius: 8px;
+  background: color-mix(in srgb, var(--c-surface) 90%, transparent); color: var(--c-text); font: inherit; line-height: 1.1; cursor: pointer;
+  min-width: 44px; min-height: 36px; justify-content: center; touch-action: none; white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0,0,0,.18), inset 3px 0 0 var(--f3-color);
+  /* A tag standing on the table top, turned and tilted to face the camera, kept readable at any zoom. */
+  position: absolute; left: 50%; bottom: 50%; transform-origin: 50% 100%;
+  transform: translateX(-50%) rotateZ(calc((var(--f3-spin, 0) + var(--f3-rot, 0)) * -1deg)) rotateX(calc(var(--f3-tilt, 0) * -1deg)) scale(var(--f3-ls, 1));
 }
+/* Room names (bar, stage, karaoke...) lie flat on the piece. */
+.f3-label.is-static {
+  position: static; transform: rotateZ(calc((var(--f3-spin, 0) + var(--f3-rot, 0)) * -1deg)) scale(var(--f3-ls, 1)); box-shadow: none; min-height: 0; min-width: 0;
+  max-width: 100%; overflow: hidden; background: color-mix(in srgb, var(--c-surface) 70%, transparent);
+}
+.f3-label.is-static strong { font-size: 11px; }
 .f3-table.is-tappable { cursor: pointer; }
 .f3-label:disabled { cursor: default; }
 .f3-label strong { font-size: 13px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
@@ -1069,9 +1092,15 @@ html .sdr-row-main { width: 100%; display: grid; grid-template-columns: 36px min
 .f3-guest { position: absolute; width: 0; height: 0; transform-style: preserve-3d; pointer-events: none; }
 .f3-guest-walk { position: absolute; width: 0; height: 0; transform-style: preserve-3d; animation: f3-stretch var(--dur) ease-in-out var(--delay) infinite; }
 .f3-guest-walk.is-roam { animation-name: f3-roam; }
-.f3-guest-bb { position: absolute; left: -12px; top: -66px; width: 24px; height: 66px; transform-origin: 50% 100%; transform: rotateZ(calc((var(--f3-spin, 0) + var(--f3-rot, 0)) * -1deg)) rotateX(-90deg); }
-.f3-guest-head { position: absolute; left: 4px; top: 0; width: 16px; height: 16px; border-radius: 50%; background: #f1c9a5; box-shadow: inset -2px -2px 0 rgba(0,0,0,.15); }
-.f3-guest-body { position: absolute; left: 1px; top: 17px; width: 22px; height: 49px; border-radius: 11px 11px 4px 4px; background: var(--guest); box-shadow: inset -3px 0 0 rgba(0,0,0,.18); transform-origin: 50% 100%; animation: f3-sway 2.6s ease-in-out var(--delay) infinite alternate; }
+/* A person about 1.65 m tall and 45 cm wide in the plan's own scale (--f3-u = plan units per cm). */
+.f3-guest-bb {
+  position: absolute; left: calc(-22px * var(--f3-u, 1)); top: calc(-165px * var(--f3-u, 1)); width: calc(44px * var(--f3-u, 1)); height: calc(165px * var(--f3-u, 1));
+  transform-origin: 50% 100%; transform: rotateZ(calc((var(--f3-spin, 0) + var(--f3-rot, 0)) * -1deg)) rotateX(-90deg);
+}
+.f3-guest-bb::after { content: ""; position: absolute; left: 0; right: 0; bottom: -6%; height: 12%; border-radius: 50%; background: rgba(0,0,0,.22); transform: rotateX(90deg); transform-origin: 50% 0; }
+.f3-guest-head { position: absolute; left: 25%; top: 0; width: 50%; aspect-ratio: 1; border-radius: 50%; background: #f1c9a5; box-shadow: inset -2px -2px 0 rgba(0,0,0,.15); }
+.f3-guest-head::before { content: ""; position: absolute; inset: -8% -6% 45% -6%; border-radius: 50% 50% 30% 30%; background: #3a2c25; }
+.f3-guest-body { position: absolute; left: 6%; top: 15%; width: 88%; height: 85%; border-radius: 40% 40% 12% 12% / 18% 18% 4% 4%; background: linear-gradient(to bottom, var(--guest) 0 55%, #2f3540 55% 100%); box-shadow: inset -3px 0 0 rgba(0,0,0,.18); transform-origin: 50% 100%; animation: f3-sway 2.6s ease-in-out var(--delay) infinite alternate; }
 @keyframes f3-sway { from { rotate: -3deg; } to { rotate: 3deg; } }
 /* Mostly at the table: a walk out, a pause, and back. */
 @keyframes f3-roam {

@@ -2,14 +2,20 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { useI18n } from '../../lib/i18n'
 import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
-import { SEAT, contentBounds, fitScale, guestSpots, seatSpots } from '../../lib/floor3d'
+import { SEAT, contentBounds, fitScale, guestSpots, hits, seatSpots, standSpot, unitsPerCm, wallRects } from '../../lib/floor3d'
 import { isDecor } from '../../lib/floorEditor'
 
-// Heights in plan units (the plan is roughly 1 unit = 1 cm).
-const TABLE_H = { round: 34, square: 34, rect: 34, bar: 52, sofa: 26, wall: 120, door: 3, stage: 22, plant: 70 }
+// Real heights in centimetres; the plan's own scale (units per cm, guessed from its tables) turns
+// them into plan units, so walls, tables, seats and people keep their proportions on any plan.
+const HEIGHT_CM = { round: 75, square: 75, rect: 75, bar: 105, sofa: 45, wall: 250, door: 2, stage: 25, plant: 90 }
 const DECOR_COLOR = { wall: '#9a958c', door: '#b08a5a', stage: '#4a3f5c', plant: '#3f8a4f' }
-const SEAT_H = 22
-const WALL_H = 46
+const SEAT_CM = 45
+// Seen from above, walls are cut down to this share of their height so they do not hide the room;
+// walking inside, they stand at full height.
+const WALL_CUT = 0.35
+// A decor piece gets its name written on it only when it is at least this wide (cm), so small
+// fridges and posts do not crowd the view.
+const DECOR_LABEL_CM = 90
 const VIEWS = {
   persp: { tilt: 55, spin: -18 },
   front: { tilt: 68, spin: 0 },
@@ -22,9 +28,10 @@ const TAP_SLOP = 8
 // A tap that lands just outside a table still opens it when it is this close (screen px), so small
 // tables on a phone get an effective target of about 44 px.
 const TAP_REACH = 22
-// Walk-inside view: eye height in plan units, walking speed (units per second) and turn speed (deg/s).
-const EYE = 80
-const WALK = 220
+// Walk-inside view: eye height and body radius (cm), walking speed (cm per second), turn speed (deg/s).
+const EYE_CM = 160
+const BODY_CM = 25
+const WALK_CM = 150
 const TURN = 90
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
@@ -66,9 +73,9 @@ function Box({ w, d, h, round, className = '', style, children, top }) {
 }
 
 /** One guest: stands at a seat, faces the camera, and now and then walks a short loop and comes back. */
-function Guest({ g }) {
+function Guest({ g, k }) {
   return (
-    <div className="f3-guest" style={{ left: g.x, top: g.y, '--wx': `${g.wx}px`, '--wy': `${g.wy}px`, '--dur': `${g.dur}s`, '--delay': `${g.delay}s` }}>
+    <div className="f3-guest" style={{ left: g.x, top: g.y, '--wx': `${Math.round(g.wx * k)}px`, '--wy': `${Math.round(g.wy * k)}px`, '--dur': `${g.dur}s`, '--delay': `${g.delay}s` }}>
       <div className={`f3-guest-walk${g.roam ? ' is-roam' : ''}`}>
         <div className="f3-guest-bb" style={{ '--guest': g.color }}>
           <i className="f3-guest-head" />
@@ -84,19 +91,20 @@ function Guest({ g }) {
  * the camera, so turning, tilting or zooming never re-renders it; labels and guests face the viewer
  * through the `--f3-spin` custom property the camera writes on the world node.
  */
-const Scene = memo(function Scene({ area, tables, sectors, live, tappable, selectedId, onKeyOpen, t }) {
+const Scene = memo(function Scene({ area, tables, sectors, live, tappable, selectedId, onKeyOpen, t, k }) {
   const sectorColor = id => sectors.find(s => s.id === id)?.cor
   return (
     <>
       <div className="f3-floor" style={{ left: area.x, top: area.y, width: area.w, height: area.h }} />
-      <Box className="f3-wall" w={area.w} d={6} h={WALL_H} style={{ left: area.x, top: area.y - 6 }} />
-      <Box className="f3-wall" w={6} d={area.h} h={WALL_H} style={{ left: area.x - 6, top: area.y }} />
-      <Box className="f3-wall is-low" w={6} d={area.h} h={WALL_H / 3} style={{ left: area.x + area.w, top: area.y }} />
+      <Box className="f3-wall is-cut" w={area.w} d={6} h={HEIGHT_CM.wall * k} style={{ left: area.x, top: area.y - 6 }} />
+      <Box className="f3-wall is-cut" w={6} d={area.h} h={HEIGHT_CM.wall * k} style={{ left: area.x - 6, top: area.y }} />
+      <Box className="f3-wall is-low" w={6} d={area.h} h={(HEIGHT_CM.wall * k) / 3} style={{ left: area.x + area.w, top: area.y }} />
       {tables.map(tb => {
         const w = +tb.largura
         const d = +tb.altura
-        const h = TABLE_H[tb.forma] || 34
+        const h = Math.max(2, (HEIGHT_CM[tb.forma] || 75) * k)
         const decor = isDecor(tb.forma)
+        const wall = tb.forma === 'wall'
         const color = tb.cor || DECOR_COLOR[tb.forma] || sectorColor(tb.sector_id) || 'var(--c-accent)'
         const seats = decor || tb.forma === 'sofa' ? [] : seatSpots(tb.forma, w, d, tb.capacidade)
         const guests = live && !decor ? guestSpots(tb, tb.pessoas) : []
@@ -109,14 +117,14 @@ const Scene = memo(function Scene({ area, tables, sectors, live, tappable, selec
             key={tb.id}
             data-f3-id={canTap ? tb.id : undefined}
             className={`f3-table is-${tb.forma}${decor ? ' is-decor' : ''}${live && !decor ? ` st-${tb.state}` : ''}${tb.ativo === false ? ' is-off' : ''}${canTap ? ' is-tappable' : ''}${selected ? ' is-selected' : ''}`}
-            style={{ left: +tb.x, top: +tb.y, width: w, height: d, transform: `translateZ(var(--f3-lift, 0px)) rotateZ(${+tb.rotacao || 0}deg)`, '--f3-rot': +tb.rotacao || 0, ...(live && !decor ? null : { '--f3-color': color }) }}
+            style={{ left: +tb.x, top: +tb.y, width: w, height: d, transform: `translateZ(var(--f3-lift, 0px)) rotateZ(${+tb.rotacao || 0}deg)${wall ? ' scaleZ(var(--f3-wallk, 1))' : ''}`, '--f3-rot': +tb.rotacao || 0, ...(live && !decor ? null : { '--f3-color': color }) }}
           >
             {selected && <div className="f3-glow" />}
             {seats.map((s, i) => (
-              <Box key={i} className="f3-seat" w={SEAT} d={SEAT} h={SEAT_H} round={tb.forma === 'round'} style={{ left: s.x, top: s.y }} />
+              <Box key={i} className="f3-seat" w={SEAT} d={SEAT} h={SEAT_CM * k} round={tb.forma === 'round'} style={{ left: s.x, top: s.y }} />
             ))}
             <Box w={w} d={d} h={h} round={round} className="f3-surface">
-              {decor ? (tb.forma === 'stage' && <span className="f3-label is-static"><strong>{tb.nome}</strong></span>) : (
+              {decor ? (tb.forma === 'stage' && Math.min(w, d) >= DECOR_LABEL_CM * k * 0.5 && Math.max(w, d) >= DECOR_LABEL_CM * k && <span className="f3-label is-static"><strong>{tb.nome}</strong></span>) : (
                 <button
                   type="button"
                   className="f3-label"
@@ -130,7 +138,7 @@ const Scene = memo(function Scene({ area, tables, sectors, live, tappable, selec
                 </button>
               )}
             </Box>
-            {guests.map((g, i) => <Guest key={i} g={g} />)}
+            {guests.map((g, i) => <Guest key={i} g={g} k={k} />)}
             {selected && (
               <div className="f3-pin" style={{ left: w / 2, top: d / 2, '--h': `${h + 30}px` }} aria-hidden="true">
                 <div className="f3-pin-bb"><Icon name="downArrow" size={22} /></div>
@@ -165,6 +173,11 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
   const { t } = useI18n()
   const W = +layout.largura || 900
   const D = +layout.altura || 500
+  // Plan units per centimetre; only the tables' sizes change it.
+  const sizeKey = tables.map(tb => `${tb.forma}:${tb.largura}:${tb.altura}:${tb.capacidade}`).join('|')
+  const k = useMemo(() => unitsPerCm(tables), [sizeKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  const kRef = useRef(k)
+  kRef.current = k
   const [view, setView] = useState('persp')
   const [mode, setModeState] = useState('map')
   const [drag, setDragState] = useState(() => readPref('drag', 'move'))
@@ -203,6 +216,9 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
   const area = useMemo(() => (crop ? bounds : { x: 0, y: 0, w: W, h: D }), [crop, bounds, W, D])
   const areaRef = useRef(area)
   areaRef.current = area
+  const walls = useMemo(() => wallRects(tables), [geomKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  const wallsRef = useRef(walls)
+  wallsRef.current = walls
 
   const setMode = m => setModeState(m)
   const setDrag = v => { setDragState(v); writePref('drag', v) }
@@ -215,11 +231,20 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
     if (!el) return
     if (modeRef.current === 'pov') {
       const p = pov.current
-      el.style.transform = `translateZ(${persp.current - 1}px) rotateX(${90 + p.pitch}deg) rotateZ(${p.yaw}deg) translate3d(${-p.x}px, ${-p.y}px, ${-EYE}px)`
+      el.style.transform = `translateZ(${persp.current - 1}px) rotateX(${90 + p.pitch}deg) rotateZ(${p.yaw}deg) translate3d(${-p.x}px, ${-p.y}px, ${-EYE_CM * kRef.current}px)`
+      el.style.setProperty('--f3-tilt', String(90 + p.pitch))
+      el.style.setProperty('--f3-ls', '1')
+      el.style.setProperty('--f3-wallk', '1')
     } else {
       const c = cam.current
-      el.style.transform = `translate3d(${c.px}px, ${c.py}px, 0) scale(${fit.current * c.zoom}) rotateX(${c.tilt}deg) rotateZ(${c.spin}deg) translate3d(${-c.cx}px, ${-c.cy}px, 0)`
+      const s = fit.current * c.zoom
+      el.style.transform = `translate3d(${c.px}px, ${c.py}px, 0) scale(${s}) rotateX(${c.tilt}deg) rotateZ(${c.spin}deg) translate3d(${-c.cx}px, ${-c.cy}px, 0)`
+      // Labels keep a readable size on screen however far the camera is, and stand facing it.
+      el.style.setProperty('--f3-tilt', String(Math.round(c.tilt)))
+      el.style.setProperty('--f3-ls', String(clamp(1.15 / s, 0.8, 3).toFixed(2)))
+      el.style.setProperty('--f3-wallk', String(WALL_CUT))
     }
+    el.style.setProperty('--f3-u', String(kRef.current))
   }, [])
   const schedule = useCallback(() => {
     if (!frame.current) frame.current = requestAnimationFrame(apply)
@@ -282,15 +307,22 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
   /** Keep the walker inside the room. */
   const clampPov = () => {
     const p = pov.current
-    p.x = clamp(p.x, -200, W + 200)
-    p.y = clamp(p.y, -200, D + 200)
+    p.x = clamp(p.x, 0, W)
+    p.y = clamp(p.y, 0, D)
   }
+  /** Walk, sliding along walls instead of going through them. */
   const walkBy = (fwd, strafe = 0) => {
     const p = pov.current
     const a = rad(p.yaw)
     // Forward is plan -y turned by the yaw; right is plan +x turned by the yaw.
-    p.x += -Math.sin(a) * fwd + Math.cos(a) * strafe
-    p.y += -Math.cos(a) * fwd - Math.sin(a) * strafe
+    const dx = -Math.sin(a) * fwd + Math.cos(a) * strafe
+    const dy = -Math.cos(a) * fwd - Math.sin(a) * strafe
+    const r = BODY_CM * kRef.current
+    const solid = wallsRef.current
+    if (hits(solid, p.x, p.y, r)) { p.x += dx; p.y += dy } // already inside one: let them walk out
+    else if (!hits(solid, p.x + dx, p.y + dy, r)) { p.x += dx; p.y += dy }
+    else if (!hits(solid, p.x + dx, p.y, r)) p.x += dx
+    else if (!hits(solid, p.x, p.y + dy, r)) p.y += dy
     clampPov()
   }
 
@@ -301,7 +333,7 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
     const wheel = e => {
       e.preventDefault()
       if (modeRef.current === 'pov') {
-        walkBy(-e.deltaY * 0.6)
+        walkBy(-e.deltaY * 0.6 * kRef.current)
         schedule()
         return
       }
@@ -330,7 +362,7 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
     w.last = ts
     if (!w.fwd && !w.turn) { w.raf = 0; w.last = 0; settleLabels(); return }
     pov.current.yaw += w.turn * TURN * dt
-    walkBy(w.fwd * WALK * dt)
+    walkBy(w.fwd * WALK_CM * kRef.current * dt)
     apply()
     w.raf = requestAnimationFrame(walkLoop)
   }, [apply, settleLabels]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -426,7 +458,7 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
       if (modeRef.current === 'pov') {
         p.x = g.pos.x
         p.y = g.pos.y
-        walkBy((dist(pts[0], pts[1]) - g.d) * 1.5)
+        walkBy((dist(pts[0], pts[1]) - g.d) * 2.5 * kRef.current)
       } else {
         c.zoom = clamp((g.zoom * dist(pts[0], pts[1])) / g.d, ZOOM_MIN, ZOOM_MAX)
         c.px = g.px + m.x - g.m.x
@@ -445,7 +477,7 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
         p.yaw = g.yaw + dx * 0.3 // drag the room: pulling it right turns you left
         p.x = g.pos.x
         p.y = g.pos.y
-        walkBy(dy * 1.2)
+        walkBy(dy * 2 * kRef.current)
       } else if (g.kind === 'turn') {
         c.spin = g.spin + dx * 0.4
         c.tilt = clamp(g.tilt - dy * 0.3, 0, 80)
@@ -537,13 +569,16 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
     const target = tb || (selectedRef.current && byIdRef.current.get(selectedRef.current))
     if (target) {
       const c = centerOf(target)
-      const back = Math.max(+target.largura || 0, +target.altura || 0) / 2 + 110
-      // Stand south of the table when there is room, else north, and look at it.
-      const south = c.y + back < D + 150
-      Object.assign(p, { x: c.x, y: south ? c.y + back : c.y - back, yaw: south ? 0 : 180, pitch: -12 })
+      const back = Math.max(+target.largura || 0, +target.altura || 0) / 2 + 150 * kRef.current
+      // Stand a step back from the table on the first side that is not a wall, and look at it.
+      const r = BODY_CM * kRef.current
+      const sides = [[0, 1, 0], [0, -1, 180], [1, 0, 90], [-1, 0, -90]]
+      const free = sides.find(([sx, sy]) => !hits(wallsRef.current, c.x + sx * back, c.y + sy * back, r)) || sides[0]
+      Object.assign(p, { x: c.x + free[0] * back, y: c.y + free[1] * back, yaw: free[2], pitch: -14 })
     } else {
-      // From the front edge of the room, looking in.
-      Object.assign(p, { x: a.x + a.w / 2, y: a.y + a.h + 60, yaw: 0, pitch: -14 })
+      // Inside the room, on the open spot with the most space, looking at the tables.
+      const s = standSpot(tables, a, kRef.current)
+      Object.assign(p, { x: s.x, y: s.y, yaw: s.yaw, pitch: -8 })
     }
     clampPov()
     refit()
@@ -556,8 +591,8 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
 
   const tappable = !!onTable
   const scene = useMemo(
-    () => <Scene area={area} tables={tables} sectors={sectors} live={live} tappable={tappable} selectedId={selectedId} onKeyOpen={onKeyOpen} t={t} />,
-    [area, tables, sectors, live, tappable, selectedId, onKeyOpen, t],
+    () => <Scene area={area} tables={tables} sectors={sectors} live={live} tappable={tappable} selectedId={selectedId} onKeyOpen={onKeyOpen} t={t} k={k} />,
+    [area, tables, sectors, live, tappable, selectedId, onKeyOpen, t, k],
   )
 
   const selected = selectedId ? byId.get(selectedId) : null

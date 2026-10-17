@@ -97,3 +97,93 @@ export function guestSpots(tb, count) {
     }
   })
 }
+
+const SIZED = new Set(['round', 'square', 'rect'])
+
+/**
+ * How many plan units make one centimetre, guessed from the tables: a table for 2-6 people is about
+ * 80 cm across on its short side. Plans drawn at 1 unit = 1 cm give ~1; plans drawn smaller give less.
+ * Everything that has no size in the plan (heights, people, eye level, walking speed) uses this, so
+ * walls, tables and guests keep real proportions whatever scale the plan was drawn at.
+ */
+export function unitsPerCm(tables) {
+  const sides = (tables || [])
+    .filter(tb => SIZED.has(tb.forma) && tb.ativo !== false && (+tb.capacidade || 0) > 0)
+    .map(tb => Math.min(+tb.largura || 0, +tb.altura || 0))
+    .filter(v => v > 0)
+    .sort((a, b) => a - b)
+  if (!sides.length) return 1
+  const median = sides[Math.floor(sides.length / 2)]
+  return Math.min(3, Math.max(0.3, median / 80))
+}
+
+/** Plan rectangle of a piece, rotation applied (axis-aligned box around it). */
+function rectOf(tb) {
+  const w = +tb.largura || 0
+  const d = +tb.altura || 0
+  const a = ((+tb.rotacao || 0) * Math.PI) / 180
+  const ex = (Math.abs(w * Math.cos(a)) + Math.abs(d * Math.sin(a))) / 2
+  const ey = (Math.abs(w * Math.sin(a)) + Math.abs(d * Math.cos(a))) / 2
+  const cx = +tb.x + w / 2
+  const cy = +tb.y + d / 2
+  return { x0: cx - ex, y0: cy - ey, x1: cx + ex, y1: cy + ey }
+}
+
+/** Pieces a person cannot walk through: walls, counters, tables, sofas, rooms and the like (not doors). */
+export function obstacles(tables) {
+  return (tables || []).filter(tb => tb.ativo !== false && tb.forma !== 'door').map(rectOf)
+}
+
+/** Walls only: what the walking camera bumps into. */
+export function wallRects(tables) {
+  return (tables || []).filter(tb => tb.ativo !== false && tb.forma === 'wall').map(rectOf)
+}
+
+/** True when a body of radius r at (x, y) would overlap any rectangle. */
+export function hits(rects, x, y, r = 0) {
+  for (const q of rects) {
+    if (x > q.x0 - r && x < q.x1 + r && y > q.y0 - r && y < q.y1 + r) return true
+  }
+  return false
+}
+
+/**
+ * Where to stand when walking in: the open floor spot with the most room around it (searched on a
+ * grid inside the area), facing the middle of the tables. Yaw 0 looks toward plan -y.
+ */
+export function standSpot(tables, area, k = 1) {
+  // Tables count with their chairs and the people around them.
+  const solid = obstacles(tables).map((q, i) => {
+    const tb = (tables || []).filter(x => x.ativo !== false && x.forma !== 'door')[i]
+    const pad = SIZED.has(tb.forma) || tb.forma === 'bar' ? SEAT + 6 + 30 * k : 0
+    return { x0: q.x0 - pad, y0: q.y0 - pad, x1: q.x1 + pad, y1: q.y1 + pad }
+  })
+  const seats = (tables || []).filter(tb => tb.ativo !== false && SIZED.has(tb.forma))
+  const look = seats.length
+    ? seats.reduce((a, tb) => ({ x: a.x + (+tb.x + (+tb.largura || 0) / 2) / seats.length, y: a.y + (+tb.y + (+tb.altura || 0) / 2) / seats.length }), { x: 0, y: 0 })
+    : { x: area.x + area.w / 2, y: area.y + area.h / 2 }
+  const step = Math.max(10, Math.min(area.w, area.h) / 24)
+  const cap = 160 * k
+  let best = null
+  for (let y = area.y + step / 2; y < area.y + area.h; y += step) {
+    for (let x = area.x + step / 2; x < area.x + area.w; x += step) {
+      if (hits(solid, x, y, 25 * k)) continue
+      let room = cap
+      for (const q of solid) {
+        const dx = Math.max(q.x0 - x, 0, x - q.x1)
+        const dy = Math.max(q.y0 - y, 0, y - q.y1)
+        room = Math.min(room, Math.hypot(dx, dy))
+      }
+      room = Math.min(room, x - area.x, area.x + area.w - x, y - area.y, area.y + area.h - y)
+      // Plenty of room first, then the spot that sees the tables from a bit further back.
+      const far = Math.hypot(x - look.x, y - look.y)
+      const score = Math.min(room, cap) + Math.min(far, 400 * k) * 0.15
+      if (!best || score > best.score) best = { x, y, score }
+    }
+  }
+  const at = best || { x: area.x + area.w / 2, y: area.y + area.h / 2 }
+  const dx = look.x - at.x
+  const dy = look.y - at.y
+  const yaw = Math.hypot(dx, dy) < 1 ? 0 : (Math.atan2(-dx, -dy) * 180) / Math.PI
+  return { x: at.x, y: at.y, yaw }
+}

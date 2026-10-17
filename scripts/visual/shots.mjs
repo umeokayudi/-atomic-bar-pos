@@ -60,6 +60,7 @@ const PAGES = [
   { who: MANAGER, path: '/bar/aluguel', name: 'bar-rent' },
   { who: MANAGER, path: '/bar/mesas', name: 'bar-floor' },
   { who: MANAGER, path: '/bar/mesas', name: 'bar-floor-edit', edit: true },
+  { who: MANAGER, path: '/bar/mesas', name: 'bar-floor-plan', radio: /^Plan$/ },
   { who: MANAGER, path: '/bar/mesas', name: 'bar-floor-3d', radio: /^3D$/ },
   { who: MANAGER, path: '/bar/mesas', name: 'bar-floor-3d-pick', radio: /^3D$/, taps: ['.f3-row'] },
   { who: MANAGER, path: '/bar/mesas', name: 'bar-floor-3d-pov', radio: /^3D$/, click: /^Walk in$/ },
