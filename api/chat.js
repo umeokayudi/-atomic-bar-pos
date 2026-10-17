@@ -1,6 +1,6 @@
 import { setCorsHeaders, handleCorsPreflight } from './_cors.js'
 import { geminiGenerate } from './_gemini.js'
-import { requireGlobalFinance, requireStaffOrTrustedOrigin } from './_requireStaff.js'
+import { requireBarAccount, requireGlobalFinance, requireStaffOrTrustedOrigin } from './_requireStaff.js'
 import { drinksAdminClient } from './_supabaseAdmin.js'
 
 function extractText(data) {
@@ -34,7 +34,12 @@ export default async function handler(req, res) {
     }
 
     const admin = drinksAdminClient()
-    const auth = await requireStaffOrTrustedOrigin(req, admin)
+    let auth = await requireStaffOrTrustedOrigin(req, admin)
+    // Bar owners and managers may use plain chat (receipt reading in their portal); never the till or staff logins.
+    if (auth.error && auth.status === 403 && body.module !== 'seikyusho') {
+      const bar = await requireBarAccount(req, undefined, { roles: ['cliente', 'gerente'] })
+      if (!bar.error) auth = bar
+    }
     if (auth.error) return res.status(auth.status).json({ error: auth.error })
 
     if (body.module === 'seikyusho') {
