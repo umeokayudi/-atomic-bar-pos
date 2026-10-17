@@ -7,6 +7,7 @@ import { DEFAULT_POS_SETTINGS, settingsFromRow } from '../../lib/nightTicket'
 import { TABLE_STATES, floorApi, floorAvailable, floorPlanAvailable, loadOpenTabs, loadTabHistory, newKey, tableState, tabMoney, tabsApi } from '../../lib/comandas'
 import { fitZoom, isDecor } from '../../lib/floorEditor'
 import { tablesInState } from '../../lib/floorStatus'
+import { contentBounds, guestSpots } from '../../lib/floor3d'
 import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
 import Floor3D from './Floor3D'
@@ -17,6 +18,15 @@ const POLL_MS = 10000
 const STATE_ICON = {
   free: 'stFree', awaiting_order: 'stAwaitingOrder', consuming: 'stConsuming', occupied: 'stOccupied',
   awaiting_payment: 'stAwaitingPayment', reserved: 'stReserved', cleaning: 'stCleaning',
+}
+
+// A plan card narrower or shorter than this on screen (px) shows only its name and state icon.
+const COMPACT_W = 76
+const COMPACT_H = 50
+const PLAN_MIN_ZOOM = 0.5
+
+function readView() {
+  try { return localStorage.getItem('floor.view') || '3d' } catch { return '3d' }
 }
 
 function minutesSince(iso, now) {
@@ -34,7 +44,11 @@ export default function FloorScreen({ bar, onOpenTill }) {
   const [avail, setAvail] = useState(null)
   const [planOnly, setPlanOnly] = useState(false)
   const [mode, setMode] = useState('service')
-  const [view, setView] = useState('plan')
+  const [view, setViewState] = useState(readView)
+  const setView = v => {
+    setViewState(v)
+    try { localStorage.setItem('floor.view', v) } catch { /* private mode */ }
+  }
   const [layouts, setLayouts] = useState([])
   const [layoutId, setLayoutId] = useState(null)
   const [tables, setTables] = useState([])
@@ -91,12 +105,29 @@ export default function FloorScreen({ bar, onOpenTill }) {
     if (!layout) return
     floorApi.layout(supabase, layout.id).then(r => {
       setTables(r.tables.map(x => ({ ...x, x: +x.x, y: +x.y, largura: +x.largura, altura: +x.altura })))
-      requestAnimationFrame(() => {
-        const v = viewRef.current
-        if (v) setZoom(fitZoom(v.clientWidth, Math.max(320, v.clientHeight), { largura: +layout.largura, altura: +layout.altura }))
-      })
     }).catch(e => setErr(e.message))
   }, [layout?.id, layout?.versao]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The plan shows only the part of the room that has something in it, fitted to the box.
+  const planBox = useMemo(() => (layout
+    ? contentBounds(tables.filter(x => x.ativo !== false), +layout.largura, +layout.altura, 12)
+    : { x: 0, y: 0, w: 1, h: 1 }), [tables, layout?.largura, layout?.altura]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (view !== 'plan') return undefined
+    const fit = () => {
+      const v = viewRef.current
+      // Fit the width, up to most of the screen's height; the box then takes the plan's own height.
+      const maxH = Math.max(280, Math.min(window.innerHeight * 0.72, 760))
+      // Never so small that names cannot be read: on a phone the plan scrolls sideways instead.
+      if (v) setZoom(Math.max(PLAN_MIN_ZOOM, fitZoom(v.clientWidth - 26, maxH - 26, { largura: planBox.w, altura: planBox.h }, 0)))
+    }
+    fit()
+    const v = viewRef.current
+    if (!v || typeof ResizeObserver === 'undefined') return undefined
+    const ro = new ResizeObserver(fit)
+    ro.observe(v)
+    return () => ro.disconnect()
+  }, [view, planBox])
 
   // Live refresh: Supabase Realtime when the table is published, polling always as a fallback.
   useEffect(() => {
@@ -271,29 +302,40 @@ export default function FloorScreen({ bar, onOpenTill }) {
           </div>
 
           {view === 'plan' ? (
-            <div className="floor-viewport" ref={viewRef}>
-              <div className="fe-canvas" style={{ width: +layout.largura * zoom, height: +layout.altura * zoom }}>
-                <div className="fe-plane floor-live" style={{ width: +layout.largura, height: +layout.altura, transform: `scale(${zoom})` }}>
+            <div className="floor-viewport" ref={viewRef} style={{ height: Math.min(Math.round(planBox.h * zoom) + 26, Math.round(window.innerHeight * 0.72)), minHeight: 0 }}>
+              <div className="fe-canvas" style={{ width: planBox.w * zoom, height: planBox.h * zoom }}>
+                <div className="fe-plane floor-live" style={{ width: planBox.w, height: planBox.h, transform: `scale(${zoom})`, '--fz': zoom }}>
                   {decor.map(tb => (
                     <div key={tb.id} className={`fe-table is-${tb.forma} is-decor`} aria-hidden="true"
-                      style={{ left: +tb.x, top: +tb.y, width: +tb.largura, height: +tb.altura, transform: tb.rotacao ? `rotate(${tb.rotacao}deg)` : undefined, '--fe-color': tb.cor || undefined }}>
+                      style={{ left: +tb.x - planBox.x, top: +tb.y - planBox.y, width: +tb.largura, height: +tb.altura, transform: tb.rotacao ? `rotate(${tb.rotacao}deg)` : undefined, '--fe-color': tb.cor || undefined }}>
                       <span className="fe-table-name">{tb.nome}</span>
                     </div>
                   ))}
-                  {live.map(tb => (
-                    <button
-                      key={tb.id}
-                      type="button"
-                      className={`fe-table is-${tb.forma} st-${tb.state}`}
-                      style={{ left: tb.x, top: tb.y, width: tb.largura, height: tb.altura, transform: tb.rotacao ? `rotate(${tb.rotacao}deg)` : undefined }}
-                      onClick={() => onTable(tb)}
-                      aria-label={`${tb.nome}: ${t(`tabs.state.${tb.state}`)}${tb.open.length ? `, ${fmtYen(tb.money.total)}` : ''}`}
-                    >
-                      <span className="fe-table-name">{tb.nome}</span>
-                      <span className="floor-state"><Icon name={STATE_ICON[tb.state]} size={12} /> {t(`tabs.state.${tb.state}`)}</span>
-                      {tb.open.length > 0 && <span className="floor-money num">{fmtYen(tb.money.total)} · {tb.minutes}′</span>}
-                    </button>
-                  ))}
+                  {live.map(tb => {
+                    const compact = tb.largura * zoom < COMPACT_W || tb.altura * zoom < COMPACT_H
+                    const label = `${tb.nome}: ${t(`tabs.state.${tb.state}`)}${tb.open.length ? `, ${fmtYen(tb.money.total)} · ${tb.minutes}′` : ''}`
+                    return (
+                      <div key={tb.id} className="floor-spot" style={{ left: tb.x - planBox.x, top: tb.y - planBox.y, width: tb.largura, height: tb.altura, transform: tb.rotacao ? `rotate(${tb.rotacao}deg)` : undefined }}>
+                        {guestSpots(tb, tb.pessoas).map((g, i) => (
+                          <i key={i} className="floor-guest" style={{ left: g.x, top: g.y, '--guest': g.color }} aria-hidden="true" />
+                        ))}
+                        <button
+                          type="button"
+                          className={`fe-table is-${tb.forma} st-${tb.state}${compact ? ' is-compact' : ''}`}
+                          style={{ left: 0, top: 0, width: '100%', height: '100%' }}
+                          onClick={() => onTable(tb)}
+                          aria-label={label}
+                          title={label}
+                        >
+                          <span className="fe-table-name">{tb.nome}</span>
+                          {compact ? <span className="floor-state"><Icon name={STATE_ICON[tb.state]} size={12} /></span> : (
+                            <span className="floor-state"><Icon name={STATE_ICON[tb.state]} size={12} /> {t(`tabs.state.${tb.state}`)}</span>
+                          )}
+                          {!compact && tb.open.length > 0 && <span className="floor-money num">{fmtYen(tb.money.total)} · {tb.minutes}′</span>}
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             </div>
