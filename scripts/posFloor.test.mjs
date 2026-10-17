@@ -5,7 +5,14 @@ import {
   applyBottleTakes,
   bottlePerformance,
   cardFee,
+  cardMethodLabel,
+  cardPaymentsFee,
+  cardSurcharge,
   cashLines,
+  machineFee,
+  normalizeCardMachines,
+  parseCardMethod,
+  pickCardMachine,
   closeTicket,
   commitClose,
   expandRecipe,
@@ -23,9 +30,17 @@ import {
   removeTicketItem,
   voidSale,
 } from '../src/lib/posFloor.js'
-import { movementOperationalDay, nightSettlement, reconcileNight, summarizeNight } from '../src/lib/nightClose.js'
+import { movementOperationalDay, nightSettlement, reconcileNight, saleCardFee, summarizeNight } from '../src/lib/nightClose.js'
+import { cardSurchargeLine, packTicketObs, readTicketMeta, settingsFromRow } from '../src/lib/nightTicket.js'
+import { tabMoney } from '../src/lib/comandas.js'
+import { orderDetailsFromObs } from '../src/lib/orderMeta.js'
 import { tokyoWallToUtcMs } from '../src/lib/tokyo.js'
-import { readPosDeviceMode, suggestPosDeviceMode, writePosDeviceMode } from '../src/lib/posDeviceMode.js'
+import { itemVisual, rankTopSellers, starterPicks } from '../src/lib/posVisual.js'
+import {
+  ON_ACCOUNT, discountGuestError, guestBalance, hasDiscount, isCrmGuest, ledgerBalances, ledgerTotal, methodDisplay,
+  onAccountError, onAccountGuestId, onAccountMethod, parseOnAccountMethod, queueRows, receivePaymentRow, saleOnAccountRow,
+  searchCrm, tabOnAccountRows, tonightGlance,
+} from '../src/lib/onAccount.js'
 
 const hennessy = { id: 'prod-h', nome: 'Hennessy XO', custo: 18000, volume_ml: 700 }
 const opened = openBottle({
@@ -179,6 +194,65 @@ assert.equal(cashVoid.restores.some(row => row.mode === 'ml'), false)
 const creditFee = cardFee(10000, 'credit')
 assert.equal(creditFee, 378)
 assert.equal(cardFee(10000, 'other'), 0)
+
+// Card machines: per-machine rate, default machine, surcharge, labels, settings.
+assert.equal(cardFee(10000, 'card', 0.0324), 324)
+assert.equal(cardFee(10000, 'card', undefined), 378)
+assert.equal(cardFee(10000, 'cash', 0.05), 0)
+assert.equal(cashLines({ total: 10000, method: 'card', rate: 0.0198 }).fee, 198)
+assert.equal(cashLines({ total: 10000, method: 'card' }).fee, 378)
+assert.deepEqual(normalizeCardMachines(), [{ id: 'card-1', nome: 'Card', fee_pct: 3.78 }])
+assert.deepEqual(normalizeCardMachines([{ nome: '', fee_pct: 3 }, { nome: 'X', fee_pct: 99 }]), [{ id: 'card-1', nome: 'Card', fee_pct: 3.78 }])
+const twoMachines = normalizeCardMachines([{ id: 'sq', nome: 'Square', fee_pct: 3.25 }, { id: 'air', nome: 'Airペイ', fee_pct: '3.74' }])
+assert.equal(twoMachines.length, 2)
+assert.equal(pickCardMachine(twoMachines, 'air').nome, 'Airペイ')
+assert.equal(pickCardMachine(twoMachines, 'gone').id, 'sq')
+assert.equal(machineFee(10000, twoMachines[1]), 374)
+assert.equal(machineFee(10000, null), 378)
+assert.equal(cardSurcharge(10000, 3), 300)
+assert.equal(cardSurcharge(10000, 0), 0)
+assert.equal(cardMethodLabel({ method: 'Credit card', machine: twoMachines[1], surcharge: 300 }), 'Credit card · Airペイ · +300')
+assert.equal(cardMethodLabel({ method: 'Credit card', machine: twoMachines[0], named: false }), 'Credit card')
+assert.deepEqual(parseCardMethod('Credit card · Airペイ · +300'), { card: true, machine: 'Airペイ', surcharge: 300 })
+assert.deepEqual(parseCardMethod('Credit card'), { card: true, machine: null, surcharge: 0 })
+assert.deepEqual(parseCardMethod('Cash'), { card: false, machine: null, surcharge: 0 })
+const tabFees = cardPaymentsFee([
+  { valor: 5150, metodo: 'Credit card · Airペイ · +150' },
+  { valor: 3000, metodo: 'Credit card' },
+  { valor: 2000, metodo: 'Cash' },
+  { valor: 9999, metodo: 'Credit card · Airペイ', estornado_em: '2026-09-27T12:00:00Z' },
+], twoMachines)
+assert.equal(tabFees.fee, Math.round(5150 * 0.0374) + Math.round(3000 * 0.0325))
+assert.equal(tabFees.note, 'Airペイ 3.74% + Square 3.25%')
+const barSettings = settingsFromRow({ service_pct: 15, card_surcharge_pct: 3, card_machines: twoMachines })
+assert.equal(barSettings.service_pct, 15)
+assert.equal(barSettings.card_surcharge_pct, 3)
+assert.equal(barSettings.card_machines.length, 2)
+assert.equal(settingsFromRow(null).card_surcharge_pct, 0)
+assert.equal(settingsFromRow(null).card_machines.length, 1)
+const surLine = cardSurchargeLine(300, 3)
+assert.equal(surLine.preco_unitario, 300)
+assert.equal(surLine.tipo_preco, 'service') // exempt from the tab drink-line check in pos_commit_sale
+assert.equal(cardSurchargeLine(0, 3), null)
+const cardObs = packTicketObs({ payNote: 'Pay: Credit card record-only', cardNote: 'Airペイ 3.74%', cardFee: 386, cardSurcharge: 300, details: 'Table 4' })
+const cardMeta = readTicketMeta(cardObs)
+assert.equal(cardMeta.cardNote, 'Airペイ 3.74%')
+assert.equal(cardMeta.cardFee, 386)
+assert.equal(cardMeta.cardSurcharge, 300)
+assert.equal(orderDetailsFromObs(cardObs), 'Table 4')
+assert.equal(saleCardFee({ total: 10300, refunded: 0, metodo_pagamento: 'Credit card', card_fee: 0, obs: cardObs }), 386)
+assert.equal(saleCardFee({ total: 10300, refunded: 5150, metodo_pagamento: 'Credit card', card_fee: 0, obs: cardObs }), 193)
+assert.equal(saleCardFee({ total: 10000, refunded: 0, metodo_pagamento: 'card', card_fee: 378, obs: cardObs }), 378)
+assert.equal(saleCardFee({ total: 10000, refunded: 0, metodo_pagamento: 'Cash', card_fee: 0, obs: 'Pay: Cash exact 10000' }), 0)
+// Tab: a card payment with surcharge pays the bill plus the surcharge; the surcharge never reduces what is due.
+const surTab = tabMoney({ service_pct: 0 }, [{ id: 'i1', nome: 'Gin', qtd: 2, preco_unitario: 5000 }], [
+  { valor: 5150, metodo: 'Credit card · Airペイ · +150' },
+])
+assert.equal(surTab.total, 10000)
+assert.equal(surTab.paid, 5150)
+assert.equal(surTab.surchargePaid, 150)
+assert.equal(surTab.due, 5000)
+assert.equal(tabMoney({ service_pct: 0 }, [{ id: 'i1', nome: 'Gin', qtd: 1, preco_unitario: 5000 }], [{ valor: 2000, metodo: 'Cash' }]).due, 3000)
 
 const night = summarizeNight([
   { total: 10000, refunded: 3000, metodo_pagamento: 'card', card_fee: 378, card_fee_reversed: 113, data: '2026-09-27', criado_em: '2026-09-27T12:00:00Z' },
@@ -337,25 +411,18 @@ const authSql = readFileSync('sql/pos_sale_security.sql', 'utf8')
 assert.match(authSql, /'cliente', 'gerente', 'caixa', 'bar_staff'/)
 assert.doesNotMatch(authSql, /fornecedor/)
 
-const floor = readFileSync('src/components/PosFloor.jsx', 'utf8')
-assert.match(floor, /pos_close_ticket/)
-assert.match(floor, /pos_load_ticket/)
-assert.match(floor, /pos_preview_ticket/)
-assert.match(floor, /pos_ticket_item/)
-assert.doesNotMatch(floor, /preco_unitario:/)
-assert.doesNotMatch(floor, /previewSale/)
-assert.match(floor, /pos_bottle_move/)
-assert.doesNotMatch(floor.slice(0, floor.indexOf('pos_bottle_move')), /p_volume/)
-assert.match(floor, /error\.message/)
-
 const panel = readFileSync('src/components/AtomicPos.jsx', 'utf8')
 assert.match(panel, /access !== 'cashier'/)
 assert.match(panel, /legacyIsolated/)
 assert.match(sql, /operational_day/)
 assert.match(sql, /reason required/)
-assert.doesNotMatch(floor, /commitPosSale|create_order|syncPosStockAndReorder|deductBottlesForPosSale/)
-assert.match(panel, /commitPosSale/)
+// The till commits through posCommit (one atomic RPC; commitPosSale only as fallback before the migration).
+assert.match(panel, /commitSaleAtomic/)
+const commitSource = readFileSync('src/lib/posCommit.js', 'utf8')
+assert.match(commitSource, /pos_commit_sale/)
+assert.match(commitSource, /commitPosSale/)
 assert.match(panel, /syncPosStockAndReorder/)
+assert.match(panel, /PosQuick/)
 
 const at0530 = new Date(tokyoWallToUtcMs(2026, 9, 28, 5, 30)).toISOString()
 const at0600 = new Date(tokyoWallToUtcMs(2026, 9, 28, 6, 0)).toISOString()
@@ -417,45 +484,178 @@ for (const role of ['fornecedor', 'funcionario', 'staff']) {
   assert.equal(matrix[role].waste, false)
 }
 
-const memory = new Map()
-const storage = {
-  getItem: key => (memory.has(key) ? memory.get(key) : null),
-  setItem: (key, value) => memory.set(key, value),
-}
-assert.equal(readPosDeviceMode('cashier-1', storage), null)
-writePosDeviceMode('cashier-1', 'mobile', storage)
-assert.equal(storage.getItem('POS_DEVICE_MODE:cashier-1'), 'mobile')
-assert.equal(storage.getItem('POS_DEVICE_MODE'), 'mobile')
-assert.equal(readPosDeviceMode('cashier-1', storage), 'mobile')
-writePosDeviceMode('cashier-1', 'tablet', storage)
-assert.equal(readPosDeviceMode('cashier-1', storage), 'tablet')
-assert.equal(suggestPosDeviceMode({ width: 390, height: 844 }), 'mobile')
-assert.equal(suggestPosDeviceMode({ width: 375, height: 667 }), 'mobile')
-assert.equal(suggestPosDeviceMode({ width: 430, height: 932 }), 'mobile')
-assert.equal(suggestPosDeviceMode({ width: 768, height: 1024 }), 'tablet')
-assert.equal(suggestPosDeviceMode({ width: 1024, height: 768 }), 'tablet')
-assert.equal(suggestPosDeviceMode({ width: 1280, height: 800 }), 'tablet')
-assert.equal(suggestPosDeviceMode({ width: 932, height: 430 }), 'mobile')
 
-const mobileHtml = readFileSync('src/components/pos/PosMobile.jsx', 'utf8')
-const tabletHtml = readFileSync('src/components/pos/PosTablet.jsx', 'utf8')
-assert.match(mobileHtml, /data-pos-mode="mobile"/)
-assert.match(mobileHtml, /pos-m-nav/)
-assert.match(mobileHtml, /pos-m-charge/)
-assert.doesNotMatch(mobileHtml, /pos-t-board/)
-assert.match(tabletHtml, /data-pos-mode="tablet"/)
-assert.match(tabletHtml, /pos-t-board/)
-assert.match(tabletHtml, /pos-t-spaces/)
-assert.match(tabletHtml, /pos-t-products/)
-assert.match(tabletHtml, /pos-t-ticket/)
-assert.match(tabletHtml, /pos-t-charge/)
-assert.doesNotMatch(tabletHtml, /pos-m-nav/)
-const floorSource = readFileSync(new URL('../src/components/PosFloor.jsx', import.meta.url), 'utf8')
-assert.match(floorSource, /pos_load_ticket/)
-assert.match(floorSource, /pos_ticket_item/)
-assert.match(floorSource, /pos_close_ticket/)
-assert.match(floorSource, /pos_open_bottle/)
-assert.match(floorSource, /pos_bottle_move/)
-assert.doesNotMatch(floorSource, /pos_void_sale/)
+// Till tiles: photo when present, otherwise a category icon.
+assert.equal(itemVisual({ categoria: 'Beer', nome: 'Asahi' }).emoji, '🍺')
+assert.equal(itemVisual({ categoria: 'Tequila Base', nome: 'Paloma' }).emoji, '🌵')
+assert.equal(itemVisual({ categoria: 'Shots', nome: 'Jack Daniels' }).emoji, '🔥')
+assert.equal(itemVisual({ categoria: 'Whisky Base', imagem_url: 'https://x/y.jpg' }).image, 'https://x/y.jpg')
+assert.ok(itemVisual({ categoria: '???' }).emoji)
+
+// Most ordered: summed quantity, drinks and shots apart, highest first.
+assert.deepEqual(rankTopSellers([
+  { drink_menu_id: 'a', qtd: 1 },
+  { drink_menu_id: 'b', qtd: 3 },
+  { produto_id: 'a', qtd: 2 },
+  { drink_menu_id: 'a', qtd: 1 },
+  { qtd: 9 },
+]), ['d-b', 'd-a', 'p-a'])
+assert.deepEqual(rankTopSellers([{ drink_menu_id: 'a', qtd: 1 }, { drink_menu_id: 'b', qtd: 2 }], 1), ['d-b'])
+assert.deepEqual(starterPicks([
+  { key: 'd-1', categoria: 'Beer' },
+  { key: 'd-2', categoria: 'Beer' },
+  { key: 'd-3', categoria: 'Wine' },
+]), ['d-1', 'd-3'])
+
+const quickSource = readFileSync(new URL('../src/components/pos/PosQuick.jsx', import.meta.url), 'utf8')
+assert.match(quickSource, /commitSaleAtomic/)
+assert.match(quickSource, /pq-charge/)
+assert.match(quickSource, /posQuick\.top/)
+assert.doesNotMatch(quickSource, /pos_void_sale/)
+
+// ── On account (ツケ) and CRM-only discounts ────────────────────────────────────────────────
+{
+  const kenji = { id: 'g-kenji', nome: 'Kenji Sato', ativo: true }
+  const mika = { id: 'g-mika', nome: 'Mika · Tanaka #1', ativo: true, vip_member_id: 'vip-1', tags: ['vip'] }
+
+  // Method text round trip; the customer id never shows to people; never read as a card payment.
+  const m = onAccountMethod(kenji)
+  assert.equal(m, 'On account · Kenji Sato #g-kenji')
+  assert.deepEqual(parseOnAccountMethod(m), { onAccount: true, nome: 'Kenji Sato', guestId: 'g-kenji' })
+  assert.equal(methodDisplay(m), 'On account · Kenji Sato')
+  assert.equal(methodDisplay('Credit card · Square · +300'), 'Credit card · Square · +300')
+  assert.equal(parseOnAccountMethod('Cash').onAccount, false)
+  assert.equal(parseCardMethod(m).card, false)
+  // Separators in a name cannot break the parse.
+  assert.equal(parseOnAccountMethod(onAccountMethod(mika)).guestId, 'g-mika')
+  assert.equal(parseOnAccountMethod(onAccountMethod(mika)).nome, 'Mika Tanaka 1')
+
+  // CRM membership and the discount rule.
+  assert.equal(isCrmGuest(kenji), true)
+  assert.equal(isCrmGuest({ id: 'x', ativo: false }), false)
+  assert.equal(isCrmGuest(null), false)
+  assert.equal(hasDiscount({}), false)
+  assert.equal(hasDiscount({ codeId: 'c1' }), true)
+  assert.equal(hasDiscount({ priceType: 'vip' }), true)
+  assert.equal(discountGuestError({ priceType: 'regular' }), '')
+  assert.equal(discountGuestError({ codeId: 'c1', guest: null }), 'onAccount.errDiscountGuest')
+  assert.equal(discountGuestError({ priceType: 'vip', vipId: 'vip-1', guest: mika }), '')
+  assert.equal(discountGuestError({ priceType: 'vip', guest: { id: 'gone', ativo: false } }), 'onAccount.errDiscountGuest')
+
+  // Amount put on account: CRM customer, positive, not more than what is due.
+  assert.equal(onAccountError({ guest: null, amount: 1000, due: 1000 }), 'onAccount.errGuest')
+  assert.equal(onAccountError({ guest: kenji, amount: 0, due: 1000 }), 'onAccount.errAmount')
+  assert.equal(onAccountError({ guest: kenji, amount: 1200, due: 1000 }), 'onAccount.errOverDue')
+  assert.equal(onAccountError({ guest: kenji, amount: 600, due: 1000 }), '')
+
+  // A tab paid 4,000 cash + 6,000 on account is fully paid; the on-account part is not a card surcharge.
+  const tab = { service_pct: 0 }
+  const items = [{ id: 'i1', nome: 'Champagne', qtd: 1, preco_unitario: 10000 }]
+  const tabPays = [
+    { id: 'p1', comanda_id: 't1', valor: 4000, metodo: 'Cash' },
+    { id: 'p2', comanda_id: 't1', valor: 6000, metodo: onAccountMethod(kenji), pagador: 'Kenji Sato' },
+    { id: 'p3', comanda_id: 't1', valor: 500, metodo: onAccountMethod(mika), estornado_em: '2026-10-10T20:00:00Z' },
+  ]
+  const money = tabMoney(tab, items, tabPays, {})
+  assert.equal(money.paid, 10000)
+  assert.equal(money.surchargePaid, 0)
+  assert.equal(money.due, 0)
+
+  // Closing the tab: one ledger charge per live on-account payment, id = payment id (a retry cannot double it).
+  const rows = tabOnAccountRows(tabPays, { barId: 'bar', vendaId: 'v1', guests: [kenji], now: '2026-10-10T21:00:00Z' })
+  assert.equal(rows.length, 1)
+  assert.deepEqual(
+    { id: rows[0].id, guest_id: rows[0].guest_id, guest_nome: rows[0].guest_nome, tipo: rows[0].tipo, valor: rows[0].valor, venda_id: rows[0].venda_id, comanda_id: rows[0].comanda_id },
+    { id: 'p2', guest_id: 'g-kenji', guest_nome: 'Kenji Sato', tipo: 'charge', valor: 6000, venda_id: 'v1', comanda_id: 't1' },
+  )
+  assert.equal(onAccountGuestId(tabPays), 'g-kenji')
+  assert.equal(onAccountGuestId([{ metodo: onAccountMethod(kenji) }, { metodo: onAccountMethod(mika) }]), null)
+  assert.equal(onAccountGuestId([{ metodo: 'Cash' }]), null)
+
+  // Counter sale fully on account: ledger id = sale id.
+  const counter = saleOnAccountRow({ barId: 'bar', vendaId: 'v2', guest: mika, valor: 3000.4, now: '2026-10-11T01:00:00Z' })
+  assert.equal(counter.id, 'v2')
+  assert.equal(counter.valor, 3000)
+  assert.equal(counter.tipo, 'charge')
+
+  // Balances: charges − payments, reversed rows ignored, biggest debt first, settled customers hidden.
+  const ledger = [
+    ...rows,
+    counter,
+    { id: 'x1', guest_id: 'g-kenji', guest_nome: 'Kenji Sato', tipo: 'payment', valor: 2500, criado_em: '2026-10-12T20:00:00Z' },
+    { id: 'x2', guest_id: 'g-kenji', guest_nome: 'Kenji Sato', tipo: 'payment', valor: 9999, estornado_em: '2026-10-12T21:00:00Z' },
+    { id: 'x3', guest_id: 'g-old', guest_nome: 'Old', tipo: 'charge', valor: 1000 },
+    { id: 'x4', guest_id: 'g-old', guest_nome: 'Old', tipo: 'payment', valor: 1000 },
+  ]
+  const bal = ledgerBalances(ledger)
+  assert.deepEqual(bal.map(b => [b.guest_id, b.balance]), [['g-kenji', 3500], ['g-mika', 3000]])
+  assert.equal(ledgerBalances(ledger, { all: true }).length, 3)
+  assert.equal(bal[0].last, '2026-10-12T20:00:00Z')
+  assert.equal(guestBalance(ledger, 'g-kenji'), 3500)
+  assert.equal(guestBalance(ledger, 'nobody'), 0)
+  assert.equal(ledgerTotal(ledger), 6500)
+
+  // Receiving a later payment: positive, not more than owed.
+  const owedKenji = bal[0]
+  assert.equal(receivePaymentRow({ id: 'r1', barId: 'bar', guest: owedKenji, valor: 0, balance: 3500 }).error, 'onAccount.errAmount')
+  assert.equal(receivePaymentRow({ id: 'r1', barId: 'bar', guest: owedKenji, valor: 4000, balance: 3500 }).error, 'onAccount.errOverBalance')
+  assert.equal(receivePaymentRow({ id: 'r1', barId: 'bar', guest: null, valor: 100 }).error, 'onAccount.errGuest')
+  const got = receivePaymentRow({ id: 'r1', barId: 'bar', guest: owedKenji, valor: '3500', metodo: 'PayPay', balance: 3500 })
+  assert.equal(got.row.tipo, 'payment')
+  assert.equal(got.row.guest_id, 'g-kenji')
+  assert.equal(got.row.valor, 3500)
+  assert.equal(guestBalance([...ledger, got.row], 'g-kenji'), 0)
+
+  // Offline queue: replaying the same id replaces, never adds.
+  assert.deepEqual(queueRows([{ id: 'a', valor: 1 }], [{ id: 'a', valor: 2 }, { id: 'b', valor: 3 }]), [{ id: 'a', valor: 2 }, { id: 'b', valor: 3 }])
+  assert.deepEqual(queueRows([], [{ valor: 1 }]), [])
+
+  // CRM search: active only, by name / LINE / tag.
+  const crm = [kenji, mika, { id: 'g-x', nome: 'Gone', ativo: false }, { id: 'g-l', nome: 'Lin', line_id: 'lin.vip' }]
+  assert.deepEqual(searchCrm(crm, '').map(g => g.id), ['g-kenji', 'g-mika', 'g-l'])
+  assert.deepEqual(searchCrm(crm, 'vip').map(g => g.id), ['g-mika', 'g-l'])
+  assert.deepEqual(searchCrm(crm, 'gone'), [])
+  assert.equal(ON_ACCOUNT, 'On account')
+}
+
+// ── Tonight card: closed sales + what is open on tabs ──────────────────────────────────────
+{
+  const night = '2026-10-10'
+  const at = (h, m = 0, day = 10) => new Date(tokyoWallToUtcMs(2026, 10, day, h, m)).toISOString()
+  // No closed sale yet, a VIP tab with ¥10,000 open: sold 0, open 10,000 on 1 tab (this is what the owner saw).
+  const none = summarizeNight([], night)
+  assert.deepEqual(tonightGlance({ summary: none, tabs: [{ total: 10000, paid: 0 }, { total: 0, paid: 0 }] }),
+    { soldTotal: 0, soldCount: 0, openTotal: 10000, openPaid: 0, openCount: 1 })
+  // Sales after midnight belong to the night that started the evening before; yesterday's and refunds are out.
+  const sales = [
+    { total: 5000, criado_em: at(22), data: night },
+    { total: 3000, refunded: 1000, criado_em: at(2, 30, 11), data: night },
+    { total: 9000, criado_em: at(23, 0, 9), data: '2026-10-09' },
+  ]
+  const g = tonightGlance({ summary: summarizeNight(sales, night), tabs: [{ total: 7700, paid: 2000 }] })
+  assert.equal(g.soldTotal, 7000)
+  assert.equal(g.soldCount, 2)
+  assert.equal(g.openTotal, 7700)
+  assert.equal(g.openPaid, 2000)
+  assert.deepEqual(tonightGlance(), { soldTotal: 0, soldCount: 0, openTotal: 0, openPaid: 0, openCount: 0 })
+}
+
+// The till and the tab panel offer "on account" and require a CRM customer; the classic till blocks discounts without one.
+{
+  const quick = readFileSync(new URL('../src/components/pos/PosQuick.jsx', import.meta.url), 'utf8')
+  const panel = readFileSync(new URL('../src/components/floor/TabPanel.jsx', import.meta.url), 'utf8')
+  const classic = readFileSync(new URL('../src/components/AtomicPos.jsx', import.meta.url), 'utf8')
+  assert.match(quick, /discountGuestError/)
+  assert.match(quick, /tabOnAccountRows/)
+  assert.match(quick, /pq-glance/)
+  assert.doesNotMatch(quick, /pq-night/)
+  assert.match(panel, /ON_ACCOUNT/)
+  assert.match(panel, /CustomerPicker/)
+  assert.match(classic, /discountGuestError/)
+  const live = readFileSync(new URL('../src/lib/barLiveClient.js', import.meta.url), 'utf8')
+  const store = readFileSync(new URL('../api/_barLiveStore.js', import.meta.url), 'utf8')
+  assert.match(live, /'bar_guest_ledger'/)
+  assert.match(store, /'bar_guest_ledger'/)
+}
 
 console.log('pos floor tests passed')

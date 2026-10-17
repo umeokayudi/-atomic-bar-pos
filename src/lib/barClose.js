@@ -3,7 +3,8 @@
 import { faturaRemaining } from './barPortal.js'
 import { nightKeyOfSale, paySplitFromObs, prevTokyoDateKey } from './nightClose.js'
 import { readTicketMeta } from './nightTicket.js'
-import { orderCastFromObs } from './orderMeta.js'
+import { personCredit } from './saleCredit.js'
+import { finesByStaff, payNet } from './staffFines.js'
 import { lastDayOfMonth, tokyoNightKey } from './tokyo.js'
 
 export const WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -118,7 +119,7 @@ function taxRate(registry) {
 export function fixedMonthCost(registry, hq, monthKey) {
   const sum = (kind) => (registry || []).reduce((a, r) => {
     if (r.kind !== kind) return a
-    if (kind === 'variavel' && r.month_key && r.month_key !== monthKey) return a
+    if ((kind === 'variavel' || kind === 'energia') && r.month_key && r.month_key !== monthKey) return a
     return a + Math.round(+r.amount || 0)
   }, 0)
   const rentReg = sum('aluguel')
@@ -249,8 +250,13 @@ export function paymentAgenda({
   }
   push({ id: 'salario', kind: 'salario', amount: costs.wages, day: goals.dia_salario || 25, tab: 'salarios' })
   push({ id: 'drink', kind: 'drink', amount: comm, day: goals.dia_drink || 10, tab: 'pagamentos' })
-  push({ id: 'aluguel', kind: 'aluguel', amount: costs.rent, day: (registry.find(r => r.kind === 'aluguel' && r.vence_dia) || {}).vence_dia || 1, tab: 'aluguel' })
-  push({ id: 'energia', kind: 'energia', amount: costs.energy, day: (registry.find(r => r.kind === 'energia' && r.vence_dia) || {}).vence_dia || 1, tab: 'energia' })
+  push({ id: 'aluguel', kind: 'aluguel', amount: costs.rent, day: (registry.find(r => r.kind === 'aluguel' && r.vence_dia) || {}).vence_dia || 1, metodo: (registry.find(r => r.kind === 'aluguel' && r.metodo) || {}).metodo || '', tab: 'fixo' })
+  // Power is a monthly bill now (variable costs): each bill on its own pay date when it has one.
+  const thisMonth = r => !r.month_key || r.month_key === monthKey
+  const paidOnDate = r => /^\d{4}-\d{2}-\d{2}$/.test(String(r.data_pagamento || ''))
+  const energyDated = (registry || []).filter(r => r.kind === 'energia' && thisMonth(r) && paidOnDate(r) && +r.amount)
+  for (const r of energyDated) push({ id: r.id, kind: 'energia', title: r.nome, amount: Math.round(+r.amount), date: r.data_pagamento, metodo: r.metodo || '', tab: 'variavel' })
+  push({ id: 'energia', kind: 'energia', amount: costs.energy - energyDated.reduce((a, r) => a + Math.round(+r.amount), 0), day: (registry.find(r => r.kind === 'energia' && r.vence_dia) || {}).vence_dia || 1, tab: 'variavel' })
   push({ id: 'contador', kind: 'contador', amount: costs.accountant, day: (registry.find(r => r.kind === 'contador' && r.vence_dia) || {}).vence_dia || 1, tab: 'contador' })
   const monthSales = monthTickets.reduce((a, s) => a + (+s.total || 0), 0)
   for (const r of registry || []) {
@@ -258,10 +264,12 @@ export function paymentAgenda({
     const amount = Math.round(monthSales * (+r.pct || 0) / 100) + Math.round(+r.amount || 0)
     push({ id: r.id, kind: 'imposto', title: r.nome, amount, day: r.vence_dia || 15, tab: 'imposto' })
   }
-  push({ id: 'variavel', kind: 'variavel', amount: costs.variable, day: goals.dia_mes || 1, tab: 'variavel' })
+  const variableDated = (registry || []).filter(r => r.kind === 'variavel' && thisMonth(r) && paidOnDate(r) && +r.amount)
+  for (const r of variableDated) push({ id: r.id, kind: 'variavel', title: r.nome, amount: Math.round(+r.amount), date: r.data_pagamento, metodo: r.metodo || '', tab: 'variavel' })
+  push({ id: 'variavel', kind: 'variavel', amount: costs.variable - variableDated.reduce((a, r) => a + Math.round(+r.amount), 0), day: goals.dia_mes || 1, tab: 'variavel' })
   for (const r of registry || []) {
     if (r.kind !== 'fixo' || !(+r.amount)) continue
-    push({ id: r.id, kind: 'fixo', title: r.nome, amount: Math.round(+r.amount || 0), day: r.vence_dia || 1, tab: 'fixo' })
+    push({ id: r.id, kind: 'fixo', title: r.nome, amount: Math.round(+r.amount || 0), day: r.vence_dia || 1, metodo: r.metodo || '', tab: 'fixo' })
   }
   for (const f of invoices || []) {
     if (f.status === 'pago') continue
@@ -296,13 +304,17 @@ export function paymentAgenda({
   return items.sort((a, b) => a.days - b.days || (rank[a.kind] ?? 12) - (rank[b.kind] ?? 12))
 }
 
-export function salaryBoard({ payroll = [], tickets = [], monthKey }) {
+export function salaryBoard({ payroll = [], tickets = [], agents = [], monthKey, fines = [], advances = {}, payouts = [] }) {
   const monthTickets = (tickets || []).filter(s => nightKeyOfSale(s).startsWith(monthKey))
+  // Fines of the month (active only) and advances per person are taken from what is payable.
+  const fined = finesByStaff((fines || []).filter(f => String(f.day || '').startsWith(monthKey)))
+  const paidBy = {}
+  for (const p of payouts || []) if (p && p.month === monthKey && p.status !== 'cancelled') paidBy[p.staff_id] = p
   const rows = (payroll || []).map(p => {
-    const nome = String(p.nome || '').trim().toLowerCase()
-    const mine = monthTickets.filter(s => orderCastFromObs(s.obs).trim().toLowerCase() === nome)
-    const sales = mine.reduce((a, s) => a + (+s.total || 0), 0)
-    const comm = commissionOf(mine)
+    // Credited sales: tickets marked with this person (split equally when shared) or rung up by them.
+    const credit = personCredit(monthTickets, { id: p.staff_id, nome: p.nome }, { agents })
+    const sales = credit.sales
+    const comm = credit.commission
     const pay = Math.round(+p.pay || 0)
     const hours = +p.hours || 0
     const perHour = hours > 0 ? Math.round(pay / hours) : Math.round(+p.salario_hora || 0)
@@ -313,10 +325,16 @@ export function salaryBoard({ payroll = [], tickets = [], monthKey }) {
     else if (cover >= 1) hint = 'tight'
     else if (sales === 0 && hours > 0) hint = 'floor'
     else hint = 'costly'
+    const math = payNet({ hoursPay: pay, commission: comm, fines: fined[p.staff_id] || 0, advances: advances?.[p.staff_id] || 0 })
     return {
       id: p.staff_id,
       nome: p.nome,
       cargo: p.cargo || '',
+      gross: math.gross,
+      fines: math.fines,
+      advances: math.advances,
+      net: math.net,
+      paid: paidBy[p.staff_id] || null,
       hours,
       lateHours: +p.lateHours || 0,
       pay,
@@ -334,6 +352,10 @@ export function salaryBoard({ payroll = [], tickets = [], monthKey }) {
   return {
     rows,
     total: rows.reduce((a, r) => a + r.pay, 0),
+    gross: rows.reduce((a, r) => a + r.gross, 0),
+    fines: rows.reduce((a, r) => a + r.fines, 0),
+    advances: rows.reduce((a, r) => a + r.advances, 0),
+    net: rows.reduce((a, r) => a + r.net, 0),
     save: costly.reduce((a, r) => a + r.pay, 0),
   }
 }

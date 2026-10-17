@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { clockStaff } from '../lib/timeClock'
 import { supabase } from '../lib/supabase'
 import { fmtYen, Spinner } from './utils'
 import { staffFetch } from '../lib/apiAuth'
@@ -24,7 +25,7 @@ export default function BarEventsTab({ bar }) {
       supabase.from('bar_guests').select('id,nome,aniversario,ativo').eq('bar_id', bar.id).eq('ativo', true),
     ])
     if (teamRes.error) throw new Error(errText(teamRes.error))
-    const staff = (teamRes.staff || []).map(p => ({ id: p.id, nome: p.nome, aniversario: p.aniversario, drink_back: !!p.drink_back }))
+    const staff = clockStaff(teamRes.staff).map(p => ({ id: p.id, nome: p.nome, aniversario: p.aniversario, drink_back: !!p.drink_back }))
     const extra = (teamRes.people || []).filter(p => p?.id && !staff.some(s => s.id === p.id)).map(p => ({
       id: p.id, nome: p.nome, aniversario: p.aniversario, drink_back: !!p.drink_back,
     }))

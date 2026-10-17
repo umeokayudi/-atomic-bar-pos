@@ -2,6 +2,7 @@
 
 import { tokyoNightKey, tokyoWallToUtcMs } from './tokyo.js'
 import { nextTokyoDateKey } from './nightClose.js'
+import { readTicketMeta } from './nightTicket.js'
 
 function pad2(n) {
   return String(n).padStart(2, '0')
@@ -247,4 +248,73 @@ export function filterClients(clients = [], query = '') {
   const q = String(query || '').trim().toLowerCase()
   if (!q) return (clients || []).filter(c => c.vip > 0)
   return (clients || []).filter(c => String(c.nome || '').toLowerCase().includes(q))
+}
+
+/**
+ * One row per VIP-room use in the period: who, which room, how long, how many people, what they spent
+ * and the room minimum written on the ticket (RoomMin:). Tickets rung in a VIP room with no visit
+ * become their own row so no room money goes missing. Open uses run up to `now`.
+ */
+export function vipRentals({ rooms = [], visits = [], sales = [], from = '', to = '', now = new Date() } = {}) {
+  const nowMs = now instanceof Date ? now.getTime() : new Date(now).getTime()
+  const roomById = new Map((rooms || []).map(r => [r.id, r]))
+  const used = new Set()
+  const rows = []
+  const rentals = (visits || [])
+    .filter(v => roomById.has(v.space_id) && isRental(v))
+    .filter(v => inSpan(tokyoNightKey(new Date(v.inicio || v.criado_em || 0)), from, to))
+  for (const v of rentals) {
+    const span = visitSpan(v, nowMs)
+    if (!span) continue
+    const mine = (sales || []).filter(s => {
+      if (!s?.id || used.has(s.id)) return false
+      if (s.visit_id === v.id || v.pos_venda_id === s.id) return true
+      if (s.space_id !== v.space_id || s.visit_id) return false
+      const at = new Date(s.criado_em || 0).getTime()
+      return at >= span.start - 5 * 60000 && at <= span.end + 30 * 60000
+    })
+    mine.forEach(s => used.add(s.id))
+    rows.push(rentalRow({ room: roomById.get(v.space_id), visit: v, span, tickets: mine, open: !v.fim && v.status === 'seated' }))
+  }
+  for (const s of sales || []) {
+    if (!s?.id || used.has(s.id) || !roomById.has(s.space_id)) continue
+    if (!inSpan(saleNight(s), from, to)) continue
+    const at = new Date(s.criado_em || 0).getTime()
+    rows.push(rentalRow({ room: roomById.get(s.space_id), visit: null, span: { start: at, end: at }, tickets: [s], open: false }))
+  }
+  rows.sort((a, b) => b.start - a.start)
+  const totals = rows.reduce((acc, r) => ({
+    uses: acc.uses + 1,
+    minutes: acc.minutes + r.minutes,
+    spend: acc.spend + r.spend,
+    people: acc.people + r.party,
+    belowMin: acc.belowMin + (r.minimum > 0 && r.spend < r.minimum ? 1 : 0),
+    open: acc.open + (r.open ? 1 : 0),
+  }), { uses: 0, minutes: 0, spend: 0, people: 0, belowMin: 0, open: 0 })
+  totals.avgSpend = totals.uses ? Math.round(totals.spend / totals.uses) : 0
+  totals.perHour = totals.minutes ? Math.round(totals.spend / (totals.minutes / 60)) : 0
+  return { rows, totals }
+}
+
+function rentalRow({ room, visit, span, tickets, open }) {
+  const spend = Math.round(tickets.reduce((a, s) => a + (+s.total || 0), 0))
+  const minimum = tickets.reduce((m, s) => Math.max(m, readTicketMeta(s.obs).roomMin || 0), 0)
+  const minutes = Math.max(0, Math.round((span.end - span.start) / 60000))
+  return {
+    id: visit ? visit.id : `sale:${tickets[0].id}`,
+    kind: visit ? 'visit' : 'ticket',
+    roomId: room.id,
+    room: room.nome,
+    guest: visit?.bar_guests?.nome || '',
+    host: visit?.host_nome || '',
+    party: Math.max(0, +visit?.party_size || 0),
+    start: span.start,
+    end: visit ? span.end : null,
+    minutes: visit ? minutes : 0,
+    open,
+    tickets: tickets.length,
+    spend,
+    minimum,
+    perHour: visit && minutes > 0 ? Math.round(spend / (minutes / 60)) : 0,
+  }
 }

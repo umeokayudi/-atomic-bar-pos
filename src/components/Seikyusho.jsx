@@ -5,6 +5,7 @@ import { analyzeSeikyusho, registerSeikyusho, calcLucroPreview } from '../lib/se
 import { fmtYen, fmtDate, Spinner, MetricCard } from './utils'
 import { PageHeader, PortalSurface } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
+import Icon from './ui/Icon'
 
 export default function SeikyushoTab() {
   const { t } = useI18n()
@@ -126,7 +127,7 @@ export default function SeikyushoTab() {
             {image ? (
               image.startsWith('data:application/pdf') ? (
                 <div style={{ padding: 24 }}>
-                  <div style={{ fontSize: 48, marginBottom: 8 }}>📄</div>
+                  <span className="ui-empty-icon" style={{ margin: '0 auto 8px' }}><Icon name="fileDoc" size={22} /></span>
                   <div style={{ fontWeight: 600 }}>{t('seikyusho.pdfSelected')}</div>
                   <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4 }}>{t('seikyusho.readyToRead')}</div>
                 </div>
@@ -135,7 +136,7 @@ export default function SeikyushoTab() {
               )
             ) : (
               <div>
-                <div style={{ fontSize: 48, marginBottom: 8 }}>📄</div>
+                <span className="ui-empty-icon" style={{ margin: '0 auto 8px' }}><Icon name="fileDoc" size={22} /></span>
                 <div style={{ fontWeight: 600 }}>{t('seikyusho.clickToSelect')}</div>
                 <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4 }}>{t('seikyusho.fileHint')}</div>
               </div>
@@ -173,7 +174,7 @@ export default function SeikyushoTab() {
         <PortalSurface style={{ marginBottom: 16 }}>
           {plano && (
             <div style={{ marginBottom: 20, padding: 16, background: 'var(--blue-bg)', borderRadius: 12, border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--navy)', marginBottom: 8 }}>{t('seikyusho.readSummary')}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--c-text)', marginBottom: 8 }}>{t('seikyusho.readSummary')}</div>
               <p style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 12 }}>{plano.resumo}</p>
               {plano.acoes?.length > 0 && (
                 <div style={{ marginBottom: 12 }}>
@@ -185,10 +186,10 @@ export default function SeikyushoTab() {
               )}
               {plano.alertas?.length > 0 && (
                 <div style={{ marginBottom: 12, padding: '8px 12px', background: 'var(--amber-bg)', borderRadius: 8, fontSize: 12 }}>
-                  {plano.alertas.map((a, i) => <div key={i}>⚠️ {a}</div>)}
+                  {plano.alertas.map((a, i) => <div key={i}><Icon name="warning" size={13} /> {a}</div>)}
                 </div>
               )}
-              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--navy)', padding: '12px 0 0', borderTop: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-text)', padding: '12px 0 0', borderTop: '1px solid var(--border)' }}>
                 {plano.pergunta || t('seikyusho.confirmQuestion')}
               </div>
             </div>

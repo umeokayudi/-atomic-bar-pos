@@ -21,7 +21,7 @@ Staff não é HQ. A tela de compras da empresa continua no menu, mas não dispar
 
 ## `user_can_access_bar`
 
-A função em `sql/pos_sale_security.sql`, e as cópias em `migration.sql` e `atomic-bar-pos/migration.sql`, só trata como portal de bar os papéis `cliente`, `gerente`, `caixa` e `bar_staff`, além de `admin`.
+A função em `sql/pos_sale_security.sql`, e a cópia em `migration.sql`, só trata como portal de bar os papéis `cliente`, `gerente`, `caixa` e `bar_staff`, além de `admin`.
 
 `staff`, `funcionario`, `jbm` e `fornecedor` deixam de passar só porque `perfis.bar_id` está preenchido.
 

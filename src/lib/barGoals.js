@@ -2,7 +2,7 @@
 
 import { hourOfSale, nightKeyOfSale } from './nightClose.js'
 import { readTicketMeta } from './nightTicket.js'
-import { orderCastFromObs, orderCastIdFromObs } from './orderMeta.js'
+import { personCredit, staffAliases } from './saleCredit.js'
 import { lastDayOfMonth, tokyoHour, tokyoNightKey } from './tokyo.js'
 
 export function goalPct(value, goal) {
@@ -76,19 +76,16 @@ function commissionOf(rows) {
   return (rows || []).reduce((a, s) => a + (readTicketMeta(s.obs).commission || 0), 0)
 }
 
-function belongsTo(sale, person) {
-  const name = orderCastFromObs(sale.obs).trim().toLowerCase()
-  const id = orderCastIdFromObs(sale.obs) || sale.drink_back_agent_id || ''
-  if (id && (id === person.id)) return true
-  if (name && name === String(person.nome || '').trim().toLowerCase()) return true
-  return false
+/** The person's credited sales (equal split when several people share a ticket, see saleCredit.js). */
+function creditedSales(rows, person, aliases) {
+  return personCredit(rows, person, { aliases }).sales
 }
 
 function monthCost(hq, registry, monthKey) {
   const wages = Math.round(+hq?.books?.staff?.amount || (hq?.payroll || []).reduce((a, r) => a + (+r.pay || 0), 0))
   const reg = (kind) => (registry || []).reduce((a, r) => {
     if (r.kind !== kind) return a
-    if (kind === 'variavel' && r.month_key && r.month_key !== monthKey) return a
+    if ((kind === 'variavel' || kind === 'energia') && r.month_key && r.month_key !== monthKey) return a
     return a + Math.round(+r.amount || 0)
   }, 0)
   const rent = reg('aluguel') || Math.round(+hq?.books?.rent?.amount || hq?.rent?.amount || 0)
@@ -102,6 +99,7 @@ export function buildGoalProgress({
   registry = [],
   goals = null,
   people = [],
+  agents = [],
   nightKey = tokyoNightKey(),
 } = {}) {
   const g = goals || {}
@@ -171,20 +169,20 @@ export function buildGoalProgress({
   const nightProfit = sumSales(tonight) - Math.round(cost * nightShare) - commissionOf(tonight)
   const nightProfitGoal = Math.round((+g.lucro || 0) * nightShare)
   const savedPeople = new Map((g.pessoas || []).map(p => [p.id, p]))
+  const aliases = staffAliases(agents)
   const cast = (people || []).filter(p => p.drink_back).map(p => {
     const saved = savedPeople.get(p.id) || {}
-    const mine = monthTickets.filter(s => belongsTo(s, p))
-    const mineNight = mine.filter(s => nightOf(s) === nightKey)
-    const mineWeek = mine.filter(s => weekKeys.includes(nightOf(s)))
+    const noite = creditedSales(tonight, p, aliases)
+    const semana = creditedSales(weekRows, p, aliases)
     return {
       id: p.id,
       nome: p.nome,
-      noite: sumSales(mineNight),
-      semana: sumSales(mineWeek),
+      noite,
+      semana,
       noiteGoal: +saved.noite || 0,
       semanaGoal: +saved.semana || 0,
-      noitePct: goalPct(sumSales(mineNight), saved.noite),
-      semanaPct: goalPct(sumSales(mineWeek), saved.semana),
+      noitePct: goalPct(noite, saved.noite),
+      semanaPct: goalPct(semana, saved.semana),
     }
   })
 

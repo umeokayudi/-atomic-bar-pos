@@ -1,4 +1,5 @@
 import { hashSecret } from './_hash.js'
+import { importLegacyOnce } from './_liveImport.js'
 
 export const ATOMIC_BAR_ID = 'b23a5f97-ad4c-4c2a-baa6-72a0d3ba85b9'
 export const LIVE_BUCKET = 'system-private'
@@ -27,10 +28,31 @@ export const LIVE_TABLES = [
   'pos_settings',
   'bar_people',
   'bar_registry',
+  'bar_locks',
   'bar_goals',
   'bar_events',
   'bar_day_sheet',
+  'floor_layouts',
+  'floor_sectors',
+  'floor_tables',
+  'bar_guest_ledger',
+  // Staff app: requests to the owner and the check-out day reports. Server routes only (secret in /api/bar/live-db).
+  'staff_requests',
+  'staff_day_reports',
+  // Staff schedule, fines and salary payouts. Server routes only (secret in /api/bar/live-db): staff read and
+  // write only their own availability and read only their own fines/payouts; the owner/manager writes the rest.
+  'staff_availability',
+  'staff_schedule',
+  'staff_fines',
+  'staff_payouts',
 ]
+
+// Tables that had a JSON copy before the migrations created them in Postgres (sql/pos_start.sql,
+// sql/floor_comandas.sql). Their JSON rows are copied into Postgres once (api/_liveImport.js).
+export const IMPORTED_TABLES = new Set([
+  'pos_vendas', 'pos_vendas_itens', 'vip_members', 'vip_usages', 'discount_codes', 'discount_usages',
+  'drink_back_agents', 'bar_spaces', 'pos_shifts', 'floor_layouts', 'floor_sectors', 'floor_tables',
+])
 
 const locks = new Map()
 const memTables = new Map()
@@ -221,6 +243,8 @@ async function saveTable(admin, table, rows) {
     const { error } = await admin.storage.from(LIVE_BUCKET).upload(pathFor(table), body, {
       upsert: true,
       contentType: 'application/json',
+      // No CDN copy: another instance must read this version, not one cached for an hour (lost clock-outs).
+      cacheControl: '0',
     })
     if (error) throw new Error(error.message)
   } catch {
@@ -318,6 +342,7 @@ export async function readLiveJson(admin, table) {
 export async function runLiveOp(admin, spec) {
   const table = spec.table
   if (!LIVE_TABLES.includes(table)) return { data: null, error: { message: `Unknown live table ${table}` } }
+  if (IMPORTED_TABLES.has(table)) await importLegacyOnce(admin, table, { bucket: LIVE_BUCKET }).catch(() => null)
   const pg = await tryPostgresOp(admin, spec)
   if (!pg.missingTable) return pg.result
   return withLock(table, async () => {
@@ -433,23 +458,8 @@ async function seedAtomic(admin) {
     id: codeId, bar_id: barId, codigo: 'WELCOME-10', tipo: 'percent', valor: 10, ativo: true,
     usos_atual: 0, criado_em: new Date().toISOString(),
   }])
-  await saveTable(admin, 'pos_vendas', [])
-  await saveTable(admin, 'pos_vendas_itens', [])
-  await saveTable(admin, 'vip_usages', [])
-  await saveTable(admin, 'discount_usages', [])
-  await saveTable(admin, 'time_clock', [])
-  await saveTable(admin, 'bar_geo', [])
-  await saveTable(admin, 'staff_extras', [])
-  await saveTable(admin, 'bar_people', [])
-  await saveTable(admin, 'bar_registry', [])
-  await saveTable(admin, 'bar_goals', [])
-  await saveTable(admin, 'bar_events', [])
-  await saveTable(admin, 'bar_logins', [])
-  await saveTable(admin, 'bar_sessions', [])
-  await saveTable(admin, 'bar_overhead', [])
-  await saveTable(admin, 'bar_hq_meta', [])
-  await saveTable(admin, 'pos_shifts', [])
-  await saveTable(admin, 'pos_settings', [])
+  // The other tables are not written here: a missing file already reads as empty, and writing [] over them
+  // (when bar_spaces merely failed to load) wiped real punches, logins and staff files.
 }
 
 const POS_LOGIN_ID = '11111111-1111-4111-8111-111111111111'
@@ -599,7 +609,18 @@ export async function loadStaffWithExtras(admin, staffId) {
 }
 
 const PERFIL_EXTRA_KEYS = ['cargo', 'salario_hora', 'ativo', 'clock_pin_hash']
-const STAFF_ONLY_KEYS = ['drink_back', 'comissao_pct', 'salario_mes', 'dias', 'idiomas', 'estilo', 'contato', 'notas', 'aniversario']
+const STAFF_ONLY_KEYS = [
+  'drink_back', 'comissao_pct', 'salario_mes', 'dias', 'idiomas', 'estilo', 'contato', 'notas', 'aniversario',
+  // Employee file: photo and contract live in private storage (paths only here), the rest is plain text.
+  'email', 'endereco', 'foto', 'contrato_tipo', 'contrato_inicio', 'contrato_fim', 'contrato_doc', 'contrato_doc_nome',
+  'transporte', 'condicoes', 'banco',
+  // "Users & access": phone and sex given when the login is made.
+  'telefone', 'sexo',
+  // "Users & access": the bar areas this login may open (null / missing = what the role allows).
+  'acessos',
+  // "Users & access": the employee file (bar_people id) this login was linked to.
+  'person_id',
+]
 
 export async function saveStaffExtras(admin, staffId, patch) {
   const perfilPatch = {}
@@ -636,6 +657,8 @@ export async function saveStaffExtras(admin, staffId, patch) {
 }
 
 function mergeStaffExtra(row, extra) {
+  // The employee file may carry a contact e-mail (extras.email); keep the sign-in address apart.
+  if (row?.email && row.login_email == null) row = { ...row, login_email: row.email }
   if (!extra) return row
   const out = { ...row }
   for (const k of [...PERFIL_EXTRA_KEYS, ...STAFF_ONLY_KEYS]) {
@@ -672,6 +695,7 @@ export async function listStaffWithExtras(admin, barId) {
       salario_hora: login.salario_hora || 0,
       ativo: login.ativo !== false,
       bar_id: login.bar_id,
+      lane: true,
     }, byId[login.id]))
   }
   return rows

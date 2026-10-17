@@ -1,9 +1,10 @@
 import { supabase } from './supabase'
 import { readLaneToken } from './barLanes'
+import { vaultHeader } from './vault'
 
 /** Headers com Bearer do staff logado para APIs /api/* protegidas. */
 export async function staffAuthHeaders(extra = {}) {
-  const headers = { ...extra }
+  const headers = { ...vaultHeader(), ...extra }
   const lane = readLaneToken()
   if (lane) {
     headers.Authorization = `Bearer ${lane}`

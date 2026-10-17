@@ -1,6 +1,7 @@
 /** POS night ticket extras packed into pos_vendas.obs — never JBM vendas/faturas. */
 
 import { orderDetailsFromObs, withOrderCast } from './orderMeta.js'
+import { DEFAULT_CARD_MACHINE, normalizeCardMachines } from './posFloor.js'
 
 const LINE = {
   night: /^Night:\s*(.+)$/im,
@@ -11,6 +12,9 @@ const LINE = {
   keep: /^Keep:\s*([^:]+):([\d.]+)$/im,
   pay: /^Pay:\s*(.+)$/im,
   comm: /^Comm:\s*([\d.]+)$/im,
+  card: /^Card:\s*(.+)$/im,
+  cardFee: /^CardFee:\s*(\d+)$/im,
+  cardSur: /^CardSur:\s*(\d+)$/im,
 }
 
 export const DEFAULT_POS_SETTINGS = {
@@ -18,6 +22,10 @@ export const DEFAULT_POS_SETTINGS = {
   room_min: 10000,
   set_minutes: 60,
   set_price: 0,
+  // Card machines the bar uses (name + processor fee %). One machine = no choice at the till.
+  card_machines: [{ ...DEFAULT_CARD_MACHINE }],
+  // Optional surcharge passed to the guest on card payments, % (0 = off).
+  card_surcharge_pct: 0,
 }
 
 export function readTicketMeta(obs) {
@@ -39,6 +47,9 @@ export function readTicketMeta(obs) {
     keepPourPct: keep ? +keep[2] : 0,
     payNote: text.match(LINE.pay)?.[1]?.trim() || '',
     commission: text.match(LINE.comm) ? Math.round(+text.match(LINE.comm)[1]) : null,
+    cardNote: text.match(LINE.card)?.[1]?.trim() || '',
+    cardFee: text.match(LINE.cardFee) ? Math.round(+text.match(LINE.cardFee)[1]) : 0,
+    cardSurcharge: text.match(LINE.cardSur) ? Math.round(+text.match(LINE.cardSur)[1]) : 0,
     details: orderDetailsFromObs(text),
   }
 }
@@ -47,6 +58,8 @@ export function packTicketObs({
   details = '',
   castName = '',
   castId = '',
+  cast = null,
+  commissionBy = null,
   nightKey = '',
   servicePct = null,
   nominho = 0,
@@ -57,9 +70,13 @@ export function packTicketObs({
   keepPourPct = 0,
   payNote = '',
   commission = null,
+  cardNote = '',
+  cardFee = 0,
+  cardSurcharge = 0,
 } = {}) {
   const head = []
-  const castLine = withOrderCast('', { name: castName, id: castId })
+  // cast: several people on one sale ([{ name, id }]); castName/castId: the old single cast.
+  const castLine = withOrderCast('', Array.isArray(cast) && cast.length ? cast : { name: castName, id: castId })
   if (castLine) head.push(castLine)
   if (nightKey) head.push(`Night: ${nightKey}`)
   if (payNote) head.push(String(payNote).startsWith('Pay:') ? payNote : `Pay: ${payNote}`)
@@ -69,6 +86,12 @@ export function packTicketObs({
   if (+roomMin > 0) head.push(`RoomMin: ${Math.round(+roomMin)}`)
   if (keepId && +keepPourPct > 0) head.push(`Keep: ${keepId}:${Math.round(+keepPourPct)}`)
   if (commission != null && commission !== '') head.push(`Comm: ${Math.round(+commission || 0)}`)
+  // Drink-back of each person when several share the sale: "CommBy: id=600;id2=0" (saleCredit.js reads it).
+  const by = Object.entries(commissionBy || {}).filter(([id]) => id).map(([id, v]) => `${String(id).replace(/[=;\s]/g, '')}=${Math.round(+v || 0)}`)
+  if (by.length) head.push(`CommBy: ${by.join(';')}`)
+  if (cardNote) head.push(`Card: ${String(cardNote).replace(/\n/g, ' ').trim()}`)
+  if (Math.round(+cardFee || 0) > 0) head.push(`CardFee: ${Math.round(+cardFee)}`)
+  if (Math.round(+cardSurcharge || 0) > 0) head.push(`CardSur: ${Math.round(+cardSurcharge)}`)
   const body = orderDetailsFromObs(details)
   return [...head, body].filter(Boolean).join('\n')
 }
@@ -152,6 +175,28 @@ export function ticketChargeLines({
   return { lines, extraTotal, total: Math.round(+drinksTotal || 0) + extraTotal }
 }
 
+/**
+ * Card surcharge as a ticket line. Typed 'service' so the tab close in sql/floor_comandas.sql
+ * keeps it apart from the drink lines (it only exempts set / nominho / service / room_min).
+ */
+export function cardSurchargeLine(amount, pct = 0) {
+  const value = Math.round(+amount || 0)
+  if (value <= 0) return null
+  return {
+    key: 'card_surcharge',
+    kind: 'card_surcharge',
+    nome: pct > 0 ? `カード手数料 ${+pct}%` : 'カード手数料',
+    qtd: 1,
+    preco: value,
+    preco_unitario: value,
+    preco_lista: value,
+    tipo_preco: 'service',
+    desconto_valor: 0,
+    drink_menu_id: null,
+    produto_id: null,
+  }
+}
+
 /** Walk-up till is face price. Service % only on CAST / table / guest / set / 指名 — not just opening extras. */
 export function effectiveServicePct({ servicePct = 0, tableTicket = false } = {}) {
   if (tableTicket) return Math.max(0, +servicePct || 0)
@@ -164,5 +209,7 @@ export function settingsFromRow(row) {
     room_min: row?.room_min != null ? +row.room_min : DEFAULT_POS_SETTINGS.room_min,
     set_minutes: row?.set_minutes != null ? +row.set_minutes : DEFAULT_POS_SETTINGS.set_minutes,
     set_price: row?.set_price != null ? +row.set_price : DEFAULT_POS_SETTINGS.set_price,
+    card_machines: normalizeCardMachines(row?.card_machines),
+    card_surcharge_pct: Math.min(20, Math.max(0, +row?.card_surcharge_pct || 0)),
   }
 }

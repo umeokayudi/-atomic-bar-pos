@@ -11,6 +11,7 @@ import {
 } from '../lib/barLanes'
 import { setHashForRole } from '../lib/barDoors'
 import { asReactText, errText } from '../lib/errText'
+import { readStaffBrand } from '../lib/staffApp'
 
 const AuthContext = createContext(null)
 export const useAuth = () => useContext(AuthContext)
@@ -83,7 +84,8 @@ export function AuthProvider({ children }) {
     if (isLaneEmail(e)) {
       const lane = await tryLaneLogin(e, p)
       if (lane.error) return lane
-      writeLaneSession(lane.token, lane.perfil, false)
+      // The till tablet keeps its POS sign-in overnight; every other lane stays per-tab.
+      writeLaneSession(lane.token, lane.perfil, lane.perfil?.role === 'caixa')
       applyLane(lane.perfil)
       return { error: null, perfil: lane.perfil }
     }
@@ -136,8 +138,8 @@ function LoginLanguagePicker() {
           style={{
             padding: '5px 12px',
             borderRadius: 20,
-            border: lang === opt.id ? '1px solid var(--gold)' : '1px solid rgba(193,156,86,0.25)',
-            background: lang === opt.id ? 'rgba(193,156,86,0.15)' : 'transparent',
+            border: lang === opt.id ? '1px solid var(--gold)' : '1px solid color-mix(in srgb, var(--gold) 25%, transparent)',
+            background: lang === opt.id ? 'color-mix(in srgb, var(--gold) 15%, transparent)' : 'transparent',
             color: lang === opt.id ? 'var(--gold)' : 'rgba(255,255,255,0.45)',
             fontSize: 11,
             fontWeight: 600,
@@ -158,6 +160,8 @@ export function LoginPage() {
   const [pass,  setPass]  = useState('')
   const [err,   setErr]   = useState('')
   const [busy,  setBusy]  = useState(false)
+  // A staff login on this device saw this bar last: greet them with the bar's name and colour, not only ours.
+  const [staffBrand] = useState(() => readStaffBrand())
 
   const submit = async () => {
     setErr('')
@@ -185,7 +189,7 @@ export function LoginPage() {
 
   const field = {
     background: 'rgba(255,255,255,0.05)',
-    border: '1px solid rgba(193,156,86,0.22)',
+    border: '1px solid color-mix(in srgb, var(--gold) 22%, transparent)',
     color: 'white',
     width: '100%',
     padding: '14px 16px',
@@ -200,18 +204,26 @@ export function LoginPage() {
     }}>
       <div style={{
         position: 'fixed', inset: 0, opacity: 0.03, pointerEvents: 'none',
-        backgroundImage: 'repeating-linear-gradient(45deg,#c19c56 0,#c19c56 1px,transparent 0,transparent 50%)',
+        backgroundImage: 'repeating-linear-gradient(45deg,var(--gold) 0,var(--gold) 1px,transparent 0,transparent 50%)',
         backgroundSize: '20px 20px',
       }} />
 
       <div style={{ width: '100%', maxWidth: 400, position: 'relative' }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <LogoLogin />
+          {staffBrand && (
+            <div className="login-staff-brand">
+              <span className="sa-barmark" style={{ width: 32, height: 32, ...(staffBrand.color ? { background: staffBrand.color } : {}) }} aria-hidden="true">
+                {staffBrand.logo ? <img src={staffBrand.logo} alt="" /> : staffBrand.initials}
+              </span>
+              <span>{t('login.staffOf', { bar: staffBrand.name })}</span>
+            </div>
+          )}
         </div>
 
         <div style={{
           background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(193,156,86,0.2)',
+          border: '1px solid color-mix(in srgb, var(--gold) 20%, transparent)',
           borderRadius: 20,
           padding: '32px 28px',
           backdropFilter: 'blur(10px)',
@@ -229,7 +241,7 @@ export function LoginPage() {
           </div>
 
           <div style={{ marginBottom: 14, marginTop: 18 }}>
-            <label className="form-label" style={{ color: 'rgba(193,156,86,0.7)' }}>{t('auth.email')}</label>
+            <label className="form-label" style={{ color: 'color-mix(in srgb, var(--gold) 70%, transparent)' }}>{t('auth.email')}</label>
             <input
               type="email"
               autoComplete="username"
@@ -241,7 +253,7 @@ export function LoginPage() {
             />
           </div>
           <div style={{ marginBottom: 16 }}>
-            <label className="form-label" style={{ color: 'rgba(193,156,86,0.7)' }}>{t('auth.password')}</label>
+            <label className="form-label" style={{ color: 'color-mix(in srgb, var(--gold) 70%, transparent)' }}>{t('auth.password')}</label>
             <input
               type="password"
               autoComplete="current-password"

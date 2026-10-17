@@ -5,6 +5,7 @@ import { AdminPage, PortalSurface } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
 import { useAuth } from './Auth'
 import { barBookScope } from '../lib/legacyScope'
+import { downloadHtmlAsPdf } from '../lib/pdfFile'
 
 const TAX_RATE = 0.10
 
@@ -150,13 +151,8 @@ export default function RyoshushoTab() {
       emitNome + (emitEnd ? '&#12288;' + emitEnd : '') + (emitTel ? '&#12288;TEL:' + emitTel : '') +
       '</div></body></html>'
 
-    const printWin = window.open('', '_blank', 'width=800,height=600')
-    printWin.document.write(html)
-    printWin.document.close()
-    printWin.focus()
-    setTimeout(() => {
-      printWin.print()
-    }, 500)
+    const res = await downloadHtmlAsPdf(html, `ryoshusho-${numero}`)
+    if (!res.ok) alert('PDF error: ' + (res.error?.message || res.error))
 
     setGenerating(false)
     loadAll()

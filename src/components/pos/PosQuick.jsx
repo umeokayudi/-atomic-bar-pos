@@ -1,0 +1,1192 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { supabase } from '../../lib/supabase'
+import { useAuth } from '../Auth'
+import { useI18n } from '../../lib/i18n'
+import { fmtYen } from '../utils'
+import { buildStockMap, cartTotal, findLowStockProducts, pricingMapFromShots, resolveItemPrice, validateDiscountCode } from '../../lib/atomicPos'
+import { reorderLowStock, syncPosStockAndReorder } from '../../lib/posSupply'
+import { CASH_CHIPS, cashSettle, isCashMethod, payRecordNote } from '../../lib/posPay'
+import { castAgentId, castCommission, castPeopleFromAgents, withMe } from '../../lib/staffPos'
+import { DEFAULT_POS_SETTINGS, cardSurchargeLine, packTicketObs, settingsFromRow, ticketChargeLines } from '../../lib/nightTicket'
+import { cardMethodLabel, cardPaymentsFee, cardSurcharge, isCardMethod, machineFee, pickCardMachine } from '../../lib/posFloor'
+import { tokyoNightKey, tokyoDateKey } from '../../lib/tokyo'
+import { prevTokyoDateKey, summarizeNight } from '../../lib/nightClose'
+import { forgetLiveSelects } from '../../lib/barLiveClient'
+import {
+  ON_ACCOUNT, discountGuestError, ledgerBalances, methodDisplay, onAccountError, onAccountGuestId, onAccountMethod,
+  receivePaymentRow, saleOnAccountRow, tabOnAccountRows, tonightGlance,
+} from '../../lib/onAccount'
+import { linkSaleToGuest, loadCrmGuests, loadLedger, recordLedger, saveLedgerRows } from '../../lib/onAccountStore'
+import { itemVisual, rankTopSellers, starterPicks } from '../../lib/posVisual'
+import { buildCatalog, searchCatalog, toggleFavorite } from '../../lib/posCatalog'
+import { commitSaleAtomic, newSaleKey } from '../../lib/posCommit'
+import { floorAvailable, floorApi, isConflict, loadOpenTabs, newKey, pendingToLines, tabMoney, tabsApi } from '../../lib/comandas'
+import Icon from '../ui/Icon'
+import TabPanel from '../floor/TabPanel'
+import CustomerPicker from './CustomerPicker'
+
+const PAY = [
+  { id: 'Cash', key: 'atomicPos.payCash', icon: 'payCash' },
+  { id: 'Credit card', key: 'atomicPos.payCard', icon: 'payCard' },
+  { id: 'PayPay', key: 'atomicPos.payPaypay', icon: 'payPhone' },
+  { id: ON_ACCOUNT, key: 'onAccount.method', icon: 'salary' },
+]
+const RECEIVE = PAY.filter(row => row.id !== ON_ACCOUNT)
+const COUNTER = 'counter'
+const SRV = 'srv:'
+const POLL_MS = 12000
+const SALES_POLL_MS = 60000
+
+function readJson(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key)) ?? fallback } catch { return fallback }
+}
+function writeJson(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)) } catch { /* private mode */ }
+}
+function missingTable(error) {
+  return !!error && (error.code === 'PGRST205' || error.code === '42P01' || /could not find the table|does not exist/i.test(error.message || ''))
+}
+
+function Tile({ item, qty, fav, onAdd, onFav, t }) {
+  const look = itemVisual(item)
+  return (
+    <div className={`pq-tile${qty ? ' has-qty' : ''}`}>
+      <button type="button" className="pq-tile-hit" onClick={() => onAdd(item)} aria-label={`${item.nome} ${fmtYen(item.preco_venda)}`}>
+        <span className="pq-tile-img" style={look.image ? undefined : { background: look.background }}>
+          {look.image ? <img src={look.image} alt="" loading="lazy" decoding="async" draggable="false" /> : <Icon name={look.icon} size={28} strokeWidth={1.6} />}
+          {qty > 0 && <span className="pq-tile-qty">{qty}</span>}
+        </span>
+        <span className="pq-tile-name">{item.nome}</span>
+        <span className="pq-tile-price">{item.codigo ? <em>{item.codigo}</em> : null}{fmtYen(item.preco_venda)}</span>
+      </button>
+      <button type="button" className={`pq-fav${fav ? ' is-on' : ''}`} aria-pressed={fav} aria-label={fav ? t('posQuick.unfav', { name: item.nome }) : t('posQuick.fav', { name: item.nome })} onClick={() => onFav(item.key)}>
+        <Icon name="star" size={14} />
+      </button>
+    </div>
+  )
+}
+
+/**
+ * The till. Counter sales and tabs; every sale is one atomic server call with an idempotency key.
+ * Tabs live on the server (pos_comandas) when sql/floor_comandas.sql is applied, so every device sees
+ * the same tab; otherwise they stay on this device as before.
+ *
+ * Cast: one or more people can be marked on a sale; the sale is credited to them in equal parts
+ * (src/lib/saleCredit.js). castPeople: who can be marked (default: the drink-back agents).
+ * staff: { me, myTonight } turns this into the staff POS: she is marked by default, and the top card
+ * shows her own credited sales instead of the bar's totals and the on-account ledger.
+ */
+export default function PosQuick({ bar, drinks = [], shots = [], agents = [], castPeople = null, staff = null, discountCodes = [], todaySales, catalogError = '', onSale }) {
+  const { t } = useI18n()
+  const { user, perfil } = useAuth()
+  const ordersKey = `pos-orders:${bar.id}`
+  const localTopKey = `pos-top:${bar.id}`
+  const favKey = `pos-fav:${bar.id}`
+
+  const [orders, setOrders] = useState(() => {
+    const saved = readJson(ordersKey, null)
+    return saved && saved[COUNTER] ? saved : { [COUNTER]: { cart: [] } }
+  })
+  const [active, setActive] = useState(() => readJson(`${ordersKey}:active`, COUNTER))
+  const [cat, setCat] = useState('top')
+  const [query, setQuery] = useState('')
+  const [pay, setPay] = useState('Cash')
+  const [tendered, setTendered] = useState('')
+  const staffMe = staff?.me?.id ? staff.me : null
+  const defaultCast = useMemo(() => (staffMe ? [staffMe.id] : []), [staffMe])
+  const [castIds, setCastIds] = useState(defaultCast)
+  const [castSheet, setCastSheet] = useState(false)
+  const [serviceOn, setServiceOn] = useState(true)
+  const machineKey = `pos-card-machine:${bar.id}`
+  const [machineId, setMachineId] = useState(() => readJson(machineKey, ''))
+  const [spaces, setSpaces] = useState([])
+  const [settings, setSettings] = useState(DEFAULT_POS_SETTINGS)
+  const [topKeys, setTopKeys] = useState([])
+  const [favs, setFavs] = useState(() => readJson(favKey, []))
+  const [setupNeeded, setSetupNeeded] = useState(false)
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState(null)
+  const [tabSheet, setTabSheet] = useState(false)
+  const [tabForm, setTabForm] = useState({ nome: '', pessoas: 2, tableId: '' })
+  const [orderOpen, setOrderOpen] = useState(false)
+  // Phones: payment method, cash chips and customer fold away so the drinks on the order keep the room.
+  const [payMore, setPayMore] = useState(false)
+  const [server, setServer] = useState(null) // null = checking, true = server tabs, false = device tabs
+  const [srvTabs, setSrvTabs] = useState([])
+  const [tabsLoaded, setTabsLoaded] = useState(false)
+  const [tables, setTables] = useState([])
+  const [panelTab, setPanelTab] = useState(null)
+  // CRM customers (bar_guests), the on-account ledger and tonight's closed sales.
+  const [guests, setGuests] = useState(null)
+  const [crmErr, setCrmErr] = useState('')
+  const [ledger, setLedger] = useState([])
+  const [ledgerReady, setLedgerReady] = useState(null) // null = checking, false = store not reachable
+  const [custSheet, setCustSheet] = useState(false)
+  const [fiadoSheet, setFiadoSheet] = useState(false)
+  const [codeText, setCodeText] = useState('')
+  const [codeErr, setCodeErr] = useState('')
+  const [night, setNight] = useState(null) // { summary } | { error }
+  const doneTimer = useRef(null)
+  const searchRef = useRef(null)
+
+  useEffect(() => { writeJson(ordersKey, orders) }, [orders, ordersKey])
+  useEffect(() => { writeJson(`${ordersKey}:active`, active) }, [active, ordersKey])
+  useEffect(() => { writeJson(favKey, favs) }, [favs, favKey])
+  useEffect(() => { writeJson(machineKey, machineId) }, [machineId, machineKey])
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-pos-mode', 'quick')
+    return () => document.documentElement.removeAttribute('data-pos-mode')
+  }, [])
+
+  // Keep the till screen awake during service. Browsers drop the lock when the tab hides.
+  useEffect(() => {
+    if (!navigator.wakeLock) return undefined
+    let lock = null
+    let alive = true
+    const take = () => {
+      if (document.visibilityState !== 'visible') return
+      navigator.wakeLock.request('screen').then(l => { if (alive) lock = l; else l.release() }).catch(() => {})
+    }
+    take()
+    document.addEventListener('visibilitychange', take)
+    return () => {
+      alive = false
+      document.removeEventListener('visibilitychange', take)
+      lock?.release().catch(() => {})
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const since = new Date(Date.now() - 30 * 86400000)
+    Promise.all([
+      supabase.from('pos_vendas').select('id').eq('bar_id', bar.id).limit(1),
+      supabase.from('bar_spaces').select('id,nome,tipo,zona,ordem,ativo').eq('bar_id', bar.id).eq('ativo', true).order('ordem'),
+      supabase.from('pos_vendas_itens')
+        .select('drink_menu_id,produto_id,qtd,pos_vendas!inner(bar_id,data)')
+        .eq('pos_vendas.bar_id', bar.id)
+        .gte('pos_vendas.data', tokyoDateKey(since))
+        .limit(5000),
+      supabase.from('pos_settings').select('*').eq('bar_id', bar.id).maybeSingle(),
+    ]).then(([salesRes, spacesRes, linesRes, settingsRes]) => {
+      if (cancelled) return
+      setSetupNeeded(missingTable(salesRes.error))
+      setSpaces(spacesRes.error ? [] : (spacesRes.data || []))
+      const ranked = linesRes.error ? [] : rankTopSellers(linesRes.data || [], 18)
+      setTopKeys(ranked.length ? ranked : rankTopSellers(readJson(localTopKey, []), 18))
+      if (!settingsRes.error && settingsRes.data) setSettings(settingsFromRow(settingsRes.data))
+    }).catch(() => {})
+    floorAvailable(supabase, bar.id).then(ok => { if (!cancelled) setServer(ok) }).catch(() => { if (!cancelled) setServer(false) })
+    return () => { cancelled = true }
+  }, [bar.id, localTopKey])
+
+  const refreshCrm = useCallback(async () => {
+    try {
+      setGuests(await loadCrmGuests(supabase, bar.id))
+      setCrmErr('')
+    } catch (e) {
+      setGuests(g => g || [])
+      setCrmErr(e.message)
+    }
+  }, [bar.id])
+
+  const refreshLedger = useCallback(async () => {
+    try {
+      await recordLedger(supabase, bar.id, []) // replay rows this device could not save before
+      setLedger(await loadLedger(supabase, bar.id))
+      setLedgerReady(true)
+    } catch {
+      setLedgerReady(false)
+    }
+  }, [bar.id])
+
+  // Tonight's closed sales, read here so the card stays right after every sale and with other tills ringing too.
+  const refreshNight = useCallback(async () => {
+    const nightKey = tokyoNightKey()
+    forgetLiveSelects('pos_vendas')
+    const from = prevTokyoDateKey(nightKey)
+    let { data, error } = await supabase.from('pos_vendas').select('total,refunded,criado_em,data,obs,metodo_pagamento').eq('bar_id', bar.id).gte('data', from)
+    if (error && /refunded/.test(error.message || '')) {
+      ({ data, error } = await supabase.from('pos_vendas').select('total,criado_em,data,obs,metodo_pagamento').eq('bar_id', bar.id).gte('data', from))
+    }
+    if (error) setNight(n => (n?.summary ? n : { error: error.message }))
+    else setNight({ summary: summarizeNight(data || [], nightKey) })
+  }, [bar.id])
+
+  useEffect(() => {
+    refreshCrm()
+    refreshLedger()
+    refreshNight().catch(() => {})
+    const id = setInterval(() => { if (document.visibilityState === 'visible') refreshNight().catch(() => {}) }, SALES_POLL_MS)
+    return () => clearInterval(id)
+  }, [refreshCrm, refreshLedger, refreshNight])
+
+  const refreshTabs = useCallback(async () => {
+    if (!server) return
+    try {
+      setSrvTabs(await loadOpenTabs(supabase, bar.id))
+      setTabsLoaded(true)
+    } catch (e) {
+      setErr(t('tabs.errGeneric', { error: e.message }))
+    }
+  }, [server, bar.id, t])
+
+  // Server tabs: load, then refresh while the till is visible (other devices change them too).
+  useEffect(() => {
+    if (!server) return undefined
+    refreshTabs()
+    floorApi.layouts(supabase, bar.id)
+      .then(list => {
+        const layout = list.find(l => l.ativo) || list[0]
+        return layout ? floorApi.layout(supabase, layout.id) : { tables: [] }
+      })
+      .then(({ tables: rows }) => setTables((rows || []).filter(r => r.ativo !== false)))
+      .catch(() => setTables([]))
+    const id = setInterval(() => { if (document.visibilityState === 'visible') refreshTabs() }, POLL_MS)
+    const onVis = () => { if (document.visibilityState === 'visible') refreshTabs() }
+    document.addEventListener('visibilitychange', onVis)
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVis) }
+  }, [server, bar.id, refreshTabs])
+
+  useEffect(() => () => clearTimeout(doneTimer.current), [])
+
+  const catalog = useMemo(() => buildCatalog(drinks || [], shots || []), [drinks, shots])
+  const byKey = useMemo(() => new Map(catalog.map(item => [item.key, item])), [catalog])
+  const cats = useMemo(() => [...new Set(catalog.map(item => item.categoria))], [catalog])
+  const topList = useMemo(() => {
+    const ranked = topKeys.map(key => byKey.get(key)).filter(Boolean)
+    if (ranked.length >= 4) return { items: ranked, starter: false }
+    const fill = starterPicks(catalog, 12).map(key => byKey.get(key)).filter(item => item && !ranked.includes(item))
+    return { items: [...ranked, ...fill].slice(0, 12), starter: ranked.length === 0 }
+  }, [topKeys, byKey, catalog])
+  const favList = useMemo(() => favs.map(k => byKey.get(k)).filter(Boolean), [favs, byKey])
+
+  const q = query.trim()
+  const visible = q
+    ? searchCatalog(catalog, q)
+    : cat === 'top' ? topList.items
+      : cat === 'fav' ? favList
+        : cat === 'all' ? catalog
+          : catalog.filter(item => item.categoria === cat)
+
+  // ── which order is on screen ─────────────────────────────────────────────
+  const isSrv = active.startsWith(SRV)
+  const srvTab = isSrv ? srvTabs.find(x => x.id === active.slice(SRV.length)) : null
+  const localTabIds = Object.keys(orders).filter(id => id !== COUNTER && !id.startsWith(SRV))
+  const order = orders[active] || (isSrv ? { cart: [] } : orders[COUNTER])
+  const cart = order.cart || [] // lines not yet on the server (or the whole order for counter/device tabs)
+  const space = spaces.find(row => row.id === order.spaceId)
+  // Customer of this order (from the CRM) and its discount: a discount always needs a CRM customer.
+  const orderGuest = (guests || []).find(g => g.id === order.guestId) || null
+  const priceType = order.priceType === 'vip' && orderGuest?.vip_member_id ? 'vip' : 'regular'
+  const activeCode = order.codeId ? (discountCodes || []).find(c => c.id === order.codeId) || null : null
+  const vipId = priceType === 'vip' ? orderGuest.vip_member_id : null
+  const balances = useMemo(() => new Map(ledgerBalances(ledger).map(b => [b.guest_id, b.balance])), [ledger])
+
+  // If the tab we were on was closed elsewhere, fall back to the counter.
+  useEffect(() => {
+    if (isSrv && server && tabsLoaded && !srvTab && !busy) {
+      const timer = setTimeout(() => setActive(a => (a === active ? COUNTER : a)), 0)
+      return () => clearTimeout(timer)
+    }
+    if (!isSrv && active !== COUNTER && !orders[active]) setActive(COUNTER)
+    return undefined
+  }, [isSrv, server, tabsLoaded, srvTab, busy, active, orders])
+
+  const srvMoney = srvTab ? tabMoney(srvTab, srvTab.items, srvTab.payments, settings) : null
+  const qtyByKey = useMemo(() => {
+    const map = {}
+    for (const line of cart) map[line.key] = (map[line.key] || 0) + line.qtd
+    for (const line of srvMoney?.lines || []) {
+      const k = line.drink_menu_id ? `d-${line.drink_menu_id}` : line.produto_id ? `p-${line.produto_id}` : ''
+      if (k) map[k] = (map[k] || 0) + line.qtd
+    }
+    return map
+  }, [cart, srvMoney])
+
+  const tableOrder = active !== COUNTER
+  const pendingTotal = cartTotal(cart)
+  const drinksTotal = (srvMoney?.drinksTotal || 0) + pendingTotal
+  const charges = srvTab
+    ? ticketChargeLines({ drinksTotal, servicePct: +srvTab.service_pct || 0, roomMin: settings.room_min, spaceType: '' })
+    : ticketChargeLines({ drinksTotal, servicePct: tableOrder && serviceOn ? settings.service_pct : 0, roomMin: settings.room_min, spaceType: space?.tipo || '' })
+  const total = charges.total
+  const surchargePaid = srvMoney?.surchargePaid || 0
+  const baseDue = Math.max(0, total - ((srvMoney?.paid || 0) - surchargePaid))
+  // Card: the machine used (only chosen when the bar has 2+) and the optional surcharge on what is due now.
+  const machines = settings.card_machines || DEFAULT_POS_SETTINGS.card_machines
+  const machine = pickCardMachine(machines, machineId)
+  const multiMachine = machines.length > 1
+  const cardPay = isCardMethod(pay)
+  const surchargeNow = cardPay ? cardSurcharge(baseDue, settings.card_surcharge_pct) : 0
+  const due = baseDue + surchargeNow
+  const itemCount = cart.reduce((a, l) => a + l.qtd, 0) + (srvMoney?.lines || []).reduce((a, l) => a + l.qtd, 0)
+  const cashPay = isCashMethod(pay)
+  const onAccountPay = pay === ON_ACCOUNT
+  const cash = cashPay ? cashSettle(due, tendered, '') : null
+  const short = !!(cash && cash.short)
+  const people = useMemo(() => {
+    const list = castPeople || castPeopleFromAgents(agents)
+    return staffMe ? withMe(list, staffMe) : list
+  }, [castPeople, agents, staffMe])
+  const castSel = castIds.map(id => people.find(p => p.id === id)).filter(Boolean)
+  const castLabel = castSel.map(p => (staffMe && p.id === staffMe.id ? t('staffPos.me') : p.nome)).join(' + ')
+  const lockedTab = srvTab && srvTab.status !== 'open'
+  const hasSomething = cart.length > 0 || (srvMoney?.lines.length || 0) > 0
+  const needGuest = hasSomething && due > 0 && onAccountPay && !orderGuest
+  const settledTab = !!srvTab && baseDue === 0 && (srvMoney?.paid || 0) > 0
+  // What is on the open tabs right now (bill incl. service + lines not sent yet), for the "tonight" card.
+  const openTabsMoney = [
+    ...(server ? srvTabs : []).map(x => {
+      const m = tabMoney(x, x.items, x.payments, settings)
+      return { total: m.total + cartTotal(orders[SRV + x.id]?.cart || []), paid: m.paid - m.surchargePaid }
+    }),
+    ...localTabIds.map(id => ({ total: cartTotal(orders[id].cart || []), paid: 0 })),
+  ]
+  const glance = tonightGlance({ summary: night?.summary || (night?.error ? null : todaySales && { drinksTotal: todaySales.total, ticketCount: todaySales.count }), tabs: openTabsMoney })
+  const owedTotal = useMemo(() => ledgerBalances(ledger).reduce((a, b) => a + Math.max(0, b.balance), 0), [ledger])
+  const owedCount = useMemo(() => ledgerBalances(ledger).filter(b => b.balance > 0).length, [ledger])
+
+  function setCart(updater) {
+    setOrders(prev => {
+      const current = prev[active] || { cart: [] }
+      const nextCart = typeof updater === 'function' ? updater(current.cart || []) : updater
+      return { ...prev, [active]: { ...current, cart: nextCart, saleKey: undefined } }
+    })
+  }
+
+  function add(item) {
+    setErr('')
+    if (lockedTab) { setErr(t('tabs.lockedHint')); return }
+    const price = resolveItemPrice(item, priceType, activeCode)
+    setCart(prev => {
+      const hit = prev.find(line => line.key === item.key)
+      if (hit) return prev.map(line => line.key === item.key ? { ...line, qtd: line.qtd + 1 } : line)
+      return [...prev, {
+        key: item.key,
+        kind: item.kind,
+        drink_menu_id: item.kind === 'drink' ? item.id : null,
+        produto_id: item.kind === 'shot' ? item.id : null,
+        nome: item.nome,
+        categoria: item.categoria,
+        qtd: 1,
+        ...price,
+        preco_unitario: price.preco,
+      }]
+    })
+  }
+
+  function bump(key, delta) {
+    setCart(prev => prev
+      .map(line => line.key === key ? { ...line, qtd: line.qtd + delta } : line)
+      .filter(line => line.qtd > 0))
+  }
+
+  /** Customer and discount of the order on screen. Lines not yet sent are re-priced. */
+  function setOrderCustomer({ guestId, priceType: nextType = 'regular', code = null }) {
+    setOrders(prev => {
+      const cur = prev[active] || { cart: [] }
+      const nextCart = (cur.cart || []).map(line => {
+        const item = byKey.get(line.key)
+        if (!item) return line
+        const price = resolveItemPrice(item, nextType, code)
+        return { ...line, ...price, preco_unitario: price.preco }
+      })
+      return { ...prev, [active]: { ...cur, cart: nextCart, guestId: guestId || null, priceType: nextType, codeId: code?.id || null, saleKey: undefined } }
+    })
+  }
+
+  function pickGuest(g) {
+    setErr('')
+    setCodeErr('')
+    if (!g) { setOrderCustomer({ guestId: null }); return }
+    // Keep the discount when the customer changes to another CRM customer (VIP price only if they are VIP).
+    setOrderCustomer({ guestId: g.id, priceType: priceType === 'vip' && g.vip_member_id ? 'vip' : 'regular', code: activeCode })
+  }
+
+  function applyCode() {
+    setCodeErr('')
+    if (!orderGuest) { setCodeErr(t('onAccount.errDiscountGuest')); return }
+    const code = (discountCodes || []).find(c => String(c.codigo || '').toUpperCase() === codeText.trim().toUpperCase())
+    if (!code) { setCodeErr(t('atomicPos.codeNotFound')); return }
+    const v = validateDiscountCode(code)
+    if (!v.ok) { setCodeErr(t(v.errorKey || 'atomicPos.codeNotFound')); return }
+    setOrderCustomer({ guestId: orderGuest.id, priceType: 'regular', code })
+    setCodeText('')
+  }
+
+  function switchTo(id) {
+    setActive(id)
+    setTendered('')
+    setErr('')
+  }
+
+  async function openTab(e) {
+    e?.preventDefault?.()
+    const table = tables.find(x => x.id === tabForm.tableId)
+    const space = spaces.find(x => x.id === tabForm.tableId)
+    const name = String(tabForm.nome || table?.nome || space?.nome || '').trim()
+    if (!name) return
+    const moving = active === COUNTER ? (orders[COUNTER].cart || []) : []
+    if (server) {
+      setBusy(true)
+      try {
+        const existing = table && srvTabs.find(x => x.table_id === table.id)
+        const id = existing ? existing.id : await tabsApi.open(supabase, {
+          barId: bar.id, nome: name, tableId: table?.id || null, pessoas: +tabForm.pessoas || 1,
+          responsavel: perfil?.nome || null, servicePct: settings.service_pct, key: newKey('open'),
+        })
+        setOrders(prev => ({
+          ...prev,
+          [COUNTER]: active === COUNTER ? { cart: [] } : prev[COUNTER],
+          [SRV + id]: { cart: [...(prev[SRV + id]?.cart || []), ...moving] },
+        }))
+        await refreshTabs()
+        switchTo(SRV + id)
+      } catch (err2) {
+        setErr(t('tabs.errGeneric', { error: err2.message }))
+      } finally {
+        setBusy(false)
+      }
+    } else {
+      const spaceId = space?.id || null
+      const existing = localTabIds.find(id => (spaceId && orders[id].spaceId === spaceId) || orders[id].label === name)
+      if (existing) switchTo(existing)
+      else {
+        const id = `tab-${Date.now().toString(36)}`
+        setOrders(prev => ({
+          ...prev,
+          [COUNTER]: active === COUNTER ? { cart: [] } : prev[COUNTER],
+          [id]: { label: name, spaceId, cart: moving, openedAt: new Date().toISOString() },
+        }))
+        switchTo(id)
+      }
+    }
+    setTabSheet(false)
+    setTabForm({ nome: '', pessoas: 2, tableId: '' })
+  }
+
+  function dropActive() {
+    if (active === COUNTER) { setOrders(prev => ({ ...prev, [COUNTER]: { cart: [] } })); return }
+    setOrders(prev => {
+      const next = { ...prev }
+      delete next[active]
+      return next
+    })
+    switchTo(COUNTER)
+  }
+
+  /** "Send" for a server tab: pending lines go onto the tab (idempotent per batch). */
+  async function sendPending() {
+    if (!srvTab || !cart.length) return true
+    const sendKey = order.sendKey || newKey('add')
+    setOrders(prev => ({ ...prev, [active]: { ...prev[active], sendKey } }))
+    try {
+      await tabsApi.addItems(supabase, srvTab.id, pendingToLines(cart), sendKey)
+      setOrders(prev => ({ ...prev, [active]: { ...prev[active], cart: [], sendKey: undefined } }))
+      await refreshTabs()
+      return true
+    } catch (e) {
+      setErr(isConflict(e) ? t('tabs.errConflict') : t('tabs.errGeneric', { error: e.message }))
+      return false
+    }
+  }
+
+  function rememberTop(lines) {
+    const log = readJson(localTopKey, [])
+    const next = [...log, ...lines.map(line => ({ drink_menu_id: line.drink_menu_id, produto_id: line.produto_id, qtd: line.qtd }))].slice(-600)
+    writeJson(localTopKey, next)
+  }
+
+  async function charge() {
+    if (busy || short || setupNeeded || !hasSomething) return
+    // Lines already priced with a discount (e.g. sent to the tab earlier) also need the CRM customer.
+    const discountedLines = [...cart, ...(srvMoney?.lines || [])].some(l => l.tipo_preco === 'vip' || l.tipo_preco === 'codigo')
+    const discountErr = discountGuestError({ priceType: discountedLines ? 'codigo' : priceType, codeId: activeCode?.id, vipId, guest: orderGuest })
+    if (discountErr) { setErr(t(discountErr)); setCustSheet(true); return }
+    const onAcc = onAccountPay && due > 0
+    if (onAcc) {
+      if (ledgerReady === false) { setErr(t('onAccount.errStore')); return }
+      const v = onAccountError({ guest: orderGuest, amount: due })
+      if (v) { setErr(t(v)); setCustSheet(true); return }
+    }
+    setBusy(true)
+    setErr('')
+    // One key per checkout attempt, kept until it succeeds: a retry after a timeout cannot sell twice.
+    const saleKey = order.saleKey || newSaleKey()
+    setOrders(prev => ({ ...prev, [active]: { ...(prev[active] || { cart: [] }), saleKey } }))
+    const pricingByProduto = pricingMapFromShots(shots)
+    try {
+      let checkoutCart
+      let comandaId = null
+      let payNote
+      let card = null
+      let chargedTotal = total
+      let tabPayments = []
+      if (srvTab) {
+        if (!(await sendPending())) return
+        const fresh = (await loadOpenTabs(supabase, bar.id)).find(x => x.id === srvTab.id)
+        if (!fresh) throw new Error(t('tabs.errGone'))
+        const m = tabMoney(fresh, fresh.items, fresh.payments, settings)
+        let payments = fresh.payments.filter(p => !p.estornado_em)
+        let finalMetodo = pay
+        let finalSur = 0
+        if (m.due > 0) {
+          if (onAccountPay && !orderGuest) throw new Error(t('onAccount.errGuest'))
+          finalSur = cardPay ? cardSurcharge(m.due, settings.card_surcharge_pct) : 0
+          finalMetodo = onAccountPay ? onAccountMethod(orderGuest)
+            : cardPay ? cardMethodLabel({ method: pay, machine, surcharge: finalSur, named: multiMachine }) : pay
+          const payKey = order.payKey || newKey('pay')
+          setOrders(prev => ({ ...prev, [active]: { ...(prev[active] || { cart: [] }), saleKey, payKey } }))
+          await tabsApi.pay(supabase, fresh.id, { valor: m.due + finalSur, metodo: finalMetodo, pagador: onAccountPay ? orderGuest.nome : null, key: payKey })
+          if (onAccountPay) {
+            // Read the payment back: its id is the ledger id, so a retry never doubles the customer's debt.
+            const again = (await loadOpenTabs(supabase, bar.id)).find(x => x.id === fresh.id)
+            payments = (again?.payments || []).filter(p => !p.estornado_em)
+          } else {
+            payments.push({ valor: m.due + finalSur, metodo: finalMetodo })
+          }
+        }
+        tabPayments = payments
+        const surLine = cardSurchargeLine(m.surchargePaid + finalSur, settings.card_surcharge_pct)
+        checkoutCart = [...m.lines, ...m.charges, ...(surLine ? [surLine] : [])]
+        comandaId = fresh.id
+        const methods = [...new Set(payments.map(p => methodDisplay(p.metodo)))]
+        payNote = `Pay: ${methods.join(' + ') || pay} tab`
+        const fees = cardPaymentsFee(payments, machines)
+        card = { fee: fees.fee, note: fees.note, surcharge: m.surchargePaid + finalSur }
+        chargedTotal = m.total + m.surchargePaid + finalSur
+      } else {
+        const surLine = cardSurchargeLine(surchargeNow, settings.card_surcharge_pct)
+        checkoutCart = [...cart, ...charges.lines, ...(surLine ? [surLine] : [])]
+        payNote = onAccountPay ? `Pay: ${ON_ACCOUNT} · ${orderGuest.nome}` : payRecordNote({ method: pay, total: due, tendered: cashPay ? tendered : undefined })
+        if (cardPay) card = { fee: machineFee(due, machine), note: `${machine.nome} ${machine.fee_pct}%`, surcharge: surchargeNow }
+        chargedTotal = due
+      }
+      const drinkLines = checkoutCart.filter(l => !['set', 'nominho', 'service', 'room_min'].includes(l.tipo_preco))
+      // Several people on one sale: each earns drink-back on her equal part (staffPos.castCommission).
+      const castComm = castCommission(drinkLines, castSel)
+      const commission = castSel.length ? castComm.total : null
+      const agentId = castAgentId(castSel)
+      const obs = packTicketObs({
+        details: tableOrder ? (srvTab?.nome || order.label) : '',
+        cast: castSel.map(p => ({ name: p.nome, id: p.id })),
+        commissionBy: castComm.by,
+        nightKey: tokyoNightKey(),
+        servicePct: srvTab ? +srvTab.service_pct || 0 : (tableOrder && serviceOn ? settings.service_pct : 0),
+        roomMin: space?.tipo === 'vip_room' ? settings.room_min : 0,
+        commission,
+        payNote,
+        cardNote: card?.note || '',
+        cardFee: card?.fee || 0,
+        cardSurcharge: card?.surcharge || 0,
+      })
+      const saleGuestId = orderGuest?.id || (srvTab ? onAccountGuestId(tabPayments) : null)
+      const legacy = {
+        bar, payMethod: pay, agentId: agentId || null, spaceId: order.spaceId || null, obs, userId: user?.id, shots,
+        priceType: vipId ? 'vip' : 'regular', vipId, activeCode, guestId: saleGuestId,
+        syncStock: args => syncPosStockAndReorder(supabase, { ...args, pricingByProduto, buildStockMap, findLowStockProducts }),
+      }
+      const result = await commitSaleAtomic(supabase, {
+        key: saleKey, barId: bar.id, cart: checkoutCart, payMethod: srvTab ? 'Tab' : pay, obs,
+        agentId: agentId || null, spaceId: order.spaceId || null,
+        vipId, codeId: activeCode?.id || null,
+        commission,
+        comandaId, pricingByProduto, legacy,
+      })
+      if (!result.ok) {
+        if (missingTable({ message: result.error })) setSetupNeeded(true)
+        setErr(result.conflict ? t('tabs.errConflict') : (result.errorKey && !result.error ? t(result.errorKey) : (result.error || t('atomicPos.saleStockFailed'))))
+        if (srvTab) refreshTabs()
+        return
+      }
+      // Restock check after the sale is safe on the server; it never undoes the sale.
+      if (result.atomic) reorderLowStock(supabase, { bar, userId: user?.id, buildStockMap, findLowStockProducts }).catch(() => {})
+      // The customer: link the sale, and record what was put on their account (ledger, idempotent by id).
+      if (result.atomic && !result.replay && saleGuestId) linkSaleToGuest(supabase, result.vendaId, saleGuestId)
+      const ledgerRows = srvTab
+        ? tabOnAccountRows(tabPayments, { barId: bar.id, comandaId, vendaId: result.vendaId || null, guests: guests || [], userId: user?.id || null })
+        : onAcc ? [saleOnAccountRow({ barId: bar.id, vendaId: result.vendaId || newKey('oa'), guest: orderGuest, valor: chargedTotal, userId: user?.id || null })] : []
+      if (ledgerRows.length) {
+        recordLedger(supabase, bar.id, ledgerRows)
+          .then(r => { if (r.pending) setErr(t('onAccount.pendingSave', { n: r.pending })) })
+          .finally(() => refreshLedger())
+      }
+      rememberTop(drinkLines)
+      const onAccountAmount = ledgerRows.reduce((a, r) => a + r.valor, 0)
+      setDone({
+        total: chargedTotal, change: !srvTab && cash && !cash.exact ? Math.max(0, cash.change) : 0, method: pay,
+        label: tableOrder ? (srvTab?.nome || order.label) : '',
+        onAccount: onAccountAmount > 0 ? t('onAccount.doneLine', { amount: fmtYen(onAccountAmount), name: ledgerRows[0].guest_nome }) : '',
+      })
+      dropActive()
+      setCastIds(defaultCast)
+      setTendered('')
+      setOrderOpen(false)
+      setPanelTab(null)
+      clearTimeout(doneTimer.current)
+      doneTimer.current = setTimeout(() => setDone(null), 4000)
+      if (srvTab) refreshTabs()
+      refreshNight().catch(() => {})
+      onSale?.()
+    } catch (e) {
+      setErr(isConflict(e) ? t('tabs.errConflict') : t('tabs.errGeneric', { error: e.message }))
+      if (srvTab) refreshTabs()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // Keyboard: "/" search, Enter adds the first match, Esc clears, Ctrl/⌘+Enter or F12 charges.
+  const chargeRef = useRef(charge)
+  chargeRef.current = charge
+  useEffect(() => {
+    const onKey = e => {
+      const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName || '')
+      if (e.key === '/' && !typing) { e.preventDefault(); searchRef.current?.focus(); return }
+      if (e.key === 'F12' || ((e.ctrlKey || e.metaKey) && e.key === 'Enter')) { e.preventDefault(); chargeRef.current() }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  const chargeLabel = busy
+    ? t('posQuick.saving')
+    : setupNeeded
+      ? t('posQuick.cannotSave')
+      : short
+        ? t('posQuick.short', { amount: fmtYen(cash.due - cash.tendered) })
+        : needGuest
+          ? t('onAccount.pickFirst')
+          : settledTab
+            ? t('tabs.closeSale')
+            : hasSomething && onAccountPay && due > 0
+              ? t('onAccount.chargeOn', { amount: fmtYen(due) })
+              : hasSomething ? t('posQuick.charge', { amount: fmtYen(due) }) : t('posQuick.charge', { amount: '' }).trim()
+
+  const sentLines = srvMoney?.lines || []
+
+  return (
+    <div className={`pq${orderOpen ? ' is-order-open' : ''}`}>
+      <section className="pq-menu">
+        <div className="pq-top">
+          <label className="pq-search">
+            <Icon name="search" size={18} />
+            <input
+              ref={searchRef}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && visible[0]) { e.preventDefault(); add(visible[0]); setQuery('') }
+                if (e.key === 'Escape') { setQuery(''); e.currentTarget.blur() }
+              }}
+              placeholder={t('posQuick.searchCode')}
+              enterKeyHint="search"
+              aria-keyshortcuts="/"
+            />
+            {query && <button type="button" aria-label={t('posQuick.clear')} onClick={() => setQuery('')}><Icon name="close" size={16} /></button>}
+          </label>
+          {staffMe ? (
+            <div className="pq-glance is-mine" aria-label={t('staffPos.myTonight')}>
+              <div className="pq-glance-cell" title={t('staffPos.myHint')}>
+                <span>{t('staffPos.mySales')}</span>
+                <strong>{staff.myTonight == null ? '—' : fmtYen(staff.myTonight.sales)}</strong>
+                <em>{t('atomicPos.salesCount', { count: staff.myTonight?.tickets || 0 })}</em>
+              </div>
+              {staff.onOpenMine && (
+                <button type="button" className="pq-glance-cell is-btn" onClick={staff.onOpenMine}>
+                  <span>{t('staffPos.details')}</span>
+                  <strong><Icon name="next" size={18} /></strong>
+                  <em>{t('staffPos.byTicket')}</em>
+                </button>
+              )}
+            </div>
+          ) : (
+          <div className="pq-glance" aria-label={t('posQuick.tonight')}>
+            <div className="pq-glance-cell" title={night?.error ? t('onAccount.salesError', { error: night.error }) : t('onAccount.soldHint')}>
+              <span>{t('onAccount.sold')}</span>
+              <strong>{night?.error && !night?.summary ? '—' : fmtYen(glance.soldTotal)}</strong>
+              <em>{t('atomicPos.salesCount', { count: glance.soldCount })}</em>
+            </div>
+            <div className="pq-glance-cell" title={t('onAccount.openHint')}>
+              <span>{t('onAccount.openTabs')}</span>
+              <strong>{fmtYen(glance.openTotal)}</strong>
+              <em>{t('onAccount.tabsCount', { n: glance.openCount })}</em>
+            </div>
+            {ledgerReady !== false && (
+              <button type="button" className="pq-glance-cell is-btn" onClick={() => { setFiadoSheet(true); refreshLedger() }} aria-label={t('onAccount.title')}>
+                <span>{t('onAccount.short')}</span>
+                <strong className={owedTotal > 0 ? 'is-owed' : ''}>{fmtYen(owedTotal)}</strong>
+                <em>{t('onAccount.peopleCount', { n: owedCount })}</em>
+              </button>
+            )}
+          </div>
+          )}
+        </div>
+
+        {setupNeeded && <div className="pq-alert">{t('posQuick.setupNeeded')}</div>}
+        {catalogError && !setupNeeded && <div className="pq-alert">{catalogError}</div>}
+
+        {!q && (
+          <div className="pq-cats" role="tablist">
+            <button type="button" role="tab" aria-selected={cat === 'top'} className={`pq-cat is-top${cat === 'top' ? ' is-on' : ''}`} onClick={() => setCat('top')}>
+              <Icon name="result" size={14} />{t('posQuick.top')}
+            </button>
+            <button type="button" role="tab" aria-selected={cat === 'fav'} className={`pq-cat${cat === 'fav' ? ' is-on' : ''}`} onClick={() => setCat('fav')}>
+              <Icon name="star" size={14} />{t('posQuick.favorites')}
+            </button>
+            <button type="button" role="tab" aria-selected={cat === 'all'} className={`pq-cat${cat === 'all' ? ' is-on' : ''}`} onClick={() => setCat('all')}>{t('posQuick.all')}</button>
+            {cats.map(id => (
+              <button key={id} type="button" role="tab" aria-selected={cat === id} className={`pq-cat${cat === id ? ' is-on' : ''}`} onClick={() => setCat(id)}>
+                <Icon name={itemVisual({ categoria: id }).icon} size={14} />{id}
+              </button>
+            ))}
+          </div>
+        )}
+        {!q && cat === 'top' && topList.starter && <p className="pq-hint">{t('posQuick.starter')}</p>}
+        {!q && cat === 'fav' && !favList.length && <p className="pq-hint">{t('posQuick.favHint')}</p>}
+
+        <div className="pq-grid">
+          {visible.map(item => (
+            <Tile key={item.key} item={item} qty={qtyByKey[item.key] || 0} fav={favs.includes(item.key)} onAdd={add} onFav={k => setFavs(f => toggleFavorite(f, k))} t={t} />
+          ))}
+          {visible.length === 0 && (cat !== 'fav' || q) && <p className="pq-empty">{q ? t('posQuick.noMatch') : t('posFloor.noProducts')}</p>}
+        </div>
+        <p className="pq-keys"><Icon name="keyboard" size={14} /> {t('posQuick.keys')}</p>
+      </section>
+
+      <aside className="pq-order" aria-label={t('posQuick.order')}>
+        <div className="pq-tabs">
+          <button type="button" className={`pq-tab${active === COUNTER ? ' is-on' : ''}`} onClick={() => switchTo(COUNTER)}>
+            {t('posQuick.counter')}
+            {orders[COUNTER].cart?.length > 0 && active !== COUNTER && <em>{fmtYen(cartTotal(orders[COUNTER].cart))}</em>}
+          </button>
+          {server && srvTabs.map(x => {
+            const m = tabMoney(x, x.items, x.payments, settings)
+            const pend = cartTotal(orders[SRV + x.id]?.cart || [])
+            return (
+              <button key={x.id} type="button" className={`pq-tab${active === SRV + x.id ? ' is-on' : ''}${x.status !== 'open' ? ' is-paying' : ''}`} onClick={() => switchTo(SRV + x.id)}>
+                {x.nome}
+                <em>{fmtYen(m.drinksTotal + pend)}</em>
+              </button>
+            )
+          })}
+          {localTabIds.map(id => (
+            <button key={id} type="button" className={`pq-tab${active === id ? ' is-on' : ''}`} onClick={() => switchTo(id)}>
+              {orders[id].label}
+              <em>{fmtYen(cartTotal(orders[id].cart))}</em>
+            </button>
+          ))}
+          <button type="button" className="pq-tab is-add" onClick={() => setTabSheet(true)}><Icon name="plus" size={14} /> {t('posQuick.newTab')}</button>
+          <button type="button" className="pq-close-sheet" onClick={() => setOrderOpen(false)} aria-label={t('posQuick.backToMenu')}><Icon name="close" size={18} /></button>
+        </div>
+
+        {srvTab && (
+          <div className="pq-tabbar">
+            <span className="ui-badge is-accent"><Icon name="comandas" size={12} /> {srvTab.mesa_nome || t('tabs.noTable')}</span>
+            {srvMoney.paid > 0 && <span className="ui-badge is-info">{t('tabs.paidShort', { amount: fmtYen(srvMoney.paid) })}</span>}
+            {lockedTab && <span className="ui-badge is-warning">{t('tabs.state.awaiting_payment')}</span>}
+            <span className="ui-spacer" />
+            <button type="button" className="ui-btn is-sm" onClick={() => setPanelTab(srvTab.id)}><Icon name="settings" size={14} /> {t('tabs.manage')}</button>
+          </div>
+        )}
+
+        <div className="pq-lines">
+          {!hasSomething && <p className="pq-empty">{t('posQuick.empty')}</p>}
+          {sentLines.map(line => {
+            const look = itemVisual(line)
+            return (
+              <div key={line.item_id} className="pq-line is-sent">
+                <span className="pq-line-dot" style={{ background: look.background }}><Icon name={look.icon} size={14} /></span>
+                <div className="pq-line-name"><strong>{line.nome}</strong><span>{fmtYen(line.preco_unitario)} · {t('tabs.onTab')}</span></div>
+                <span className="pq-qty-static">×{line.qtd}</span>
+                <strong className="pq-line-total">{fmtYen(line.preco_unitario * line.qtd)}</strong>
+              </div>
+            )
+          })}
+          {cart.map(line => {
+            const look = itemVisual(byKey.get(line.key) || line)
+            return (
+              <div key={line.key} className={`pq-line${srvTab ? ' is-pending' : ''}`}>
+                <span className="pq-line-dot" style={look.image ? undefined : { background: look.background }}>
+                  {look.image ? <img src={look.image} alt="" /> : <Icon name={look.icon} size={14} />}
+                </span>
+                <div className="pq-line-name">
+                  <strong>{line.nome}</strong>
+                  <span>{fmtYen(line.preco_unitario)}{srvTab ? ` · ${t('tabs.notSent')}` : ''}</span>
+                </div>
+                <div className="pq-qty">
+                  <button type="button" aria-label={t('tabs.less', { name: line.nome })} onClick={() => bump(line.key, -1)}><Icon name="minus" size={16} /></button>
+                  <span>{line.qtd}</span>
+                  <button type="button" aria-label={t('tabs.more', { name: line.nome })} onClick={() => bump(line.key, 1)}><Icon name="plus" size={16} /></button>
+                </div>
+                <strong className="pq-line-total">{fmtYen(line.preco_unitario * line.qtd)}</strong>
+              </div>
+            )
+          })}
+        </div>
+
+        <div className={`pq-pay${payMore ? ' is-more' : ''}`}>
+          {(charges.lines.length > 0 || surchargeNow > 0 || srvMoney?.paid > 0) && (
+            <div className="pq-extra">
+              {charges.lines.map(line => (
+                <div key={line.key}><span>{line.kind === 'service' ? t('posQuick.service', { pct: srvTab ? srvTab.service_pct : settings.service_pct }) : line.nome}</span><span>{fmtYen(line.preco)}</span></div>
+              ))}
+              {surchargePaid > 0 && <div><span>{t('posCard.surchargeLine', { pct: settings.card_surcharge_pct })}</span><span>{fmtYen(surchargePaid)}</span></div>}
+              {srvMoney?.paid > 0 && <div><span>{t('tabs.paid')}</span><span>−{fmtYen(srvMoney.paid)}</span></div>}
+              {surchargeNow > 0 && <div><span>{t('posCard.surchargeLine', { pct: settings.card_surcharge_pct })}</span><span>{fmtYen(surchargeNow)}</span></div>}
+            </div>
+          )}
+          <div className="pq-total">
+            <span>{srvMoney?.paid > 0 ? t('tabs.due') : t('posQuick.total')}{itemCount ? ` · ${t('posQuick.items', { n: itemCount })}` : ''}</span>
+            <strong>{fmtYen(due)}</strong>
+          </div>
+
+          {srvTab && cart.length > 0 && (
+            <button type="button" className="ui-btn is-lg pq-send" disabled={busy || lockedTab} onClick={async () => { setBusy(true); await sendPending(); setBusy(false) }}>
+              <Icon name="send" size={18} /> {t('tabs.send', { n: cart.reduce((a, l) => a + l.qtd, 0) })}
+            </button>
+          )}
+
+          <button type="button" className="pq-pay-toggle" aria-expanded={payMore} onClick={() => setPayMore(v => !v)}>
+            <span>
+              <Icon name={PAY.find(row => row.id === pay)?.icon || 'payCash'} size={16} />
+              {[t(PAY.find(row => row.id === pay)?.key || 'atomicPos.payCash'), orderGuest?.nome, castLabel].filter(Boolean).join(' · ')}
+            </span>
+            <span className="pq-pay-toggle-more">{t(payMore ? 'posQuick.lessOptions' : 'posQuick.moreOptions')}<Icon name="down" size={16} /></span>
+          </button>
+
+          <div className="pq-pay-more">
+
+          <div className="pq-pays">
+            {PAY.map(row => (
+              <button key={row.id} type="button" className={pay === row.id ? 'is-on' : ''} aria-pressed={pay === row.id}
+                disabled={row.id === ON_ACCOUNT && ledgerReady === false} title={row.id === ON_ACCOUNT && ledgerReady === false ? t('onAccount.errStore') : undefined}
+                onClick={() => { setPay(row.id); setTendered(''); if (row.id === ON_ACCOUNT && !orderGuest && hasSomething) setCustSheet(true) }}>
+                <Icon name={row.icon} size={16} />{t(row.key)}
+              </button>
+            ))}
+          </div>
+          {onAccountPay && hasSomething && due > 0 && (
+            <div className="pq-onacc-note">{orderGuest ? t('onAccount.chargeHint', { amount: fmtYen(due), name: orderGuest.nome }) : t('onAccount.pickFirst')}</div>
+          )}
+
+          {cardPay && multiMachine && hasSomething && (
+            <div className="pq-cash pq-machines" role="radiogroup" aria-label={t('posCard.machine')}>
+              {machines.map(row => (
+                <button key={row.id} type="button" role="radio" aria-checked={machine.id === row.id} className={machine.id === row.id ? 'is-on' : ''} onClick={() => setMachineId(row.id)}>
+                  {row.nome}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {cashPay && hasSomething && (
+            <div className="pq-cash">
+              <button type="button" className={tendered === '' ? 'is-on' : ''} onClick={() => setTendered('')}>{t('posQuick.exact')}</button>
+              {CASH_CHIPS.filter(v => v >= due).slice(0, 3).map(v => (
+                <button key={v} type="button" className={+tendered === v ? 'is-on' : ''} onClick={() => setTendered(String(v))}>{fmtYen(v)}</button>
+              ))}
+              {cash && !cash.exact && !cash.short && (
+                <div className="pq-change">{t('posQuick.change')} <strong>{fmtYen(cash.change)}</strong></div>
+              )}
+            </div>
+          )}
+
+          <div className="pq-options">
+            <button type="button" className={`pq-custbtn${orderGuest ? ' is-set' : ''}${needGuest ? ' is-needed' : ''}`} onClick={() => setCustSheet(true)}>
+              <Icon name="clientes" size={18} />
+              <span className="pq-custbtn-name">
+                <strong>{orderGuest ? orderGuest.nome : t('onAccount.customer')}</strong>
+                <span>
+                  {orderGuest
+                    ? [priceType === 'vip' ? t('onAccount.vipPrice') : '', activeCode ? t('onAccount.codeOn', { code: activeCode.codigo }) : '', balances.get(orderGuest.id) > 0 ? t('onAccount.owes', { amount: fmtYen(balances.get(orderGuest.id)) }) : ''].filter(Boolean).join(' · ') || t('onAccount.inCrm')
+                    : t('onAccount.customerHint')}
+                </span>
+              </span>
+              <Icon name="next" size={16} />
+            </button>
+            {people.length > 0 && (
+              <button type="button" className={`pq-custbtn pq-castbtn${castSel.length ? ' is-set' : ''}`} onClick={() => setCastSheet(true)} aria-label={t('posQuick.cast')}>
+                <Icon name="drinkback" size={18} />
+                <span className="pq-custbtn-name">
+                  <strong>{castSel.length ? castLabel : t('posQuick.noCast')}</strong>
+                  <span>{castSel.length > 1 ? t('staffPos.splitHint', { n: castSel.length }) : t('staffPos.castHint')}</span>
+                </span>
+                <Icon name="next" size={16} />
+              </button>
+            )}
+            {tableOrder && !srvTab && (
+              <button type="button" className={serviceOn ? 'is-on' : ''} onClick={() => setServiceOn(v => !v)}>
+                {t('posQuick.service', { pct: settings.service_pct })}
+              </button>
+            )}
+            {(cart.length > 0 || (tableOrder && !srvTab)) && (
+              <button type="button" className="is-quiet" onClick={() => (srvTab ? setCart([]) : dropActive())}>
+                {tableOrder && !srvTab ? t('posQuick.closeTab') : t('posQuick.clear')}
+              </button>
+            )}
+          </div>
+
+          </div>
+
+          {err && <div className="pq-alert" role="alert">{err}</div>}
+          <button type="button" className="pq-charge" disabled={busy || !hasSomething || short || setupNeeded} onClick={needGuest ? () => setCustSheet(true) : charge} aria-keyshortcuts="Control+Enter F12">
+            {chargeLabel}
+          </button>
+        </div>
+      </aside>
+
+      <button type="button" className="pq-cartbar" onClick={() => setOrderOpen(true)}>
+        <span><Icon name="comandas" size={16} /> {active === COUNTER ? t('posQuick.counter') : (srvTab?.nome || order.label)}{itemCount ? ` · ${t('posQuick.items', { n: itemCount })}` : ''}</span>
+        <strong>{hasSomething ? fmtYen(due) : t('posQuick.viewOrder')}</strong>
+      </button>
+
+      {tabSheet && (
+        <div className="pq-sheet" role="dialog" aria-modal="true" aria-label={t('posQuick.newTab')} onClick={e => { if (e.target === e.currentTarget) setTabSheet(false) }}>
+          <form className="pq-sheet-card" onSubmit={openTab}>
+            <h2>{t('posQuick.newTab')}</h2>
+            <div className="pq-sheet-name">
+              <input autoFocus value={tabForm.nome} onChange={e => setTabForm(f => ({ ...f, nome: e.target.value }))} placeholder={t('posQuick.tabName')} aria-label={t('posQuick.tabName')} />
+              {server && (
+                <input type="number" min="1" max="99" className="pq-people" value={tabForm.pessoas} aria-label={t('tabs.peopleLabel')}
+                  onChange={e => setTabForm(f => ({ ...f, pessoas: e.target.value }))} />
+              )}
+              <button type="submit" disabled={busy || !(tabForm.nome.trim() || tabForm.tableId)}>{t('posQuick.openTab')}</button>
+            </div>
+            {(server ? tables : spaces).length > 0 && (
+              <div className="pq-sheet-spaces" role="radiogroup" aria-label={t('tabs.table')}>
+                {(server ? tables : spaces).map(row => {
+                  const taken = server && srvTabs.find(x => x.table_id === row.id)
+                  return (
+                    <button key={row.id} type="button" role="radio" aria-checked={tabForm.tableId === row.id}
+                      className={`${tabForm.tableId === row.id ? 'is-on' : ''}${taken ? ' is-taken' : ''}`}
+                      onClick={() => {
+                        if (taken) { switchTo(SRV + taken.id); setTabSheet(false); return }
+                        setTabForm(f => ({ ...f, tableId: f.tableId === row.id ? '' : row.id }))
+                      }}>
+                      {row.nome}{taken ? ` · ${taken.nome}` : ''}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+            {!server && server !== null && <p className="pq-hint">{t('tabs.deviceOnly')}</p>}
+            {active === COUNTER && cart.length > 0 && <p className="pq-hint">{t('posQuick.moveHint')}</p>}
+            <button type="button" className="pq-sheet-cancel" onClick={() => setTabSheet(false)}>{t('common.cancel')}</button>
+          </form>
+        </div>
+      )}
+
+      {panelTab && srvTabs.find(x => x.id === panelTab) && (
+        <TabPanel
+          tab={srvTabs.find(x => x.id === panelTab)}
+          tabs={srvTabs}
+          tables={tables}
+          settings={settings}
+          onChanged={refreshTabs}
+          onClose={() => setPanelTab(null)}
+          onCharge={x => { setPanelTab(null); switchTo(SRV + x.id); setOrderOpen(true) }}
+        />
+      )}
+
+      {custSheet && (
+        <div className="pq-sheet" role="dialog" aria-modal="true" aria-label={t('onAccount.customer')} onClick={e => { if (e.target === e.currentTarget) setCustSheet(false) }}>
+          <div className="pq-sheet-card">
+            <h2>{t('onAccount.customer')}</h2>
+            <p className="pq-hint">{t('onAccount.customerRule')}</p>
+            {guests === null
+              ? <div className="ui-skel" style={{ height: 56 }} />
+              : <CustomerPicker barId={bar.id} guests={guests} onGuestsChange={setGuests} value={orderGuest?.id || ''} onPick={pickGuest} balances={balances} error={crmErr ? t('onAccount.errCrm', { error: crmErr }) : ''} />}
+
+            {orderGuest && (
+              <div className="pq-discount">
+                <h3>{t('onAccount.discount')}</h3>
+                <div className="pq-cash">
+                  <button type="button" className={priceType === 'regular' && !activeCode ? 'is-on' : ''} onClick={() => setOrderCustomer({ guestId: orderGuest.id })}>{t('atomicPos.regularPrice')}</button>
+                  {orderGuest.vip_member_id && (
+                    <button type="button" className={priceType === 'vip' ? 'is-on' : ''} onClick={() => setOrderCustomer({ guestId: orderGuest.id, priceType: 'vip' })}>{t('onAccount.vipPrice')}</button>
+                  )}
+                  {activeCode && <button type="button" className="is-on" onClick={() => setOrderCustomer({ guestId: orderGuest.id })}>{activeCode.codigo} ✕</button>}
+                </div>
+                {(discountCodes || []).length > 0 && (
+                  <form className="pq-sheet-name" onSubmit={e => { e.preventDefault(); applyCode() }}>
+                    <input value={codeText} onChange={e => setCodeText(e.target.value.toUpperCase())} placeholder={t('atomicPos.codePlaceholder')} aria-label={t('atomicPos.discountCode')} autoCapitalize="characters" />
+                    <button type="submit" disabled={!codeText.trim()}>{t('atomicPos.apply')}</button>
+                  </form>
+                )}
+                {codeErr && <div className="pq-alert" role="alert">{codeErr}</div>}
+                {srvTab && (priceType === 'vip' || activeCode) && <p className="pq-hint">{t('onAccount.discountTabHint')}</p>}
+              </div>
+            )}
+            <button type="button" className="pq-sheet-cancel" onClick={() => setCustSheet(false)}>{t('common.close')}</button>
+          </div>
+        </div>
+      )}
+
+      {castSheet && (
+        <CastSheet
+          people={people} selected={castIds} me={staffMe} t={t}
+          onToggle={id => setCastIds(ids => (ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]))}
+          onClear={() => setCastIds([])}
+          onClose={() => setCastSheet(false)}
+        />
+      )}
+
+      {fiadoSheet && !staffMe && (
+        <FiadoSheet
+          bar={bar} ledger={ledger} guests={guests || []} userId={user?.id || null} t={t}
+          onSaved={refreshLedger} onClose={() => setFiadoSheet(false)}
+        />
+      )}
+
+      {done && (
+        <div className="pq-done" role="status" onClick={() => setDone(null)}>
+          <div className="pq-done-card">
+            <div className="pq-done-check" aria-hidden="true"><Icon name="ok" size={40} /></div>
+            <div className="pq-done-total">{fmtYen(done.total)}</div>
+            {done.change > 0 && <div className="pq-done-change">{t('posQuick.change')} {fmtYen(done.change)}</div>}
+            {done.label && <div className="pq-done-label">{done.label}</div>}
+            {done.onAccount && <div className="pq-done-label">{done.onAccount}</div>}
+            <button type="button" onClick={() => setDone(null)}>{t('posQuick.newSale')}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Who worked this sale. Several people can be marked; the sale counts for each of them in equal parts.
+ * Order follows the taps, so the first person marked gets the leftover yen of an uneven split.
+ */
+function CastSheet({ people, selected, me, t, onToggle, onClear, onClose }) {
+  const n = selected.length
+  return (
+    <div className="pq-sheet" role="dialog" aria-modal="true" aria-label={t('posQuick.cast')} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="pq-sheet-card pq-cast-sheet">
+        <h2>{t('staffPos.castTitle')}</h2>
+        <p className="pq-hint">{n > 1 ? t('staffPos.splitHint', { n }) : t('staffPos.castRule')}</p>
+        <div className="pq-cast-list" role="group" aria-label={t('posQuick.cast')}>
+          {people.map(p => {
+            const on = selected.includes(p.id)
+            return (
+              <button key={p.id} type="button" aria-pressed={on} className={on ? 'is-on' : ''} onClick={() => onToggle(p.id)}>
+                <span className="cust-avatar" aria-hidden="true">{String(p.nome || '?').slice(0, 1)}</span>
+                <span className="pq-cast-name">{me && p.id === me.id ? t('staffPos.meNamed', { name: p.nome }) : p.nome}</span>
+                {on && <Icon name="ok" size={18} />}
+              </button>
+            )
+          })}
+        </div>
+        <div className="pq-cast-actions">
+          {n > 0 && <button type="button" className="pq-sheet-cancel" onClick={onClear}>{t('staffPos.nobody')}</button>}
+          <button type="button" className="pq-cast-done" onClick={onClose}>{t('common.close')}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Who owes what ("on account" / ツケ), and taking a later payment against it. */
+function FiadoSheet({ bar, ledger, guests, userId, t, onSaved, onClose }) {
+  const rows = ledgerBalances(ledger)
+  const [openId, setOpenId] = useState('')
+  const [valor, setValor] = useState('')
+  const [metodo, setMetodo] = useState('Cash')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const [payId, setPayId] = useState(() => newKey('oapay'))
+  const total = rows.reduce((a, b) => a + Math.max(0, b.balance), 0)
+  const current = rows.find(b => b.guest_id === openId) || null
+  const history = openId ? ledger.filter(r => r.guest_id === openId && !r.estornado_em).slice(0, 6) : []
+
+  function open(id) {
+    setOpenId(o => (o === id ? '' : id))
+    setValor('')
+    setErr('')
+    setPayId(newKey('oapay'))
+  }
+
+  async function receive(e) {
+    e.preventDefault()
+    if (!current || busy) return
+    const amount = valor === '' ? current.balance : valor
+    const r = receivePaymentRow({ id: payId, barId: bar.id, guest: current, valor: amount, metodo, balance: current.balance, userId })
+    if (r.error) { setErr(t(r.error, { amount: fmtYen(current.balance) })); return }
+    setBusy(true)
+    setErr('')
+    try {
+      await saveLedgerRows(supabase, [r.row])
+      setValor('')
+      setPayId(newKey('oapay'))
+      await onSaved?.()
+    } catch (e2) {
+      setErr(t('tabs.errGeneric', { error: e2.message }))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="pq-sheet" role="dialog" aria-modal="true" aria-label={t('onAccount.title')} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="pq-sheet-card pq-fiado">
+        <h2>{t('onAccount.title')}</h2>
+        <div className="pq-fiado-total"><span>{t('onAccount.totalOwed')}</span><strong>{fmtYen(total)}</strong></div>
+        {!rows.length && <p className="pq-empty">{t('onAccount.nobodyOwes')}</p>}
+        <ul className="pq-fiado-list">
+          {rows.map(b => {
+            const g = guests.find(x => x.id === b.guest_id)
+            return (
+              <li key={b.guest_id} className={openId === b.guest_id ? 'is-open' : ''}>
+                <button type="button" className="pq-fiado-row" onClick={() => open(b.guest_id)} aria-expanded={openId === b.guest_id}>
+                  <span className="cust-avatar" aria-hidden="true">{String(b.nome || '?').slice(0, 1)}</span>
+                  <span className="cust-name">
+                    <strong>{g?.nome || b.nome}</strong>
+                    <span>{b.last ? t('onAccount.since', { date: new Date(b.last).toLocaleDateString() }) : ''}</span>
+                  </span>
+                  <strong className={b.balance > 0 ? 'is-owed' : ''}>{fmtYen(b.balance)}</strong>
+                </button>
+                {openId === b.guest_id && (
+                  <form className="pq-fiado-pay" onSubmit={receive}>
+                    <ul className="pq-fiado-hist">
+                      {history.map(r => (
+                        <li key={r.id}>
+                          <span>{new Date(r.criado_em).toLocaleDateString()} · {r.tipo === 'payment' ? t('onAccount.received', { method: r.metodo }) : t('onAccount.charged')}</span>
+                          <span className="num">{r.tipo === 'payment' ? '−' : '+'}{fmtYen(r.valor)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {b.balance > 0 && (
+                      <>
+                        <div className="pq-sheet-name">
+                          <input type="number" inputMode="numeric" min="1" step="1" value={valor} placeholder={String(b.balance)} aria-label={t('tabs.amount')}
+                            onChange={e => { setValor(e.target.value); setPayId(newKey('oapay')) }} />
+                        </div>
+                        <div className="pq-cash" role="radiogroup" aria-label={t('tabs.method')}>
+                          {RECEIVE.map(row => (
+                            <button key={row.id} type="button" role="radio" aria-checked={metodo === row.id} className={metodo === row.id ? 'is-on' : ''} onClick={() => setMetodo(row.id)}>
+                              <Icon name={row.icon} size={14} /> {t(row.key)}
+                            </button>
+                          ))}
+                        </div>
+                        {err && <div className="pq-alert" role="alert">{err}</div>}
+                        <button type="submit" className="pq-fiado-receive" disabled={busy}>
+                          {t('onAccount.receive', { amount: fmtYen(valor === '' ? b.balance : Math.round(+valor || 0)) })}
+                        </button>
+                      </>
+                    )}
+                  </form>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+        <p className="pq-hint">{t('onAccount.ledgerHint')}</p>
+        <button type="button" className="pq-sheet-cancel" onClick={onClose}>{t('common.close')}</button>
+      </div>
+    </div>
+  )
+}

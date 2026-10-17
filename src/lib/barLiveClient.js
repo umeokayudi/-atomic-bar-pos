@@ -25,6 +25,11 @@ export const LIVE_TABLES = new Set([
   'pos_settings',
   'bar_people',
   'bar_registry',
+  'floor_layouts',
+  'floor_sectors',
+  'floor_tables',
+  // Customer "on account" (ツケ / fiado) ledger. No Postgres table: the live store keeps it in the bar's JSON store.
+  'bar_guest_ledger',
 ])
 
 const selectCache = new Map()
@@ -45,6 +50,11 @@ function selectKey(spec) {
 function rememberSelect(spec, result) {
   if (result?.error) return
   selectCache.set(selectKey(spec), { at: Date.now(), result })
+}
+
+/** Forget cached reads of a table, e.g. after a sale written by an RPC (the cache only sees writes made through it). */
+export function forgetLiveSelects(table) {
+  dropSelects(table)
 }
 
 function dropSelects(table) {

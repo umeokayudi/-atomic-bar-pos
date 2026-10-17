@@ -5,7 +5,7 @@ export default function ModalShell({ open, onClose, title, subtitle, children, w
     <div
       onClick={onClose}
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,16,40,0.55)',
+        position: 'fixed', inset: 0, background: 'color-mix(in srgb, var(--c-text) 55%, transparent)',
         zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 16,
       }}
@@ -16,11 +16,11 @@ export default function ModalShell({ open, onClose, title, subtitle, children, w
           background: 'var(--bg2)', borderRadius: 16, width: '100%',
           maxWidth: wide ? 720 : 640,
           maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
-          boxShadow: '0 20px 60px rgba(0,16,40,0.3)',
+          boxShadow: '0 20px 60px color-mix(in srgb, var(--c-text) 30%, transparent)',
         }}
       >
         <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)' }}>{title}</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--c-text)' }}>{title}</div>
           {subtitle && (
             <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 6, lineHeight: 1.6 }}>{subtitle}</div>
           )}

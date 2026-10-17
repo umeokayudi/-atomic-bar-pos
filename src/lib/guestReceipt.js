@@ -1,3 +1,4 @@
+import { downloadHtmlAsPdf } from './pdfFile'
 /** Guest 領収書 from POS till — never a JBM invoice / RY- number. */
 
 import { includedTaxBreakdown } from './consumptionTax.js'
@@ -82,13 +83,10 @@ td,th{padding:6px 4px;border-bottom:1px solid #eee;text-align:left}
 </body></html>`
 }
 
+/** Downloads the guest receipt as a PDF file and opens it (no print dialog). */
 export function printGuestReceipt(opts) {
   const html = buildGuestReceiptHtml(opts)
-  const printWin = window.open('', '_blank', 'width=800,height=900')
-  if (!printWin) return { ok: false, error: 'popup' }
-  printWin.document.write(html)
-  printWin.document.close()
-  printWin.focus()
-  setTimeout(() => printWin.print(), 400)
+  const id = opts?.sale?.id ? String(opts.sale.id).slice(0, 8) : new Date().toISOString().slice(0, 10)
+  downloadHtmlAsPdf(html, `receipt-${id}`)
   return { ok: true }
 }

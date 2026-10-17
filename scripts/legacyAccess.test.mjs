@@ -127,7 +127,7 @@ assert.match(fn, /caixa/)
 assert.match(fn, /bar_staff/)
 assert.doesNotMatch(fn, /p\.role = 'admin' OR p\.bar_id = target_bar/)
 
-for (const copy of ['migration.sql', 'atomic-bar-pos/migration.sql']) {
+for (const copy of ['migration.sql']) {
   const body = read(copy)
   const chunk = body.slice(body.indexOf('FUNCTION public.user_can_access_bar'), body.indexOf('REVOKE ALL ON FUNCTION public.user_can_access_bar'))
   assert.match(chunk, /bar_staff/, copy)

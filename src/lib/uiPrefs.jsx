@@ -3,8 +3,9 @@ import { createContext, useContext, useEffect, useState } from 'react'
 const THEME_KEY = 'jbm_drinks_theme'
 const LAYOUT_KEY = 'jbm_drinks_layout'
 
-/** Igual JBM Holding: classic = escuro, modern = claro */
+/** classic = dark, modern = light (attribute values kept for compatibility). "system" follows the OS. */
 export const THEMES = { classic: 'classic', modern: 'modern' }
+export const THEME_PREFS = { light: 'modern', dark: 'classic', system: 'system' }
 export const LAYOUTS = { auto: 'auto', desktop: 'desktop', tablet: 'tablet', mobile: 'mobile' }
 
 function detectDevice() {
@@ -37,23 +38,39 @@ function applyDeviceAttrs() {
   return layout
 }
 
-function loadTheme() {
-  const t = localStorage.getItem(THEME_KEY)
-  if (t === 'dark' || t === 'classic') return THEMES.classic
-  if (t === 'light' || t === 'modern') return THEMES.modern
-  return THEMES.modern
+export function normalizeThemePref(t) {
+  if (t === 'dark' || t === 'classic') return THEME_PREFS.dark
+  if (t === 'light' || t === 'modern') return THEME_PREFS.light
+  return THEME_PREFS.system
+}
+
+function systemDark() {
+  try { return window.matchMedia('(prefers-color-scheme: dark)').matches } catch { return false }
+}
+
+export function resolveTheme(pref) {
+  const p = normalizeThemePref(pref)
+  if (p === THEME_PREFS.system) return systemDark() ? THEMES.classic : THEMES.modern
+  return p
+}
+
+function loadThemePref() {
+  try { return normalizeThemePref(localStorage.getItem(THEME_KEY)) } catch { return THEME_PREFS.system }
 }
 
 const UiPrefsContext = createContext({
   theme: THEMES.modern,
+  themePref: THEME_PREFS.system,
   layout: LAYOUTS.desktop,
   device: 'desktop',
   setTheme: () => {},
+  setThemePref: () => {},
   toggleTheme: () => {},
 })
 
 export function UiPrefsProvider({ children }) {
-  const [theme, setThemeState] = useState(loadTheme)
+  const [themePref, setThemePrefState] = useState(loadThemePref)
+  const [theme, setThemeState] = useState(() => resolveTheme(loadThemePref()))
   const [layout, setLayoutState] = useState(() => {
     if (typeof window === 'undefined') return LAYOUTS.desktop
     return layoutFromDevice(detectDevice().device)
@@ -61,8 +78,19 @@ export function UiPrefsProvider({ children }) {
   const [device, setDevice] = useState(() => (typeof window === 'undefined' ? 'desktop' : detectDevice().device))
 
   useEffect(() => {
+    setThemeState(resolveTheme(themePref))
+    try { localStorage.setItem(THEME_KEY, themePref) } catch { /* private mode */ }
+    if (themePref !== THEME_PREFS.system) return undefined
+    const mq = window.matchMedia?.('(prefers-color-scheme: dark)')
+    const onChange = () => setThemeState(resolveTheme(THEME_PREFS.system))
+    mq?.addEventListener?.('change', onChange)
+    return () => mq?.removeEventListener?.('change', onChange)
+  }, [themePref])
+
+  useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    localStorage.setItem(THEME_KEY, theme)
+    const meta = document.querySelector('meta[name="theme-color"]')
+    if (meta) meta.setAttribute('content', theme === THEMES.classic ? '#101B19' : '#F4F7F5')
   }, [theme])
 
   useEffect(() => {
@@ -94,16 +122,20 @@ export function UiPrefsProvider({ children }) {
     }
   }, [])
 
+  function setThemePref(p) {
+    setThemePrefState(normalizeThemePref(p))
+  }
+
   function setTheme(t) {
-    setThemeState(t === THEMES.classic ? THEMES.classic : THEMES.modern)
+    setThemePref(t === THEMES.classic ? THEME_PREFS.dark : THEME_PREFS.light)
   }
 
   function toggleTheme() {
-    setThemeState(t => t === THEMES.modern ? THEMES.classic : THEMES.modern)
+    setThemePref(theme === THEMES.modern ? THEME_PREFS.dark : THEME_PREFS.light)
   }
 
   return (
-    <UiPrefsContext.Provider value={{ theme, layout, device, setTheme, toggleTheme }}>
+    <UiPrefsContext.Provider value={{ theme, themePref, layout, device, setTheme, setThemePref, toggleTheme }}>
       {children}
     </UiPrefsContext.Provider>
   )

@@ -5,6 +5,7 @@ import { handleCorsPreflight, setCorsHeaders } from './_cors.js'
 import { requireBarAccount } from './_requireStaff.js'
 import { buildHqSnapshot, saveHqRent, saveBarCost } from './_hqSnapshot.js'
 import { errText } from '../src/lib/errText.js'
+import { canAccess } from '../src/lib/barAccess.js'
 
 function bodyOf(req) {
   return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
@@ -23,6 +24,10 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'POST') {
       const body = bodyOf(req)
+      // Rent and cost books are money: a manager limited in "Users & access" needs that area.
+      if ((body.rent || body.cost) && !canAccess(auth.perfil, 'money')) {
+        return res.status(403).json({ error: 'This login has no access to this area', area: 'money', code: 'area' })
+      }
       if (body.rent && (body.rent.amount != null || body.rent.note != null)) {
         const saved = await saveHqRent(db, auth.perfil.bar_id, body.rent)
         if (!saved.ok) return res.status(400).json({ error: errText(saved.error, 'Rent save failed') })

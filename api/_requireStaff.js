@@ -84,6 +84,8 @@ export async function requireBarAccount(req, _admin, opts = {}) {
   if (actor.error) return actor
   if (!allowed.includes(actor.perfil.role)) return { error: 'No permission', status: 403 }
   if (!actor.perfil.bar_id) return { error: 'Conta sem bar vinculado', status: 403 }
+  // A login the owner turned off in "Users & access" (never the owner). /api/bar-staff myAccess still answers it.
+  if (actor.disabled && actor.perfil.role !== 'cliente' && !opts.allowDisabled) return { error: 'This login is turned off', status: 403 }
   return actor
 }
 

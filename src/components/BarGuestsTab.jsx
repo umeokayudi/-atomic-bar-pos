@@ -15,6 +15,11 @@ import {
   crmTableMissing,
   withTimeout,
 } from '../lib/barCrm'
+import Icon from './ui/Icon'
+import { guestBalance } from '../lib/onAccount'
+import { loadLedger } from '../lib/onAccountStore'
+import { PageHeader } from './ui/PageLayout'
+import ClientPlaceSpend from './crm/ClientPlaceSpend'
 
 const emptyForm = {
   nome: '', telefone: '', line_id: '', email: '', aniversario: '',
@@ -28,6 +33,7 @@ export default function BarGuestsTab({ bar }) {
   const [sales, setSales] = useState([])
   const [vips, setVips] = useState([])
   const [keeps, setKeeps] = useState([])
+  const [ledger, setLedger] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
   const [formErr, setFormErr] = useState('')
@@ -72,6 +78,12 @@ export default function BarGuestsTab({ bar }) {
   }
 
   useEffect(() => { load() }, [bar.id])
+  // What each customer still owes "on account" (ツケ), from the till's ledger. Read-only here.
+  useEffect(() => {
+    let alive = true
+    loadLedger(supabase, bar.id).then(rows => { if (alive) setLedger(rows) }).catch(() => { if (alive) setLedger([]) })
+    return () => { alive = false }
+  }, [bar.id])
 
   const list = searchGuests(guests.filter(g => g.ativo !== false), q)
   const monthBirthdays = birthdayThisMonth(guests.filter(g => g.ativo !== false))
@@ -158,18 +170,18 @@ export default function BarGuestsTab({ bar }) {
   const profile = selected && guests.find(g => g.id === selected)
   const spend = profile ? guestSpendFromPos(sales, profile.id) : null
   const guestKeeps = profile ? activeKeeps(keeps, profile.id) : []
+  const owed = profile ? guestBalance(ledger, profile.id) : 0
 
   return (
     <div className="fade-in guests-book">
-      <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>{t('guests.title')}</div>
-      <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16 }}>{t('guests.subtitle')}</div>
+      <PageHeader title={t('guests.title')} subtitle={t('guests.subtitle')} />
       {loadErr && <div className="pos-sale-err" style={{ marginBottom: 12 }}>{asReactText(loadErr)}</div>}
 
       {(todayBirthdays.length > 0 || monthBirthdays.length > 0) && (
         <div className="card" style={{ marginBottom: 16, padding: 14 }}>
           {todayBirthdays.length > 0 && (
             <div style={{ fontWeight: 800, marginBottom: 4 }}>
-              🎂 {t('guests.birthdayToday')}: {todayBirthdays.map(g => g.nome).join(', ')}
+              <Icon name="eventos" size={14} /> {t('guests.birthdayToday')}: {todayBirthdays.map(g => g.nome).join(', ')}
             </div>
           )}
           <div style={{ fontSize: 13, color: 'var(--text2)' }}>
@@ -287,6 +299,9 @@ export default function BarGuestsTab({ bar }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
                 <div><div style={{ fontSize: 11, color: 'var(--text2)' }}>{t('guests.visits')}</div><div style={{ fontWeight: 800 }}>{spend.count}</div></div>
                 <div><div style={{ fontSize: 11, color: 'var(--text2)' }}>{t('guests.posSpend')}</div><div style={{ fontWeight: 800 }}>{fmtYen(spend.total)}</div></div>
+                {owed !== 0 && (
+                  <div><div style={{ fontSize: 11, color: 'var(--text2)' }}>{t('onAccount.short')}</div><div style={{ fontWeight: 800, color: owed > 0 ? 'var(--amber)' : undefined }}>{fmtYen(owed)}</div></div>
+                )}
               </div>
               <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 10 }}>{t('guests.spendHint')}</div>
 
@@ -318,6 +333,7 @@ export default function BarGuestsTab({ bar }) {
           )}
         </div>
       </div>
+      <ClientPlaceSpend bar={bar} />
     </div>
   )
 }

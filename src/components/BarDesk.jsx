@@ -10,7 +10,8 @@ import { nightKeyOfSale } from '../lib/nightClose'
 import { lastDayOfMonth, tokyoHour, tokyoNightKey } from '../lib/tokyo'
 import { useI18n } from '../lib/i18n'
 import { errText } from '../lib/errText'
-import BarOwnerAi from './BarOwnerAi'
+import AiPromptStrip from './ai/AiPromptStrip'
+import { buildHqChatSystem } from '../lib/hqSnapshot'
 
 const SPANS = ['turno', 'noite', 'semana', 'mes']
 const DAY_KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
@@ -25,15 +26,15 @@ function GoalChart({ rows, goal }) {
   const y = v => h - 22 - (v / max) * (h - 40)
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="goal-chart" role="img">
-      {goal > 0 && <line x1={pad} x2={w - pad} y1={y(goal)} y2={y(goal)} stroke="#c19c56" strokeDasharray="5 4" strokeWidth="2" />}
+      {goal > 0 && <line x1={pad} x2={w - pad} y1={y(goal)} y2={y(goal)} stroke="var(--c-warning)" strokeDasharray="5 4" strokeWidth="2" />}
       {rows.map((r, i) => {
         const top = y(r.sales || 0)
         const height = Math.max(0, h - 22 - top)
         const hit = goal > 0 && r.sales >= goal
         return (
           <g key={r.key || i}>
-            <rect x={pad + i * bw + 6} y={top} width={Math.max(8, bw - 12)} height={height} rx="5" fill={hit ? '#34c759' : '#8eb7ff'} />
-            <text x={pad + i * bw + bw / 2} y={h - 6} textAnchor="middle" fill="rgba(255,255,255,0.72)" fontSize="11">{r.label}</text>
+            <rect x={pad + i * bw + 6} y={top} width={Math.max(8, bw - 12)} height={height} rx="5" fill={hit ? 'var(--c-success)' : 'var(--c-accent)'} fillOpacity={hit ? 1 : 0.55} />
+            <text x={pad + i * bw + bw / 2} y={h - 6} textAnchor="middle" fill="var(--c-text-3)" fontSize="11">{r.label}</text>
           </g>
         )
       })}
@@ -79,7 +80,6 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
-  const [ask, setAsk] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -299,10 +299,14 @@ export default function BarDesk({ bar, hq, tickets, invoices, openOrders = 0, fl
             {t('portal.desk.aiLine', { hour: peak.label || String(peak.hour || ''), amount: money(peak.total) })}
           </p>
         )}
-        <button type="button" className="house-text" onClick={() => setAsk(v => !v)}>{t('portal.desk.ask')}</button>
       </section>
 
-      {ask && <BarOwnerAi bar={bar} hq={hq} />}
+      <AiPromptStrip
+        title={t('portal.desk.ask')}
+        prompts={[t('portal.hq.aiChipPos'), t('portal.hq.aiChipJbm'), t('portal.hq.aiChipHours'), t('portal.hq.aiChipRent')]}
+        notes={hq ? buildHqChatSystem(hq) : ''}
+        module="overview"
+      />
 
       {(hq?.jbm?.billCheck?.status === 'off' || hq?.jbm?.billCheck?.status === 'paid-gap') && (
         <button type="button" className="desk-alarm" onClick={() => onTab?.('faturas')}>

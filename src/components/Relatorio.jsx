@@ -225,7 +225,7 @@ export default function RelatorioTab() {
             <tfoot>
               <tr>
                 <td colSpan={3} style={{ fontWeight: 700 }}>{t('common.total')} ({vendasDetalhe.length})</td>
-                <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--navy)' }}>{fmtYen(receitaTotal)}</td>
+                <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--c-text)' }}>{fmtYen(receitaTotal)}</td>
               </tr>
             </tfoot>
           </table>

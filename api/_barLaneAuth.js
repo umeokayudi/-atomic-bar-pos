@@ -1,6 +1,7 @@
 import { drinksAdminClient, drinksAuthClient, createStaffUserClient } from './_supabaseAdmin.js'
 import { ensureBarLiveReady, runLiveOp } from './_barLiveStore.js'
 import { secretsMatch, signLanePayload, verifyLaneToken } from './_hash.js'
+import { withActorAccess } from './_barAccess.js'
 
 function bearerToken(req) {
   return (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim()
@@ -67,6 +68,8 @@ export async function resolveBarActor(req, admin) {
 
   const lane = await resolveLaneSession(token, admin)
   if (lane) {
+    // Area list and on/off switch from "Users & access" (owners are never limited).
+    await withActorAccess(admin, lane)
     rememberActor(token, lane)
     return lane
   }
@@ -78,8 +81,14 @@ export async function resolveBarActor(req, admin) {
   const { data: perfil } = await userDb.from('perfis').select('*').eq('id', user.id).single()
   if (!perfil) return { error: 'Sem perfil', status: 403 }
   const actor = { user, perfil, token, lane: false }
+  await withActorAccess(admin, actor)
   rememberActor(token, actor)
   return actor
+}
+
+/** Drop cached actors so an access change applies on this instance at once (others refresh within a minute). */
+export function forgetBarActors() {
+  actorCache.clear()
 }
 
 function rememberActor(token, actor) {

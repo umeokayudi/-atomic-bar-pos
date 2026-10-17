@@ -60,7 +60,7 @@ export function SupplierPricePanel({ fornecedorId, fornecedorNome, onApplyPrice 
       marginBottom: 14, padding: '12px 14px', borderRadius: 12,
       background: 'linear-gradient(135deg,#f8fafc,#eef2ff)', border: '1px solid #c7d2fe',
     }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', marginBottom: 8 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--c-text)', marginBottom: 8 }}>
         {t('supplierPriceCheck.registeredPrices', { supplier: fornecedorNome })} <span style={{ fontWeight: 500, color: 'var(--text2)' }}>{t('supplierPriceCheck.taxIncluded')}</span>
       </div>
       <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -71,15 +71,15 @@ export function SupplierPricePanel({ fornecedorId, fornecedorNome, onApplyPrice 
           return (
             <div key={p.id} style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px',
-              background: 'white', borderRadius: 8, fontSize: 12,
+              background: 'var(--bg2)', borderRadius: 8, fontSize: 12,
             }}>
               <div style={{ flex: 1, fontWeight: 600 }}>{p.produtos?.nome}</div>
               <div style={{ color: 'var(--text2)', fontSize: 11 }}>税抜 {fmtYen(zeibetsu)}</div>
-              <div style={{ fontWeight: 800, color: 'var(--navy)' }}>{fmtYen(p.preco)}</div>
+              <div style={{ fontWeight: 800, color: 'var(--c-text)' }}>{fmtYen(p.preco)}</div>
               {variacao != null && variacao !== 0 && (
                 <div style={{
                   fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 6,
-                  background: variacao > 0 ? '#fef2f2' : '#f0fdf4',
+                  background: variacao > 0 ? 'var(--red-bg)' : 'var(--green-bg)',
                   color: variacao > 0 ? 'var(--red)' : 'var(--green)',
                 }}>
                   {formatPriceChange(variacao)}
@@ -111,7 +111,7 @@ export function SupplierCostHint({ produtoId, produtoNome, byProductId, byProduc
 
   return (
     <div style={{ fontSize: 10, color: 'var(--text2)', marginTop: 2 }}>
-      LM: 税抜 {fmtYen(zeibetsu)} → <strong style={{ color: 'var(--navy)' }}>{fmtYen(sp.preco)}</strong>
+      LM: 税抜 {fmtYen(zeibetsu)} → <strong style={{ color: 'var(--c-text)' }}>{fmtYen(sp.preco)}</strong>
       {variacao != null && variacao !== 0 && (
         <span style={{ marginLeft: 6, fontWeight: 700, color: variacao > 0 ? 'var(--red)' : 'var(--green)' }}>
           {formatPriceChange(variacao)} jul
