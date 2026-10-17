@@ -127,3 +127,16 @@ export function readStaffBrand() {
 export function rememberStaffBrand(brand) {
   try { localStorage.setItem(BRAND_KEY, JSON.stringify({ name: brand.name, initials: brand.initials, color: brand.color, logo: brand.logo })) } catch { /* storage blocked */ }
 }
+
+/**
+ * Notification types a staff login may see in the staff app bell: only their own staff items (schedule, answers to
+ * their requests, their fines and pay). Invoices, overdue bills and other owner money alarms never show there.
+ */
+export const STAFF_NOTIF_TYPES = {
+  staff_schedule_reminder: { icon: 'calendar', tone: 'warn', tab: 'schedule' },
+  staff_schedule_confirmed: { icon: 'ok', tone: 'ok', tab: 'schedule' },
+  staff_request_answer: { icon: 'inbox', tone: 'info', tab: 'reports' },
+  staff_fine: { icon: 'fine', tone: 'bad', tab: 'salary' },
+  staff_payout: { icon: 'salary', tone: 'ok', tab: 'salary' },
+}
+export const isStaffNotif = n => !!n && Object.prototype.hasOwnProperty.call(STAFF_NOTIF_TYPES, n.tipo)

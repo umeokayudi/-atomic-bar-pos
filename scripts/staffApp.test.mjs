@@ -7,7 +7,7 @@ import { haversineMeters } from '../src/lib/timeClock.js'
 import { CLAIM_MAX_MS, STALE_OPEN_MS, punchAllowed } from '../src/lib/clockRule.js'
 import {
   STAFF_APP_SELF, barBrand, bottomTabFor, elapsedLabel, initialsOf, myClockState, staffAppTabFor, staffAppTabsFor, staffMoreItemsFor,
-  usesStaffApp,
+  isStaffNotif, usesStaffApp,
 } from '../src/lib/staffApp.js'
 import { STAFF_SELF_TABS, canOpenTab, presetAreas, staffActionAreas } from '../src/lib/barAccess.js'
 import { daysBetween, earningsByDay, earningsRange, myGoalStatus, myNightSummary, statementInRange } from '../src/lib/staffNight.js'
@@ -269,6 +269,16 @@ test('statementInRange: rewards add, advances and deductions take', () => {
     { type: 'reward', amount: 9999, created_at: '2026-09-01T00:00:00Z' },
   ]
   assert.deepEqual(statementInRange(lines, '2026-10-01', '2026-10-31'), { rewards: 3000, advances: 10000, deductions: 500 })
+})
+
+test('staff bell: only the person\'s own staff notifications, never invoice / overdue / money alarms', () => {
+  const rows = [
+    { id: 1, tipo: 'staff_request_answer' }, { id: 2, tipo: 'staff_schedule_confirmed' }, { id: 3, tipo: 'staff_schedule_reminder' },
+    { id: 4, tipo: 'staff_fine' }, { id: 5, tipo: 'staff_payout' },
+    { id: 6, tipo: 'fatura_vencida' }, { id: 7, tipo: 'pedido_novo' }, { id: 8, tipo: 'ordem' }, { id: 9, tipo: 'staff_whatever' }, { id: 10 },
+  ]
+  assert.deepEqual(rows.filter(isStaffNotif).map(r => r.id), [1, 2, 3, 4, 5])
+  assert.equal(isStaffNotif(null), false)
 })
 
 console.log(`\n${n} tests passed`)

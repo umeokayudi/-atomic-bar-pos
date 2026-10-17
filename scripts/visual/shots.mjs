@@ -108,6 +108,12 @@ const PAGES = [
   { who: STAFF, path: '/bar/schedule', name: 'staff-schedule' },
   { who: STAFF, path: '/bar/hoje', name: 'staff-home-schedule' },
   { who: STAFF, path: '/bar/hoje', name: 'staff-schedule-gate', gate: true },
+  { who: STAFF, path: '/bar/salary', name: 'staff-gate-sheet', gate: true },
+  { who: STAFF, path: '/bar/schedule', name: 'staff-schedule-next', gate: true },
+  { who: STAFF, path: '/bar/schedule', name: 'staff-schedule-time', gate: true, taps: ['.sa-night.is-problem'] },
+  { who: STAFF, path: '/bar/schedule', name: 'staff-schedule-sent', gate: true, taps: ['.sa-night.is-problem', '.sa-presets button', '.sa-timesheet .sa-btn.is-primary', '.sa-savebar .sa-btn.is-primary'] },
+  { who: STAFF, path: '/bar/hoje', name: 'staff-bell', taps: ['.sa-bell'] },
+  { who: STAFF, path: '/bar/hoje', name: 'staff-bell-gate', gate: true, taps: ['.sa-bell'] },
   { who: MANAGER, path: '/bar/ponto', name: 'owner-schedule-board' },
   { who: MANAGER, path: '/bar/ponto', name: 'owner-fine-sheet', taps: ['.osb-fine-btn'] },
   { who: MANAGER, path: '/bar/salarios', name: 'owner-salary-fines' },
@@ -172,6 +178,13 @@ const SELF_MOCK = {
     const status = submissionStatus({ row: { days, weeks }, rules: DEFAULT_RULES, today })
     return { ...win, openHour: 20, days, weeks, confirmed, editable, rules: DEFAULT_RULES, status, tolerance: 10, updated_at: new Date().toISOString() }
   },
+  meSaveAvailability: (who, body = {}) => {
+    const today = tokyoNightKey()
+    const nw = nextWeekOf(today)
+    const days = body.days || {}
+    const weeks = body.submitWeek ? { [body.submitWeek]: { submitted_at: new Date().toISOString() } } : {}
+    return { ok: true, days, weeks, locked: [], status: submissionStatus({ row: { days, weeks }, rules: DEFAULT_RULES, today }), week: nw }
+  },
   mePayouts: () => {
     const now = tokyoNightKey().slice(0, 7)
     const [y, m] = now.split('-').map(Number)
@@ -222,7 +235,8 @@ function filterRows(rows, params) {
   let out = rows
   for (const [k, raw] of params) {
     if (['select', 'order', 'limit', 'offset', 'on_conflict', 'columns'].includes(k)) continue
-    const v = decodeURIComponent(raw)
+    let v = raw
+    try { v = decodeURIComponent(raw) } catch { /* already decoded (e.g. like.staff%) */ }
     const neg = v.startsWith('not.')
     const expr = neg ? v.slice(4) : v
     const [op, ...rest] = expr.split('.')
