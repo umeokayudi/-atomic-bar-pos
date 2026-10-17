@@ -102,7 +102,8 @@ export function useClockPunch({ barId, meId, venue, day, openIn, onDone }) {
   return { start, phase, busy: !!phase, err: flow ? '' : err, sheet, clearErr: () => setErr('') }
 }
 
-function Sheet({ title, icon, tone, lead, children, onCancel, busy, labelId }) {
+function Sheet({ title, icon, tone, lead, children, footer, onCancel, busy, labelId }) {
+  const { t } = useI18n()
   useEffect(() => {
     const onKey = e => { if (e.key === 'Escape' && !busy) onCancel() }
     window.addEventListener('keydown', onKey)
@@ -114,12 +115,14 @@ function Sheet({ title, icon, tone, lead, children, onCancel, busy, labelId }) {
         <div className="sa-sheet-grip" aria-hidden="true" />
         <div className="sa-sheet-head">
           <span className={`sa-sheet-icon is-${tone || 'ok'}`}><Icon name={icon} size={22} /></span>
-          <div>
+          <div className="sa-sheet-title">
             <h2 id={labelId}>{title}</h2>
             {lead && <p>{lead}</p>}
           </div>
+          <button type="button" className="sa-icon-btn sa-sheet-x" disabled={busy} onClick={onCancel} aria-label={t('common.close')}><Icon name="close" size={20} /></button>
         </div>
         <div className="sa-sheet-body">{children}</div>
+        {footer && <div className="sa-sheet-foot">{footer}</div>}
       </div>
     </div>
   )
@@ -144,20 +147,23 @@ function JustifySheet({ flow, venue, phase, err, t, setReason, onRetry, onNext, 
   const isIn = flow.tipo !== 'out'
   const busy = !!phase
   return (
-    <Sheet title={geoTitle(t, flow.geo)} lead={geoBody(t, flow.geo, venue)} icon="location" tone={flow.geo.status} onCancel={onCancel} busy={busy} labelId="sa-geo-title">
+    <Sheet
+      title={geoTitle(t, flow.geo)} lead={geoBody(t, flow.geo, venue)} icon="location" tone={flow.geo.status} onCancel={onCancel} busy={busy} labelId="sa-geo-title"
+      footer={(
+        <>
+          <button type="button" className="sa-btn is-primary" disabled={!enough || busy} onClick={onNext}>{t('staffApp.continue')} <Icon name="next" size={18} /></button>
+          <button type="button" className="sa-btn is-ghost" disabled={busy} onClick={onRetry}>
+            <Icon name="refresh" size={16} /> {phase === 'locating' ? t('staffApp.locating') : t('staffApp.geo.retry')}
+          </button>
+        </>
+      )}
+    >
       <label className="sa-field">
         <span>{t(isIn ? 'staffApp.geo.whyIn' : 'staffApp.geo.whyOut')}</span>
         <textarea rows={3} maxLength={500} value={flow.reason} onChange={e => setReason(e.target.value)} placeholder={t('staffApp.geo.placeholder')} />
         <small className={enough ? 'is-ok' : ''}>{t('staffApp.geo.minChars', { n: JUSTIFICATION_MIN, have: flow.reason.trim().length })}</small>
       </label>
       {err && <div className="sa-error" role="alert">{err}</div>}
-      <div className="sa-sheet-actions">
-        <button type="button" className="sa-btn is-primary" disabled={!enough || busy} onClick={onNext}>{t('staffApp.continue')}</button>
-        <button type="button" className="sa-btn" disabled={busy} onClick={onRetry}>
-          <Icon name="refresh" size={16} /> {phase === 'locating' ? t('staffApp.locating') : t('staffApp.geo.retry')}
-        </button>
-        <button type="button" className="sa-btn is-ghost" disabled={busy} onClick={onCancel}>{t('common.cancel')}</button>
-      </div>
     </Sheet>
   )
 }
@@ -177,15 +183,16 @@ function GoalLines({ day, t }) {
 function AckSheet({ day, phase, err, t, onAgree, onCancel }) {
   const busy = !!phase
   return (
-    <Sheet title={t('staffApp.ack.title')} lead={t('staffApp.ack.lead')} icon="tasks" onCancel={onCancel} busy={busy} labelId="sa-ack-title">
-      {day ? <GoalLines day={day} t={t} /> : <p className="sa-muted">{t('staffApp.ack.noDay')}</p>}
-      {err && <div className="sa-error" role="alert">{err}</div>}
-      <div className="sa-sheet-actions">
+    <Sheet
+      title={t('staffApp.ack.title')} lead={t('staffApp.ack.lead')} icon="tasks" onCancel={onCancel} busy={busy} labelId="sa-ack-title"
+      footer={(
         <button type="button" className="sa-btn is-primary" disabled={busy} onClick={onAgree}>
           <Icon name="check" size={18} /> {phase === 'sending' ? t('common.wait') : t('staffApp.ack.agree')}
         </button>
-        <button type="button" className="sa-btn is-ghost" disabled={busy} onClick={onCancel}>{t('common.cancel')}</button>
-      </div>
+      )}
+    >
+      {day ? <GoalLines day={day} t={t} /> : <p className="sa-muted">{t('staffApp.ack.noDay')}</p>}
+      {err && <div className="sa-error" role="alert">{err}</div>}
     </Sheet>
   )
 }
@@ -200,7 +207,14 @@ function CheckoutSheet({ day, phase, err, t, onSend, onCancel }) {
   const improveOk = !missed || improve.trim().length >= 5
   const ready = improveOk && !!signature
   return (
-    <Sheet title={t('staffApp.out.title')} lead={t('staffApp.out.lead')} icon="clock" onCancel={onCancel} busy={busy} labelId="sa-out-title">
+    <Sheet
+      title={t('staffApp.out.title')} lead={t('staffApp.out.lead')} icon="clock" onCancel={onCancel} busy={busy} labelId="sa-out-title"
+      footer={(
+        <button type="button" className="sa-btn is-primary is-danger" disabled={!ready || busy} onClick={() => onSend({ notes: notes.trim(), improve: improve.trim(), signature })}>
+          <Icon name="signOut" size={18} /> {phase === 'sending' ? t('staffApp.out.saving') : t('staffApp.out.confirm')}
+        </button>
+      )}
+    >
       <div className="sa-sum">
         <div><span>{t('staffApp.out.sales')}</span><strong>{fmtYen(s.sales)}</strong><small>{t('staffApp.out.tickets', { n: s.tickets })}</small></div>
         <div><span>{t('staffApp.out.commission')}</span><strong>{fmtYen(s.commission)}</strong></div>
@@ -231,15 +245,9 @@ function CheckoutSheet({ day, phase, err, t, onSend, onCancel }) {
         <textarea rows={2} maxLength={1000} value={improve} onChange={e => setImprove(e.target.value)} placeholder={t('staffApp.out.improvePh')} />
         {missed && <small className={improveOk ? 'is-ok' : ''}>{t('staffApp.geo.minChars', { n: 5, have: improve.trim().length })}</small>}
       </label>
-      <SignaturePad label={t('staffApp.out.sign')} clearLabel={t('staffApp.out.clearSign')} onChange={setSignature} />
+      <SignaturePad label={t('staffApp.out.sign')} clearLabel={t('staffApp.out.clearSign')} hint={t('staffApp.out.signHere')} onChange={setSignature} />
       <p className="sa-muted">{t('staffApp.out.ownerOnly')}</p>
       {err && <div className="sa-error" role="alert">{err}</div>}
-      <div className="sa-sheet-actions">
-        <button type="button" className="sa-btn is-primary is-danger" disabled={!ready || busy} onClick={() => onSend({ notes: notes.trim(), improve: improve.trim(), signature })}>
-          {phase === 'sending' ? t('staffApp.out.saving') : t('staffApp.out.confirm')}
-        </button>
-        <button type="button" className="sa-btn is-ghost" disabled={busy} onClick={onCancel}>{t('common.cancel')}</button>
-      </div>
     </Sheet>
   )
 }

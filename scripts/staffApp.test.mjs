@@ -6,7 +6,7 @@ import {
 import { haversineMeters } from '../src/lib/timeClock.js'
 import { CLAIM_MAX_MS, STALE_OPEN_MS, punchAllowed } from '../src/lib/clockRule.js'
 import {
-  STAFF_APP_SELF, barBrand, bottomTabFor, elapsedLabel, initialsOf, myClockState, staffAppTabFor, staffAppTabsFor, staffMoreItemsFor,
+  STAFF_APP_SELF, barBrand, bottomTabFor, elapsedLabel, initialsOf, myClockState, staffAppTabFor, staffAppTabsFor, staffMoreItemsFor, staffMoreSections, staffBackFor,
   isStaffNotif, usesStaffApp,
 } from '../src/lib/staffApp.js'
 import { STAFF_SELF_TABS, canOpenTab, presetAreas, staffActionAreas } from '../src/lib/barAccess.js'
@@ -281,4 +281,22 @@ test('staff bell: only the person\'s own staff notifications, never invoice / ov
   assert.equal(isStaffNotif(null), false)
 })
 
+
+test('staff app: More menu sections (pay, work, me) keep every item once, in order; back targets', () => {
+  const all = staffMoreItemsFor()
+  const secs = staffMoreSections(all)
+  assert.deepEqual(secs.map(s => s.id), ['pay', 'work', 'me'])
+  assert.deepEqual(secs[0].items.map(i => i.id), ['salary', 'shifts'])
+  assert.deepEqual(secs[2].items.map(i => i.id), ['profile', 'occurrences', 'settings'])
+  assert.equal(secs.flatMap(s => s.items).length, all.length)
+  assert.equal(secs[1].labelKey, 'staffApp.more.group_work')
+  const staffOnly = { role: 'bar_staff', acessos: presetAreas('staffOnly') }
+  const work = staffMoreSections(staffMoreItemsFor(id => canOpenTab(staffOnly, id))).find(s => s.id === 'work')
+  assert.deepEqual(work.items.map(i => i.id), ['schedule', 'reports'], 'no floor/supply for Staff only')
+  assert.deepEqual(staffMoreSections([]), [])
+  assert.equal(staffBackFor('settings'), 'profile')
+  assert.equal(staffBackFor('occurrences'), 'profile')
+  assert.equal(staffBackFor('salary'), 'hoje')
+  assert.equal(staffBackFor('ponto'), 'hoje')
+})
 console.log(`\n${n} tests passed`)

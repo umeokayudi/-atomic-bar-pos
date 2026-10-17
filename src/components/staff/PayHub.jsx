@@ -12,7 +12,7 @@ import { dateLocale } from '../../lib/tokyo'
 import { fmtYen } from '../utils'
 import { InOutChart, shortNum } from '../ui/Charts'
 import Icon from '../ui/Icon'
-import { Card, Note, Seg, fmtDay, fmtHours } from './staffUi'
+import { Card, Empty, Note, PageHead, Seg, fmtDay, fmtHours } from './staffUi'
 
 /** "−¥1,200" for a deduction, "¥1,200" otherwise. */
 export const signedYen = n => (Math.round(+n || 0) < 0 ? `−${fmtYen(Math.abs(n))}` : fmtYen(n))
@@ -159,7 +159,7 @@ function DaySheet({ t, day, row, fines, att, rate, onClose }) {
             <h2>{fmtDay(noon(day), { weekday: 'long', month: 'long', day: 'numeric' })}</h2>
             <p>{att ? t(`staffApp.pay.att_${att.status}`, { min: att.lateMinutes || 0 }) : (r.hours > 0 ? t('staffApp.pay.mark_worked') : t('staffApp.pay.noWork'))}</p>
           </div>
-          <button type="button" className="sa-icon-btn" onClick={onClose} aria-label={t('common.close')}><Icon name="close" size={20} /></button>
+          <button type="button" className="sa-icon-btn sa-sheet-x" onClick={onClose} aria-label={t('common.close')}><Icon name="close" size={20} /></button>
         </div>
         <div className="sa-sheet-body">
           <LineItem icon="clock" title={t('staffApp.pay.hoursPay')} meta={t('staffApp.pay.hoursAt', { hours: fmtHours(r.hours), rate: fmtYen(rate) })} value={fmtYen(r.hoursPay)} />
@@ -181,7 +181,7 @@ function PaymentsCard({ t, history }) {
   return (
     <Card title={t('staffApp.pay.history')} right={<Icon name="chart" size={18} />}>
       {history.loading ? <Note>{t('common.wait')}</Note> : !rows.length ? (
-        <div className="sa-empty"><Icon name="salary" size={28} /><strong>{t('staffApp.pay.noHistory')}</strong><span>{t('staffApp.pay.noHistoryHint')}</span></div>
+        <Empty icon="salary" title={t('staffApp.pay.noHistory')} hint={t('staffApp.pay.noHistoryHint')} />
       ) : (
         <>
           <InOutChart data={chart} height={150} format={fmtYen} labels={[t('staffApp.pay.gross'), t('staffApp.pay.deductionsShort')]} />
@@ -208,7 +208,7 @@ function PaymentsCard({ t, history }) {
  * fines, advances), a month calendar of what I earned each night, day by day, and my past payments.
  * Sources: /api/bar-staff meEarnings (clock, till, fines, attendance), mePayouts, payroll_my_pack (HQ lines).
  */
-export function PayHubScreen({ t, pack: currentPack, missing: currentMissing, competence: current }) {
+export function PayHubScreen({ t, pack: currentPack, missing: currentMissing, competence: current, onBack }) {
   const today = tokyoDateKey()
   const [kind, setKind] = useState('month')
   const [month, setMonth] = useState(current)
@@ -246,7 +246,7 @@ export function PayHubScreen({ t, pack: currentPack, missing: currentMissing, co
 
   return (
     <div className="sa-screen">
-      <h1 className="sa-title">{t('staffApp.pay.title')}</h1>
+      <PageHead t={t} title={t('staffApp.pay.title')} onBack={onBack} />
       <Seg
         label={t('staffApp.pay.period')}
         value={kind}
@@ -320,7 +320,7 @@ export function PayHubScreen({ t, pack: currentPack, missing: currentMissing, co
         <Card title={t('staffApp.pay.byDay')}>
           {loading && <Note>{t('common.wait')}</Note>}
           {!loading && !active.length && (
-            <div className="sa-empty"><Icon name="clock" size={28} /><strong>{t('staffApp.pay.noDays')}</strong><span>{t('staffApp.pay.noDaysHint')}</span></div>
+            <Empty icon="clock" title={t('staffApp.pay.noDays')} hint={t('staffApp.pay.noDaysHint')} />
           )}
           {active.map(d => (
             <button key={d.day} type="button" className="sa-dayrow" onClick={() => setPicked(d.day)}>
