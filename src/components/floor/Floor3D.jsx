@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { useI18n } from '../../lib/i18n'
 import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
-import { SEAT, contentBounds, fitScale, guestSpots, hits, seatSpots, standSpot, unitsPerCm, wallRects } from '../../lib/floor3d'
+import { SEAT, contentBounds, fitScale, guestSpots, hits, obstacles, pieceRects, safeWalks, seatSpots, standSpot, unitsPerCm, wallPieces } from '../../lib/floor3d'
 import { isDecor } from '../../lib/floorEditor'
 
 // Real heights in centimetres; the plan's own scale (units per cm, guessed from its tables) turns
@@ -10,9 +10,11 @@ import { isDecor } from '../../lib/floorEditor'
 const HEIGHT_CM = { round: 75, square: 75, rect: 75, bar: 105, sofa: 45, wall: 250, door: 2, stage: 25, plant: 90 }
 const DECOR_COLOR = { wall: '#9a958c', door: '#b08a5a', stage: '#4a3f5c', plant: '#3f8a4f' }
 const SEAT_CM = 45
+// Height of a doorway (cm): the wall above it is drawn as a beam.
+const DOOR_CM = 210
 // Seen from above, walls are cut down to this share of their height so they do not hide the room;
 // walking inside, they stand at full height.
-const WALL_CUT = 0.35
+const WALL_CUT = 0.55
 // A decor piece gets its name written on it only when it is at least this wide (cm), so small
 // fridges and posts do not crowd the view.
 const DECOR_LABEL_CM = 90
@@ -73,9 +75,9 @@ function Box({ w, d, h, round, className = '', style, children, top }) {
 }
 
 /** One guest: stands at a seat, faces the camera, and now and then walks a short loop and comes back. */
-function Guest({ g, k }) {
+function Guest({ g }) {
   return (
-    <div className="f3-guest" style={{ left: g.x, top: g.y, '--wx': `${Math.round(g.wx * k)}px`, '--wy': `${Math.round(g.wy * k)}px`, '--dur': `${g.dur}s`, '--delay': `${g.delay}s` }}>
+    <div className="f3-guest" style={{ left: g.x, top: g.y, '--wx': `${g.wx}px`, '--wy': `${g.wy}px`, '--dur': `${g.dur}s`, '--delay': `${g.delay}s` }}>
       <div className={`f3-guest-walk${g.roam ? ' is-roam' : ''}`}>
         <div className="f3-guest-bb" style={{ '--guest': g.color }}>
           <i className="f3-guest-head" />
@@ -87,58 +89,63 @@ function Guest({ g, k }) {
 }
 
 /**
- * The static part of the scene: floor, walls, tables, seats, guests and labels. It does not depend on
- * the camera, so turning, tilting or zooming never re-renders it; labels and guests face the viewer
- * through the `--f3-spin` custom property the camera writes on the world node.
+ * The static part of the scene: floor, walls (with doorways cut out), tables, seats and guests. It does
+ * not depend on the camera, so turning, tilting or zooming never re-renders it; guests face the viewer
+ * through the `--f3-spin` custom property the camera writes on the world node. Names are drawn on a
+ * flat layer over the stage (see `Floor3D`), not in the scene, so they stay sharp.
  */
-const Scene = memo(function Scene({ area, tables, sectors, live, tappable, selectedId, onKeyOpen, t, k }) {
+const Scene = memo(function Scene({ area, tables, sectors, live, tappable, selectedId, k, walls, blocks }) {
   const sectorColor = id => sectors.find(s => s.id === id)?.cor
+  const wallH = HEIGHT_CM.wall * k
   return (
     <>
-      <div className="f3-floor" style={{ left: area.x, top: area.y, width: area.w, height: area.h }} />
-      <Box className="f3-wall is-cut" w={area.w} d={6} h={HEIGHT_CM.wall * k} style={{ left: area.x, top: area.y - 6 }} />
-      <Box className="f3-wall is-cut" w={6} d={area.h} h={HEIGHT_CM.wall * k} style={{ left: area.x - 6, top: area.y }} />
-      <Box className="f3-wall is-low" w={6} d={area.h} h={(HEIGHT_CM.wall * k) / 3} style={{ left: area.x + area.w, top: area.y }} />
+      <div className="f3-floor" style={{ left: area.x, top: area.y, width: area.w, height: area.h, '--tile': `${Math.round(60 * k)}px` }} />
+      <div className="f3-ceiling" style={{ left: area.x, top: area.y, width: area.w, height: area.h, transform: `translateZ(${wallH}px)` }} />
+      {walls.length === 0 && (
+        <>
+          <Box className="f3-wall is-cut" w={area.w} d={6} h={wallH} style={{ left: area.x, top: area.y - 6 }} />
+          <Box className="f3-wall is-cut" w={6} d={area.h} h={wallH} style={{ left: area.x - 6, top: area.y }} />
+        </>
+      )}
+      {walls.map(p => (
+        <div key={p.id} className="f3-table is-wall is-decor" aria-hidden="true"
+          style={{ left: p.x, top: p.y, width: p.w, height: p.h, transform: `rotateZ(${p.rot || 0}deg) scaleZ(var(--f3-wallk, 1))`, '--f3-color': p.cor || DECOR_COLOR.wall }}>
+          <Box w={p.w} d={p.h} h={wallH} className="f3-surface" />
+        </div>
+      ))}
       {tables.map(tb => {
+        if (tb.forma === 'wall') return null
         const w = +tb.largura
         const d = +tb.altura
         const h = Math.max(2, (HEIGHT_CM[tb.forma] || 75) * k)
         const decor = isDecor(tb.forma)
-        const wall = tb.forma === 'wall'
         const color = tb.cor || DECOR_COLOR[tb.forma] || sectorColor(tb.sector_id) || 'var(--c-accent)'
         const seats = decor || tb.forma === 'sofa' ? [] : seatSpots(tb.forma, w, d, tb.capacidade)
-        const guests = live && !decor ? guestSpots(tb, tb.pessoas) : []
+        const guests = live && !decor ? safeWalks(tb, guestSpots(tb, tb.pessoas), blocks, k) : []
         const round = tb.forma === 'round' || tb.forma === 'plant'
-        const label = live ? `${tb.nome}: ${t(`tabs.state.${tb.state}`)}${tb.open?.length ? `, ${fmtYen(tb.money.total)}` : ''}` : t('floor.tableAria', { name: tb.nome, n: tb.capacidade })
         const canTap = !decor && tappable
         const selected = !decor && String(tb.id) === selectedId
         return (
           <div
             key={tb.id}
             data-f3-id={canTap ? tb.id : undefined}
+            data-f3-name={decor ? undefined : tb.id}
+            data-f3-room={tb.forma === 'stage' && Math.min(w, d) >= DECOR_LABEL_CM * k * 0.5 && Math.max(w, d) >= DECOR_LABEL_CM * k ? tb.id : undefined}
             className={`f3-table is-${tb.forma}${decor ? ' is-decor' : ''}${live && !decor ? ` st-${tb.state}` : ''}${tb.ativo === false ? ' is-off' : ''}${canTap ? ' is-tappable' : ''}${selected ? ' is-selected' : ''}`}
-            style={{ left: +tb.x, top: +tb.y, width: w, height: d, transform: `translateZ(var(--f3-lift, 0px)) rotateZ(${+tb.rotacao || 0}deg)${wall ? ' scaleZ(var(--f3-wallk, 1))' : ''}`, '--f3-rot': +tb.rotacao || 0, ...(live && !decor ? null : { '--f3-color': color }) }}
+            style={{ left: +tb.x, top: +tb.y, width: w, height: d, transform: `translateZ(var(--f3-lift, 0px)) rotateZ(${+tb.rotacao || 0}deg)`, '--f3-rot': +tb.rotacao || 0, ...(live && !decor ? null : { '--f3-color': color }) }}
           >
             {selected && <div className="f3-glow" />}
             {seats.map((s, i) => (
               <Box key={i} className="f3-seat" w={SEAT} d={SEAT} h={SEAT_CM * k} round={tb.forma === 'round'} style={{ left: s.x, top: s.y }} />
             ))}
-            <Box w={w} d={d} h={h} round={round} className="f3-surface">
-              {decor ? (tb.forma === 'stage' && Math.min(w, d) >= DECOR_LABEL_CM * k * 0.5 && Math.max(w, d) >= DECOR_LABEL_CM * k && <span className="f3-label is-static"><strong>{tb.nome}</strong></span>) : (
-                <button
-                  type="button"
-                  className="f3-label"
-                  // Pointer taps are resolved by the stage (tap vs drag); this only answers keyboard activation.
-                  onClick={e => { if (e.detail === 0) onKeyOpen(tb.id) }}
-                  disabled={!tappable}
-                  aria-label={label}
-                >
-                  <strong>{tb.nome}</strong>
-                  {live ? <small>{t(`tabs.state.${tb.state}`)}{tb.open?.length ? ` · ${fmtYen(tb.money.total)}` : ''}</small> : <small>{t('tabs.people', { n: tb.capacidade })}</small>}
-                </button>
-              )}
-            </Box>
-            {guests.map((g, i) => <Guest key={i} g={g} k={k} />)}
+            <Box w={w} d={d} h={h} round={round} className="f3-surface" />
+            {tb.forma === 'door' && (
+              // The top of the doorway: a beam over the gap at door height, so it reads as a door, not a wall.
+              <div className="f3-lintel" style={{ transform: `translateZ(${DOOR_CM * k}px) scaleZ(var(--f3-wallk, 1))` }}>
+                <Box w={w} d={d} h={wallH - DOOR_CM * k} className="f3-surface" />
+              </div>
+            )}
+            {guests.map((g, i) => <Guest key={i} g={g} />)}
             {selected && (
               <div className="f3-pin" style={{ left: w / 2, top: d / 2, '--h': `${h + 30}px` }} aria-hidden="true">
                 <div className="f3-pin-bb"><Icon name="downArrow" size={22} /></div>
@@ -212,13 +219,24 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
 
   // The tables' footprint only changes when the plan does, not on every live refresh.
   const geomKey = tables.map(tb => `${tb.id}:${tb.x}:${tb.y}:${tb.largura}:${tb.altura}:${tb.rotacao || 0}`).join('|')
-  const bounds = useMemo(() => contentBounds(tables, W, D), [geomKey, W, D]) // eslint-disable-line react-hooks/exhaustive-deps
+  const bounds = useMemo(() => contentBounds(tables, W, D, 8), [geomKey, W, D]) // eslint-disable-line react-hooks/exhaustive-deps
   const area = useMemo(() => (crop ? bounds : { x: 0, y: 0, w: W, h: D }), [crop, bounds, W, D])
   const areaRef = useRef(area)
   areaRef.current = area
-  const walls = useMemo(() => wallRects(tables), [geomKey]) // eslint-disable-line react-hooks/exhaustive-deps
-  const wallsRef = useRef(walls)
-  wallsRef.current = walls
+  // Walls with doorways cut out. The walker bumps into walls and counters; guests also keep off
+  // sofas, rooms and the rest of the furniture that is not a table.
+  const walls = useMemo(() => wallPieces(tables), [geomKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  const solids = useMemo(() => {
+    const wallR = pieceRects(walls)
+    const pieces = tables.filter(tb => !['wall', 'door', 'round', 'square', 'rect'].includes(tb.forma))
+    return { walk: [...wallR, ...obstacles(pieces.filter(tb => tb.forma === 'bar' || tb.forma === 'sofa'))], guests: [...wallR, ...obstacles(pieces)] }
+  }, [walls, geomKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  const wallsRef = useRef(solids.walk)
+  wallsRef.current = solids.walk
+  const overlayRef = useRef(null)
+  const measureTimer = useRef(0)
+  const measureRef = useRef(() => {})
+  const [chips, setChips] = useState([])
 
   const setMode = m => setModeState(m)
   const setDrag = v => { setDragState(v); writePref('drag', v) }
@@ -245,6 +263,10 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
       el.style.setProperty('--f3-wallk', String(WALL_CUT))
     }
     el.style.setProperty('--f3-u', String(kRef.current))
+    // Names are placed once the camera stops (map moves ease for ~0.45 s); they hide while it moves.
+    overlayRef.current?.classList.add('is-moving')
+    clearTimeout(measureTimer.current)
+    measureTimer.current = setTimeout(() => measureRef.current(), modeRef.current === 'pov' ? 60 : 500)
   }, [])
   const schedule = useCallback(() => {
     if (!frame.current) frame.current = requestAnimationFrame(apply)
@@ -254,6 +276,60 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
     const spin = modeRef.current === 'pov' ? pov.current.yaw : cam.current.spin
     worldRef.current?.style.setProperty('--f3-spin', String(Math.round(spin * 10) / 10))
   }, [])
+
+  /**
+   * Where each table's name goes on screen: the centre of its top as drawn now. In the walk view only
+   * what is ahead and not too far gets a name. Names are flat, upright HTML over the stage, so they stay
+   * sharp and readable at any angle.
+   */
+  measureRef.current = () => {
+    const st = stageRef.current
+    if (!st) return
+    const sr = st.getBoundingClientRect()
+    const isPov = modeRef.current === 'pov'
+    const p = pov.current
+    const fx = -Math.sin(rad(p.yaw))
+    const fy = -Math.cos(rad(p.yaw))
+    const k0 = kRef.current
+    const out = []
+    for (const node of st.querySelectorAll('[data-f3-name], [data-f3-room]')) {
+      const room = node.hasAttribute('data-f3-room')
+      const id = node.getAttribute(room ? 'data-f3-room' : 'data-f3-name')
+      const tb = byIdRef.current.get(String(id))
+      if (!tb) continue
+      if (isPov) {
+        const c = centerOf(tb)
+        const ahead = (c.x - p.x) * fx + (c.y - p.y) * fy
+        const far = Math.hypot(c.x - p.x, c.y - p.y)
+        if (ahead < 40 * k0 || far > (room ? 700 : 1400) * k0) continue
+      }
+      const top = node.querySelector(':scope > .f3-surface > .f3-top')
+      if (!top) continue
+      const r = top.getBoundingClientRect()
+      const x = r.left + r.width / 2 - sr.left
+      const y = r.top + r.height / 2 - sr.top
+      if (x < 0 || y < 0 || x > sr.width || y > sr.height) continue
+      const far = isPov ? Math.hypot(centerOf(tb).x - p.x, centerOf(tb).y - p.y) : 0
+      out.push({ id: String(id), x: Math.round(x), y: Math.round(y), room, far, name: String(tb.nome || '') })
+    }
+    // Keep names from piling up: the picked table first, then tables (nearest first when walking),
+    // then room names; a name that would cover one already placed is left out.
+    const sel = selectedRef.current
+    out.sort((a, b) => (b.id === sel) - (a.id === sel) || a.room - b.room || a.far - b.far)
+    const placed = []
+    const kept = []
+    for (const c of out) {
+      const w = c.room ? c.name.length * 6.5 + 14 : Math.max(64, c.name.length * 8 + 26)
+      const h = c.room ? 18 : 36
+      const box = c.room ? { x0: c.x - w / 2, y0: c.y - h / 2, x1: c.x + w / 2, y1: c.y + h / 2 } : { x0: c.x - w / 2, y0: c.y - h - 6, x1: c.x + w / 2, y1: c.y - 6 }
+      if (placed.some(q => box.x0 < q.x1 && box.x1 > q.x0 && box.y0 < q.y1 && box.y1 > q.y0)) continue
+      placed.push(box)
+      kept.push(c)
+    }
+    kept.sort((a, b) => a.y - b.y)
+    setChips(kept)
+    overlayRef.current?.classList.remove('is-moving')
+  }
 
   /** Fit the scale to the stage for the current view angle. */
   const refit = useCallback(() => {
@@ -274,6 +350,7 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
   }, [refit, schedule])
 
   useEffect(() => () => {
+    clearTimeout(measureTimer.current)
     cancelAnimationFrame(frame.current)
     cancelAnimationFrame(walking.current.raf)
   }, [])
@@ -540,13 +617,6 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
     pick(tb, { fly: modeRef.current === 'map' })
   }
 
-  const onKeyOpen = useCallback(id => {
-    const tb = byIdRef.current.get(String(id))
-    if (!tb) return
-    setSelectedId(String(tb.id))
-    onTableRef.current?.(tb)
-  }, [])
-
   function preset(patch, key = null) {
     Object.assign(cam.current, patch)
     setView(key)
@@ -591,9 +661,14 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
 
   const tappable = !!onTable
   const scene = useMemo(
-    () => <Scene area={area} tables={tables} sectors={sectors} live={live} tappable={tappable} selectedId={selectedId} onKeyOpen={onKeyOpen} t={t} k={k} />,
-    [area, tables, sectors, live, tappable, selectedId, onKeyOpen, t, k],
+    () => <Scene area={area} tables={tables} sectors={sectors} live={live} tappable={tappable} selectedId={selectedId} k={k} walls={walls} blocks={solids.guests} />,
+    [area, tables, sectors, live, tappable, selectedId, k, walls, solids],
   )
+  // A new scene (live refresh, picked table rising) moves the names too.
+  useEffect(() => {
+    clearTimeout(measureTimer.current)
+    measureTimer.current = setTimeout(() => measureRef.current(), 420)
+  }, [scene])
 
   const selected = selectedId ? byId.get(selectedId) : null
   const listed = useMemo(
@@ -664,6 +739,28 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
             <div ref={worldRef} className="f3-world">
               {scene}
             </div>
+          </div>
+
+          <div ref={overlayRef} className="f3-names">
+            {chips.map(c => {
+              const tb = byId.get(c.id)
+              if (!tb) return null
+              if (c.room) return <span key={c.id} className="f3-room" style={{ left: c.x, top: c.y }} aria-hidden="true">{tb.nome}</span>
+              const label = live ? `${tb.nome}: ${t(`tabs.state.${tb.state}`)}${tb.open?.length ? `, ${fmtYen(tb.money.total)}` : ''}` : t('floor.tableAria', { name: tb.nome, n: tb.capacidade })
+              return (
+                <button
+                  key={c.id} type="button"
+                  className={`f3-name${live ? ` st-${tb.state}` : ''}${c.id === selectedId ? ' is-on' : ''}`}
+                  style={{ left: c.x, top: c.y, ...(live ? null : { '--st': tb.cor || sectors.find(x => x.id === tb.sector_id)?.cor || 'var(--c-accent)' }) }}
+                  onClick={() => tap(c.id, null)}
+                  disabled={!onTable}
+                  aria-label={label}
+                >
+                  <strong>{tb.nome}</strong>
+                  <small>{live ? `${t(`tabs.state.${tb.state}`)}${tb.open?.length ? ` · ${fmtYen(tb.money.total)}` : ''}` : t('tabs.people', { n: tb.capacidade })}</small>
+                </button>
+              )
+            })}
           </div>
 
           {live && guestsTotal > 0 && (

@@ -996,14 +996,21 @@ html .sdr-row-main { width: 100%; display: grid; grid-template-columns: 36px min
 .f3-stage.is-dragging .f3-world { transition: none; pointer-events: none; }
 .f3-stage.is-dragging .f3-floor,
 .f3-stage.is-dragging .f3-surface .f3-top { box-shadow: none; }
-.f3-stage.is-dragging .f3-label { transition: none; }
 .f3-floor {
-  position: absolute; border-radius: 4px; background-color: var(--c-surface);
+  position: absolute; border-radius: 2px; background-color: #cdb79a;
+  /* Wooden boards about 15 cm wide, with a soft light across the room. */
   background-image:
-    linear-gradient(to right, color-mix(in srgb, var(--c-text) 7%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in srgb, var(--c-text) 7%, transparent) 1px, transparent 1px);
-  background-size: 50px 50px; box-shadow: 0 0 0 1px var(--c-border-2), 0 30px 60px rgba(0,0,0,.18);
+    radial-gradient(ellipse at 50% 40%, rgba(255,255,255,.22), rgba(0,0,0,.12) 75%),
+    repeating-linear-gradient(90deg, rgba(0,0,0,.07) 0 1px, transparent 1px calc(var(--tile, 60px) / 4)),
+    repeating-linear-gradient(0deg, rgba(0,0,0,.05) 0 1px, transparent 1px var(--tile, 60px)),
+    linear-gradient(90deg, #c9b291, #d6c2a4 50%, #c6ae8c);
+  box-shadow: 0 0 0 1px var(--c-border-2), 0 30px 60px rgba(0,0,0,.18);
 }
+/* The ceiling only exists when walking inside. */
+.f3-ceiling { position: absolute; display: none; background: linear-gradient(#2b2724, #1d1a18); pointer-events: none; }
+.f3-stage.is-pov .f3-ceiling { display: block; }
+.f3-lintel { position: absolute; inset: 0; transform-style: preserve-3d; pointer-events: none; }
+.f3-lintel .f3-surface .f3-top, .f3-lintel .f3-surface .f3-side { background: #8b6f52; border: 0; }
 .f3-box, .f3-table { position: absolute; transform-style: preserve-3d; }
 .f3-table { transform-origin: 50% 50%; transition: transform .35s cubic-bezier(.2,.9,.3,1.3); }
 .f3-side, .f3-top, .f3-layer { position: absolute; left: 0; top: 0; backface-visibility: visible; }
@@ -1022,28 +1029,12 @@ html .sdr-row-main { width: 100%; display: grid; grid-template-columns: 36px min
 .f3-seat .f3-top.is-round { border-radius: 50%; }
 .f3-seat .f3-side, .f3-seat .f3-layer { background: color-mix(in srgb, var(--c-text) 38%, var(--c-surface)); }
 .f3-wall.is-cut { transform: scaleZ(var(--f3-wallk, 1)); }
+.f3-table.is-wall .f3-surface .f3-top { background: color-mix(in srgb, var(--f3-color) 55%, #f4efe8); border: 0; }
+.f3-table.is-wall .f3-surface .f3-side { background: linear-gradient(to top, color-mix(in srgb, var(--f3-color) 70%, #000), color-mix(in srgb, var(--f3-color) 85%, #fff)); }
+.f3-table.is-wall .f3-surface .f3-side.is-w, .f3-table.is-wall .f3-surface .f3-side.is-e { background: linear-gradient(to top, color-mix(in srgb, var(--f3-color) 55%, #000), color-mix(in srgb, var(--f3-color) 72%, #000)); }
 .f3-wall .f3-top { background: color-mix(in srgb, var(--c-text) 30%, var(--c-surface)); }
 .f3-wall .f3-side { background: color-mix(in srgb, var(--c-text) 16%, var(--c-surface)); }
-.f3-label {
-  display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 3px 8px; border: 0; border-radius: 8px;
-  background: color-mix(in srgb, var(--c-surface) 90%, transparent); color: var(--c-text); font: inherit; line-height: 1.1; cursor: pointer;
-  min-width: 44px; min-height: 36px; justify-content: center; touch-action: none; white-space: nowrap;
-  box-shadow: 0 2px 6px rgba(0,0,0,.18), inset 3px 0 0 var(--f3-color);
-  /* A tag standing on the table top, turned and tilted to face the camera, kept readable at any zoom. */
-  position: absolute; left: 50%; bottom: 50%; transform-origin: 50% 100%;
-  transform: translateX(-50%) rotateZ(calc((var(--f3-spin, 0) + var(--f3-rot, 0)) * -1deg)) rotateX(calc(var(--f3-tilt, 0) * -1deg)) scale(var(--f3-ls, 1));
-}
-/* Room names (bar, stage, karaoke...) lie flat on the piece. */
-.f3-label.is-static {
-  position: static; transform: rotateZ(calc((var(--f3-spin, 0) + var(--f3-rot, 0)) * -1deg)) scale(var(--f3-ls, 1)); box-shadow: none; min-height: 0; min-width: 0;
-  max-width: 100%; overflow: hidden; background: color-mix(in srgb, var(--c-surface) 70%, transparent);
-}
-.f3-label.is-static strong { font-size: 11px; }
 .f3-table.is-tappable { cursor: pointer; }
-.f3-label:disabled { cursor: default; }
-.f3-label strong { font-size: 13px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.f3-label small { font-size: 10px; color: var(--c-text-2); white-space: nowrap; }
-.f3-label:focus-visible { outline: 3px solid var(--c-focus); }
 .f3-table[class*=" st-"] { --f3-color: var(--st); }
 .f3-table.st-free { --f3-color: var(--c-success); }
 .f3-table.is-off { opacity: .45; }
@@ -1116,6 +1107,23 @@ html .sdr-row-main { width: 100%; display: grid; grid-template-columns: 36px min
 @media (prefers-reduced-motion: reduce) {
   .f3-guest-walk, .f3-guest-body, .f3-pin-bb { animation: none; }
 }
+/* Names over the stage: flat, upright and sharp, placed where each table is drawn. */
+.f3-names { position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: var(--radius-lg); transition: opacity .15s; }
+.f3-names.is-moving { opacity: 0; transition: none; }
+.f3-name {
+  position: absolute; transform: translate(-50%, calc(-100% - 6px)); pointer-events: auto; display: flex; flex-direction: column; align-items: flex-start;
+  padding: 3px 9px 3px 8px; border: 0; border-left: 4px solid var(--st, var(--c-accent)); border-radius: 8px; background: var(--c-surface); color: var(--c-text);
+  box-shadow: 0 2px 8px rgba(0,0,0,.22); font: inherit; line-height: 1.15; white-space: nowrap; cursor: pointer; min-height: 32px; justify-content: center;
+}
+.f3-name::after { content: ""; position: absolute; left: 50%; bottom: -4px; width: 8px; height: 8px; margin-left: -4px; background: var(--c-surface); transform: rotate(45deg); }
+.f3-name strong { font-size: 13px; font-weight: 800; }
+.f3-name small { font-size: 11px; color: var(--c-text-2); }
+.f3-name.st-free { --st: var(--c-success); }
+.f3-name.is-on { outline: 3px solid var(--st, var(--c-accent)); z-index: 2; }
+.f3-name:disabled { cursor: default; }
+.f3-name:focus-visible { outline: 3px solid var(--c-focus); }
+.f3-room { position: absolute; transform: translate(-50%, -50%); padding: 1px 7px; border-radius: 6px; background: color-mix(in srgb, var(--c-surface) 78%, transparent); color: var(--c-text-2); font-size: 11px; font-weight: 700; white-space: nowrap; pointer-events: none; }
+@media (max-width: 639px) { .f3-name small { display: none; } .f3-name { min-height: 26px; padding: 2px 7px; } .f3-room { font-size: 10px; } }
 /* Overlays on the stage */
 .f3-badge { position: absolute; left: 10px; top: 10px; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--c-surface) 88%, transparent); border: 1px solid var(--c-border); font-size: 12px; font-weight: 700; pointer-events: none; }
 .f3-card { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; border-radius: var(--radius-lg); background: var(--c-surface); border: 1px solid var(--c-border); border-left: 5px solid var(--st, var(--c-accent)); box-shadow: var(--shadow-sm, 0 4px 14px rgba(0,0,0,.15)); max-width: 460px; }
@@ -1291,7 +1299,6 @@ html .sdr-row-main { width: 100%; display: grid; grid-template-columns: 36px min
 .fe-swatch-custom input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .f3-table.is-decor .f3-top { border-width: 0; background: color-mix(in srgb, var(--f3-color) 80%, #fff); }
 .f3-table.is-door .f3-top { background: repeating-linear-gradient(90deg, var(--f3-color) 0 6px, transparent 6px 10px); }
-.f3-label.is-static { cursor: default; }
 
 /* Drink supply: order → on the way → received */
 .sup-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 4px 0 16px; }

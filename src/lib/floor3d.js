@@ -187,3 +187,81 @@ export function standSpot(tables, area, k = 1) {
   const yaw = Math.hypot(dx, dy) < 1 ? 0 : (Math.atan2(-dx, -dy) * 180) / Math.PI
   return { x: at.x, y: at.y, yaw }
 }
+
+/**
+ * Walls with the doors cut out of them. A door drawn over a wall opens a gap along the wall's long
+ * side, so the 3D view shows a doorway and a person can walk through it. Rotated walls stay whole.
+ * Returns plan rectangles {x, y, w, h, id}.
+ */
+export function wallPieces(tables) {
+  const on = (tables || []).filter(tb => tb.ativo !== false)
+  const doors = on.filter(tb => tb.forma === 'door').map(rectOf)
+  const out = []
+  for (const tb of on) {
+    if (tb.forma !== 'wall') continue
+    const x = +tb.x; const y = +tb.y; const w = +tb.largura || 0; const h = +tb.altura || 0
+    if (+tb.rotacao) { out.push({ id: tb.id, x, y, w, h, rot: +tb.rotacao, cor: tb.cor }); continue }
+    const along = w >= h
+    let spans = [[along ? x : y, along ? x + w : y + h]]
+    for (const d of doors) {
+      // The door must cross the wall's thickness, not just touch its end.
+      const crosses = along ? d.y0 < y + h && d.y1 > y : d.x0 < x + w && d.x1 > x
+      if (!crosses) continue
+      const [c0, c1] = along ? [d.x0, d.x1] : [d.y0, d.y1]
+      spans = spans.flatMap(([a, b]) => (c1 <= a || c0 >= b ? [[a, b]] : [[a, c0], [c1, b]].filter(([p, q]) => q - p > 1)))
+    }
+    spans.forEach(([a, b], i) => out.push(along
+      ? { id: `${tb.id}:${i}`, x: a, y, w: b - a, h, cor: tb.cor }
+      : { id: `${tb.id}:${i}`, x, y: a, w, h: b - a, cor: tb.cor }))
+  }
+  return out
+}
+
+/** Plan rectangles {x0, y0, x1, y1} for wall pieces (doorways left open). */
+export function pieceRects(pieces) {
+  return pieces.map(p => rectOf({ x: p.x, y: p.y, largura: p.w, altura: p.h, rotacao: p.rot || 0 }))
+}
+
+/** True when the straight walk from a to b stays clear of every rectangle (checked in short steps). */
+export function clearPath(rects, a, b, r = 0) {
+  const n = Math.max(2, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 8))
+  for (let i = 1; i <= n; i++) {
+    const t = i / n
+    if (hits(rects, a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, r)) return false
+  }
+  return true
+}
+
+/** A point in a table's own box turned into plan coordinates (the box turns about its centre). */
+export function toPlan(tb, p) {
+  const w = +tb.largura || 0
+  const d = +tb.altura || 0
+  const a = ((+tb.rotacao || 0) * Math.PI) / 180
+  const dx = p.x - w / 2
+  const dy = p.y - d / 2
+  return { x: +tb.x + w / 2 + dx * Math.cos(a) - dy * Math.sin(a), y: +tb.y + d / 2 + dx * Math.sin(a) + dy * Math.cos(a) }
+}
+
+/**
+ * Keeps each guest's little walk inside the room: the walk (a plan vector, given in the table's own
+ * box) is tried as is, then shorter, then turned; if no way is clear the guest stays at the seat.
+ */
+export function safeWalks(tb, guests, rects, k = 1) {
+  const a = ((+tb.rotacao || 0) * Math.PI) / 180
+  const r = 20 * k
+  return guests.map(g => {
+    const from = toPlan(tb, g)
+    for (const turn of [0, 90, -90, 180]) {
+      for (const len of [1, 0.6, 0.35]) {
+        const t = (turn * Math.PI) / 180
+        const lx = (g.wx * Math.cos(t) - g.wy * Math.sin(t)) * len * k
+        const ly = (g.wx * Math.sin(t) + g.wy * Math.cos(t)) * len * k
+        // The walk is drawn inside the turned table box; turn it into plan space to test it.
+        const px = lx * Math.cos(a) - ly * Math.sin(a)
+        const py = lx * Math.sin(a) + ly * Math.cos(a)
+        if (clearPath(rects, from, { x: from.x + px, y: from.y + py }, r)) return { ...g, wx: Math.round(lx), wy: Math.round(ly) }
+      }
+    }
+    return { ...g, wx: 0, wy: 0, roam: false }
+  })
+}
