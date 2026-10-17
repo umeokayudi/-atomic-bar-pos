@@ -69,6 +69,8 @@ const PAGES = [
   { who: MANAGER, path: '/bar/mesas', name: 'bar-floor-edit-3d', edit: true, click: /3D preview/ },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos' },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-counter', click: /Counter/ },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-dashboard', click: /^Dashboard$/ },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-void', click: /^Dashboard$/, then: /^Void$/ },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-order', click: /Counter/, taps: ['.pq-tile-hit', '.pq-tile-hit', '.pq-cartbar'], tapsBelow: 901 },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-vip', chip: /VIP/ },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-drinkback', chip: /Drink Back/ },

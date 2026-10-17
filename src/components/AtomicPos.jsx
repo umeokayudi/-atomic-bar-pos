@@ -26,6 +26,7 @@ import { useI18n } from '../lib/i18n'
 import { matchCheckoutVisit, spacesByZone, activeKeeps } from '../lib/barCrm'
 import { packTicketObs, ticketChargeLines, settingsFromRow, DEFAULT_POS_SETTINGS, effectiveServicePct, cardSurchargeLine } from '../lib/nightTicket'
 import { cardSurcharge, isCardMethod, machineFee, pickCardMachine } from '../lib/posFloor'
+import { buildVoid, canVoid, isVoidRow, isVoided } from '../lib/posVoid'
 import { summarizeNight, reconcileNight, nightWindow, closeVariance, saleOnNight, prevTokyoDateKey, lastBusyNight } from '../lib/nightClose'
 import { CASH_CHIPS, cashSettle, isCashMethod, payRecordNote } from '../lib/posPay'
 import { printGuestReceipt } from '../lib/guestReceipt'
@@ -84,6 +85,8 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
   const [nightSales, setNightSales] = useState(salesHint || [])
   const [cashMoves, setCashMoves] = useState([])
   const [open, setOpen] = useState(!compact)
+  const [pending, setPending] = useState(null)
+  const [pendingCount, setPendingCount] = useState('')
 
   useEffect(() => {
     const bounds = nightWindow(nightKey)
@@ -93,8 +96,10 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
       supabase.from('pos_shifts').select('*').eq('bar_id', bar.id).eq('night_key', nightKey).maybeSingle(),
       supabase.from('pos_vendas').select(salesRich).eq('bar_id', bar.id).gte('data', `${tokyoMonthKey()}-01`),
       supabase.from('caixa_movimentos').select(cashRich).eq('bar_id', bar.id).gte('data', bounds.from).lte('data', bounds.to),
-    ]).then(async ([sh, sl, cash]) => {
+      supabase.from('pos_shifts').select('*').eq('bar_id', bar.id).eq('status', 'counting').order('night_key', { ascending: false }).limit(1),
+    ]).then(async ([sh, sl, cash, waiting]) => {
       setShift(sh.data || null)
+      setPending((waiting?.data || []).find(r => r.night_key !== nightKey) || null)
       if (sl.error && /refunded|card_fee/.test(sl.error.message || '')) {
         const plain = await supabase.from('pos_vendas').select('id,total,data,criado_em,metodo_pagamento,obs').eq('bar_id', bar.id).gte('data', `${tokyoMonthKey()}-01`)
         setNightSales(plain.data || salesHint || [])
@@ -119,6 +124,7 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
       ? { date: lastBusy.date, count: lastBusy.ticketCount, amount: lastBusy.total, split: summarizeNight(nightSales, lastBusy.date) }
       : null
   const closed = shift?.status === 'closed'
+  const countingNow = shift?.status === 'counting'
 
   if (compact && !open) {
     return (
@@ -146,7 +152,13 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
         .gte('data', lastNightKey)
     }
     const sum = reconcileNight(salesRes.data || salesHint, cashMoves, nightKey)
-    const countedCash = counted === '' ? sum.expectedCash : +counted
+    // The drawer must be counted: an empty field used to be saved as "matched", so a shortage never showed.
+    if (counted === '' || !Number.isFinite(+counted)) {
+      setBusy(false)
+      setMsg(t('atomicPos.countRequired'))
+      return
+    }
+    const countedCash = +counted
     const row = {
       bar_id: bar.id,
       night_key: nightKey,
@@ -176,7 +188,24 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
       return
     }
     setShift(s => ({ ...(s || {}), ...row, status: 'closed' }))
-    setMsg(t('atomicPos.closedOk'))
+    setMsg(`${t('atomicPos.closedOk')} · ${t('atomicPos.varianceLine', { expected: fmtYen(row.expected_cash), counted: fmtYen(row.counted_cash), diff: fmtYen(row.variance) })}`)
+  }
+
+  /** Saves the real cash for a night the automatic close shut without a count. */
+  async function saveCount(target, value, done) {
+    if (value === '' || !Number.isFinite(+value)) { setMsg(t('atomicPos.countRequired')); return }
+    setBusy(true)
+    const patch = {
+      status: 'closed',
+      counted_cash: +value,
+      variance: closeVariance(target.expected_cash, +value),
+      closed_by: user?.id || target.closed_by || null,
+    }
+    const { error } = await supabase.from('pos_shifts').update(patch).eq('id', target.id)
+    setBusy(false)
+    if (error) { setMsg(error.message); return }
+    done({ ...target, ...patch })
+    setMsg(t('atomicPos.countSaved', { diff: fmtYen(patch.variance) }))
   }
 
   return (
@@ -219,8 +248,30 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
           )}
         </div>
       </div>
+      {pending && (
+        <div className="pos-close-actions pos-close-pending">
+          <div className="pos-close-msg">{t('atomicPos.countPending', { date: pending.night_key, expected: fmtYen(pending.expected_cash) })}</div>
+          <input type="number" min="0" placeholder={t('atomicPos.cashCounted')} value={pendingCount} onChange={e => setPendingCount(e.target.value)} />
+          <button type="button" className="btn-primary" disabled={busy || pendingCount === ''} onClick={() => saveCount(pending, pendingCount, () => { setPending(null); setPendingCount('') })}>
+            {t('atomicPos.saveCount')}
+          </button>
+        </div>
+      )}
       {closed ? (
-        <div className="pos-close-done">{t('atomicPos.alreadyClosed')} · {fmtYen(shift.drinks_total || summary.drinksTotal)}</div>
+        <div className="pos-close-done">
+          {t('atomicPos.alreadyClosed')} · {fmtYen(shift.drinks_total || summary.drinksTotal)}
+          {shift.counted_cash != null && (
+            <div className="pos-close-split">{t('atomicPos.varianceLine', { expected: fmtYen(shift.expected_cash), counted: fmtYen(shift.counted_cash), diff: fmtYen(shift.variance) })}</div>
+          )}
+        </div>
+      ) : countingNow ? (
+        <div className="pos-close-actions">
+          <div className="pos-close-msg">{t('atomicPos.countPending', { date: shift.night_key, expected: fmtYen(shift.expected_cash) })}</div>
+          <input type="number" min="0" placeholder={t('atomicPos.cashCounted')} value={counted} onChange={e => setCounted(e.target.value)} />
+          <button type="button" className="btn-primary" disabled={busy || counted === ''} onClick={() => saveCount(shift, counted, setShift)}>
+            {t('atomicPos.saveCount')}
+          </button>
+        </div>
       ) : (
         <div className="pos-close-actions">
           <input
@@ -230,7 +281,7 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
             value={counted}
             onChange={e => setCounted(e.target.value)}
           />
-          <button type="button" className="btn-primary" disabled={busy} onClick={closeNight}>
+          <button type="button" className="btn-primary" disabled={busy || counted === ''} title={counted === '' ? t('atomicPos.countRequired') : undefined} onClick={closeNight}>
             {busy ? t('common.saving') : t('atomicPos.closeNight')}
           </button>
         </div>
@@ -1448,7 +1499,7 @@ function HourlyChart({ data, height = 100 }) {
   )
 }
 
-function PosDashboardTab({ bar, todaySales, salesList, onOrder }) {
+function PosDashboardTab({ bar, todaySales, salesList, onOrder, onVoided }) {
   const { t } = useI18n()
   const [lowStock, setLowStock] = useState([])
   const [agentStats, setAgentStats] = useState([])
@@ -1510,6 +1561,7 @@ function PosDashboardTab({ bar, todaySales, salesList, onOrder }) {
         </div>
       </div>
       <NightCloseBar bar={bar} salesHint={salesList} />
+      <TonightSales bar={bar} salesList={salesList} onVoided={onVoided} />
 
       {openRestock.length === 0 && lowStock.length === 0 && (
         <div className="easy-dash-ok" style={{ marginBottom: 16 }}>{t('atomicPos.stockOk')}</div>
@@ -1588,6 +1640,74 @@ function PosDashboardTab({ bar, todaySales, salesList, onOrder }) {
       )}
 
       {loading && <Spinner />}
+    </div>
+  )
+}
+
+/** Tonight's tickets, each with Void for the owner/manager (this tab is never shown to the cashier). */
+function TonightSales({ bar, salesList, onVoided }) {
+  const { t } = useI18n()
+  const { user, perfil } = useAuth()
+  const [voiding, setVoiding] = useState(null)
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const nightKey = tokyoNightKey()
+  const rows = (salesList || []).filter(s => saleOnNight(s, nightKey)).slice().reverse()
+
+  async function confirmVoid() {
+    setBusy(true)
+    setMsg('')
+    try {
+      const { voidRow, originalPatch } = buildVoid({ ...voiding, bar_id: voiding.bar_id || bar.id }, {
+        reason, byName: perfil?.nome || user?.email, byId: user?.id,
+      })
+      const ins = await supabase.from('pos_vendas').insert(voidRow)
+      if (ins.error) throw ins.error
+      await supabase.from('pos_vendas').update(originalPatch).eq('id', voiding.id)
+      setVoiding(null)
+      setReason('')
+      setMsg(t('atomicPos.voidDone'))
+      onVoided?.()
+    } catch (e) {
+      setMsg(e.message || String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <SectionTitle>{t('atomicPos.salesTonight')}</SectionTitle>
+      {!rows.length && <div className="pos-close-split">{t('atomicPos.noSalesTonight')}</div>}
+      {rows.map((s, i) => {
+        const when = s.criado_em ? new Date(s.criado_em).toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit' }) : ''
+        const voidRow = isVoidRow(s)
+        return (
+          <div key={s.id || i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+            <span style={{ width: 48, color: 'var(--text2)' }}>{when}</span>
+            <span style={{ flex: 1 }}>
+              {s.metodo_pagamento || '—'}
+              {voidRow && <span className="pos-close-split"> · {t('atomicPos.voidRowTag')}</span>}
+              {isVoided(s) && <span className="pos-close-split"> · {t('atomicPos.voidedTag')}</span>}
+            </span>
+            <strong style={{ color: voidRow ? 'var(--red)' : undefined, textDecoration: isVoided(s) ? 'line-through' : undefined }}>{fmtYen(s.total)}</strong>
+            {canVoid(s) && (
+              <button type="button" className="ord-ghost" onClick={() => { setVoiding(s); setReason(''); setMsg('') }}>{t('atomicPos.voidSale')}</button>
+            )}
+          </div>
+        )
+      })}
+      {voiding && (
+        <div className="pos-close-actions" style={{ marginTop: 12 }}>
+          <input type="text" placeholder={t('atomicPos.voidReason')} value={reason} onChange={e => setReason(e.target.value)} autoFocus />
+          <button type="button" className="btn-primary" disabled={busy || !reason.trim()} onClick={confirmVoid}>
+            {busy ? t('common.saving') : t('atomicPos.voidConfirm', { amount: fmtYen(voiding.total) })}
+          </button>
+          <button type="button" className="ord-ghost" onClick={() => setVoiding(null)} disabled={busy}>{t('common.cancel')}</button>
+        </div>
+      )}
+      {msg && <div className="pos-close-msg">{msg}</div>}
     </div>
   )
 }
@@ -1722,7 +1842,7 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
     forgetLiveSelects('pos_vendas')
     const nightKey = tokyoNightKey()
     const from = prevTokyoDateKey(nightKey)
-    const salesSelect = 'total,refunded,card_fee,card_fee_reversed,criado_em,data,metodo_pagamento,obs,drink_back_agent_id'
+    const salesSelect = 'id,bar_id,subtotal,desconto_total,tipo,space_id,guest_id,comissao_valor,total,refunded,card_fee,card_fee_reversed,criado_em,data,metodo_pagamento,obs,drink_back_agent_id'
     const [schema, dR, sR, cR, vR, salesFirst, aR] = await Promise.all([
       checkPosSchema(supabase),
       supabase.from('drink_menu').select('*').eq('bar_id', bar.id).order('nome'),
@@ -1734,7 +1854,7 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
     ])
     let pR = salesFirst
     if (pR.error && /refunded|card_fee/.test(pR.error.message || '')) {
-      pR = await supabase.from('pos_vendas').select('total,criado_em,data,metodo_pagamento,obs,drink_back_agent_id').eq('bar_id', bar.id).gte('data', from).order('criado_em')
+      pR = await supabase.from('pos_vendas').select('id,bar_id,total,criado_em,data,metodo_pagamento,obs,drink_back_agent_id').eq('bar_id', bar.id).gte('data', from).order('criado_em')
     }
     setReady(schema.ready)
     if (dR.error) setPosErr(dR.error.message || t('atomicPos.tillLoadError'))
@@ -1793,7 +1913,7 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
       )}
 
       {subTab === 'dashboard' && (
-        <PosDashboardTab bar={bar} todaySales={todaySales} salesList={salesList} onOrder={onOrder} />
+        <PosDashboardTab bar={bar} todaySales={todaySales} salesList={salesList} onOrder={onOrder} onVoided={() => init({ quiet: true })} />
       )}
 
       {!ready && subTab === 'checkout' && (
