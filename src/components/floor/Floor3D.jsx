@@ -1,9 +1,10 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useI18n } from '../../lib/i18n'
 import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
 import { SEAT, contentBounds, fitScale, guestSpots, hits, obstacles, pieceRects, safeWalks, seatSpots, standSpot, unitsPerCm, wallPieces } from '../../lib/floor3d'
-import { isDecor } from '../../lib/floorEditor'
+import { isDecor, isSeat, isToilet } from '../../lib/floorEditor'
+import PeopleStepper from './PeopleStepper'
 
 // Real heights in centimetres; the plan's own scale (units per cm, guessed from its tables) turns
 // them into plan units, so walls, tables, seats and people keep their proportions on any plan.
@@ -89,12 +90,43 @@ function Guest({ g }) {
 }
 
 /**
+ * What stands in a toilet room, in the room's own box: toilets along the back wall (a tank and a bowl),
+ * a sink at the front. Sizes in cm times `k`, so they match the guests and tables.
+ */
+function ToiletFixtures({ w, d, h, k }) {
+  // Kept off the room's edges, where the walls stand.
+  const inset = 12
+  const tank = { w: 40 * k, d: 18 * k }
+  const bowl = { w: 38 * k, d: 50 * k }
+  const sink = { w: Math.min(55 * k, w * 0.4), d: Math.min(42 * k, d * 0.3) }
+  if (w - inset * 2 < tank.w || d < inset * 2 + tank.d + bowl.d) return null
+  // The sink goes at the front; in a shallow room it stands at the end of the row of toilets.
+  const sinkFront = d >= inset * 2 + tank.d + bowl.d + sink.d + 6 * k
+  const free = w - inset * 2 - (sinkFront ? 0 : sink.w + 6 * k)
+  const n = Math.max(1, Math.min(4, Math.floor(free / (90 * k))))
+  return (
+    <div className="f3-fixtures" style={{ transform: `translateZ(${h}px)` }} aria-hidden="true">
+      {Array.from({ length: n }, (_, i) => {
+        const cx = inset + free * ((i + 0.5) / n)
+        return (
+          <Fragment key={i}>
+            <Box className="f3-fixture" w={tank.w} d={tank.d} h={75 * k} style={{ left: cx - tank.w / 2, top: inset }} />
+            <Box className="f3-fixture is-bowl" w={bowl.w} d={bowl.d} h={40 * k} style={{ left: cx - bowl.w / 2, top: inset + tank.d }} />
+          </Fragment>
+        )
+      })}
+      <Box className="f3-fixture is-sink" w={sink.w} d={sink.d} h={85 * k} style={{ left: w - sink.w - inset, top: sinkFront ? d - sink.d - inset : inset }} />
+    </div>
+  )
+}
+
+/**
  * The static part of the scene: floor, walls (with doorways cut out), tables, seats and guests. It does
  * not depend on the camera, so turning, tilting or zooming never re-renders it; guests face the viewer
  * through the `--f3-spin` custom property the camera writes on the world node. Names are drawn on a
  * flat layer over the stage (see `Floor3D`), not in the scene, so they stay sharp.
  */
-const Scene = memo(function Scene({ area, tables, sectors, live, tappable, selectedId, k, walls, blocks }) {
+const Scene = memo(function Scene({ area, tables, sectors, live, tappable, selectedId, k, walls, blocks, people = true }) {
   const sectorColor = id => sectors.find(s => s.id === id)?.cor
   const wallH = HEIGHT_CM.wall * k
   return (
@@ -119,26 +151,29 @@ const Scene = memo(function Scene({ area, tables, sectors, live, tappable, selec
         const d = +tb.altura
         const h = Math.max(2, (HEIGHT_CM[tb.forma] || 75) * k)
         const decor = isDecor(tb.forma)
+        // A seat place (table, or a VIP room drawn as a room piece) takes tabs, names and guests.
+        const seat = isSeat(tb)
         const color = tb.cor || DECOR_COLOR[tb.forma] || sectorColor(tb.sector_id) || 'var(--c-accent)'
         const seats = decor || tb.forma === 'sofa' ? [] : seatSpots(tb.forma, w, d, tb.capacidade)
-        const guests = live && !decor ? safeWalks(tb, guestSpots(tb, tb.pessoas), blocks, k) : []
+        const guests = live && seat && people ? safeWalks(tb, guestSpots(tb, tb.pessoas), blocks, k) : []
         const round = tb.forma === 'round' || tb.forma === 'plant'
-        const canTap = !decor && tappable
-        const selected = !decor && String(tb.id) === selectedId
+        const canTap = seat && tappable
+        const selected = seat && String(tb.id) === selectedId
         return (
           <div
             key={tb.id}
             data-f3-id={canTap ? tb.id : undefined}
-            data-f3-name={decor ? undefined : tb.id}
-            data-f3-room={tb.forma === 'stage' && Math.min(w, d) >= DECOR_LABEL_CM * k * 0.5 && Math.max(w, d) >= DECOR_LABEL_CM * k ? tb.id : undefined}
-            className={`f3-table is-${tb.forma}${decor ? ' is-decor' : ''}${live && !decor ? ` st-${tb.state}` : ''}${tb.ativo === false ? ' is-off' : ''}${canTap ? ' is-tappable' : ''}${selected ? ' is-selected' : ''}`}
-            style={{ left: +tb.x, top: +tb.y, width: w, height: d, transform: `translateZ(var(--f3-lift, 0px)) rotateZ(${+tb.rotacao || 0}deg)`, '--f3-rot': +tb.rotacao || 0, ...(live && !decor ? null : { '--f3-color': color }) }}
+            data-f3-name={seat ? tb.id : undefined}
+            data-f3-room={!seat && tb.forma === 'stage' && Math.min(w, d) >= DECOR_LABEL_CM * k * 0.5 && Math.max(w, d) >= DECOR_LABEL_CM * k ? tb.id : undefined}
+            className={`f3-table is-${tb.forma}${decor ? ' is-decor' : ''}${live && seat ? ` st-${tb.state}` : ''}${tb.ativo === false ? ' is-off' : ''}${canTap ? ' is-tappable' : ''}${selected ? ' is-selected' : ''}`}
+            style={{ left: +tb.x, top: +tb.y, width: w, height: d, transform: `translateZ(var(--f3-lift, 0px)) rotateZ(${+tb.rotacao || 0}deg)`, '--f3-rot': +tb.rotacao || 0, ...(live && seat ? null : { '--f3-color': color }) }}
           >
             {selected && <div className="f3-glow" />}
             {seats.map((s, i) => (
               <Box key={i} className="f3-seat" w={SEAT} d={SEAT} h={SEAT_CM * k} round={tb.forma === 'round'} style={{ left: s.x, top: s.y }} />
             ))}
             <Box w={w} d={d} h={h} round={round} className="f3-surface" />
+            {tb.forma === 'stage' && isToilet(tb) && <ToiletFixtures w={w} d={d} h={h} k={k} />}
             {tb.forma === 'door' && (
               // The top of the doorway: a beam over the gap at door height, so it reads as a door, not a wall.
               <div className="f3-lintel" style={{ transform: `translateZ(${DOOR_CM * k}px) scaleZ(var(--f3-wallk, 1))` }}>
@@ -176,7 +211,7 @@ const Scene = memo(function Scene({ area, tables, sectors, live, tappable, selec
  * The camera lives in refs and is written straight to the world node once per animation frame, so
  * moving it never re-renders React.
  */
-export default function Floor3D({ layout, tables = [], sectors = [], onTable, live = false, confirm = live }) {
+export default function Floor3D({ layout, tables = [], sectors = [], onTable, onPeople, live = false, confirm = live }) {
   const { t } = useI18n()
   const W = +layout.largura || 900
   const D = +layout.altura || 500
@@ -193,6 +228,9 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
   const [listPref, setShowListState] = useState(() => readPref('list', true))
   const showList = live && listPref
   const [selectedId, setSelectedId] = useState(null)
+  // Guests and names can each be turned off, so a busy floor stays readable.
+  const [people, setPeopleState] = useState(() => readPref('people', true))
+  const [names, setNamesState] = useState(() => readPref('names', true))
 
   const stageRef = useRef(null)
   const worldRef = useRef(null)
@@ -241,6 +279,8 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
   const setMode = m => setModeState(m)
   const setDrag = v => { setDragState(v); writePref('drag', v) }
   const setCrop = v => { setCropState(v); writePref('crop', v) }
+  const setPeople = v => { setPeopleState(v); writePref('people', v) }
+  const setNames = v => { setNamesState(v); writePref('names', v) }
   const setShowList = v => { setShowListState(v); writePref('list', v) }
 
   const apply = useCallback(() => {
@@ -661,8 +701,8 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
 
   const tappable = !!onTable
   const scene = useMemo(
-    () => <Scene area={area} tables={tables} sectors={sectors} live={live} tappable={tappable} selectedId={selectedId} k={k} walls={walls} blocks={solids.guests} />,
-    [area, tables, sectors, live, tappable, selectedId, k, walls, solids],
+    () => <Scene area={area} tables={tables} sectors={sectors} live={live} tappable={tappable} selectedId={selectedId} k={k} walls={walls} blocks={solids.guests} people={people} />,
+    [area, tables, sectors, live, tappable, selectedId, k, walls, solids, people],
   )
   // A new scene (live refresh, picked table rising) moves the names too.
   useEffect(() => {
@@ -672,7 +712,7 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
 
   const selected = selectedId ? byId.get(selectedId) : null
   const listed = useMemo(
-    () => tables.filter(tb => !isDecor(tb.forma) && tb.ativo !== false)
+    () => tables.filter(isSeat)
       .sort((a, b) => String(a.nome).localeCompare(String(b.nome), undefined, { numeric: true })),
     [tables],
   )
@@ -719,6 +759,10 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
           </>
         )}
         {live && (
+          <button type="button" className="ui-btn is-sm f3-toggle" aria-pressed={people} onClick={() => setPeople(!people)} aria-label={t('floor.showPeople')} title={t('floor.showPeople')}><Icon name="people" size={15} /><span className="f3-tlabel">{t('floor.peopleBtn')}</span></button>
+        )}
+        <button type="button" className="ui-btn is-sm f3-toggle" aria-pressed={names} onClick={() => setNames(!names)} aria-label={t('floor.showNames')} title={t('floor.showNames')}><Icon name="eye" size={15} /><span className="f3-tlabel">{t('floor.namesBtn')}</span></button>
+        {live && (
           <button type="button" className="ui-btn is-sm f3-toggle" aria-pressed={showList} onClick={() => setShowList(!showList)} aria-label={t('floor.tableList')}><Icon name="list" size={15} /><span className="f3-tlabel">{t('floor.tableList')}</span></button>
         )}
       </div>
@@ -741,7 +785,7 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
             </div>
           </div>
 
-          <div ref={overlayRef} className="f3-names">
+          <div ref={overlayRef} className="f3-names" hidden={!names}>
             {chips.map(c => {
               const tb = byId.get(c.id)
               if (!tb) return null
@@ -763,7 +807,7 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
             })}
           </div>
 
-          {live && guestsTotal > 0 && (
+          {live && people && guestsTotal > 0 && (
             <div className="f3-badge" aria-live="polite"><Icon name="people" size={13} /> {t('floor.guestsNow', { n: guestsTotal })}</div>
           )}
 
@@ -780,6 +824,9 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, li
               <div className="f3-card-actions">
                 {mode === 'map' && (
                   <button type="button" className="ui-btn is-sm is-icon" onClick={() => enterPov(selected)} aria-label={t('floor.viewFrom')} title={t('floor.viewFrom')}><Icon name="pov" size={16} /></button>
+                )}
+                {live && onPeople && selected.open?.length === 1 && (
+                  <PeopleStepper key={selected.open[0].id} value={+selected.open[0].pessoas || 1} onSave={n => onPeople(selected.open[0], n)} />
                 )}
                 {onTable && <button type="button" className="ui-btn is-sm is-primary" onClick={() => onTableRef.current?.(selected)}>{t('floor.openSel')}</button>}
                 <button type="button" className="ui-btn is-sm is-icon" onClick={() => setSelectedId(null)} aria-label={t('common.close')}><Icon name="close" size={16} /></button>

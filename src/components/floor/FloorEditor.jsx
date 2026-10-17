@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useI18n } from '../../lib/i18n'
 import { floorApi, isConflict } from '../../lib/comandas'
 import {
-  MIN_SIZE, SHAPES, TABLE_COLORS, addSector, isDecor, addTable, createHistory, duplicateTable, fitZoom, isDirty, pushHistory, redo,
+  MIN_SIZE, SHAPES, TABLE_COLORS, addSector, counterChairs, isDecor, numberCounterChairs, addTable, createHistory, duplicateTable, fitZoom, isDirty, pushHistory, redo,
   removeSector, removeTable, toSavePayload, undo, updateTable, validateLayout,
 } from '../../lib/floorEditor'
 import Icon from '../ui/Icon'
@@ -200,6 +200,7 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
   }
 
   if (!state) return <div className="ui-skel" style={{ height: 320 }} />
+  const chairCount = counterChairs(state.tables).length
   const L = state.layout
   const sectorOf = id => state.sectors.find(s => s.id === id)
 
@@ -229,6 +230,12 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
             </button>
           ))}
         </div>
+        {chairCount > 0 && (
+          // Optional: the stools at the counter become "Chair 1, 2, 3..." with one seat each, so a tab can be opened per chair.
+          <button type="button" className="ui-btn is-sm" onClick={() => commit(s => numberCounterChairs(s, n => t('floor.chairName', { n })))} title={t('floor.numberChairsHint')}>
+            <Icon name="people" size={14} /> {t('floor.numberChairs', { n: chairCount })}
+          </button>
+        )}
         <span className="ui-spacer" />
         <div className="ui-row" role="group" aria-label={t('floor.view')}>
           <button type="button" className="ui-btn is-icon is-sm" onClick={() => setHist(undo)} disabled={!hist.past.length} aria-label={t('floor.undo')} title="Ctrl+Z"><Icon name="undo" size={16} /></button>

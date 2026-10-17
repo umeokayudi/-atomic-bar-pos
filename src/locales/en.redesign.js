@@ -311,6 +311,9 @@ export default {
     },
   },
   floor: {
+    showPeople: 'Show or hide the people', peopleBtn: 'People', showNames: 'Show or hide the names', namesBtn: 'Names',
+    peopleLess: 'One person less', peopleMore: 'One person more', vip: 'VIP',
+    chairName: 'Chair {n}', numberChairs: 'Number counter chairs ({n})', numberChairsHint: 'Names the stools at the counter Chair 1, 2, 3... with one seat each, so a tab can be opened per chair. Undo reverts it.',
     addRoom: 'Add part of the room', customColor: 'Any colour',
     planOnly: 'The floor plan is saved and works now. Opening tabs on a table needs the database update (sql/floor_comandas.sql); until then use the till.',
     planOnlyTable: '{n} seats. Opening a tab on this table needs the database update; use the till for now.',

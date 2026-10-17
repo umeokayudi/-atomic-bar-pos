@@ -23,6 +23,7 @@ import { commitSaleAtomic, newSaleKey } from '../../lib/posCommit'
 import { floorAvailable, floorApi, isConflict, loadOpenTabs, newKey, pendingToLines, tabMoney, tabsApi } from '../../lib/comandas'
 import Icon from '../ui/Icon'
 import TabPanel from '../floor/TabPanel'
+import { seatsOf, vipTag } from '../../lib/floorEditor'
 import CustomerPicker from './CustomerPicker'
 
 const PAY = [
@@ -242,7 +243,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
         const layout = list.find(l => l.ativo) || list[0]
         return layout ? floorApi.layout(supabase, layout.id) : { tables: [] }
       })
-      .then(({ tables: rows }) => setTables((rows || []).filter(r => r.ativo !== false)))
+      .then(({ tables: rows }) => setTables(seatsOf(rows)))
       .catch(() => setTables([]))
     const id = setInterval(() => { if (document.visibilityState === 'visible') refreshTabs() }, POLL_MS)
     const onVis = () => { if (document.visibilityState === 'visible') refreshTabs() }
@@ -967,7 +968,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
                         if (taken) { switchTo(SRV + taken.id); setTabSheet(false); return }
                         setTabForm(f => ({ ...f, tableId: f.tableId === row.id ? '' : row.id }))
                       }}>
-                      {row.nome}{taken ? ` · ${taken.nome}` : ''}
+                      {row.nome}{server && vipTag(row) ? ` · ${t('floor.vip')}` : ''}{taken ? ` · ${taken.nome}` : ''}
                     </button>
                   )
                 })}

@@ -1110,28 +1110,37 @@ html .sdr-row-main { width: 100%; display: grid; grid-template-columns: 36px min
 /* Names over the stage: flat, upright and sharp, placed where each table is drawn. */
 .f3-names { position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: var(--radius-lg); transition: opacity .15s; }
 .f3-names.is-moving { opacity: 0; transition: none; }
+.f3-names[hidden] { display: none; }
 .f3-name {
   position: absolute; transform: translate(-50%, calc(-100% - 6px)); pointer-events: auto; display: flex; flex-direction: column; align-items: flex-start;
   padding: 3px 9px 3px 8px; border: 0; border-left: 4px solid var(--st, var(--c-accent)); border-radius: 8px; background: var(--c-surface); color: var(--c-text);
-  box-shadow: 0 2px 8px rgba(0,0,0,.22); font: inherit; line-height: 1.15; white-space: nowrap; cursor: pointer; min-height: 32px; justify-content: center;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.18), 0 3px 10px rgba(0,0,0,.35); font: inherit; line-height: 1.15; white-space: nowrap; cursor: pointer; min-height: 32px; justify-content: center;
 }
 .f3-name::after { content: ""; position: absolute; left: 50%; bottom: -4px; width: 8px; height: 8px; margin-left: -4px; background: var(--c-surface); transform: rotate(45deg); }
-.f3-name strong { font-size: 13px; font-weight: 800; }
-.f3-name small { font-size: 11px; color: var(--c-text-2); }
+.f3-name strong { font-size: 14px; font-weight: 800; letter-spacing: .01em; }
+.f3-name small { font-size: 12px; font-weight: 600; color: var(--c-text-2); }
 .f3-name.st-free { --st: var(--c-success); }
 .f3-name.is-on { outline: 3px solid var(--st, var(--c-accent)); z-index: 2; }
 .f3-name:disabled { cursor: default; }
 .f3-name:focus-visible { outline: 3px solid var(--c-focus); }
-.f3-room { position: absolute; transform: translate(-50%, -50%); padding: 1px 7px; border-radius: 6px; background: color-mix(in srgb, var(--c-surface) 78%, transparent); color: var(--c-text-2); font-size: 11px; font-weight: 700; white-space: nowrap; pointer-events: none; }
+.f3-room { position: absolute; transform: translate(-50%, -50%); padding: 2px 8px; border-radius: 6px; background: rgba(20,18,26,.82); color: #fff; font-size: 12px; font-weight: 700; box-shadow: 0 1px 4px rgba(0,0,0,.3); white-space: nowrap; pointer-events: none; }
 @media (max-width: 639px) { .f3-name small { display: none; } .f3-name { min-height: 26px; padding: 2px 7px; } .f3-room { font-size: 10px; } }
 /* Overlays on the stage */
 .f3-badge { position: absolute; left: 10px; top: 10px; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--c-surface) 88%, transparent); border: 1px solid var(--c-border); font-size: 12px; font-weight: 700; pointer-events: none; }
-.f3-card { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; border-radius: var(--radius-lg); background: var(--c-surface); border: 1px solid var(--c-border); border-left: 5px solid var(--st, var(--c-accent)); box-shadow: var(--shadow-sm, 0 4px 14px rgba(0,0,0,.15)); max-width: 460px; }
+.f3-card { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; border-radius: var(--radius-lg); background: var(--c-surface); border: 1px solid var(--c-border); border-left: 5px solid var(--st, var(--c-accent)); box-shadow: var(--shadow-sm, 0 4px 14px rgba(0,0,0,.15)); max-width: 520px; flex-wrap: wrap; row-gap: 8px; }
 .f3-card.st-free { --st: var(--c-success); }
-.f3-card-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.f3-card-main { display: flex; flex-direction: column; min-width: 0; flex: 1 1 150px; }
 .f3-card-main strong { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .f3-card-main small { font-size: 12px; color: var(--c-text-2); }
-.f3-card-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.f3-card-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; margin-left: auto; }
+.f3-people, .tab-panel .f3-people { display: inline-flex; align-items: center; gap: 4px; }
+.f3-people input { width: 48px; height: 32px; text-align: center; font: inherit; font-weight: 700; font-size: 15px; border: 1px solid var(--c-border); border-radius: 8px; background: var(--c-surface); color: var(--c-text); -moz-appearance: textfield; }
+.f3-people input::-webkit-inner-spin-button, .f3-people input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.f3-fixtures { position: absolute; inset: 0; transform-style: preserve-3d; pointer-events: none; }
+.f3-fixture .f3-top, .f3-fixture .f3-side, .f3-fixture .f3-layer { background: #f4f4f1; border: 1px solid #c9c9c4; }
+.f3-fixture .f3-side.is-s, .f3-fixture .f3-side.is-e { background: #dcdcd6; }
+.f3-fixture.is-bowl .f3-top { border-radius: 30% 30% 50% 50%; background: radial-gradient(ellipse at 50% 58%, #c9d2d8 0 30%, #f4f4f1 33%); }
+.f3-fixture.is-sink .f3-top { background: radial-gradient(ellipse at 50% 55%, #b9c4cc 0 34%, #f4f4f1 36%); }
 .f3-view.is-pov .f3-card { bottom: 120px; }
 .f3-pad { position: absolute; right: 10px; bottom: 10px; display: grid; grid-template-columns: repeat(3, 44px); gap: 4px; touch-action: none; user-select: none; }
 .f3-pad .ui-btn { width: 44px; height: 44px; background: color-mix(in srgb, var(--c-surface) 90%, transparent); }

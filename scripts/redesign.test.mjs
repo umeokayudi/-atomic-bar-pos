@@ -266,6 +266,31 @@ test('floor editor: save payload keeps ids, new rows without id, new sectors by 
   assert.ok(!fe.isDirty(base(), { ...base(), selected: 't1' }))
 })
 
+test('floor seats: only places a tab can be opened on, tables before VIP before chairs', () => {
+  const T = (nome, forma, capacidade, x = 0, y = 0, largura = 50, altura = 50) => ({ id: nome, nome, forma, capacidade, x, y, largura, altura })
+  const rows = [
+    T('Mesa 10', 'square', 4), T('Mesa 2', 'square', 4), T('Karaoke 1', 'stage', 6), T('Toilet W', 'stage', 4), T('Elevator', 'stage', 0),
+    T('Mesa 1', 'wall', 4), T('Door', 'door', 0), T('Fridge', 'stage', 2), T('Sofa D', 'sofa', 0), { ...T('Off', 'round', 4), ativo: false },
+  ]
+  assert.deepEqual(fe.seatsOf(rows).map(t => t.nome), ['Mesa 2', 'Mesa 10', 'Karaoke 1'])
+  assert.equal(fe.vipTag(T('Karaoke 1', 'stage', 6)), true)
+  assert.equal(fe.vipTag(T('Karaoke VIP 1', 'stage', 6)), false)
+  assert.equal(fe.isToilet(T('Toilet M', 'stage', 0)), true)
+})
+
+test('floor counter chairs: stools next to a counter, numbered along it; plants and far pieces left alone', () => {
+  const T = (nome, forma, x, y, largura = 30, altura = 30, capacidade = 0) => ({ id: nome, nome, forma, x, y, largura, altura, capacidade })
+  const tables = [
+    T('Counter', 'bar', 90, 180, 420, 50), T('b', 'plant', 250, 240), T('a', 'plant', 150, 240), T('Plant', 'plant', 300, 240),
+    T('far', 'plant', 150, 400), T('big', 'round', 200, 240, 100, 100, 4),
+  ]
+  assert.deepEqual(fe.counterChairs(tables).map(t => t.id), ['a', 'b'])
+  const s = fe.numberCounterChairs({ tables }, n => `Cadeira ${n}`)
+  assert.deepEqual(s.tables.filter(t => t.capacidade === 1).map(t => [t.id, t.nome]), [['b', 'Cadeira 2'], ['a', 'Cadeira 1']])
+  assert.deepEqual(fe.seatsOf(s.tables).map(t => t.nome), ['big', 'Cadeira 1', 'Cadeira 2'])
+  assert.equal(fe.numberCounterChairs({ tables: [T('x', 'plant', 0, 0)] }).tables.length, 1)
+})
+
 test('floor editor: undo/redo', () => {
   let h = fe.createHistory(base())
   h = fe.pushHistory(h, fe.addTable(h.present, 'bar'))
