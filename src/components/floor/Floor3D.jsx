@@ -100,7 +100,7 @@ const Scene = memo(function Scene({ area, tables, sectors, live, tappable, selec
   return (
     <>
       <div className="f3-floor" style={{ left: area.x, top: area.y, width: area.w, height: area.h, '--tile': `${Math.round(60 * k)}px` }} />
-      <div className="f3-ceiling" style={{ left: area.x, top: area.y, width: area.w, height: area.h, transform: `translateZ(${wallH}px)` }} />
+      {walls.length > 0 && <div className="f3-ceiling" style={{ left: area.x, top: area.y, width: area.w, height: area.h, transform: `translateZ(${wallH}px)` }} />}
       {walls.length === 0 && (
         <>
           <Box className="f3-wall is-cut" w={area.w} d={6} h={wallH} style={{ left: area.x, top: area.y - 6 }} />
