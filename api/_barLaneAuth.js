@@ -1,6 +1,6 @@
 import { drinksAdminClient, drinksAuthClient, createStaffUserClient } from './_supabaseAdmin.js'
 import { ensureBarLiveReady, runLiveOp } from './_barLiveStore.js'
-import { secretsMatch, signLanePayload, verifyLaneToken } from './_hash.js'
+import { isBurnedSecret, secretsMatch, signLanePayload, verifyLaneToken } from './_hash.js'
 import { withActorAccess } from './_barAccess.js'
 
 function bearerToken(req) {
@@ -107,7 +107,8 @@ export async function loginLane(email, password) {
     ;({ data: logins } = await runLiveOp(admin, { table: 'bar_logins', mode: 'select', columns: '*' }))
   }
   const login = (logins || []).find(l => String(l.email || '').toLowerCase() === wanted && l.ativo !== false)
-  if (!login || !secretsMatch(password, login.password_hash)) {
+  // The old demo passwords are public, so a login still using one never opens.
+  if (!login || isBurnedSecret(password) || !secretsMatch(password, login.password_hash)) {
     return { error: 'Incorrect email or password', status: 401 }
   }
   const perfil = {
