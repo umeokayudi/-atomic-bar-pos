@@ -889,3 +889,143 @@ button.sa-bell-item:hover { background: var(--c-surface-2); }
   .sa-clock .sa-timer { font-size: 36px; }
   .sa-weektabs { gap: 6px; }
 }
+
+/* ══ Staff polish v3: page headers, empty states, sheets with sticky footer, More sections, profile, reports ══ */
+
+/* Page header: back button + title, same on every screen */
+.sa-pagehead { min-height: 48px; margin-top: 2px; }
+.sa-pagehead-text { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.sa-pagehead .sa-title { font-size: 24px; line-height: 1.2; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.sa-pagehead .sa-muted { line-height: 1.4; }
+.sa-back { border-radius: 14px; box-shadow: var(--shadow-sm); }
+
+/* Empty states */
+.sa-empty { gap: 6px; padding: 20px 14px; border: 1px dashed var(--c-border-2); background: color-mix(in srgb, var(--c-surface-2) 60%, transparent); }
+.sa-empty-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: var(--c-accent-soft); color: var(--c-accent); margin-bottom: 2px; }
+.sa-empty .sa-empty-icon svg { margin: 0; }
+.sa-card .sa-empty { margin-top: 2px; }
+
+/* Cards a touch rounder everywhere, like Home */
+.sa-screen .sa-card { border-radius: 20px; padding: 16px; }
+.sa-screen .sa-card-head h2 { font-size: 16px; }
+.sa-earn { border-radius: 22px; background: radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--sa-brand) 50%, transparent) 0%, transparent 55%), linear-gradient(160deg, #1d3a31 0%, #13201D 70%); color: #F2F7F4; border: 1px solid rgba(255,255,255,.06); }
+.sa-earn-split small { white-space: normal; overflow: visible; line-height: 1.25; }
+
+/* Clock screen: GPS status row, punch list */
+.sa-geo-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--c-border); background: var(--c-surface); }
+.sa-geo-row.is-on .sa-line-icon { background: var(--c-success-bg); color: var(--c-success); }
+.sa-geo-row .sa-line-main small { line-height: 1.4; }
+.sa-line-icon.is-out { background: var(--c-surface-2); color: var(--c-text-2); }
+.sa-card-head + .sa-line, .sa-card-head + .sa-empty + .sa-line { border-top: 0; }
+
+/* Sheets: close button, body scrolls, one main action pinned to the bottom */
+.sa-sheet-head { align-items: flex-start; }
+.sa-sheet-title { flex: 1; min-width: 0; }
+.sa-sheet-x { border: 0; background: var(--c-surface-2); margin: -2px -4px 0 0; }
+.sa-sheet-foot {
+  position: sticky; bottom: calc(-16px - var(--safe-bottom)); z-index: 2;
+  display: grid; gap: 8px; margin: 14px -16px calc(-16px - var(--safe-bottom));
+  padding: 12px 16px calc(14px + var(--safe-bottom));
+  background: var(--c-surface); border-top: 1px solid var(--c-border);
+}
+.sa-sheet-foot .sa-btn { width: 100%; min-height: 52px; font-size: 16px; border-radius: 14px; }
+.sa-sheet-foot .sa-btn.is-ghost { min-height: 44px; font-size: 14px; border-color: transparent; }
+.sa-sheet-body .sa-field { margin-top: 0; }
+.sa-sum > div { border-radius: 14px; }
+.sa-sign-box { position: relative; }
+.sa-sign-hint {
+  position: absolute; inset: 0; display: grid; place-items: center; padding: 12px; pointer-events: none;
+  color: #8a9a93; font-size: 14px; font-weight: 600; text-align: center;
+}
+.sa-sign-pad { border-color: var(--c-border-2); border-width: 1.5px; }
+@media (min-width: 700px) {
+  .sa-sheet-foot { border-radius: 0 0 20px 20px; }
+}
+
+/* More: full screen, sections */
+.sa-more { padding-top: calc(10px + var(--safe-top)); }
+.sa-more-inner { gap: 16px; }
+.sa-more-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; }
+.sa-more-top .sa-title { margin: 0; }
+.sa-more-head {
+  width: 100%; padding: 14px; border-radius: 20px; border: 1px solid var(--c-border); background: var(--c-surface);
+  box-shadow: var(--shadow-sm); color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.sa-more-head > svg { color: var(--c-text-3); flex: 0 0 auto; }
+.sa-more-who { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.sa-more-who strong { font-size: 18px; font-weight: 800; overflow-wrap: anywhere; }
+.sa-more-who span { font-size: 13px; color: var(--c-text-2); }
+.sa-more-sec { display: grid; gap: 8px; }
+.sa-more-sec > h2 { margin: 0; padding: 0 4px; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--c-text-3); }
+.sa-more-list { gap: 0; border: 1px solid var(--c-border); border-radius: 20px; background: var(--c-surface); overflow: hidden; box-shadow: var(--shadow-sm); }
+.sa-more-list button { border: 0; border-radius: 0; border-top: 1px solid var(--c-border); background: transparent; min-height: 58px; }
+.sa-more-list button:first-child { border-top: 0; }
+.sa-more-list button:hover { background: var(--c-surface-2); }
+.sa-more-list button > svg:last-child { color: var(--c-text-3); flex: 0 0 auto; }
+.sa-more-icon { width: 38px; height: 38px; border-radius: 12px; }
+
+/* Profile: tap the photo to change it */
+.sa-profile { padding: 4px 0 2px; gap: 6px; }
+.sa-photo-btn { position: relative; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; }
+.sa-photo-btn:focus-visible { outline: 3px solid var(--c-accent); outline-offset: 3px; }
+.sa-photo-btn.is-busy { cursor: progress; opacity: .8; }
+.sa-photo-btn .sa-avatar { box-shadow: 0 0 0 4px var(--c-bg), 0 0 0 5px var(--c-border); }
+.sa-photo-badge {
+  position: absolute; right: 2px; bottom: 2px; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%;
+  background: var(--c-accent); color: var(--c-on-accent); border: 3px solid var(--c-bg); box-shadow: var(--shadow-sm);
+}
+.sa-profile h1 { margin-top: 8px; }
+.sa-line-main small + strong { font-size: 15px; }
+
+/* Reports: type tiles, photo, one send button */
+.sa-types { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.sa-types button {
+  display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 52px; padding: 0 12px; border-radius: 14px;
+  border: 1.5px solid var(--c-border-2); background: var(--c-surface); color: var(--c-text); font: inherit; font-size: 14px; font-weight: 700;
+  text-align: left; cursor: pointer; touch-action: manipulation;
+}
+.sa-types button svg { flex: 0 0 auto; color: var(--c-accent); }
+.sa-types button span { min-width: 0; overflow-wrap: anywhere; line-height: 1.2; }
+.sa-types button.is-on { background: var(--c-accent); border-color: var(--c-accent); color: var(--c-on-accent); }
+.sa-types button.is-on svg { color: inherit; }
+.sa-addphoto {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 52px; margin-top: 10px;
+  border: 1.5px dashed var(--c-border-2); border-radius: 14px; background: transparent; color: var(--c-text-2);
+  font: inherit; font-weight: 700; cursor: pointer;
+}
+.sa-addphoto:hover { border-color: var(--c-accent); color: var(--c-accent); }
+.sa-btn-block { width: 100%; min-height: 52px; margin-top: 12px; font-size: 16px; border-radius: 14px; }
+.sa-photo-prev .sa-btn { min-height: 44px; }
+.sa-answer { display: block; margin-top: 4px; padding: 8px 10px; border-radius: 10px; background: var(--c-surface-2); font-style: normal; font-size: 13px; color: var(--c-text-2); overflow-wrap: anywhere; }
+.sa-answer b { color: var(--c-text); }
+
+/* Quick Order button: room under the content so it never hides the last card */
+.sa-app.has-fab .sa-main { padding-bottom: 88px; }
+
+/* Home: role chip and other short labels may wrap instead of being cut */
+.sa-brief-grid .sa-stat strong { white-space: normal; overflow-wrap: anywhere; overflow: visible; line-height: 1.25; }
+
+/* Staff POS: "My sales tonight" sheet */
+.staff-pos .sa-sheet-wrap *, .staff-pos .sa-sheet-wrap *::before, .staff-pos .sa-sheet-wrap *::after { box-sizing: border-box; }
+.staff-pos-total { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 14px 16px; border-radius: 16px; background: var(--c-accent-soft); }
+.staff-pos-total span { font-weight: 700; color: var(--c-text-2); }
+.staff-pos-total strong { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--c-text); }
+.staff-pos-mine .staff-pos-list li { gap: 12px; min-height: 60px; padding: 10px 12px; border-radius: 14px; background: var(--c-surface-2); justify-content: flex-start; }
+.staff-pos-mine .staff-pos-list li > div { flex: 1; }
+.staff-pos-mine .staff-pos-list li > div strong { font-size: 15px; }
+.staff-pos-mine .staff-pos-list .num { font-weight: 800; }
+.staff-pos-mine .staff-pos-list .sa-line-icon { background: var(--c-surface); }
+.staff-pos .sa-sheet-wrap { z-index: 300; }
+.sa-pagehead { align-items: flex-start; }
+.sa-pagehead-text { min-height: 44px; align-content: center; }
+.sa-more-head span { font-size: inherit; color: inherit; }
+.sa-more-head .sa-more-who strong { color: var(--c-text); }
+.sa-more-head .sa-more-who > span { font-size: 13px; color: var(--c-text-2); }
+.sa-more-head .sa-avatar { color: var(--c-on-chrome); }
+/* Settings: language and theme switches as full-size segmented controls */
+.sa-settings .layout-toggle { padding: 0; border: 0; background: none; }
+.sa-settings .theme-toggle-label { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--c-text-3); }
+.sa-settings .theme-pill, .sa-settings .ui-seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; width: 100%; padding: 4px; border-radius: 14px; background: var(--c-surface-2); border: 0; }
+.sa-settings .theme-pill button, .sa-settings .ui-seg button { min-height: 44px; min-width: 0; justify-content: center; border-radius: 10px; font-size: 14px; font-weight: 700; }
+.sa-settings .theme-pill button, .sa-settings .theme-pill span { padding: 0 10px; color: var(--c-text-2); display: inline-flex; align-items: center; }
+.sa-settings .theme-pill button.on, .sa-settings .theme-pill span.on, .sa-settings .ui-seg button[aria-checked="true"] { background: var(--c-surface); color: var(--c-text); box-shadow: var(--shadow-sm); }

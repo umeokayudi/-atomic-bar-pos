@@ -16,16 +16,31 @@ export const STAFF_APP_TABS = [
 
 /** Screens in the full-screen "More" menu. Work screens show only when "Users & access" allows them. */
 export const STAFF_MORE_ITEMS = [
-  { id: 'salary', icon: 'salary', labelKey: 'staffApp.more.earnings' },
-  { id: 'schedule', icon: 'calendar', labelKey: 'staffApp.more.schedule' },
-  { id: 'shifts', icon: 'shifts', labelKey: 'staffApp.more.shifts' },
-  { id: 'reports', icon: 'send', labelKey: 'staffApp.more.reports' },
-  { id: 'profile', icon: 'profile', labelKey: 'staffApp.more.profile' },
-  { id: 'occurrences', icon: 'occurrences', labelKey: 'staffApp.more.occurrences' },
-  { id: 'mesas', icon: 'mesas', labelKey: 'staffApp.more.floor', needs: 'mesas' },
-  { id: 'pedidos', icon: 'pedidos', labelKey: 'staffApp.more.supply', needs: 'pedidos' },
-  { id: 'settings', icon: 'settings', labelKey: 'staffApp.more.settings' },
+  { id: 'salary', icon: 'salary', labelKey: 'staffApp.more.earnings', group: 'pay' },
+  { id: 'schedule', icon: 'calendar', labelKey: 'staffApp.more.schedule', group: 'work' },
+  { id: 'shifts', icon: 'shifts', labelKey: 'staffApp.more.shifts', group: 'pay' },
+  { id: 'reports', icon: 'send', labelKey: 'staffApp.more.reports', group: 'work' },
+  { id: 'profile', icon: 'profile', labelKey: 'staffApp.more.profile', group: 'me' },
+  { id: 'occurrences', icon: 'occurrences', labelKey: 'staffApp.more.occurrences', group: 'me' },
+  { id: 'mesas', icon: 'mesas', labelKey: 'staffApp.more.floor', needs: 'mesas', group: 'work' },
+  { id: 'pedidos', icon: 'pedidos', labelKey: 'staffApp.more.supply', needs: 'pedidos', group: 'work' },
+  { id: 'settings', icon: 'settings', labelKey: 'staffApp.more.settings', group: 'me' },
 ]
+
+/** Section order of the More menu: money first, then the night's work, then me. */
+export const STAFF_MORE_GROUPS = ['pay', 'work', 'me']
+
+/** More menu items split into sections (empty sections left out), keeping the item order inside each. */
+export function staffMoreSections(items = STAFF_MORE_ITEMS) {
+  return STAFF_MORE_GROUPS
+    .map(id => ({ id, labelKey: `staffApp.more.group_${id}`, items: (items || []).filter(it => (it.group || 'me') === id) }))
+    .filter(s => s.items.length)
+}
+
+/** Where the header's back button goes: Settings and Occurrences open from the profile, the rest from Home. */
+export function staffBackFor(screen) {
+  return ['settings', 'occurrences'].includes(screen) ? 'profile' : 'hoje'
+}
 
 /** Old staff pages → the screen that holds them now. */
 const FOLDED = {

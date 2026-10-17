@@ -7,13 +7,13 @@ import { tokyoMonthKey } from '../../lib/tokyo'
 import { monthRange } from '../../lib/timeClock'
 import { punchGeoFlag } from '../../lib/clockGeo'
 import {
-  barBrand, bottomTabFor, rememberStaffBrand, elapsedLabel, myClockState, staffAppTabFor, staffAppTabsFor, staffMoreItemsFor,
+  barBrand, bottomTabFor, rememberStaffBrand, elapsedLabel, myClockState, staffAppTabFor, staffAppTabsFor, staffBackFor, staffMoreItemsFor, staffMoreSections,
 } from '../../lib/staffApp'
 import { meDay, meProfile } from '../../lib/staffSelfApi'
 import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
 import { useClockPunch } from './ClockPunch'
-import { Avatar, Card, Note, Row, Stat, fmtDay, fmtHours, fmtTime, useNow } from './staffUi'
+import { Avatar, Card, Empty, Note, PageHead, Stat, fmtDay, fmtHours, fmtTime, useNow } from './staffUi'
 import { OccurrencesScreen, PerformanceScreen, ProfileScreen, ReportsScreen, SettingsScreen, ShiftsScreen } from './StaffScreens'
 
 import { PayHubScreen } from './PayHub'
@@ -238,35 +238,43 @@ function HomeScreen({ t, lang, perfil, profile, clock, punch, canClock, day, mon
   )
 }
 
-function ClockScreen({ t, clock, punch, canClock, venue, punches, schedule, meId }) {
+function ClockScreen({ t, clock, punch, canClock, venue, punches, schedule, meId, onBack }) {
   const recent = clock.mine.slice(0, 12)
   const today = tokyoNightKey()
   const shift = confirmedShift(schedule, punches, meId, today)
+  const on = !!venue?.configured
   return (
     <div className="sa-screen">
-      <h1 className="sa-title">{t('staffApp.tabClock')}</h1>
+      <PageHead t={t} title={t('staffApp.tabClock')} onBack={onBack} />
       <ClockCard t={t} clock={clock} punch={punch} canClock={canClock} shift={shift} tolerance={schedule?.data?.tolerance} today={today} />
-      <Card title={t('staffApp.clock.location')}>
-        {venue?.configured
-          ? <Note icon="location">{t('staffApp.clock.venueOn', { radius: venue.radius_m })}</Note>
-          : <Note icon="location">{t('staffApp.clock.venueOff')}</Note>}
-      </Card>
+      <div className={`sa-geo-row${on ? ' is-on' : ''}`}>
+        <span className="sa-line-icon"><Icon name="location" size={18} /></span>
+        <span className="sa-line-main">
+          <strong>{on ? t('staffApp.clock.venueOnShort') : t('staffApp.clock.venueOffShort')}</strong>
+          <small>{on ? t('staffApp.clock.venueOn', { radius: venue.radius_m }) : t('staffApp.clock.venueOff')}</small>
+        </span>
+      </div>
       <Card title={t('staffApp.clock.recent')}>
-        {!recent.length && <Note>{t('employee.noPunches')}</Note>}
+        {punches == null && <Note>{t('common.wait')}</Note>}
+        {punches != null && !recent.length && <Empty icon="clock" title={t('staffApp.clock.emptyTitle')} hint={t('staffApp.clock.emptyHint')} />}
         {recent.map(p => {
           const flag = punchGeoFlag(p)
+          const isIn = p.tipo === 'in'
           return (
-            <Row
-              key={p.id || p.punched_at}
-              title={`${p.tipo === 'in' ? t('employee.punchIn') : t('employee.punchOut')} · ${fmtTime(p.punched_at)}`}
-              meta={fmtDay(p.punched_at)}
-              value={flag ? <span className={`sa-chip is-${flag.status}`}>{flag.status === 'outside' ? t('staffApp.geo.badgeOutside', { distance: flag.distance ?? '?' }) : t('staffApp.geo.badgeNoGps')}</span> : (p.geo_status === 'ok' ? <span className="sa-chip is-ok">{t('staffApp.clock.atBar')}</span> : '')}
-            >
-              {flag?.justification ? <em className="sa-reason">“{flag.justification}”</em> : null}
-            </Row>
+            <div key={p.id || p.punched_at} className="sa-line">
+              <span className={`sa-line-icon ${isIn ? 'is-good' : 'is-out'}`}><Icon name={isIn ? 'signIn' : 'signOut'} size={18} /></span>
+              <span className="sa-line-main">
+                <strong>{isIn ? t('employee.punchIn') : t('employee.punchOut')}</strong>
+                <small>{fmtDay(p.punched_at)}</small>
+                {flag
+                  ? <span className={`sa-chip is-${flag.status}`}>{flag.status === 'outside' ? t('staffApp.geo.badgeOutside', { distance: flag.distance ?? '?' }) : t('staffApp.geo.badgeNoGps')}</span>
+                  : (p.geo_status === 'ok' ? <span className="sa-chip is-ok"><Icon name="location" size={11} /> {t('staffApp.clock.atBar')}</span> : null)}
+                {flag?.justification ? <em className="sa-reason">“{flag.justification}”</em> : null}
+              </span>
+              <b className="sa-line-value">{fmtTime(p.punched_at)}</b>
+            </div>
           )
         })}
-        {punches == null && <Note>{t('common.wait')}</Note>}
       </Card>
     </div>
   )
@@ -281,26 +289,36 @@ function MoreMenu({ t, open, onClose, items, onTab, profile, perfil, bar, signOu
     return () => { window.removeEventListener('keydown', onKey); document.body.classList.remove('sa-lock') }
   }, [open, onClose])
   if (!open) return null
+  const sections = staffMoreSections(items)
   return (
-    <div className="sa-more" role="dialog" aria-modal="true" aria-label={t('staffApp.tabMore')}>
+    <div className="sa-more" role="dialog" aria-modal="true" aria-labelledby="sa-more-title">
       <div className="sa-more-inner">
-        <header className="sa-more-head">
-          <Avatar name={profile?.nome || perfil?.nome} url={profile?.foto_url} size={56} />
-          <div>
-            <strong>{profile?.nome || perfil?.nome}</strong>
-            <span>{[profile?.cargo, bar?.nome].filter(Boolean).join(' · ')}</span>
-          </div>
+        <header className="sa-more-top">
+          <h1 id="sa-more-title" className="sa-title">{t('staffApp.tabMore')}</h1>
           <button type="button" className="sa-icon-btn" onClick={onClose} aria-label={t('common.close')}><Icon name="close" size={22} /></button>
         </header>
-        <nav className="sa-more-list">
-          {items.map(it => (
-            <button key={it.id} type="button" onClick={() => { onTab(it.id); onClose() }}>
-              <span className="sa-more-icon"><Icon name={it.icon} size={20} /></span>
-              <span>{t(it.labelKey)}</span>
-              <Icon name="next" size={18} />
-            </button>
-          ))}
-        </nav>
+        <button type="button" className="sa-more-head" onClick={() => { onTab('profile'); onClose() }}>
+          <Avatar name={profile?.nome || perfil?.nome} url={profile?.foto_url} size={56} />
+          <span className="sa-more-who">
+            <strong>{profile?.nome || perfil?.nome}</strong>
+            <span>{[profile?.cargo, bar?.nome].filter(Boolean).join(' · ')}</span>
+          </span>
+          <Icon name="next" size={18} />
+        </button>
+        {sections.map(sec => (
+          <section key={sec.id} className="sa-more-sec" aria-labelledby={`sa-more-${sec.id}`}>
+            <h2 id={`sa-more-${sec.id}`}>{t(sec.labelKey)}</h2>
+            <nav className="sa-more-list">
+              {sec.items.map(it => (
+                <button key={it.id} type="button" onClick={() => { onTab(it.id); onClose() }}>
+                  <span className="sa-more-icon"><Icon name={it.icon} size={20} /></span>
+                  <span>{t(it.labelKey)}</span>
+                  <Icon name="next" size={18} />
+                </button>
+              ))}
+            </nav>
+          </section>
+        ))}
         <button type="button" className="sa-btn is-ghost sa-signout" onClick={signOut}><Icon name="signOut" size={18} /> {t('common.signOut')}</button>
       </div>
     </div>
@@ -404,6 +422,7 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
   const tabs = staffAppTabsFor(canOpen)
   const moreItems = staffMoreItemsFor(canOpen)
   const go = id => { setMoreOpen(false); onTab(id) }
+  const back = () => go(staffBackFor(screen))
   const canPos = canOpen('pos')
   // Next week's schedule is required: until it is sent, Home shows a clear "Send schedule" card and any other
   // feature (except the clock, the schedule itself, profile and settings) opens a gentle sheet pointing to it.
@@ -412,12 +431,13 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
   const shown = blocked ? 'hoje' : screen
   const lit = moreOpen ? 'more' : bottomTabFor(shown)
   const work = ['pos', 'mesas', 'pedidos'].includes(shown) && canOpen(shown)
-  const shared = { t, lang, perfil, profile, bar, pack, missing, competence, onTab: go, punches, nightPremium, meId }
-  const fab = canPos && !mustSend && !work && !['hoje', 'schedule'].includes(shown)
+  const shared = { t, lang, perfil, profile, bar, pack, missing, competence, onTab: go, onBack: back, punches, nightPremium, meId }
+  // Quick "Order" button only where the screen has no main action of its own (clock, send, photo…).
+  const fab = canPos && !mustSend && !work && ['performance', 'salary', 'shifts'].includes(shown)
   const today = tokyoNightKey()
 
   return (
-    <div className={`sa-app${work ? ' is-work' : ''}`} style={brand.color ? { '--sa-brand': brand.color } : undefined}>
+    <div className={`sa-app${work ? ' is-work' : ''}${fab ? ' has-fab' : ''}`} style={brand.color ? { '--sa-brand': brand.color } : undefined}>
       <header className="sa-top">
         <button type="button" className="sa-top-bar" onClick={() => go('hoje')} aria-label={t('staffApp.tabHome')}>
           <BarMark brand={brand} size={40} />
@@ -436,7 +456,7 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
 
       <main className="sa-main">
         {shown === 'hoje' && <HomeScreen {...shared} clock={clock} punch={punch} canClock={canClock} day={day} monthHours={monthHours} schedule={schedule} canPos={canPos} />}
-        {shown === 'ponto' && <ClockScreen t={t} clock={clock} punch={punch} canClock={canClock} venue={venue} punches={punches} schedule={schedule} meId={meId} />}
+        {shown === 'ponto' && <ClockScreen t={t} clock={clock} punch={punch} canClock={canClock} venue={venue} punches={punches} schedule={schedule} meId={meId} onBack={back} />}
         {shown === 'performance' && <PerformanceScreen {...shared} day={day} />}
         {shown === 'shifts' && <ShiftsScreen {...shared} />}
         {shown === 'salary' && <PayHubScreen {...shared} />}

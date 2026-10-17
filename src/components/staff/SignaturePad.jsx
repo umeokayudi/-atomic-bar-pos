@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
  * Finger / mouse signature on a canvas. onChange gets a small PNG data URL ('' when cleared).
  * Pointer events cover touch on iPhone/iPad and the mouse on a Mac.
  */
-export default function SignaturePad({ onChange, label, clearLabel }) {
+export default function SignaturePad({ onChange, label, clearLabel, hint }) {
   const canvas = useRef(null)
   const drawing = useRef(false)
   const last = useRef(null)
@@ -83,6 +83,7 @@ export default function SignaturePad({ onChange, label, clearLabel }) {
         <span>{label}</span>
         <button type="button" className="sa-link" onClick={clear} disabled={empty}>{clearLabel}</button>
       </div>
+      <div className="sa-sign-box">
       <canvas
         ref={canvas}
         className={`sa-sign-pad${empty ? ' is-empty' : ''}`}
@@ -94,6 +95,8 @@ export default function SignaturePad({ onChange, label, clearLabel }) {
         aria-label={label}
         role="img"
       />
+      {empty && hint ? <span className="sa-sign-hint" aria-hidden="true">{hint}</span> : null}
+      </div>
     </div>
   )
 }

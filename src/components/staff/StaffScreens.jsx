@@ -14,7 +14,7 @@ import { errText } from '../../lib/errText'
 import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
 import { LanguageToggle, ThemeToggle } from '../UiPrefsPanel'
-import { Avatar, Card, Note, Row, Stat, fmtDay, fmtHours, fmtTime } from './staffUi'
+import { Avatar, Card, Empty, Note, PageHead, Row, Stat, fmtDay, fmtHours, fmtTime } from './staffUi'
 
 const byNewest = (rows, key = 'created_at') => [...(rows || [])].sort((a, b) => String(b[key] || '').localeCompare(String(a[key] || '')))
 const sumPoints = rows => (rows || []).reduce((s, p) => s + (+p.points || 0), 0)
@@ -63,7 +63,7 @@ function useEarnings(from, to) {
 }
 
 // ── Performance: goals, sales, points, rewards ───────────────────────────────
-export function PerformanceScreen({ t, pack, missing, day }) {
+export function PerformanceScreen({ t, pack, missing, day, onBack }) {
   const range = earningsRange('month', tokyoDateKey())
   const month = useEarnings(range.from, range.to)
   const goals = pack?.goals || []
@@ -73,25 +73,30 @@ export function PerformanceScreen({ t, pack, missing, day }) {
   const g = day?.goal || {}
   return (
     <div className="sa-screen">
-      <h1 className="sa-title">{t('staffApp.tabPerformance')}</h1>
-      <div className="sa-stats">
-        <Stat label={t('staffApp.perf.salesMonth')} value={month.data ? fmtYen(month.data.totals.sales) : '—'} sub={month.data ? t('staffApp.out.tickets', { n: month.data.totals.tickets }) : ''} />
-        <Stat label={t('staffApp.perf.commission')} value={month.data ? fmtYen(month.data.totals.commission) : '—'} tone="good" />
-        <Stat label={t('employee.statPoints')} value={missing ? '—' : String(sumPoints(points))} />
-      </div>
+      <PageHead t={t} title={t('staffApp.tabPerformance')} onBack={onBack} />
+      <section className="sa-earn" aria-live="polite">
+        <span className="sa-earn-label">{t('staffApp.perf.salesMonth')}</span>
+        <strong className="sa-earn-total">{month.data ? fmtYen(month.data.totals.sales) : month.loading ? '…' : '—'}</strong>
+        {month.data && <span className="sa-earn-tag">{t('staffApp.out.tickets', { n: month.data.totals.tickets })}</span>}
+        <div className="sa-earn-split">
+          <span><small>{t('staffApp.perf.commission')}</small><b>{month.data ? fmtYen(month.data.totals.commission) : '—'}</b></span>
+          <span><small>{t('employee.statPoints')}</small><b>{missing ? '—' : `${sumPoints(points)} pt`}</b></span>
+          <span><small>{t('employee.rewards')}</small><b>{missing ? '—' : fmtYen(approved)}</b></span>
+        </div>
+      </section>
       <Card title={t('staffApp.home.tonight')}>
         {g.target > 0 ? (
           <div className="sa-goal">
             <div className="sa-goal-head"><span>{t('staffApp.brief.myGoal')}</span><b>{fmtYen(day?.summary?.sales || 0)} / {fmtYen(g.target)}</b></div>
-            <div className="sa-bar"><div style={{ width: `${g.pct || 0}%` }} className={g.reached ? 'is-done' : ''} /></div>
-            {g.week > 0 && <p className="sa-muted">{t('staffApp.perf.weekGoal', { amount: fmtYen(g.week) })}</p>}
+            <div className="sa-bar" role="progressbar" aria-valuenow={g.pct || 0} aria-valuemin={0} aria-valuemax={100}><div style={{ width: `${g.pct || 0}%` }} className={g.reached ? 'is-done' : ''} /></div>
+            {g.week > 0 && <p className="sa-muted sa-gap">{t('staffApp.perf.weekGoal', { amount: fmtYen(g.week) })}</p>}
           </div>
-        ) : <Note icon="goals">{t('staffApp.home.noPersonalGoal')}</Note>}
+        ) : <Empty icon="goals" title={t('staffApp.home.noPersonalGoal')} hint={t('staffApp.perf.tonightEmpty')} />}
         {day?.summary?.drinkBackCount > 0 && <Row title={t('staffApp.out.drank')} value={String(day.summary.drinkBackCount)} />}
       </Card>
       <div className="sa-wide">
         <Card title={t('employee.goals')}>
-          {missing ? <Note>{t('staffApp.payrollSoon')}</Note> : goals.length === 0 ? <Note icon="goals">{t('employee.noGoals')}</Note> : goals.map(goal => {
+          {missing ? <Note>{t('staffApp.payrollSoon')}</Note> : goals.length === 0 ? <Empty icon="goals" title={t('employee.noGoals')} /> : goals.map(goal => {
             const pct = +goal.target ? Math.max(0, Math.min(100, Math.round(((+goal.actual || 0) / +goal.target) * 100))) : null
             return (
               <div key={goal.id} className="sa-goal">
@@ -102,12 +107,12 @@ export function PerformanceScreen({ t, pack, missing, day }) {
           })}
         </Card>
         <Card title={t('employee.points')} right={missing ? null : <b className="sa-pill">{sumPoints(points)} pt</b>}>
-          {missing ? <Note>{t('staffApp.payrollSoon')}</Note> : points.length === 0 ? <Note icon="points">{t('employee.none')}</Note> : points.slice(0, 20).map(p => (
+          {missing ? <Note>{t('staffApp.payrollSoon')}</Note> : points.length === 0 ? <Empty icon="points" title={t('employee.none')} /> : points.slice(0, 20).map(p => (
             <Row key={p.id} title={p.reason} meta={fmtDay(p.created_at)} value={`${+p.points > 0 ? '+' : ''}${p.points} pt`} tone={+p.points >= 0 ? 'good' : 'bad'} />
           ))}
         </Card>
         <Card title={t('employee.rewards')} right={missing ? null : <b className="sa-pill">{fmtYen(approved)}</b>}>
-          {missing ? <Note>{t('staffApp.payrollSoon')}</Note> : rewards.length === 0 ? <Note icon="rewards">{t('employee.none')}</Note> : rewards.slice(0, 20).map(r => (
+          {missing ? <Note>{t('staffApp.payrollSoon')}</Note> : rewards.length === 0 ? <Empty icon="rewards" title={t('employee.none')} /> : rewards.slice(0, 20).map(r => (
             <Row key={r.id} title={r.title} meta={`${fmtDay(r.created_at)} · ${t(`employee.reward_${r.status}`)}`} value={fmtYen(r.amount)} tone={r.status === 'cancelled' ? 'muted' : 'good'} />
           ))}
         </Card>
@@ -117,7 +122,7 @@ export function PerformanceScreen({ t, pack, missing, day }) {
 }
 
 // ── Shifts: planned schedule + my punch history ──────────────────────────────
-export function ShiftsScreen({ t, pack: currentPack, missing: currentMissing, competence: current, meId }) {
+export function ShiftsScreen({ t, pack: currentPack, missing: currentMissing, competence: current, meId, onBack }) {
   const [month, setMonth] = useState(current)
   const { pack, missing } = usePack(month, currentPack, currentMissing, current)
   const [punches, setPunches] = useState(null)
@@ -138,7 +143,7 @@ export function ShiftsScreen({ t, pack: currentPack, missing: currentMissing, co
   const upcoming = plans.filter(p => new Date(p.ends_at).getTime() > Date.now())
   return (
     <div className="sa-screen">
-      <h1 className="sa-title">{t('staffApp.more.shifts')}</h1>
+      <PageHead t={t} title={t('staffApp.more.shifts')} onBack={onBack} />
       <MonthNav t={t} value={month} onChange={setMonth} />
       <div className="sa-stats">
         <Stat label={t('employee.workedHours')} value={fmtHours(worked)} />
@@ -147,13 +152,13 @@ export function ShiftsScreen({ t, pack: currentPack, missing: currentMissing, co
       </div>
       <div className="sa-wide">
         <Card title={t('employee.upcomingShifts')}>
-          {missing ? <Note>{t('staffApp.payrollSoon')}</Note> : upcoming.length === 0 ? <Note icon="shifts">{t('employee.noNextShift')}</Note> : upcoming.map(p => (
+          {missing ? <Note>{t('staffApp.payrollSoon')}</Note> : upcoming.length === 0 ? <Empty icon="shifts" title={t('employee.noNextShift')} /> : upcoming.map(p => (
             <Row key={p.id} title={fmtDay(p.starts_at)} value={`${fmtTime(p.starts_at)}–${fmtTime(p.ends_at)}`} />
           ))}
         </Card>
         <Card title={t('staffApp.shifts.history')}>
           {punches == null && <Note>{t('common.wait')}</Note>}
-          {punches != null && !shifts.length && <Note icon="clock">{t('clock.noShifts')}</Note>}
+          {punches != null && !shifts.length && <Empty icon="clock" title={t('clock.noShifts')} hint={t('staffApp.clock.emptyHint')} />}
           {shifts.map((sh, i) => {
             const flags = [punchGeoFlag(sh.clockIn), punchGeoFlag(sh.clockOut)].filter(Boolean)
             return (
@@ -178,8 +183,9 @@ export function ShiftsScreen({ t, pack: currentPack, missing: currentMissing, co
 
 // ── Reports & requests to the owner ──────────────────────────────────────────
 const REQUEST_TYPES = ['problem', 'request', 'stock', 'other']
+const REQUEST_ICONS = { problem: 'warning', request: 'hand', stock: 'package', other: 'info' }
 
-export function ReportsScreen({ t }) {
+export function ReportsScreen({ t, onBack }) {
   const { user } = useAuth()
   const [list, setList] = useState(null)
   const [alerts, setAlerts] = useState([])
@@ -219,41 +225,49 @@ export function ReportsScreen({ t }) {
 
   return (
     <div className="sa-screen">
-      <h1 className="sa-title">{t('staffApp.more.reports')}</h1>
+      <PageHead t={t} title={t('staffApp.more.reports')} lead={t('staffApp.req.noneHint')} onBack={onBack} />
       <Card title={t('staffApp.req.new')}>
-        <div className="sa-chips" role="radiogroup" aria-label={t('staffApp.req.type')}>
+        <div className="sa-types" role="radiogroup" aria-label={t('staffApp.req.type')}>
           {REQUEST_TYPES.map(id => (
-            <button key={id} type="button" role="radio" aria-checked={tipo === id} className={tipo === id ? 'is-on' : ''} onClick={() => setTipo(id)}>{t(`staffApp.req.type_${id}`)}</button>
+            <button key={id} type="button" role="radio" aria-checked={tipo === id} className={tipo === id ? 'is-on' : ''} onClick={() => setTipo(id)}>
+              <Icon name={REQUEST_ICONS[id]} size={18} /> <span>{t(`staffApp.req.type_${id}`)}</span>
+            </button>
           ))}
         </div>
         <label className="sa-field">
           <span>{t('staffApp.req.text')}</span>
           <textarea rows={3} maxLength={800} value={texto} onChange={e => setTexto(e.target.value)} placeholder={t('staffApp.req.placeholder')} />
         </label>
-        {photo && (
-          <div className="sa-photo-prev"><img src={photo.preview} alt="" /><button type="button" className="sa-link" onClick={() => setPhoto(null)}>{t('staffApp.req.removePhoto')}</button></div>
-        )}
         <input ref={file} type="file" accept="image/*" hidden onChange={pick} />
-        <div className="sa-actions">
-          <button type="button" className="sa-btn" onClick={() => file.current?.click()} disabled={busy}><Icon name="image" size={18} /> {t('staffApp.req.addPhoto')}</button>
-          <button type="button" className="sa-btn is-primary" onClick={send} disabled={busy || texto.trim().length < 3}><Icon name="send" size={18} /> {busy ? t('common.wait') : t('staffApp.req.send')}</button>
-        </div>
+        {photo ? (
+          <div className="sa-photo-prev">
+            <img src={photo.preview} alt="" />
+            <button type="button" className="sa-btn is-ghost" onClick={() => setPhoto(null)}><Icon name="trash" size={16} /> {t('staffApp.req.removePhoto')}</button>
+          </div>
+        ) : (
+          <button type="button" className="sa-addphoto" onClick={() => file.current?.click()} disabled={busy}>
+            <Icon name="camera" size={20} /> <span>{t('staffApp.req.addPhoto')}</span>
+          </button>
+        )}
+        <button type="button" className="sa-btn is-primary sa-btn-block" onClick={send} disabled={busy || texto.trim().length < 3}>
+          <Icon name="send" size={18} /> {busy ? t('common.wait') : t('staffApp.req.send')}
+        </button>
         {msg && <p className="sa-ok" role="status">{msg}</p>}
         {err && <div className="sa-error" role="alert">{err}</div>}
       </Card>
       <div className="sa-wide">
         <Card title={t('staffApp.req.alerts')}>
-          {alerts.length === 0 ? <Note icon="bell">{t('staffApp.req.noAlerts')}</Note> : alerts.map(o => (
-            <Row key={o.id} title={o.mensagem} meta={`${o.from_nome || ''} · ${fmtDay(o.criado_em)} ${fmtTime(o.criado_em)}`} value={o.prioridade === 'urgent' ? <span className="sa-chip is-outside">!</span> : ''} />
+          {alerts.length === 0 ? <Empty icon="bell" title={t('staffApp.req.noAlerts')} hint={t('staffApp.req.noAlertsHint')} /> : alerts.map(o => (
+            <Row key={o.id} title={o.mensagem} meta={`${o.from_nome || ''} · ${fmtDay(o.criado_em)} ${fmtTime(o.criado_em)}`} value={o.prioridade === 'urgent' ? <span className="sa-chip is-bad"><Icon name="warning" size={12} /></span> : ''} />
           ))}
         </Card>
         <Card title={t('staffApp.req.mine')}>
           {list == null && <Note>{t('common.wait')}</Note>}
-          {list != null && list.length === 0 && <Note icon="send">{t('staffApp.req.none')}</Note>}
+          {list != null && list.length === 0 && <Empty icon="send" title={t('staffApp.req.none')} hint={t('staffApp.req.noneHint')} />}
           {(list || []).map(r => (
             <Row key={r.id} title={r.texto} meta={`${t(`staffApp.req.type_${r.tipo}`)} · ${fmtDay(r.criado_em)} ${fmtTime(r.criado_em)}`} value={<span className={`sa-chip is-req-${r.status}`}>{t(`staffApp.req.status_${r.status}`)}</span>}>
               {r.foto_url ? <img className="sa-req-photo" src={r.foto_url} alt="" /> : null}
-              {r.answer ? <em className="sa-reason">{t('staffApp.req.answer', { who: r.answered_by || '' })} {r.answer}</em> : null}
+              {r.answer ? <em className="sa-answer"><b>{t('staffApp.req.answer', { who: r.answered_by || '' })}</b> {r.answer}</em> : null}
             </Row>
           ))}
         </Card>
@@ -263,7 +277,7 @@ export function ReportsScreen({ t }) {
 }
 
 // ── Profile, occurrences, settings ───────────────────────────────────────────
-export function ProfileScreen({ t, perfil, profile, bar, onProfile, signOut, onTab }) {
+export function ProfileScreen({ t, perfil, profile, bar, onProfile, signOut, onTab, onBack }) {
   const file = useRef(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -283,49 +297,62 @@ export function ProfileScreen({ t, perfil, profile, bar, onProfile, signOut, onT
     }
   }
   const name = profile?.nome || perfil?.nome || ''
+  const pickPhoto = () => { if (!busy) file.current?.click() }
+  const detail = (icon, label, value) => (
+    <div className="sa-line">
+      <span className="sa-line-icon"><Icon name={icon} size={18} /></span>
+      <span className="sa-line-main"><small>{label}</small><strong>{value}</strong></span>
+    </div>
+  )
   return (
     <div className="sa-screen">
+      <PageHead t={t} title={t('staffApp.more.profile')} onBack={onBack} />
       <section className="sa-profile">
-        <Avatar name={name} url={profile?.foto_url} size={112} />
+        <button type="button" className={`sa-photo-btn${busy ? ' is-busy' : ''}`} onClick={pickPhoto} disabled={busy} aria-label={t('staffApp.me.editPhoto')}>
+          <Avatar name={name} url={profile?.foto_url} size={112} />
+          <span className="sa-photo-badge" aria-hidden="true"><Icon name={busy ? 'refresh' : 'camera'} size={18} /></span>
+        </button>
         <input ref={file} type="file" accept="image/*" hidden onChange={pick} />
-        <button type="button" className="sa-btn" onClick={() => file.current?.click()} disabled={busy}><Icon name="image" size={18} /> {busy ? t('common.wait') : t('staffApp.me.editPhoto')}</button>
-        {err && <div className="sa-error" role="alert">{err}</div>}
         <h1>{name}</h1>
         <p>{[profile?.cargo || perfil?.cargo, bar?.nome].filter(Boolean).join(' · ')}</p>
+        <button type="button" className="sa-link" onClick={pickPhoto} disabled={busy}>{busy ? t('common.wait') : t('staffApp.me.editPhoto')}</button>
+        {err && <div className="sa-error" role="alert">{err}</div>}
       </section>
       <Card title={t('staffApp.me.details')}>
-        <Row title={t('staffApp.me.email')} value={profile?.email || perfil?.email || '—'} />
-        {profile?.telefone && <Row title={t('staffApp.me.phone')} value={profile.telefone} />}
-        <Row title={t('employee.homeBar')} value={bar?.nome || '—'} />
+        {detail('profile', t('staffApp.me.email'), profile?.email || perfil?.email || '—')}
+        {profile?.telefone && detail('phone', t('staffApp.me.phone'), profile.telefone)}
+        {detail('bars', t('employee.homeBar'), bar?.nome || '—')}
       </Card>
-      <div className="sa-list-links">
-        <button type="button" onClick={() => onTab('occurrences')}><Icon name="occurrences" size={20} /> <span>{t('staffApp.more.occurrences')}</span> <Icon name="next" size={16} /></button>
-        <button type="button" onClick={() => onTab('settings')}><Icon name="settings" size={20} /> <span>{t('staffApp.more.settings')}</span> <Icon name="next" size={16} /></button>
-      </div>
+      <section className="sa-more-sec" aria-labelledby="sa-me-account">
+        <h2 id="sa-me-account">{t('staffApp.me.account')}</h2>
+        <nav className="sa-more-list">
+          <button type="button" onClick={() => onTab('occurrences')}><span className="sa-more-icon"><Icon name="occurrences" size={20} /></span><span>{t('staffApp.more.occurrences')}</span><Icon name="next" size={18} /></button>
+          <button type="button" onClick={() => onTab('settings')}><span className="sa-more-icon"><Icon name="settings" size={20} /></span><span>{t('staffApp.more.settings')}</span><Icon name="next" size={18} /></button>
+        </nav>
+      </section>
       <button type="button" className="sa-btn is-ghost sa-signout" onClick={signOut}><Icon name="signOut" size={18} /> {t('common.signOut')}</button>
     </div>
   )
 }
 
-export function OccurrencesScreen({ t, pack, missing }) {
+export function OccurrencesScreen({ t, pack, missing, onBack }) {
   const rows = byNewest(pack?.occurrences)
   return (
     <div className="sa-screen">
-      <h1 className="sa-title">{t('staffApp.more.occurrences')}</h1>
+      <PageHead t={t} title={t('staffApp.more.occurrences')} lead={t('employee.occurrenceNotPay')} onBack={onBack} />
       <Card>
-        {missing ? <Note>{t('staffApp.payrollSoon')}</Note> : rows.length === 0 ? <Note icon="occurrences">{t('employee.none')}</Note> : rows.map(o => (
+        {missing ? <Note>{t('staffApp.payrollSoon')}</Note> : rows.length === 0 ? <Empty icon="occurrences" title={t('employee.none')} /> : rows.map(o => (
           <Row key={o.id} title={o.note} meta={fmtDay(o.created_at)} />
         ))}
       </Card>
-      <p className="sa-muted">{t('employee.occurrenceNotPay')}</p>
     </div>
   )
 }
 
-export function SettingsScreen({ t, signOut }) {
+export function SettingsScreen({ t, signOut, onBack }) {
   return (
     <div className="sa-screen">
-      <h1 className="sa-title">{t('staffApp.more.settings')}</h1>
+      <PageHead t={t} title={t('staffApp.more.settings')} onBack={onBack} />
       <Card title={t('shell.appearance')}>
         <div className="sa-settings">
           <LanguageToggle />

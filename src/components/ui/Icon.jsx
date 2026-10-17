@@ -14,7 +14,7 @@ import {
   TrendingDown, Percent, Coins, Package, PiggyBank, Check, Columns2, UserCheck, Scale, Warehouse,
   Download, Hand, UserX, Timer, Box as Cube, Crown, Siren, BellRing, CircleHelp, Sofa, BrickWall, DoorOpen, Music, Sprout, Palette,
   MapPin, Inbox, CalendarCheck, Gavel, CalendarX, CircleMinus, Gift, ChartColumn,
-  Crop, List, PersonStanding, Rotate3d, Hand as Grab, ChevronUp,
+  Crop, List, PersonStanding, Rotate3d, Hand as Grab, ChevronUp, LogIn, Camera,
 } from 'lucide-react'
 
 /** One name → one vector icon. Screens ask for a semantic name, never an emoji. */
@@ -39,7 +39,7 @@ const ICONS = {
   automation: Workflow, warning: AlertTriangle, ok: CheckCircle2, info: Info, next: ChevronRight,
   back: ChevronLeft, down: ChevronDown, filter: Filter, refresh: RefreshCw, noImage: ImageOff,
   split: Split, merge: Merge, transfer: MoveRight, partialPay: HandCoins, lock: Lock, senha: Lock, keyboard: Keyboard,
-  signOut: LogOut, panelClose: PanelLeftClose, panelOpen: PanelLeftOpen, grip: GripVertical, hide: EyeOff,
+  signOut: LogOut, signIn: LogIn, camera: Camera, panelClose: PanelLeftClose, panelOpen: PanelLeftOpen, grip: GripVertical, hide: EyeOff,
   attach: Paperclip, image: ImageIcon, fileDoc: FileDoc, video: Video,
   customize: LayoutTemplate, up: ArrowUp, downArrow: ArrowDown,
   trendUp: TrendingUp, trendDown: TrendingDown, percent: Percent, coins: Coins, package: Package,

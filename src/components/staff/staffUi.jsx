@@ -102,3 +102,32 @@ export function Seg({ value, options, onChange, label }) {
     </div>
   )
 }
+
+/** Screen header: back button (to Home or the screen it came from), title, one-line lead and an optional right slot. */
+export function PageHead({ t, title, lead, onBack, right }) {
+  return (
+    <header className="sa-pagehead">
+      {onBack && (
+        <button type="button" className="sa-icon-btn sa-back" onClick={onBack} aria-label={t('staffApp.back')}>
+          <Icon name="back" size={20} />
+        </button>
+      )}
+      <div className="sa-pagehead-text">
+        <h1 className="sa-title">{title}</h1>
+        {lead && <p className="sa-muted">{lead}</p>}
+      </div>
+      {right}
+    </header>
+  )
+}
+
+/** Friendly empty state: icon in a soft circle, short title and a hint. */
+export function Empty({ icon = 'info', title, hint }) {
+  return (
+    <div className="sa-empty">
+      <span className="sa-empty-icon"><Icon name={icon} size={24} /></span>
+      {title && <strong>{title}</strong>}
+      {hint && <span>{hint}</span>}
+    </div>
+  )
+}
