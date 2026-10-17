@@ -8,6 +8,7 @@ import { buildSaleArgs, commitSaleAtomic } from '../src/lib/posCommit.js'
 import { planSaveRows, pendingToLines, splitEvenly, tableState, tabMoney, validateMoves } from '../src/lib/comandas.js'
 import { resolveItemPrice } from '../src/lib/atomicPos.js'
 import * as fe from '../src/lib/floorEditor.js'
+import { piecesFromAi } from '../src/lib/floorPhoto.js'
 import { moveItem, resolveLayout, serializeLayout } from '../src/lib/dashboardLayoutCore.js'
 import { deltaPct, niceMax, shortNum } from '../src/lib/chartMath.js'
 import { staffDayCsv, staffDayReport } from '../src/lib/staffDayReport.js'
@@ -289,6 +290,22 @@ test('floor counter chairs: stools next to a counter, numbered along it; plants 
   assert.deepEqual(s.tables.filter(t => t.capacidade === 1).map(t => [t.id, t.nome]), [['b', 'Cadeira 2'], ['a', 'Cadeira 1']])
   assert.deepEqual(fe.seatsOf(s.tables).map(t => t.nome), ['big', 'Cadeira 1', 'Cadeira 2'])
   assert.equal(fe.numberCounterChairs({ tables: [T('x', 'plant', 0, 0)] }).tables.length, 1)
+})
+
+test('floor photo: AI pieces scaled into the plan, bad ones skipped', () => {
+  const answer = { room: { w: 1000, d: 500 }, pieces: [
+    { name: 'Mesa 1', shape: 'square', x: 100, y: 100, w: 80, d: 80, seats: 4 },
+    { name: 'Toilet', shape: 'stage', x: 800, y: 0, w: 200, d: 150, seats: 0 },
+    { name: 'Chair', shape: 'chair', x: 0, y: 0, w: 40, d: 40 },
+    { name: 'Bad', shape: 'round', x: 'a', y: 0, w: 40, d: 40 },
+  ] }
+  const { tables, skipped } = piecesFromAi(answer, { largura: 2000, altura: 2000 })
+  assert.equal(skipped, 2)
+  assert.deepEqual(tables.map(t => [t.nome, t.forma, t.x, t.y, t.largura, t.altura, t.capacidade]), [
+    ['Mesa 1', 'square', 200, 200, 160, 160, 4], ['Toilet', 'stage', 1600, 0, 400, 300, 0],
+  ])
+  assert.ok(tables.every(t => fe.isTemp(t.id)))
+  assert.deepEqual(piecesFromAi({}, { largura: 900, altura: 500 }), { tables: [], skipped: 0 })
 })
 
 test('floor editor: undo/redo', () => {

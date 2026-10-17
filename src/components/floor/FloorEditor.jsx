@@ -8,6 +8,9 @@ import {
 } from '../../lib/floorEditor'
 import Icon from '../ui/Icon'
 import Floor3D from './Floor3D'
+import { staffFetch } from '../../lib/apiAuth'
+import { parseJsonFromAI } from '../../lib/ai'
+import { FLOOR_PHOTO_SYSTEM, floorPhotoPrompt, piecesFromAi, shrinkPhoto } from '../../lib/floorPhoto'
 
 const SHAPE_ICON = { round: 'circle', square: 'square', rect: 'rect', bar: 'move', sofa: 'sofa', wall: 'wall', door: 'door', stage: 'stage', plant: 'plant' }
 const TABLE_SHAPES = Object.keys(SHAPES).filter(f => !isDecor(f))
@@ -27,6 +30,9 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
   const [in3d, setIn3d] = useState(false)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null) // { tone, text, conflict? }
+  // Room photo read by the AI: { busy } while it reads, then { tables, skipped } waiting for the owner to add them.
+  const [photo, setPhoto] = useState(null)
+  const photoInput = useRef(null)
   const viewRef = useRef(null)
   const dragRef = useRef(null)
 
@@ -147,6 +153,34 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
   }
 
   // ── save / layouts ─────────────────────────────────────────────────────
+  async function readPhoto(file) {
+    if (!file) return
+    setPhoto({ busy: true })
+    try {
+      const dataUrl = await shrinkPhoto(file)
+      const [meta, data] = dataUrl.split(',')
+      const res = await staffFetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system: FLOOR_PHOTO_SYSTEM,
+          messages: [{ role: 'user', content: floorPhotoPrompt() }],
+          image: { mimeType: meta.split(';')[0].split(':')[1] || 'image/jpeg', data },
+          temperature: 0.2,
+          maxOutputTokens: 8192,
+        }),
+      })
+      const out = await res.json().catch(() => ({}))
+      if (!res.ok || out.error) throw new Error(out.error || res.statusText)
+      const found = piecesFromAi(parseJsonFromAI(out.text), state.layout)
+      if (!found.tables.length) throw new Error(t('floor.photoNone'))
+      setPhoto(found)
+    } catch (e) {
+      setPhoto(null)
+      setMsg({ tone: 'danger', text: t('floor.photoErr', { error: e.message }) })
+    }
+  }
+
   async function save() {
     if (!state || busy) return
     const errors = validateLayout(state)
@@ -230,6 +264,10 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
             </button>
           ))}
         </div>
+        <button type="button" className="ui-btn is-sm is-ghost" onClick={() => photoInput.current?.click()} disabled={photo?.busy} title={t('floor.photoHint')}>
+          <Icon name="image" size={14} /> {photo?.busy ? t('floor.photoReading') : t('floor.photoBtn')}
+        </button>
+        <input ref={photoInput} type="file" accept="image/*" hidden onChange={e => { readPhoto(e.target.files?.[0]); e.target.value = '' }} />
         {chairCount > 0 && (
           // Optional: the stools at the counter become "Chair 1, 2, 3..." with one seat each, so a tab can be opened per chair.
           <button type="button" className="ui-btn is-sm" onClick={() => commit(s => numberCounterChairs(s, n => t('floor.chairName', { n })))} title={t('floor.numberChairsHint')}>
@@ -256,6 +294,15 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
         <div className={msg.tone === 'success' ? 'ui-badge is-success fe-msg' : 'ui-error fe-msg'} role={msg.tone === 'success' ? 'status' : 'alert'}>
           <Icon name={msg.tone === 'success' ? 'ok' : 'warning'} size={16} />{msg.text}
           {msg.conflict && <button type="button" className="ui-btn is-sm" onClick={() => load(L)}>{t('floor.reload')}</button>}
+        </div>
+      )}
+
+      {photo?.tables && (
+        <div className="ui-badge fe-msg fe-photo" role="status">
+          <Icon name="ia" size={16} />
+          <span>{t('floor.photoFound', { n: photo.tables.length })}{photo.skipped ? ` ${t('floor.photoSkipped', { n: photo.skipped })}` : ''}</span>
+          <button type="button" className="ui-btn is-sm is-primary" onClick={() => { const add = photo.tables; commit(s => ({ ...s, tables: [...s.tables, ...add], selected: null })); setPhoto(null) }}>{t('floor.photoAdd')}</button>
+          <button type="button" className="ui-btn is-sm" onClick={() => setPhoto(null)}>{t('floor.photoDrop')}</button>
         </div>
       )}
 

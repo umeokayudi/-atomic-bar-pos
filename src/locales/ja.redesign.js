@@ -304,6 +304,9 @@ export default {
     },
   },
   floor: {
+    photoBtn: '写真から配置', photoReading: '写真を読み取り中…', photoHint: '店内の写真やスケッチを選ぶと、AIがテーブル・壁・部屋を提案します。追加するまで何も変わらず、元に戻すで取り消せます。',
+    photoFound: 'AIが写真から{n}個を見つけました。この配置に追加しますか？あとで動かしたり削除したり、元に戻すこともできます。', photoSkipped: '（{n}個は読み取れませんでした）',
+    photoAdd: '配置に追加', photoDrop: '破棄', photoNone: '写真にテーブルや壁が見つかりません', photoErr: '写真を読み取れませんでした: {error}',
     showPeople: '人の表示を切り替え', peopleBtn: '人', showNames: '名前の表示を切り替え', namesBtn: '名前',
     peopleLess: '1人減らす', peopleMore: '1人増やす', vip: 'VIP',
     chairName: 'チェア {n}', numberChairs: 'カウンター席に番号 ({n})', numberChairsHint: 'カウンターのスツールをチェア1、2、3…（各1席）にして、席ごとに伝票を開けるようにします。元に戻すで取り消せます。',

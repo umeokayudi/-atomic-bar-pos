@@ -311,6 +311,9 @@ export default {
     },
   },
   floor: {
+    photoBtn: 'Plan from photo', photoReading: 'Reading the photo…', photoHint: 'Take or pick a photo or sketch of the room: the AI suggests tables, walls and rooms. Nothing changes until you add them, and Undo removes them.',
+    photoFound: 'The AI found {n} pieces in the photo. Add them to this plan? You can move or delete each one, or undo.', photoSkipped: '({n} could not be read.)',
+    photoAdd: 'Add to plan', photoDrop: 'Discard', photoNone: 'no tables or walls found in the photo', photoErr: 'Could not read the photo: {error}',
     showPeople: 'Show or hide the people', peopleBtn: 'People', showNames: 'Show or hide the names', namesBtn: 'Names',
     peopleLess: 'One person less', peopleMore: 'One person more', vip: 'VIP',
     chairName: 'Chair {n}', numberChairs: 'Number counter chairs ({n})', numberChairsHint: 'Names the stools at the counter Chair 1, 2, 3... with one seat each, so a tab can be opened per chair. Undo reverts it.',

@@ -1440,3 +1440,6 @@ html .ui-prefs-wrap.is-chrome .ui-prefs-popover .ui-seg button,
 html .ui-prefs-wrap.is-chrome .ui-prefs-popover .theme-pill button { min-width: 0; min-height: 40px; padding: 0 6px; justify-content: center; gap: 6px; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--c-text-2); background: transparent; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 html .ui-prefs-wrap.is-chrome .ui-prefs-popover .ui-seg button[aria-checked="true"],
 html .ui-prefs-wrap.is-chrome .ui-prefs-popover .theme-pill button.on { background: var(--c-accent); color: var(--c-on-accent, #fff); box-shadow: none; }
+
+.fe-photo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; white-space: normal; line-height: 1.35; }
+.fe-photo > span { flex: 1 1 220px; }
