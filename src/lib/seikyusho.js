@@ -1,3 +1,4 @@
+import { staffFetch } from './apiAuth'
 async function readApiJson(res) {
   const text = await res.text()
   try {
@@ -8,7 +9,7 @@ async function readApiJson(res) {
 }
 
 async function seikyushoFetch(payload) {
-  const res = await fetch('/api/chat', {
+  const res = await staffFetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ module: 'seikyusho', ...payload }),
