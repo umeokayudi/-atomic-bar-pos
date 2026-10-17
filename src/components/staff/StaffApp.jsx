@@ -17,12 +17,15 @@ import { Avatar, Card, Note, Row, Stat, fmtDay, fmtHours, fmtTime, useNow } from
 import { OccurrencesScreen, PerformanceScreen, ProfileScreen, ReportsScreen, SettingsScreen, ShiftsScreen } from './StaffScreens'
 
 import { PayHubScreen } from './PayHub'
-import { NextShiftsCard, NextWeekGate, ScheduleScreen, useMySchedule } from './ScheduleScreen'
+import { ScheduleCta, ScheduleHomeCard, ScheduleScreen, rangeLabel, useMySchedule } from './ScheduleScreen'
+import StaffBell from './StaffBell'
 import { tokyoNightKey } from '../../lib/tokyo'
 import { greetingPart } from '../../lib/greeting'
 import { shiftCountdown, spanLabel } from '../../lib/staffSchedule'
 
 const StaffAlerts = lazy(() => import('../StaffAlerts'))
+/** Screens that stay open while next week's schedule is still to send (the rest point to "Send schedule"). */
+export const GATE_FREE = ['hoje', 'ponto', 'schedule', 'profile', 'settings']
 function BarMark({ brand, size = 36 }) {
   return (
     <span className="sa-barmark" style={{ width: size, height: size, ...(brand.color ? { background: brand.color } : {}) }} aria-hidden="true">
@@ -43,48 +46,25 @@ export function greetingFor(date = new Date()) {
 }
 const clockText = ms => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(ms))
 
-/** Home header: live Tokyo clock and the greeting in English + Japanese. */
-function HomeHello({ firstName }) {
+/** Home greeting (KuriPuro style): date + live Tokyo time, "Good evening, Aiko" with a wave, and the other language under it. */
+function HomeHello({ firstName, lang }) {
   const now = useNow(true, 15000)
   const g = greetingFor(new Date(now))
+  const main = lang === 'ja' ? `${g.ja}${firstName ? `、${firstName}さん` : ''}` : `${g.en}${firstName ? `, ${firstName}` : ''}`
+  const other = lang === 'ja' ? `${g.en}${firstName ? `, ${firstName}` : ''}` : `${g.ja}${firstName ? `、${firstName}さん` : ''}`
   return (
     <section className={`sa-hello is-${g.part}`} aria-live="off">
-      <div className="sa-hello-text">
-        <div className="sa-kicker">{fmtDay(now, { weekday: 'long', month: 'long', day: 'numeric' })}</div>
-        <h1>{g.en}{firstName ? `, ${firstName}` : ''}</h1>
-        <p lang="ja">{g.ja}{firstName ? `、${firstName}さん` : ''}</p>
+      <div className="sa-hello-kicker">
+        <Icon name={g.icon} size={14} />
+        <span>{fmtDay(now, { weekday: 'long', month: 'long', day: 'numeric' })}</span>
+        <b>{clockText(now)} <small>JST</small></b>
       </div>
-      <div className="sa-hello-clock">
-        <Icon name={g.icon} size={18} />
-        <strong>{clockText(now)}</strong>
-        <small>JST</small>
-      </div>
+      <h1>
+        <span>{main}</span>
+        <span className="welcome-wave" aria-hidden="true"><Icon name="wave" size={20} /></span>
+      </h1>
+      <p lang={lang === 'ja' ? 'en' : 'ja'}>{other}</p>
     </section>
-  )
-}
-
-/** Once per part of the day on this device: a small "Good evening · こんばんは · 20:14" toast. */
-function greetingToastOnce() {
-  const g = greetingFor()
-  const key = `sa_greet_${tokyoNightKey()}_${g.part}`
-  try {
-    if (localStorage.getItem(key)) return ''
-    localStorage.setItem(key, '1')
-  } catch { return '' }
-  return `${g.en} · ${g.ja} · ${clockText(Date.now())}`
-}
-
-/** Big, thumb-sized way into the till from Home. */
-function PosQuickButton({ t, onOpen }) {
-  return (
-    <button type="button" className="sa-posbtn" onClick={onOpen}>
-      <span className="sa-posbtn-icon"><Icon name="pos" size={26} /></span>
-      <span className="sa-posbtn-text">
-        <strong>{t('staffApp.home.newOrder')}</strong>
-        <small>{t('staffApp.home.newOrderSub')}</small>
-      </span>
-      <Icon name="next" size={22} />
-    </button>
   )
 }
 
@@ -104,14 +84,11 @@ export function confirmedShift(schedule, punches, meId, today = tokyoNightKey())
   }
 }
 
-/** After the owner confirms: time to start, late, time left to finish. */
-function ShiftCountdownCard({ t, shift, tolerance, today }) {
-  const now = useNow(!!shift, 1000)
+/** After the owner confirms: time to start, late, time left to finish (shown inside the clock card). */
+function shiftLine(t, shift, tolerance, now) {
   if (!shift) return null
   const c = shiftCountdown({ ...shift, toleranceMin: tolerance, now: new Date(now) })
   if (!c) return null
-  const when = shift.day === today ? t('schedule.tonight') : fmtDay(`${shift.day}T12:00:00+09:00`, { weekday: 'short', month: 'short', day: 'numeric' })
-  const hours = `${shift.start}${shift.end ? `–${shift.end}` : ''}`
   let tone = ''
   let big = ''
   let sub = ''
@@ -122,35 +99,37 @@ function ShiftCountdownCard({ t, shift, tolerance, today }) {
   else if (c.phase === 'on') { tone = 'on'; big = c.msToEnd != null ? spanLabel(c.msToEnd) : '—'; sub = c.msToEnd != null ? t('shiftTimer.toEnd') : t('shiftTimer.noEnd') }
   else if (c.phase === 'over') { tone = 'warn'; big = `+${spanLabel(c.msOver)}`; sub = t('shiftTimer.over') }
   else if (c.phase === 'done') { tone = 'ok'; big = t('shiftTimer.done'); sub = '' }
-  return (
-    <section className={`sa-shift${tone ? ` is-${tone}` : ''}`} aria-live="polite">
-      <div className="sa-shift-head">
-        <span className="sa-chip is-ok"><Icon name="check" size={12} /> {t('schedule.confirmed')}</span>
-        <span className="sa-shift-when">{when} · <b>{hours}</b></span>
-      </div>
-      <div className="sa-shift-big">{big}</div>
-      {sub && <div className="sa-shift-sub">{sub}</div>}
-      {c.lateMinutes > 0 && ['on', 'over', 'done'].includes(c.phase) && (
-        <div className="sa-shift-late"><Icon name="warning" size={14} /> {t('shiftTimer.cameLate', { min: c.lateMinutes })}</div>
-      )}
-      {c.phase === 'on' && c.pct != null && (
-        <div className="sa-bar" role="progressbar" aria-valuenow={c.pct} aria-valuemin={0} aria-valuemax={100}><div style={{ width: `${c.pct}%` }} /></div>
-      )}
-    </section>
-  )
+  return { ...c, tone, big, sub }
 }
 
-/** The one big card: status, live timer and the clock-in / clock-out button. */
-function ClockCard({ t, clock, punch, canClock, compact }) {
-  const now = useNow(clock.onShift)
+/** The one big card: status pill, tonight's confirmed hours + countdown, live timer and the clock-in / out button. */
+function ClockCard({ t, clock, punch, canClock, compact, shift, tolerance, today }) {
+  const now = useNow(clock.onShift || !!shift, 1000)
   const ms = clock.onShift ? now - Date.parse(clock.since) : 0
+  const line = shiftLine(t, shift, tolerance, now)
+  const when = shift ? (shift.day === today ? t('schedule.tonight') : fmtDay(`${shift.day}T12:00:00+09:00`, { weekday: 'short', month: 'short', day: 'numeric' })) : ''
   const label = punch.phase === 'locating' ? t('staffApp.locating') : punch.phase === 'sending' ? t('common.wait') : (clock.onShift ? t('employee.clockOutCta') : t('employee.clockInCta'))
   return (
     <section className={`sa-clock${clock.onShift ? ' is-on' : ''}${compact ? ' is-compact' : ''}`} aria-live="polite">
       <div className="sa-clock-top">
         <span className={`sa-status${clock.onShift ? ' is-on' : ''}`}><span className="sa-dot" />{clock.onShift ? t('employee.onShiftSince', { time: fmtTime(clock.since) }) : t('employee.offShift')}</span>
+        {shift && <span className="sa-clock-shift"><Icon name="calendar" size={14} /> {when} · <b>{shift.start}{shift.end ? `–${shift.end}` : ''}</b></span>}
       </div>
-      <div className="sa-timer" aria-label={t('staffApp.timer')}>{clock.onShift ? elapsedLabel(ms) : '0:00:00'}</div>
+      <div className="sa-clock-mid">
+        <div className="sa-timer" aria-label={t('staffApp.timer')}>{clock.onShift ? elapsedLabel(ms) : '0:00:00'}</div>
+        {line && (
+          <div className={`sa-clock-count${line.tone ? ` is-${line.tone}` : ''}`}>
+            <b>{line.big}</b>
+            {line.sub && <small>{line.sub}</small>}
+          </div>
+        )}
+      </div>
+      {line?.phase === 'on' && line.pct != null && (
+        <div className="sa-bar is-clock" role="progressbar" aria-valuenow={line.pct} aria-valuemin={0} aria-valuemax={100}><div style={{ width: `${line.pct}%` }} /></div>
+      )}
+      {line && line.lateMinutes > 0 && ['on', 'over', 'done'].includes(line.phase) && (
+        <div className="sa-clock-late"><Icon name="warning" size={14} /> {t('shiftTimer.cameLate', { min: line.lateMinutes })}</div>
+      )}
       {canClock ? (
         <button type="button" className="sa-clock-cta" disabled={punch.busy} onClick={() => punch.start(clock.onShift ? 'out' : 'in')}>
           <Icon name={punch.phase === 'locating' ? 'location' : 'clock'} size={22} /> {label}
@@ -190,50 +169,83 @@ function TonightCard({ t, day, onTab }) {
   )
 }
 
-function HomeScreen({ t, perfil, profile, clock, punch, canClock, day, monthHours, pack, missing, onTab, schedule, canPos, meId, punches }) {
-  const firstName = String(profile?.nome || perfil?.nome || '').trim().split(/\s+/)[0] || ''
-  const goals = (pack?.goals || []).slice(0, 3)
-  const today = tokyoNightKey()
-  const shift = confirmedShift(schedule, punches, meId, today)
+/** Four big shortcuts with a live hint each: till, results, pay, reports. */
+function QuickActions({ t, canPos, day, monthHours, onTab }) {
+  const items = [
+    canPos && { id: 'pos', icon: 'pos', label: t('staffApp.home.newOrder'), sub: t('staffApp.home.qaPosSub'), primary: true },
+    { id: 'performance', icon: 'result', label: t('staffApp.tabPerformance'), sub: t('staffApp.home.qaResultsSub', { amount: fmtYen(day?.summary?.sales || 0) }) },
+    { id: 'salary', icon: 'salary', label: t('staffApp.more.earnings'), sub: t('staffApp.home.qaPaySub', { hours: fmtHours(monthHours) }) },
+    { id: 'reports', icon: 'send', label: t('staffApp.home.qaReports'), sub: t('staffApp.home.qaReportsSub') },
+  ].filter(Boolean)
   return (
-    <div className="sa-screen">
-      <HomeHello firstName={firstName} />
-      {canPos && <PosQuickButton t={t} onOpen={() => onTab('pos')} />}
-      <ShiftCountdownCard t={t} shift={shift} tolerance={schedule?.data?.tolerance} today={today} />
-      <ClockCard t={t} clock={clock} punch={punch} canClock={canClock} compact />
-      <div className="sa-wide">
-        <TonightCard t={t} day={day} onTab={onTab} />
-        <NextShiftsCard t={t} schedule={schedule} today={tokyoNightKey()} onOpen={() => onTab('schedule')} />
-        <div className="sa-stats">
-          <Stat label={t('employee.statHours')} value={fmtHours(monthHours)} sub={t('employee.thisMonth')} onClick={() => onTab('shifts')} />
-          <Stat label={t('staffApp.home.tonightSales')} value={fmtYen(day?.summary?.sales || 0)} onClick={() => onTab('performance')} />
-          <Stat label={t('staffApp.home.earnings')} value={t('staffApp.home.open')} sub={t('staffApp.home.earningsSub')} onClick={() => onTab('salary')} />
-        </div>
-        <Card title={t('employee.goals')} right={<button type="button" className="sa-link" onClick={() => onTab('performance')}>{t('employee.seeAll')}</button>}>
-          {missing ? <Note>{t('staffApp.payrollSoon')}</Note> : goals.length === 0 ? <Note icon="goals">{t('employee.noGoals')}</Note> : goals.map(g => {
-            const pct = +g.target ? Math.max(0, Math.min(100, Math.round(((+g.actual || 0) / +g.target) * 100))) : null
-            return (
-              <div key={g.id} className="sa-goal">
-                <div className="sa-goal-head"><span>{g.title}</span><b>{g.actual ?? '—'} / {g.target ?? '—'}</b></div>
-                {pct !== null && <div className="sa-bar"><div style={{ width: `${pct}%` }} className={pct >= 100 ? 'is-done' : ''} /></div>}
-              </div>
-            )
-          })}
-        </Card>
-        <button type="button" className="sa-wide-btn" onClick={() => onTab('reports')}>
-          <Icon name="send" size={18} /> <span>{t('staffApp.home.sendReport')}</span> <Icon name="next" size={16} />
+    <nav className={`sa-quick is-${items.length}`} aria-label={t('staffApp.home.quick')}>
+      {items.map(it => (
+        <button key={it.id} type="button" className={`sa-quick-btn${it.primary ? ' is-primary' : ''}`} onClick={() => onTab(it.id)}>
+          <span className="sa-quick-icon"><Icon name={it.icon} size={22} /></span>
+          <span className="sa-quick-text">
+            <strong>{it.label}</strong>
+            <small>{it.sub}</small>
+          </span>
         </button>
+      ))}
+    </nav>
+  )
+}
+
+/** Next week not sent and the person opened another screen: a gentle sheet that points to the schedule. */
+function ScheduleGateSheet({ t, schedule, onSend, onHome }) {
+  const status = schedule.data?.status
+  useEffect(() => {
+    const onKey = e => { if (e.key === 'Escape') onHome() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onHome])
+  if (!status?.week) return null
+  const range = rangeLabel(status.week.from, status.week.to)
+  return (
+    <div className="sa-sheet-wrap" role="presentation" onClick={e => { if (e.target === e.currentTarget) onHome() }}>
+      <div className="sa-sheet" role="dialog" aria-modal="true" aria-labelledby="sa-gate-title">
+        <div className="sa-sheet-grip" />
+        <div className="sa-sheet-head">
+          <span className="sa-sheet-icon"><Icon name="calendar" size={24} /></span>
+          <div>
+            <h2 id="sa-gate-title">{t('schedule.gateSheetTitle')}</h2>
+            <p>{t('schedule.gateSheetLead', { range })}</p>
+          </div>
+        </div>
+        <div className="sa-sheet-actions">
+          <button type="button" className="sa-btn is-primary" onClick={onSend}><Icon name="send" size={18} /> {t('schedule.ctaButton')}</button>
+          <button type="button" className="sa-btn is-ghost" onClick={onHome}><Icon name="home" size={18} /> {t('schedule.backHome')}</button>
+        </div>
       </div>
     </div>
   )
 }
 
-function ClockScreen({ t, clock, punch, canClock, venue, punches }) {
+function HomeScreen({ t, lang, perfil, profile, clock, punch, canClock, day, monthHours, onTab, schedule, canPos, meId, punches }) {
+  const firstName = String(profile?.nome || perfil?.nome || '').trim().split(/\s+/)[0] || ''
+  const today = tokyoNightKey()
+  const shift = confirmedShift(schedule, punches, meId, today)
+  return (
+    <div className="sa-screen sa-home">
+      <HomeHello firstName={firstName} lang={lang} />
+      <ScheduleCta t={t} schedule={schedule} onOpen={() => onTab('schedule')} />
+      <ClockCard t={t} clock={clock} punch={punch} canClock={canClock} compact shift={shift} tolerance={schedule?.data?.tolerance} today={today} />
+      <QuickActions t={t} canPos={canPos} day={day} monthHours={monthHours} onTab={onTab} />
+      <TonightCard t={t} day={day} onTab={onTab} />
+      <ScheduleHomeCard t={t} schedule={schedule} today={today} onOpen={() => onTab('schedule')} />
+    </div>
+  )
+}
+
+function ClockScreen({ t, clock, punch, canClock, venue, punches, schedule, meId }) {
   const recent = clock.mine.slice(0, 12)
+  const today = tokyoNightKey()
+  const shift = confirmedShift(schedule, punches, meId, today)
   return (
     <div className="sa-screen">
       <h1 className="sa-title">{t('staffApp.tabClock')}</h1>
-      <ClockCard t={t} clock={clock} punch={punch} canClock={canClock} />
+      <ClockCard t={t} clock={clock} punch={punch} canClock={canClock} shift={shift} tolerance={schedule?.data?.tolerance} today={today} />
       <Card title={t('staffApp.clock.location')}>
         {venue?.configured
           ? <Note icon="location">{t('staffApp.clock.venueOn', { radius: venue.radius_m })}</Note>
@@ -301,7 +313,7 @@ function MoreMenu({ t, open, onClose, items, onTab, profile, perfil, bar, signOu
  * Data: payroll_my_pack (own pay pack), /api/time-clock (own punches, venue), /api/bar-staff me* actions.
  */
 export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => true, renderWork }) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const { perfil } = useAuth()
   const screen = staffAppTabFor(tab)
   const brand = useMemo(() => barBrand(bar), [bar])
@@ -319,7 +331,6 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
   const schedule = useMySchedule()
 
   useEffect(() => { if (brand.name) rememberStaffBrand(brand) }, [brand])
-  useEffect(() => { const hello = greetingToastOnce(); if (hello) setToast(hello) }, [])
 
   const loadPunches = useCallback(async () => {
     const range = monthRange()
@@ -392,56 +403,59 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
 
   const tabs = staffAppTabsFor(canOpen)
   const moreItems = staffMoreItemsFor(canOpen)
-  const lit = moreOpen ? 'more' : bottomTabFor(screen)
-  const work = ['pos', 'mesas', 'pedidos'].includes(screen) && canOpen(screen)
   const go = id => { setMoreOpen(false); onTab(id) }
-  const shared = { t, perfil, profile, bar, pack, missing, competence, onTab: go, punches, nightPremium, meId }
   const canPos = canOpen('pos')
-  // Next week's schedule is required: until it is sent, the app shows only the clock and the week to send.
+  // Next week's schedule is required: until it is sent, Home shows a clear "Send schedule" card and any other
+  // feature (except the clock, the schedule itself, profile and settings) opens a gentle sheet pointing to it.
   const mustSend = !!schedule.data?.status?.mustSend
-  const fab = canPos && !mustSend && !work && !['hoje', 'schedule'].includes(screen)
+  const blocked = mustSend && !GATE_FREE.includes(screen)
+  const shown = blocked ? 'hoje' : screen
+  const lit = moreOpen ? 'more' : bottomTabFor(shown)
+  const work = ['pos', 'mesas', 'pedidos'].includes(shown) && canOpen(shown)
+  const shared = { t, lang, perfil, profile, bar, pack, missing, competence, onTab: go, punches, nightPremium, meId }
+  const fab = canPos && !mustSend && !work && !['hoje', 'schedule'].includes(shown)
+  const today = tokyoNightKey()
 
   return (
-    <div className={`sa-app${work && !mustSend ? ' is-work' : ''}`} style={brand.color ? { '--sa-brand': brand.color } : undefined}>
+    <div className={`sa-app${work ? ' is-work' : ''}`} style={brand.color ? { '--sa-brand': brand.color } : undefined}>
       <header className="sa-top">
         <button type="button" className="sa-top-bar" onClick={() => go('hoje')} aria-label={t('staffApp.tabHome')}>
-          <BarMark brand={brand} />
+          <BarMark brand={brand} size={40} />
           <span className="sa-top-name">
             <strong>{brand.name || t('staffApp.yourBar')}</strong>
-            <small>{profile?.nome || perfil?.nome || ''}</small>
+            <small>{clock.onShift ? <><span className="sa-dot is-live" /> {t('staffApp.onShift')}</> : (profile?.cargo || t('staffApp.staffLabel'))}</small>
           </span>
         </button>
-        {clock.onShift && <span className="sa-top-live" aria-label={t('staffApp.onShift')}><span className="sa-dot" /> {t('staffApp.onShift')}</span>}
-        <Avatar name={profile?.nome || perfil?.nome} url={profile?.foto_url} size={40} onClick={() => go('profile')} label={t('employee.profile')} />
+        <StaffBell t={t} schedule={schedule} onNavigate={go} />
+        <span className={`sa-me${clock.onShift ? ' is-on' : ''}`}>
+          <Avatar name={profile?.nome || perfil?.nome} url={profile?.foto_url} size={42} onClick={() => go('profile')} label={t('employee.profile')} />
+        </span>
       </header>
 
       <Suspense fallback={null}><div className="sa-alerts"><StaffAlerts /></div></Suspense>
 
       <main className="sa-main">
-        {mustSend ? (
-          <NextWeekGate t={t} today={tokyoNightKey()} schedule={schedule} top={<ClockCard t={t} clock={clock} punch={punch} canClock={canClock} compact />} />
-        ) : (<>
-        {screen === 'hoje' && <HomeScreen {...shared} clock={clock} punch={punch} canClock={canClock} day={day} monthHours={monthHours} schedule={schedule} canPos={canPos} />}
-        {screen === 'ponto' && <ClockScreen t={t} clock={clock} punch={punch} canClock={canClock} venue={venue} punches={punches} />}
-        {screen === 'performance' && <PerformanceScreen {...shared} day={day} />}
-        {screen === 'shifts' && <ShiftsScreen {...shared} />}
-        {screen === 'salary' && <PayHubScreen {...shared} />}
-        {screen === 'schedule' && <ScheduleScreen {...shared} today={tokyoNightKey()} schedule={schedule} />}
-        {screen === 'reports' && <ReportsScreen {...shared} />}
-        {screen === 'profile' && <ProfileScreen {...shared} onProfile={setProfile} signOut={signOut} />}
-        {screen === 'occurrences' && <OccurrencesScreen {...shared} />}
-        {screen === 'settings' && <SettingsScreen {...shared} signOut={signOut} />}
+        {shown === 'hoje' && <HomeScreen {...shared} clock={clock} punch={punch} canClock={canClock} day={day} monthHours={monthHours} schedule={schedule} canPos={canPos} />}
+        {shown === 'ponto' && <ClockScreen t={t} clock={clock} punch={punch} canClock={canClock} venue={venue} punches={punches} schedule={schedule} meId={meId} />}
+        {shown === 'performance' && <PerformanceScreen {...shared} day={day} />}
+        {shown === 'shifts' && <ShiftsScreen {...shared} />}
+        {shown === 'salary' && <PayHubScreen {...shared} />}
+        {shown === 'schedule' && <ScheduleScreen {...shared} today={today} schedule={schedule} onBack={() => go('hoje')} />}
+        {shown === 'reports' && <ReportsScreen {...shared} />}
+        {shown === 'profile' && <ProfileScreen {...shared} onProfile={setProfile} signOut={signOut} />}
+        {shown === 'occurrences' && <OccurrencesScreen {...shared} />}
+        {shown === 'settings' && <SettingsScreen {...shared} signOut={signOut} />}
         {work && (
           <div className="sa-work">
             {/* HOOK(staff-pos): the POS tab renders the staff till (pos/StaffPos: attribution + equal cast split via
                 saleCredit) for bar_staff, else AtomicPos with cashier access. PortalCliente supplies it. */}
-            {renderWork?.(screen)}
+            {renderWork?.(shown)}
           </div>
         )}
-        {['pos', 'mesas', 'pedidos'].includes(screen) && !canOpen(screen) && <Note>{t('barUsers.noAccessBody')}</Note>}
-        </>)}
+        {['pos', 'mesas', 'pedidos'].includes(shown) && !canOpen(shown) && <Note>{t('barUsers.noAccessBody')}</Note>}
       </main>
 
+      {blocked && <ScheduleGateSheet t={t} schedule={schedule} onSend={() => go('schedule')} onHome={() => go('hoje')} />}
       {fab && (
         <button type="button" className="sa-fab" onClick={() => go('pos')} aria-label={t('staffApp.home.newOrder')}>
           <Icon name="plus" size={22} /> <span>{t('staffApp.fab')}</span>

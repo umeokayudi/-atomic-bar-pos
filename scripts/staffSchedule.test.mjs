@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import {
   addDays, attendanceFor, canEditDay, cleanDays, cleanScheduleRules, deadlineMs, endMs, expectedFor, mergeAvailability, myAttendance,
   nextWeekOf, openHourOf, scheduleBoard, scheduleRules, scheduleWeeks, scheduleWindow, shiftCountdown, spanLabel, startMs,
-  submissionStatus, validWeeks, weekCheck,
+  submissionStatus, validWeeks, weekCheck, timePresets, nightHours, copyWeekMarks,
 } from '../src/lib/staffSchedule.js'
 import {
   canWriteFines, cleanFine, cleanPayout, fineSettings, finesByStaff, finesTotal, finesVisibleTo, payNet, paymentHistory, suggestFine,
@@ -408,6 +408,25 @@ await test('API next week: send needs start+end; the status, rules and owner rem
   if (d1 <= r.body.to) assert.deepEqual(r.body.confirmed[d1], { in: true, start: '20:00', end: '02:00' })
   assert.equal(typeof r.body.tolerance, 'number')
   await call(P.boss, { action: 'saveScheduleRules', minNights: 0 })
+})
+
+await test('schedule screen helpers: hour presets from the opening hour, night length, copy last week', () => {
+  assert.deepEqual(timePresets(20), [{ start: '20:00', end: '01:00' }, { start: '20:00', end: '03:00' }, { start: '20:00', end: '05:00' }, { start: '21:00', end: '03:00' }])
+  assert.equal(timePresets(19)[0].start, '19:00')
+  assert.equal(timePresets(undefined)[0].start, '20:00')
+  for (const p of timePresets(22)) assert.ok(weekCheck({ '2026-10-19': p }, { from: '2026-10-19', to: '2026-10-25' }).ok, 'every preset passes the start+end rule')
+  assert.equal(nightHours('20:00', '03:00'), 7)
+  assert.equal(nightHours('21:00', '01:30'), 4.5)
+  assert.equal(nightHours('20:00', ''), null)
+  const prev = ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18']
+  const week = prev.map(d => addDays(d, 7))
+  const days = { '2026-10-13': { start: '20:00', end: '02:00' }, '2026-10-17': { start: '21:00', end: '03:00' }, '2026-10-21': { start: '20:00', end: '01:00' } }
+  const editable = new Set(week.slice(1))
+  const out = copyWeekMarks(days, prev, week, editable)
+  assert.deepEqual(out['2026-10-20'], { start: '20:00', end: '02:00' })
+  assert.deepEqual(out['2026-10-24'], { start: '21:00', end: '03:00' })
+  assert.equal(out['2026-10-21'], null, 'a night off last week clears this week')
+  assert.ok(!('2026-10-19' in out), 'locked nights are left alone')
 })
 
 console.log(`\n${n} tests passed`)

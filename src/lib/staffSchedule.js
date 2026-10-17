@@ -371,3 +371,34 @@ export function spanLabel(ms) {
   if (m) return `${m}m`
   return `${s % 60}s`
 }
+
+const pad2 = n => String(n).padStart(2, '0')
+
+/** One-tap hour presets for a night, from the bar's opening hour (20 → 20–01, 20–03, 20–05, 21–03). */
+export function timePresets(openHour = DEFAULT_OPEN_HOUR) {
+  const h = Math.max(16, Math.min(23, Number(openHour) || DEFAULT_OPEN_HOUR))
+  const s = `${pad2(h)}:00`
+  const s1 = `${pad2((h + 1) % 24)}:00`
+  return [
+    { start: s, end: '01:00' },
+    { start: s, end: '03:00' },
+    { start: s, end: '05:00' },
+    { start: s1, end: '03:00' },
+  ].filter((p, i, all) => all.findIndex(q => q.start === p.start && q.end === p.end) === i)
+}
+
+/** Length of a night in hours, across midnight ("20:00"–"03:00" → 7); null without both times. */
+export function nightHours(start, end) {
+  if (!cleanStart(start) || !cleanStart(end)) return null
+  const m = v => { const [h, mm] = v.split(':').map(Number); return h * 60 + mm }
+  let len = m(end) - m(start)
+  if (len <= 0) len += 24 * 60
+  return Math.round(len / 6) / 10
+}
+
+/** "Copy last week": the marks of `prevWeek` moved onto `week` day by day, only on nights still editable. */
+export function copyWeekMarks(days = {}, prevWeek = [], week = [], editable = new Set()) {
+  const out = {}
+  week.forEach((d, i) => { if (editable.has(d)) out[d] = days[prevWeek[i]] || null })
+  return out
+}

@@ -123,6 +123,13 @@ export const TABLES = {
   bar_visits: visits,
   pos_vendas: posSales,
   staff_orders: staffOrders,
+  // Bell: staff items for Aiko, plus an owner money alarm that must never show in the staff bell.
+  notificacoes: [
+    { id: 'nt1', user_id: 'st1', tipo: 'staff_request_answer', titulo: 'Gerente Demo', mensagem: 'Ordered, lime arrives tomorrow.', lida: false, criado_em: ago(40) },
+    { id: 'nt2', user_id: 'st1', tipo: 'staff_schedule_confirmed', titulo: 'Tonight · confirmed / 確定', mensagem: 'Your shift tonight: 20:00–02:00', lida: false, criado_em: ago(180) },
+    { id: 'nt3', user_id: 'st1', tipo: 'staff_payout', titulo: 'Owner Demo', mensagem: 'Last month · ¥172,000', lida: true, criado_em: ago(60 * 30) },
+    { id: 'nt4', user_id: 'st1', tipo: 'fatura_vencida', titulo: 'Invoice overdue', mensagem: 'JBM invoice ¥120,000', lida: false, criado_em: ago(10) },
+  ],
   drink_back_agents: [
     { id: 'dba1', bar_id: BAR.id, nome: 'Yuki Promotions', regiao: 'Shibuya', comissao_pct: 10, ativo: true },
     { id: 'dba2', bar_id: BAR.id, nome: 'Marco Street Team', regiao: 'Roppongi · Azabu', comissao_pct: 15, ativo: true },
