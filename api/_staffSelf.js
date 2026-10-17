@@ -13,7 +13,8 @@ import { earningsByDay, myGoalStatus, myNightSummary } from '../src/lib/staffNig
 import { tokyoNightKey, tokyoWallToUtcMs } from '../src/lib/tokyo.js'
 import { nightWindow } from '../src/lib/nightClose.js'
 import {
-  addDays, canEditDay, cleanDays, cleanStart, isDayKey, mergeAvailability, myAttendance, openHourOf, scheduleWindow,
+  addDays, canEditDay, cleanDays, cleanScheduleRules, dayMark, isDayKey, mergeAvailability, myAttendance, nextWeekOf, openHourOf,
+  scheduleRules, scheduleWindow, submissionStatus, validWeeks, weekCheck,
 } from '../src/lib/staffSchedule.js'
 import { canWriteFines, cleanFine, cleanFineSettings, cleanPayout, fineSettings, finesTotal, payNet } from '../src/lib/staffFines.js'
 
@@ -31,7 +32,7 @@ export const SELF_ACTIONS = new Set([
 ])
 export const OWNER_ACTIONS = new Set([
   'listRequests', 'answerRequest', 'listDayReports',
-  'scheduleBoard', 'confirmSchedule', 'listFines', 'saveFine', 'cancelFine', 'saveFineSettings',
+  'scheduleBoard', 'confirmSchedule', 'saveScheduleRules', 'remindSchedule', 'listFines', 'saveFine', 'cancelFine', 'saveFineSettings',
   'markSalaryPaid', 'unmarkSalaryPaid', 'listPayouts',
 ])
 /** Owner actions that change what someone is paid (PIN-locked like pay fields when the owner locked payroll). */
@@ -40,6 +41,8 @@ export const PAY_WRITE_ACTIONS = new Set(['saveFine', 'cancelFine', 'saveFineSet
 const clip = (v, n) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n)
 const newId = () => globalThis.crypto?.randomUUID?.() || `sr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const dayKey = v => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : '')
+
+const tokyoLabel = iso => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tokyo', weekday: 'short', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso))
 
 function shiftDay(key, n) {
   const [y, m, d] = key.split('-').map(Number)
@@ -420,16 +423,38 @@ export async function handleSelfAction(res, { admin, db, auth, body }) {
       scheduleRows(db, barId, win.from, win.to),
       barGoals(db, barId),
     ])
-    const mine = rows.find(r => String(r.staff_id) === String(meId)) || null
+    let mine = rows.find(r => String(r.staff_id) === String(meId)) || null
     const openHour = openHourOf(goals)
+    const rules = scheduleRules(goals)
     const confirmed = {}
     for (const sc of schedules) {
       const hit = (sc.people || []).find(p => String(p.id) === String(meId))
-      confirmed[sc.day] = hit ? { in: true, start: cleanStart(hit.start) } : { in: false }
+      confirmed[sc.day] = hit ? { in: true, ...dayMark(hit) } : { in: false }
     }
     const editable = []
     for (let d = win.from; d <= win.to; d = addDays(d, 1)) if (canEditDay(d, { openHour })) editable.push(d)
-    return res.status(200).json({ ...win, openHour, days: mine?.days || {}, updated_at: mine?.updated_at || null, confirmed, editable })
+    const today = tokyoNightKey()
+    const status = submissionStatus({ row: mine, rules, today })
+    // Reminder in the bell: once a day from N days before the deadline until next week is sent.
+    if (status.remind && mine?.reminded?.[status.week.from] !== today) {
+      if (admin) {
+        await notifyStaff(admin, meId, {
+          tipo: 'staff_schedule_reminder',
+          titulo: 'Schedule · シフト提出',
+          mensagem: `Send your shifts for the week of ${status.week.from} (start and end) by ${tokyoLabel(status.deadline)} JST · 締切 ${tokyoLabel(status.deadline)}`,
+        })
+      }
+      const row = {
+        id: `${barId}:${meId}`, bar_id: barId, staff_id: meId, staff_nome: me.nome, days: mine?.days || {}, weeks: mine?.weeks || {},
+        reminded: { ...(mine?.reminded || {}), [status.week.from]: today }, updated_at: mine?.updated_at || new Date().toISOString(),
+      }
+      const saved = await upsertRow(db, 'staff_availability', row)
+      if (!saved.error) mine = row
+    }
+    return res.status(200).json({
+      ...win, openHour, days: mine?.days || {}, weeks: mine?.weeks || {}, updated_at: mine?.updated_at || null, confirmed, editable,
+      rules, status: { ...status, reminded: mine?.reminded?.[status.week.from] === today }, tolerance: fineSettings(goals).tolerance,
+    })
   }
 
   if (body.action === 'meSaveAvailability') {
@@ -438,15 +463,37 @@ export async function handleSelfAction(res, { admin, db, auth, body }) {
     const openHour = openHourOf(goals)
     const rows = await availabilityRows(db, barId, meId)
     const mine = rows.find(r => String(r.staff_id) === String(meId)) || null
+    const rules = scheduleRules(goals)
     const merged = mergeAvailability(mine?.days || {}, cleanDays(body.days, win), { ...win, openHour })
     // Keep about 3 months of history on the row.
     const keepFrom = addDays(win.from, -92)
     const days = Object.fromEntries(Object.entries(merged.days).filter(([d]) => d >= keepFrom))
+    // Sending a week as final: it must follow the bar's rules (start and end on every night, least nights).
+    let weeks = validWeeks(mine?.weeks, days, rules)
+    const submit = isDayKey(body.submitWeek) ? body.submitWeek : ''
+    if (submit) {
+      const next = nextWeekOf()
+      if (submit < win.from || submit > next.from) return res.status(400).json({ error: 'That week cannot be sent now' })
+      const check = weekCheck(days, { from: submit, to: addDays(submit, 6), rules })
+      if (!check.ok) {
+        const why = check.tooFew ? `Mark at least ${rules.minNights} nights` : check.noStart.length ? 'Pick a start time on every night' : 'Pick an end time on every night'
+        return res.status(400).json({ error: why, check })
+      }
+      weeks = { ...weeks, [submit]: { submitted_at: new Date().toISOString() } }
+    }
+    const keepWeeks = Object.fromEntries(Object.entries(weeks).filter(([d]) => d >= keepFrom))
     // The row id and staff_id come from the session: a body cannot write someone else's days.
-    const row = { id: `${barId}:${meId}`, bar_id: barId, staff_id: meId, staff_nome: me.nome, days, updated_at: new Date().toISOString() }
+    const row = {
+      id: `${barId}:${meId}`, bar_id: barId, staff_id: meId, staff_nome: me.nome, days, weeks: keepWeeks,
+      reminded: mine?.reminded || {}, updated_at: new Date().toISOString(),
+    }
     const saved = await upsertRow(db, 'staff_availability', row)
     if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not save' })
-    return res.status(200).json({ ok: true, days, locked: merged.locked })
+    const status = submissionStatus({ row, rules })
+    if (submit && admin) {
+      await notifyManagers(admin, barId, { tipo: 'staff_schedule_sent', titulo: `${me.nome || 'Staff'} · schedule`, mensagem: `Week of ${submit}: ${weekCheck(days, { from: submit, to: addDays(submit, 6), rules }).nights} nights` })
+    }
+    return res.status(200).json({ ok: true, days, weeks: keepWeeks, locked: merged.locked, status })
   }
 
   if (body.action === 'mePayouts') {
@@ -499,8 +546,8 @@ export async function handleOwnerAction(res, { admin, db, auth, body }) {
       listPunches(db, { barId, from: new Date(tokyoWallToUtcMs(y1, m1, d1, 6)).toISOString(), to: nightWindow(to).to }),
     ])
     return res.status(200).json({
-      from, to, openHour: openHourOf(goals), settings: fineSettings(goals),
-      availability: availability.map(r => ({ staff_id: r.staff_id, staff_nome: r.staff_nome, days: r.days || {}, updated_at: r.updated_at })),
+      from, to, openHour: openHourOf(goals), settings: fineSettings(goals), rules: scheduleRules(goals), nextWeek: nextWeekOf(),
+      availability: availability.map(r => ({ staff_id: r.staff_id, staff_nome: r.staff_nome, days: r.days || {}, weeks: r.weeks || {}, updated_at: r.updated_at })),
       schedules, fines, punches: punches.data || [],
     })
   }
@@ -514,13 +561,44 @@ export async function handleOwnerAction(res, { admin, db, auth, body }) {
       const id = clip(p?.id, 64)
       if (!id || seen.has(id)) continue
       seen.add(id)
-      people.push({ id, nome: clip(p?.nome, 80), start: cleanStart(p?.start) })
+      people.push({ id, nome: clip(p?.nome, 80), ...dayMark(p) })
       if (people.length >= 80) break
     }
     const row = { id: `${barId}:${day}`, bar_id: barId, day, people, confirmed_by: actor.id, confirmed_by_nome: actor.nome, confirmed_at: new Date().toISOString() }
     const saved = await upsertRow(db, 'staff_schedule', row)
     if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not save' })
+    if (admin && body.notify !== false) {
+      for (const p of people) {
+        const hours = p.start ? `${p.start}${p.end ? `–${p.end}` : ''}` : ''
+        await notifyStaff(admin, p.id, { tipo: 'staff_schedule_confirmed', titulo: `${day} · confirmed / 確定`, mensagem: hours ? `Your shift on ${day}: ${hours}` : `You are on the list for ${day}` })
+      }
+    }
     return res.status(200).json({ ok: true, schedule: row })
+  }
+
+  if (body.action === 'saveScheduleRules') {
+    const patch = cleanScheduleRules(body)
+    const existing = await runLiveOp(db, { table: 'bar_goals', mode: 'select', columns: '*', filters: [{ op: 'eq', k: 'id', v: barId }], wantSingle: 'maybe' })
+    const base = existing.data || { id: barId, bar_id: barId, noite: 0, hora: 0, semana: 0, turno: 0, lucro: 0, abre: 20, fecha: 5, corta: 0, pessoas: [] }
+    const row = { ...base, ...patch, id: barId, bar_id: barId }
+    const saved = await runLiveOp(db, {
+      table: 'bar_goals', mode: existing.data ? 'update' : 'insert', filters: [{ op: 'eq', k: 'id', v: barId }],
+      insertRows: [row], updatePatch: row, wantSingle: true,
+    })
+    if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not save' })
+    return res.status(200).json({ ok: true, rules: scheduleRules(row) })
+  }
+
+  if (body.action === 'remindSchedule') {
+    const ids = [...new Set((Array.isArray(body.staff_ids) ? body.staff_ids : []).map(v => clip(v, 64)).filter(Boolean))].slice(0, 80)
+    if (!ids.length) return res.status(400).json({ error: 'Pick who to remind' })
+    const week = nextWeekOf()
+    if (admin) {
+      for (const id of ids) {
+        await notifyStaff(admin, id, { tipo: 'staff_schedule_reminder', titulo: `${actor.nome || 'Manager'} · シフト提出`, mensagem: `Please send your shifts for the week of ${week.from} (start and end).` })
+      }
+    }
+    return res.status(200).json({ ok: true, reminded: admin ? ids.length : 0 })
   }
 
   if (body.action === 'listFines') {

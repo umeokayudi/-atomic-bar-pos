@@ -34,10 +34,12 @@ export const saveBarLocation = ({ lat, lng, geofence_m }) => post('saveLocation'
 
 // Schedule (staff marks the nights they will work; owner confirms), fines, salary payouts
 export const meAvailability = () => post('meAvailability')
-export const meSaveAvailability = days => post('meSaveAvailability', { days })
+export const meSaveAvailability = (days, submitWeek) => post('meSaveAvailability', submitWeek ? { days, submitWeek } : { days })
 export const mePayouts = () => post('mePayouts')
 export const scheduleBoard = (from, to) => post('scheduleBoard', { from, to })
 export const confirmSchedule = (day, people) => post('confirmSchedule', { day, people })
+export const saveScheduleRules = rules => post('saveScheduleRules', rules)
+export const remindSchedule = staffIds => post('remindSchedule', { staff_ids: staffIds })
 export const listFines = (from, to) => post('listFines', { from, to })
 export const saveFine = fine => post('saveFine', fine)
 export const cancelFine = (id, note) => post('cancelFine', { id, note })

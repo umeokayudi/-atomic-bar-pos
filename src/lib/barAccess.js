@@ -145,7 +145,7 @@ export function staffActionAreas(method, body = {}, opts = {}) {
       return ['team|clock']
     case 'listRequests': case 'answerRequest': case 'listDayReports':
       return ['team|clock']
-    case 'scheduleBoard': case 'confirmSchedule':
+    case 'scheduleBoard': case 'confirmSchedule': case 'saveScheduleRules': case 'remindSchedule':
       return ['team|clock']
     case 'listFines':
       return ['team|clock|payroll']

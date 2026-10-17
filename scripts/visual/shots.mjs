@@ -11,7 +11,7 @@ import { ADMIN, MANAGER, STAFF, TABLES, BAR_STAFF, PUNCHES } from './fixtures.mj
 import { castRoster } from '../../src/lib/staffPos.js'
 import { earningsByDay, earningsRange, myGoalStatus, myNightSummary } from '../../src/lib/staffNight.js'
 import { tokyoNightKey } from '../../src/lib/tokyo.js'
-import { addDays, scheduleWindow } from '../../src/lib/staffSchedule.js'
+import { DEFAULT_RULES, addDays, nextWeekOf, scheduleWindow, submissionStatus } from '../../src/lib/staffSchedule.js'
 import {
   monthDashboardStats, buildDashboardAlertas, entregasDetalheForMonth, buildDashboardCalendar,
 } from '../../api/_dashboardMonth.js'
@@ -107,6 +107,7 @@ const PAGES = [
   { who: STAFF, path: '/bar/salary', name: 'staff-pay-day', taps: ['.sa-cal-cell.has-pay'] },
   { who: STAFF, path: '/bar/schedule', name: 'staff-schedule' },
   { who: STAFF, path: '/bar/hoje', name: 'staff-home-schedule' },
+  { who: STAFF, path: '/bar/hoje', name: 'staff-schedule-gate', gate: true },
   { who: MANAGER, path: '/bar/ponto', name: 'owner-schedule-board' },
   { who: MANAGER, path: '/bar/ponto', name: 'owner-fine-sheet', taps: ['.osb-fine-btn'] },
   { who: MANAGER, path: '/bar/salarios', name: 'owner-salary-fines' },
@@ -116,6 +117,7 @@ const PAGES = [
   { who: MANAGER, path: '/bar/inicio', name: 'bar-home' },
   { who: MANAGER, path: '/bar/inicio', name: 'bar-home-rail', rail: true },
 ]
+let CURRENT = {}
 const ONLY = process.env.PAGES ? process.env.PAGES.split(',') : null
 
 const VENUE = { configured: true, lat: 35.6595, lng: 139.7005, radius_m: 150 }
@@ -157,12 +159,18 @@ const SELF_MOCK = {
     const win = scheduleWindow(today)
     const days = {}
     const confirmed = {}
-    for (const n of [1, 2, 5, 8, 9]) days[addDays(today, n)] = { start: n === 5 ? '21:00' : '20:00' }
-    confirmed[addDays(today, 1)] = { in: true, start: '20:00' }
+    for (const n of [0, 1, 2, 5, 8, 9]) days[addDays(today, n)] = { start: n === 5 ? '21:00' : '20:00', end: '02:00' }
+    confirmed[today] = { in: true, start: '20:00', end: '02:00' }
+    confirmed[addDays(today, 1)] = { in: true, start: '20:00', end: '01:00' }
     confirmed[addDays(today, 2)] = { in: false }
     const editable = []
     for (let d = today; d <= win.to; d = addDays(d, 1)) editable.push(d)
-    return { ...win, openHour: 20, days, confirmed, editable, updated_at: new Date().toISOString() }
+    const nw = nextWeekOf(today)
+    if (CURRENT.gate) for (let d = nw.from; d <= nw.to; d = addDays(d, 1)) delete days[d]
+    if (CURRENT.gate) days[addDays(nw.from, 1)] = { start: '20:00' }
+    const weeks = CURRENT.gate ? {} : { [nw.from]: { submitted_at: new Date().toISOString() } }
+    const status = submissionStatus({ row: { days, weeks }, rules: DEFAULT_RULES, today })
+    return { ...win, openHour: 20, days, weeks, confirmed, editable, rules: DEFAULT_RULES, status, tolerance: 10, updated_at: new Date().toISOString() }
   },
   mePayouts: () => {
     const now = tokyoNightKey().slice(0, 7)
@@ -177,12 +185,13 @@ const SELF_MOCK = {
     const win = scheduleWindow(today)
     const ago = (day, h, min) => new Date(Date.parse(`${day}T${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}:00+09:00`)).toISOString()
     const yest = addDays(today, -1)
-    const mark = list => Object.fromEntries(list.map(([d, s]) => [d, { start: s }]))
+    const mark = list => Object.fromEntries(list.map(([d, s]) => [d, { start: s, end: '02:00' }]))
+    const nw = nextWeekOf(today)
     return {
-      from: win.from, to: win.to, openHour: 20,
+      from: win.from, to: win.to, openHour: 20, rules: DEFAULT_RULES, nextWeek: nw,
       settings: { absent: 5000, late: 1000, lateEvery: 15, tolerance: 10 },
       availability: [
-        { staff_id: 'st1', staff_nome: 'Aiko Tanaka', days: mark([[yest, '20:00'], [today, '20:00'], [addDays(today, 1), '20:00'], [addDays(today, 2), '21:00']]) },
+        { staff_id: 'st1', staff_nome: 'Aiko Tanaka', days: mark([[yest, '20:00'], [today, '20:00'], [addDays(today, 1), '20:00'], [addDays(today, 2), '21:00'], [nw.from, '20:00'], [addDays(nw.from, 3), '21:00']]), weeks: { [nw.from]: { submitted_at: new Date().toISOString() } } },
         { staff_id: 'st2', staff_nome: 'Ken Mori', days: mark([[yest, '20:00'], [today, '21:00'], [addDays(today, 2), '20:00']]) },
         { staff_id: 'pp1', staff_nome: 'Mika Hayashi', days: mark([[yest, '20:30'], [addDays(today, 1), '20:00']]) },
       ],
@@ -372,6 +381,7 @@ async function main() {
           const errors = []
           page.on('pageerror', e => errors.push(String(e.message || e)))
           page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|ERR_|WebSocket|realtime|503/i.test(m.text())) errors.push(m.text()) })
+          CURRENT = pg
           await mock(page, pg.who, pg.missing, pg.vault, pg.acessos)
           const session = { access_token: fakeJwt(pg.who), token_type: 'bearer', expires_in: 86400, expires_at: Math.floor(Date.now() / 1000) + 86400, refresh_token: 'r', user: { id: pg.who.id, email: pg.who.email, aud: 'authenticated', role: 'authenticated', user_metadata: {}, app_metadata: {} } }
           await page.addInitScript(rail => { if (rail) localStorage.setItem('jbm_sidebar_collapsed', '1') }, !!pg.rail)
