@@ -28,7 +28,8 @@
     "test:staff-app": "node scripts/staffApp.test.mjs",
     "test:time-clock": "node scripts/timeClockRoute.test.mjs",
     "test:sale-credit": "node scripts/saleCredit.test.mjs",
-    "test:staff-schedule": "node scripts/staffSchedule.test.mjs"
+    "test:staff-schedule": "node scripts/staffSchedule.test.mjs",
+    "test:pos-void": "node scripts/posVoid.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
