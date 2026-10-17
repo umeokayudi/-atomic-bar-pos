@@ -350,14 +350,17 @@ function Dashboard({ onNav }) {
         },
         {
           id: 'kpis', title: t('dash.w.kpis'), icon: 'dashboard', size: 'full',
-          render: () => (
+          // No purchase logged yet: a margin would read 100%, which is not a real number.
+          render: () => { const noCost = !m.comprasEstimadas && !(+m.compras > 0); return (
             <div className="portal-hero-grid">
               <PortalHero
                 label={t('dashboard.projectedProfit', { month: monthLabel(selMonth) })}
                 value={fmtYen(m.lucroProjetado ?? m.lucro)}
                 sub={m.comprasEstimadas
                   ? t('dashboard.marginSubEst', { margin: m.margem, revenue: fmtYen(m.faturamento), cost: fmtYen(m.compras) })
-                  : t('dashboard.marginSub', { margin: m.margem, revenue: fmtYen(m.faturamento ?? m.receita), purchases: fmtYen(m.compras) })}
+                  : noCost
+                    ? t('dashboard.noPurchasesLogged')
+                    : t('dashboard.marginSub', { margin: m.margem, revenue: fmtYen(m.faturamento ?? m.receita), purchases: fmtYen(m.compras) })}
                 onClick={() => goToReport(onNav, selMonth)}
               />
               <PortalKpi
@@ -386,18 +389,20 @@ function Dashboard({ onNav }) {
               />
               <PortalKpi
                 icon="percent"
-                tone={m.margem >= 20 ? 'success' : m.margem > 0 ? 'warning' : 'danger'}
+                tone={noCost ? 'warning' : m.margem >= 20 ? 'success' : m.margem > 0 ? 'warning' : 'danger'}
                 label={t('dashboard.projectedMargin')}
-                value={`${m.margem}%`}
+                value={noCost ? '—' : `${m.margem}%`}
                 sub={m.comprasEstimadas
                   ? t('dashboard.marginDetailEst', { amount: fmtYen(m.compras) })
-                  : t('dashboard.marginDetail', { amount: fmtYen(m.compras), count: m.comprasCount })}
-                color={m.margem >= 20 ? 'var(--green)' : m.margem > 0 ? 'var(--amber)' : 'var(--red)'}
+                  : noCost
+                    ? t('dashboard.noPurchasesLogged')
+                    : t('dashboard.marginDetail', { amount: fmtYen(m.compras), count: m.comprasCount })}
+                color={noCost ? 'var(--amber)' : m.margem >= 20 ? 'var(--green)' : m.margem > 0 ? 'var(--amber)' : 'var(--red)'}
                 onClick={() => goToReport(onNav, selMonth)}
                 hint={t('dashboard.reportDetail')}
               />
             </div>
-          ),
+          ) },
         },
         {
           id: 'trend', title: t('dash.w.trend'), icon: 'cashflow', size: 'half',
