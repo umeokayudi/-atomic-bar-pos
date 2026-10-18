@@ -422,6 +422,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
     setActive(id)
     setTendered('')
     setErr('')
+    setPayMore(false)
   }
 
   async function openTab(e) {
@@ -625,6 +626,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
       dropActive()
       setCastIds(defaultCast)
       setTendered('')
+      setPayMore(false)
       setOrderOpen(false)
       setPanelTab(null)
       clearTimeout(doneTimer.current)
@@ -668,6 +670,10 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
               : hasSomething ? t('posQuick.charge', { amount: fmtYen(due) }) : t('posQuick.charge', { amount: '' }).trim()
 
   const sentLines = srvMoney?.lines || []
+  // Payment method, cash, customer and cast only show once the order goes to payment.
+  const needsPayStep = hasSomething && !settledTab && !setupNeeded
+  const paying = payMore && needsPayStep
+  useEffect(() => { if (!hasSomething) setPayMore(false) }, [hasSomething])
 
   return (
     <div className={`pq${orderOpen ? ' is-order-open' : ''}`}>
@@ -829,7 +835,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
           })}
         </div>
 
-        <div className={`pq-pay${payMore ? ' is-more' : ''}`}>
+        <div className={`pq-pay${paying ? ' is-paying' : ''}`}>
           {(charges.lines.length > 0 || surchargeNow > 0 || srvMoney?.paid > 0) && (
             <div className="pq-extra">
               {charges.lines.map(line => (
@@ -851,15 +857,14 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
             </button>
           )}
 
-          <button type="button" className="pq-pay-toggle" aria-expanded={payMore} onClick={() => setPayMore(v => !v)}>
-            <span>
-              <Icon name={PAY.find(row => row.id === pay)?.icon || 'payCash'} size={16} />
-              {[t(PAY.find(row => row.id === pay)?.key || 'atomicPos.payCash'), orderGuest?.nome, castLabel].filter(Boolean).join(' · ')}
-            </span>
-            <span className="pq-pay-toggle-more">{t(payMore ? 'posQuick.lessOptions' : 'posQuick.moreOptions')}<Icon name="down" size={16} /></span>
-          </button>
+          {paying && (
+            <div className="pq-pay-head">
+              <strong>{t('posQuick.payTitle')}</strong>
+              <button type="button" onClick={() => { setPayMore(false); setErr('') }}><Icon name="back" size={16} /> {t('posQuick.payBack')}</button>
+            </div>
+          )}
 
-          <div className="pq-pay-more">
+          {paying && <div className="pq-pay-more">
 
           <div className="pq-pays">
             {PAY.map(row => (
@@ -919,23 +924,26 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
                 <Icon name="next" size={16} />
               </button>
             )}
-            {tableOrder && !srvTab && (
-              <button type="button" className={serviceOn ? 'is-on' : ''} onClick={() => setServiceOn(v => !v)}>
-                {t('posQuick.service', { pct: settings.service_pct })}
-              </button>
-            )}
-            {(cart.length > 0 || (tableOrder && !srvTab)) && (
+          </div>
+
+          </div>}
+
+          {!paying && (tableOrder && !srvTab || cart.length > 0) && (
+            <div className="pq-options">
+              {tableOrder && !srvTab && (
+                <button type="button" className={serviceOn ? 'is-on' : ''} onClick={() => setServiceOn(v => !v)}>
+                  {t('posQuick.service', { pct: settings.service_pct })}
+                </button>
+              )}
               <button type="button" className="is-quiet" onClick={() => (srvTab ? setCart([]) : dropActive())}>
                 {tableOrder && !srvTab ? t('posQuick.closeTab') : t('posQuick.clear')}
               </button>
-            )}
-          </div>
-
-          </div>
+            </div>
+          )}
 
           {err && <div className="pq-alert" role="alert">{err}</div>}
-          <button type="button" className="pq-charge" disabled={busy || !hasSomething || short || setupNeeded} onClick={needGuest ? () => setCustSheet(true) : charge} aria-keyshortcuts="Control+Enter F12">
-            {chargeLabel}
+          <button type="button" className="pq-charge" disabled={busy || !hasSomething || short || setupNeeded} onClick={!paying && needsPayStep ? () => { setPayMore(true); setErr('') } : needGuest ? () => setCustSheet(true) : charge} aria-keyshortcuts="Control+Enter F12">
+            {!paying && needsPayStep && !busy ? t('posQuick.toPay', { amount: fmtYen(due) }) : chargeLabel}
           </button>
         </div>
       </aside>

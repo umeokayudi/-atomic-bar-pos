@@ -72,6 +72,8 @@ const PAGES = [
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-dashboard', click: /^Dashboard$/ },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-void', click: /^Dashboard$/, then: /^Void$/ },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-order', click: /Counter/, taps: ['.pq-tile-hit', '.pq-tile-hit', '.pq-cartbar'], tapsBelow: 901 },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-lines', click: /Counter/, taps: ['.pq-tile-hit', '.pq-grid .pq-tile:nth-child(2) .pq-tile-hit', '.pq-grid .pq-tile:nth-child(3) .pq-tile-hit', '.pq-grid .pq-tile:nth-child(4) .pq-tile-hit', '.pq-cartbar'] },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-pay', click: /Counter/, taps: ['.pq-tile-hit', '.pq-grid .pq-tile:nth-child(2) .pq-tile-hit', '.pq-cartbar', '.pq-charge'] },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-vip', chip: /VIP/ },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-drinkback', chip: /Drink Back/ },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-prices', chip: /Prices/ },
@@ -94,9 +96,9 @@ const PAGES = [
   { who: STAFF, path: '/bar/hoje', name: 'staff-today-only', acessos: ['clock'] },
   { who: STAFF, path: '/bar/goals', name: 'staff-goals' },
   { who: STAFF, path: '/bar/pos', name: 'staff-pos' },
-  { who: STAFF, path: '/bar/pos', name: 'staff-pos-order', taps: ['.pq-tile-hit', '.pq-tile-hit', '.pq-cartbar', '.pq-pay-toggle'], tapsBelow: 901 },
-  { who: STAFF, path: '/bar/pos', name: 'staff-pos-cast', phoneOnly: true, taps: ['.pq-tile-hit', '.pq-cartbar', '.pq-pay-toggle', '.pq-castbtn', '.pq-cast-list button:nth-child(2)'] },
-  { who: STAFF, path: '/bar/pos', name: 'staff-pos-cast-wide', wideOnly: true, taps: ['.pq-tile-hit', '.pq-castbtn', '.pq-cast-list button:nth-child(2)'] },
+  { who: STAFF, path: '/bar/pos', name: 'staff-pos-order', taps: ['.pq-tile-hit', '.pq-tile-hit', '.pq-cartbar', '.pq-charge'], tapsBelow: 901 },
+  { who: STAFF, path: '/bar/pos', name: 'staff-pos-cast', phoneOnly: true, taps: ['.pq-tile-hit', '.pq-cartbar', '.pq-charge', '.pq-castbtn', '.pq-cast-list button:nth-child(2)'] },
+  { who: STAFF, path: '/bar/pos', name: 'staff-pos-cast-wide', wideOnly: true, taps: ['.pq-tile-hit', '.pq-charge', '.pq-castbtn', '.pq-cast-list button:nth-child(2)'] },
   { who: STAFF, path: '/bar/pos', name: 'staff-pos-mine', taps: ['.pq-glance.is-mine .is-btn'] },
   { who: STAFF, path: '/bar/performance', name: 'staff-app-performance' },
   { who: STAFF, path: '/bar/ponto', name: 'staff-app-clock' },
@@ -424,6 +426,8 @@ async function main() {
             await page.waitForTimeout(800)
           }
           for (const sel of (pg.tapsBelow && width >= pg.tapsBelow ? [] : pg.taps || [])) {
+            // The phone order bar does not exist on wide screens, where the order panel is always open.
+            if (sel === '.pq-cartbar' && !(await page.locator(`${sel}:visible`).count())) continue
             await page.locator(`${sel}:visible`).first().click({ timeout: 5000 }).catch(e => errors.push(`tap ${sel}: ${e.message}`))
             await page.waitForTimeout(300)
           }

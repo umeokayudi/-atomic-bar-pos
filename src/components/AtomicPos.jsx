@@ -210,44 +210,37 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
 
   return (
     <div className="pos-close-bar">
-      <div>
-        <div className="pos-ticket-label">{t('atomicPos.nightClose')}</div>
-        <div className="pos-close-meta">
-          {t('atomicPos.nightOpen', { date: nightKey })} · {summary.ticketCount} · {fmtYen(summary.drinksTotal)}
-          <div className="pos-close-split">
-            {t('atomicPos.paySplit', {
-              cash: fmtYen(summary.cashTotal),
-              card: fmtYen(summary.cardTotal),
-              paypay: fmtYen(summary.paypayTotal || 0),
-            })}
-          </div>
-          <div className="pos-close-split">
-            {t('atomicPos.booksLine', {
-              gross: fmtYen(summary.gross_sales || summary.grossSales || 0),
-              refunds: fmtYen(summary.refunds || 0),
-              net: fmtYen(summary.net_sales || summary.netSales || summary.drinksTotal || 0),
-              fees: fmtYen(summary.card_fees || summary.cardFees || 0),
-              cash: fmtYen(summary.cashNet || 0),
-            })}
-          </div>
-          {summary.ticketCount === 0 && prior && (
-            <div className="pos-close-last">
-              {t('atomicPos.lastNight', {
-                date: prior.date,
-                count: prior.count,
-                amount: fmtYen(prior.amount),
-              })}
-              <div className="pos-close-split">
-                {t('atomicPos.paySplit', {
-                  cash: fmtYen(prior.split.cashTotal),
-                  card: fmtYen(prior.split.cardTotal),
-                  paypay: fmtYen(prior.split.paypayTotal || 0),
-                })}
-              </div>
-            </div>
-          )}
-        </div>
+      <div className="pos-close-head">
+        <span className="pos-ticket-label">{t('atomicPos.nightClose')}</span>
+        <span className={`ui-badge ${closed ? 'is-success' : countingNow ? 'is-warning' : 'is-info'}`}>
+          {t(closed ? 'atomicPos.closeStateClosed' : countingNow ? 'atomicPos.closeStateCounting' : 'atomicPos.closeStateOpen')}
+        </span>
       </div>
+      <div className="pos-close-total">
+        <strong>{fmtYen(summary.drinksTotal)}</strong>
+        <span>{t('atomicPos.nightOpen', { date: nightKey })} · {t('atomicPos.ticketsToday', { count: summary.ticketCount })}</span>
+      </div>
+      <div className="pos-close-methods">
+        <div><span>{t('atomicPos.payCash')}</span><strong>{fmtYen(summary.cashTotal)}</strong></div>
+        <div><span>{t('atomicPos.payCard')}</span><strong>{fmtYen(summary.cardTotal)}</strong></div>
+        <div><span>{t('atomicPos.payPaypay')}</span><strong>{fmtYen(summary.paypayTotal || 0)}</strong></div>
+      </div>
+      <details className="pos-close-books">
+        <summary>{t('atomicPos.closeDetails')}</summary>
+        <dl>
+          <dt>{t('atomicPos.booksGross')}</dt><dd>{fmtYen(summary.gross_sales || summary.grossSales || 0)}</dd>
+          <dt>{t('atomicPos.booksRefunds')}</dt><dd>{fmtYen(summary.refunds || 0)}</dd>
+          <dt>{t('atomicPos.booksNet')}</dt><dd>{fmtYen(summary.net_sales || summary.netSales || summary.drinksTotal || 0)}</dd>
+          <dt>{t('atomicPos.booksFees')}</dt><dd>{fmtYen(summary.card_fees || summary.cardFees || 0)}</dd>
+          <dt>{t('atomicPos.booksCash')}</dt><dd>{fmtYen(summary.cashNet || 0)}</dd>
+        </dl>
+      </details>
+      {summary.ticketCount === 0 && prior && (
+        <div className="pos-close-last">
+          {t('atomicPos.lastNight', { date: prior.date, count: prior.count, amount: fmtYen(prior.amount) })}
+          <span>{t('atomicPos.paySplit', { cash: fmtYen(prior.split.cashTotal), card: fmtYen(prior.split.cardTotal), paypay: fmtYen(prior.split.paypayTotal || 0) })}</span>
+        </div>
+      )}
       {pending && (
         <div className="pos-close-actions pos-close-pending">
           <div className="pos-close-msg">{t('atomicPos.countPending', { date: pending.night_key, expected: fmtYen(pending.expected_cash) })}</div>
@@ -1477,7 +1470,7 @@ function StatCard({ label, value, sub, color }) {
 function HourlyChart({ data, height = 100 }) {
   const { t } = useI18n()
   const activeHours = data.filter(h => h.total > 0 || h.count > 0)
-  if (!activeHours.length) return <div style={{ color: 'var(--text3)', fontSize: 13, padding: 20, textAlign: 'center' }}>—</div>
+  if (!activeHours.length) return <div className="hourly-empty">{t('atomicPos.hourlyEmpty')}</div>
   const max = Math.max(...data.map(d => d.total), 1)
   return (
     <div className="hourly-chart" style={{ height: height + 32 }}>
@@ -1549,95 +1542,106 @@ function PosDashboardTab({ bar, todaySales, salesList, onOrder, onVoided }) {
   }, [bar, todaySales])
 
   return (
-    <div className="easy-dash pos-easy-dash">
-      <div className="easy-dash-hero">
-        <div className="easy-dash-kicker">{t('atomicPos.todayAtCounter')}</div>
-        <div className="easy-dash-value" style={{ color: 'var(--green)' }}>{fmtYen(metrics.total)}</div>
-        <div className="easy-dash-hint">
-          {t('atomicPos.ticketsToday', { count: metrics.count })}
-          {' · '}
-          {t('atomicPos.avgTicketShort', { amount: fmtYen(metrics.ticketMedio) })}
-          {metrics.peakHour?.total > 0 ? ` · ${t('atomicPos.busiestHour')} ${metrics.peakHour.label}` : ''}
+    <div className="easy-dash pos-easy-dash pos-dash">
+      <div className="pos-dash-stats">
+        <div className="pos-dash-stat is-main">
+          <span>{t('atomicPos.todayAtCounter')}</span>
+          <strong>{fmtYen(metrics.total)}</strong>
+        </div>
+        <div className="pos-dash-stat">
+          <span>{t('atomicPos.dashSales')}</span>
+          <strong>{metrics.count}</strong>
+        </div>
+        <div className="pos-dash-stat">
+          <span>{t('atomicPos.avgTicket')}</span>
+          <strong>{fmtYen(metrics.ticketMedio)}</strong>
+        </div>
+        <div className="pos-dash-stat">
+          <span>{t('atomicPos.busiestHour')}</span>
+          <strong>{metrics.peakHour?.total > 0 ? metrics.peakHour.label : '—'}</strong>
         </div>
       </div>
-      <NightCloseBar bar={bar} salesHint={salesList} />
-      <TonightSales bar={bar} salesList={salesList} onVoided={onVoided} />
 
-      {openRestock.length === 0 && lowStock.length === 0 && (
-        <div className="easy-dash-ok" style={{ marginBottom: 16 }}>{t('atomicPos.stockOk')}</div>
-      )}
-
-      {openRestock.length > 0 && (
-        <div style={{
-          background: 'var(--navy)', borderRadius: 16, padding: '16px 20px', marginBottom: 20,
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
-        }}>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'white', marginBottom: 4 }}>
-              {t('atomicPos.restockPending', { count: openRestock.length })}
-            </div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>
-              {t('atomicPos.restockPendingHint')}
-            </div>
+      <div className="pos-dash-grid">
+        <div className="pos-dash-main">
+          <div className="card pos-dash-card">
+            <SectionTitle>{t('atomicPos.hourlyRevenue')}</SectionTitle>
+            <HourlyChart data={metrics.hourly} />
           </div>
-          {onOrder && (
-            <button onClick={onOrder} style={{
-              background: 'var(--bg2)', color: 'var(--c-text)', border: 'none', borderRadius: 12,
-              padding: '10px 18px', fontWeight: 700, fontSize: 12, cursor: 'pointer',
-            }}>
-              {t('atomicPos.seeJbmOrders')}
-            </button>
+          <TonightSales bar={bar} salesList={salesList} onVoided={onVoided} />
+          {agentStats.length > 0 && (
+            <div className="card">
+              <SectionTitle>{t('atomicPos.drinkBackToday')}</SectionTitle>
+              {agentStats.map(a => (
+                <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                  <div>
+                    <strong>{a.nome}</strong>
+                    <div style={{ fontSize: 11, color: 'var(--text2)' }}>{a.vendas} {t('atomicPos.salesWord')} · {t('atomicPos.commissionShort', { pct: a.comissao_pct })}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontWeight: 700 }}>{fmtYen(a.faturamento)}</div>
+                    <div style={{ fontSize: 11, color: 'var(--gold)' }}>{t('atomicPos.commission')} {fmtYen(a.comissao)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
-      )}
-
-      {lowStock.length > 0 && (
-        <div style={{
-          background: 'linear-gradient(135deg,var(--amber) 0%,#ff6b00 100%)',
-          borderRadius: 16, padding: '16px 20px', marginBottom: 20,
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
-        }}>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'white', marginBottom: 4 }}>
-              {t('atomicPos.lowStockAlert', { count: lowStock.length })}
-            </div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)' }}>
-              {lowStock.slice(0, 4).map(p => `${p.nome} (${p.stock}/${p.minimo})`).join(' · ')}
-            </div>
-          </div>
-          {onOrder && (
-            <button onClick={onOrder} style={{
-              background: 'var(--bg2)', color: '#ff6b00', border: 'none', borderRadius: 12,
-              padding: '10px 18px', fontWeight: 700, fontSize: 12, cursor: 'pointer',
-            }}>
-              {t('atomicPos.reorderJbm')}
-            </button>
+        <div className="pos-dash-side">
+          <NightCloseBar bar={bar} salesHint={salesList} />
+          {openRestock.length === 0 && lowStock.length === 0 && (
+            <div className="easy-dash-ok">{t('atomicPos.stockOk')}</div>
           )}
-        </div>
-      )}
-
-      <div className="card" style={{ marginBottom: 20 }}>
-        <SectionTitle>{t('atomicPos.hourlyRevenue')}</SectionTitle>
-        <HourlyChart data={metrics.hourly} />
-      </div>
-
-      {agentStats.length > 0 && (
-        <div className="card">
-          <SectionTitle>{t('atomicPos.drinkBackToday')}</SectionTitle>
-          {agentStats.map(a => (
-            <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+          {openRestock.length > 0 && (
+            <div style={{
+              background: 'var(--navy)', borderRadius: 16, padding: '16px 20px', marginBottom: 12,
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
+            }}>
               <div>
-                <strong>{a.nome}</strong>
-                <div style={{ fontSize: 11, color: 'var(--text2)' }}>{a.vendas} {t('atomicPos.salesWord')} · {t('atomicPos.commissionShort', { pct: a.comissao_pct })}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'white', marginBottom: 4 }}>
+                  {t('atomicPos.restockPending', { count: openRestock.length })}
+                </div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>
+                  {t('atomicPos.restockPendingHint')}
+                </div>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: 700 }}>{fmtYen(a.faturamento)}</div>
-                <div style={{ fontSize: 11, color: 'var(--gold)' }}>{t('atomicPos.commission')} {fmtYen(a.comissao)}</div>
-              </div>
+              {onOrder && (
+                <button onClick={onOrder} style={{
+                  background: 'var(--bg2)', color: 'var(--c-text)', border: 'none', borderRadius: 12,
+                  padding: '10px 18px', fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                }}>
+                  {t('atomicPos.seeJbmOrders')}
+                </button>
+              )}
             </div>
-          ))}
+          )}
+
+          {lowStock.length > 0 && (
+            <div style={{
+              background: 'linear-gradient(135deg,var(--amber) 0%,#ff6b00 100%)',
+              borderRadius: 16, padding: '16px 20px', marginBottom: 12,
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
+            }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'white', marginBottom: 4 }}>
+                  {t('atomicPos.lowStockAlert', { count: lowStock.length })}
+                </div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)' }}>
+                  {lowStock.slice(0, 4).map(p => `${p.nome} (${p.stock}/${p.minimo})`).join(' · ')}
+                </div>
+              </div>
+              {onOrder && (
+                <button onClick={onOrder} style={{
+                  background: 'var(--bg2)', color: '#ff6b00', border: 'none', borderRadius: 12,
+                  padding: '10px 18px', fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                }}>
+                  {t('atomicPos.reorderJbm')}
+                </button>
+              )}
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {loading && <Spinner />}
     </div>
