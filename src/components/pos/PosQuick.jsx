@@ -731,11 +731,13 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
             <div className="pq-glance-cell" title={night?.error ? t('onAccount.salesError', { error: night.error }) : t('onAccount.soldHint')}>
               <span>{t('onAccount.sold')}</span>
               <strong>{night?.error && !night?.summary ? '—' : fmtYen(glance.soldTotal)}</strong>
-              <em>
-                {t('atomicPos.salesCount', { count: glance.soldCount })}
-                {goalPct != null && <b className={`pq-goal-pct${goalPct >= 100 ? ' is-hit' : ''}`} title={t('posQuick.goalHint', { goal: fmtYen(nightGoal) })}> · {t('posQuick.goalPct', { pct: goalPct })}</b>}
-              </em>
-              {goalPct != null && <i className="pq-goal-bar" aria-hidden="true"><b style={{ width: `${Math.min(100, goalPct)}%` }} /></i>}
+              <em>{t('atomicPos.salesCount', { count: glance.soldCount })}</em>
+              {goalPct != null && (
+                <span className="pq-goal" title={t('posQuick.goalHint', { goal: fmtYen(nightGoal) })}>
+                  <i className="pq-goal-bar" aria-hidden="true"><b style={{ width: `${Math.min(100, goalPct)}%` }} /></i>
+                  <b className={`pq-goal-pct${goalPct >= 100 ? ' is-hit' : ''}`}>{t('posQuick.goalPct', { pct: goalPct })}</b>
+                </span>
+              )}
             </div>
             <div className="pq-glance-cell" title={t('onAccount.openHint')}>
               <span>{t('onAccount.openTabs')}</span>

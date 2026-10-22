@@ -5765,7 +5765,9 @@ button.pq-charge {
 .pq-castrow-chips button:first-child.is-on { background: var(--bg3); border-color: var(--border2); color: var(--text2); }
 
 /* Night goal: a small cell with a thin bar, next to tonight's sales. */
-.pq-goal-pct { font-weight: 700; color: var(--text2); }
+.pq-goal { display: flex; align-items: center; gap: 6px; margin-top: 3px; text-transform: none; letter-spacing: 0; }
+.pq-goal .pq-goal-bar { flex: 1 1 auto; min-width: 24px; margin-top: 0; }
+.pq-goal-pct { font-size: 11px; font-weight: 700; color: var(--text2); white-space: nowrap; }
 .pq-goal-pct.is-hit { color: var(--pq-accent); }
 .pq-goal-bar { display: block; height: 4px; border-radius: 4px; background: var(--bg3); overflow: hidden; margin-top: 3px; }
 .pq-goal-bar b { display: block; height: 100%; border-radius: 4px; background: var(--pq-accent); }
@@ -5787,3 +5789,6 @@ button.pq-charge {
   .till-kiosk-bar .till-kiosk-name { font-size: 18px; }
   .till-kiosk-actions button.till-kiosk-hq { display: none; }
 }
+/* The till kiosk has its own bar on top, so it skips the phone shell's room for the fixed HQ header. */
+html[data-layout="mobile"] .app-shell.is-till-kiosk .app-main,
+html[data-layout="desktop"] .app-shell.is-till-kiosk .app-main { padding: 12px 14px calc(12px + env(safe-area-inset-bottom)) !important; }
