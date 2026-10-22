@@ -34,3 +34,40 @@ export function guardSalePatch(table, patch, auth) {
   delete next.staff_id
   return next
 }
+
+// Till and staff logins may only attach a guest/visit/tab to a sale; money fields change only by the owner or a
+// manager (a void is a new negative row, never an edit). A cashier may delete only the sale it just rang up,
+// which is how a failed stock write rolls the sale back (src/lib/atomicPos.js rollbackPosSale).
+const FRONT_ROLES = ['caixa', 'bar_staff']
+const FRONT_SALE_PATCH = new Set(['guest_id', 'visit_id', 'comanda_id'])
+const ROLLBACK_WINDOW_MS = 10 * 60 * 1000
+
+export function isFrontLogin(auth) {
+  return FRONT_ROLES.includes(auth?.perfil?.role)
+}
+
+/** Error text when a till/staff login tries a sale write it may not do, else null. Delete is checked separately. */
+export function frontSaleWriteError(table, spec, auth) {
+  if (!isFrontLogin(auth) || (table !== SALE_TABLE && table !== 'pos_vendas_itens')) return null
+  if (spec.mode === 'upsert') return 'Sales cannot be overwritten from the till'
+  if (spec.mode === 'insert' && table === SALE_TABLE && (spec.insertRows || []).some(r => Math.round(+r?.total || 0) < 0)) {
+    return 'Only the owner or a manager can void a sale'
+  }
+  if (spec.mode === 'update') {
+    if (table !== SALE_TABLE) return 'Only the owner or a manager can change a sale'
+    const keys = Object.keys(spec.updatePatch || {})
+    if (keys.some(k => !FRONT_SALE_PATCH.has(k))) return 'Only the owner or a manager can change a sale'
+  }
+  return null
+}
+
+/** Rows a till/staff login is about to delete: allowed only for its own sale rung up in the last minutes. */
+export function frontDeleteError(saleRows, auth, now = Date.now()) {
+  if (!isFrontLogin(auth)) return null
+  const uid = String(auth?.user?.id || auth?.perfil?.id || '')
+  for (const sale of saleRows || []) {
+    const fresh = sale?.criado_em && now - Date.parse(sale.criado_em) < ROLLBACK_WINDOW_MS
+    if (!uid || String(sale?.criado_por || '') !== uid || !fresh) return 'Only the owner or a manager can delete a sale'
+  }
+  return null
+}

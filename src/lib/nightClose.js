@@ -94,6 +94,8 @@ export function saleGross(sale) {
 }
 
 export function saleRefund(sale) {
+  // A void row (negative total) is already the refund: nothing more comes off it.
+  if (saleGross(sale) <= 0) return 0
   return Math.min(saleGross(sale), Math.max(0, Math.round(+sale?.refunded || 0)))
 }
 
@@ -106,6 +108,8 @@ export function saleCardFee(sale) {
   const method = String(sale?.metodo_pagamento || sale?.pay_method || '')
   const gross = saleGross(sale)
   const net = saleNet(sale)
+  // A void row hands back the fee of the sale it cancels (stored positive in card_fee).
+  if (gross < 0) return -Math.max(0, Math.round(+sale?.card_fee || 0))
   // Till sales record the fee of the card machine used in obs ("CardFee: N"), the column stays 0.
   const obsFee = Math.round(+(String(sale?.obs || '').match(/^CardFee:\s*(\d+)$/im)?.[1]) || 0)
   if (sale?.card_fee != null && sale.card_fee !== '' && (Math.round(+sale.card_fee || 0) > 0 || !obsFee)) {
@@ -174,7 +178,8 @@ export function summarizeNight(sales = [], nightKey = tokyoNightKey()) {
   const books = nightSettlement(rows)
   return {
     nightKey,
-    ticketCount: rows.length,
+    // A void row cancels one ticket instead of adding one.
+    ticketCount: rows.filter(s => saleGross(s) > 0).length - rows.filter(s => saleGross(s) < 0).length,
     drinksTotal: books.net_sales,
     grossSales: books.gross_sales,
     refunds: books.refunds,

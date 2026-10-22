@@ -157,7 +157,9 @@ export default function AiChat({ ctx = {}, thread, onThreadSaved, seed = '', see
     }
   }
 
-  const suggestions = t(`ai.suggest.${AI_SUGGEST_MODULES.includes(module) ? module : 'overview'}`)
+  const suggestKey = AI_SUGGEST_MODULES.includes(module) ? module : 'overview'
+  // Inside one bar, "compare all bars" prompts make no sense.
+  const suggestions = t(`ai.suggest.${suggestKey === 'overview' && ctx.barId ? 'overviewBar' : suggestKey}`)
 
   return (
     <div className={`ai-chat${compact ? ' is-compact' : ''}`}>

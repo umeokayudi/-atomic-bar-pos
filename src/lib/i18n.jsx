@@ -70,8 +70,20 @@ export function t(key, vars, lang = globalLang) {
     Object.entries(vars).forEach(([k, v]) => {
       str = str.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v))
     })
+    str = pluralize(str)
   }
   return str
+}
+
+// "1 delivery(ies)" -> "1 delivery", "3 open invoice(s)" -> "3 open invoices".
+// The noun follows its number, with up to three words in between.
+const PLURAL_RE = /(\d[\d,.]*)((?:\s+[A-Za-z][\w-]*){0,3}?\s+)([A-Za-z][\w-]*?)\((s|es|ies)\)/g
+export function pluralize(str) {
+  return str.replace(PLURAL_RE, (_, num, gap, word, suffix) => {
+    const one = Number(num.replace(/,/g, '')) === 1
+    if (suffix === 'ies') return `${num}${gap}${one ? word : word.replace(/y$/, '') + 'ies'}`
+    return `${num}${gap}${word}${one ? '' : suffix}`
+  })
 }
 
 export function monthLabelI18n(mk, lang = globalLang) {

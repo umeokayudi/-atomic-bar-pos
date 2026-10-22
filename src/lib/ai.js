@@ -1,4 +1,5 @@
 import { errText } from './errText'
+import { staffFetch } from './apiAuth'
 
 async function readApiJson(res) {
   const text = await res.text()
@@ -10,7 +11,8 @@ async function readApiJson(res) {
 }
 
 export async function callGeminiChat({ messages, system, image, temperature, maxOutputTokens }) {
-  const res = await fetch('/api/chat', {
+  // Signed in only: /api/chat no longer trusts the page origin.
+  const res = await staffFetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ messages, system, image, temperature, maxOutputTokens }),

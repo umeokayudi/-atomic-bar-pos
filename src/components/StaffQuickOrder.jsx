@@ -4,6 +4,7 @@ import { useI18n } from '../lib/i18n'
 import { errText } from '../lib/errText'
 import { buildCatalog, searchCatalog } from '../lib/posCatalog'
 import { itemVisual, starterPicks } from '../lib/posVisual'
+import { seatsOf, vipTag } from '../lib/floorEditor'
 import { floorApi, floorAvailable, loadOpenTabs, newKey, pendingToLines, tabsApi } from '../lib/comandas'
 import { cartAdd, cartBump, cartTotals } from '../lib/quickCart'
 import { fmtYen } from './utils'
@@ -53,7 +54,7 @@ export default function StaffQuickOrder({ bar, perfil, onTab }) {
       const active = layouts.find(l => l.ativo) || layouts[0]
       if (active) {
         const r = await floorApi.layout(supabase, active.id).catch(() => null)
-        if (alive && r) setTables(r.tables.filter(x => x.ativo !== false))
+        if (alive && r) setTables(seatsOf(r.tables))
       }
     }).catch(e => { if (alive) { setAvail(false); setMsg({ tone: 'danger', text: errText(e) }) } })
     return () => { alive = false }
@@ -130,7 +131,7 @@ export default function StaffQuickOrder({ bar, perfil, onTab }) {
               <label className="ui-field"><span>{t('staffOrder.table')}</span>
                 <select value={newTab.tableId} onChange={e => setNewTab(v => ({ ...v, tableId: e.target.value }))}>
                   <option value="">{t('staffOrder.noTable')}</option>
-                  {tables.map(x => <option key={x.id} value={x.id}>{x.nome}{busyTables.has(x.id) ? ` · ${t('staffOrder.busy')}` : ''}</option>)}
+                  {tables.map(x => <option key={x.id} value={x.id}>{x.nome}{vipTag(x) ? ` · ${t('floor.vip')}` : ''}{busyTables.has(x.id) ? ` · ${t('staffOrder.busy')}` : ''}</option>)}
                 </select>
               </label>
               <label className="ui-field"><span>{t('staffOrder.name')}</span>

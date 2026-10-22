@@ -4,7 +4,7 @@ import { staffFetch } from '../lib/apiAuth'
 import { loadBarTeam, peekBarTeam } from '../lib/barTeam'
 import { shiftsDue } from '../lib/autoClose'
 import { addDays } from '../lib/barClose'
-import { summarizeNight, closeVariance } from '../lib/nightClose'
+import { summarizeNight } from '../lib/nightClose'
 import { tokyoDateKey, tokyoParts } from '../lib/tokyo'
 import { useAuth } from './Auth'
 
@@ -29,7 +29,7 @@ export default function AutoClose({ bar }) {
           supabase.from('pos_shifts').select('id,night_key,status').eq('bar_id', bar.id).gte('night_key', from),
         ])
         const sales = salesR.data || []
-        const existing = new Set((shiftsR.data || []).filter(s => s.status === 'closed').map(s => s.night_key))
+        const existing = new Set((shiftsR.data || []).filter(s => s.status === 'closed' || s.status === 'counting').map(s => s.night_key))
         const patch = {}
         for (const item of due) {
           if (existing.has(item.key)) {
@@ -52,7 +52,8 @@ export default function AutoClose({ bar }) {
           const row = {
             bar_id: bar.id,
             night_key: item.key,
-            status: 'closed',
+            // Nobody counted the drawer: the night waits as "counting" until someone enters the real cash.
+            status: 'counting',
             closed_at: new Date().toISOString(),
             closed_by: user?.id || null,
             ticket_count: sum.ticketCount,
@@ -61,8 +62,8 @@ export default function AutoClose({ bar }) {
             card_total: sum.cardTotal,
             other_total: (sum.otherTotal || 0) + (sum.paypayTotal || 0),
             expected_cash: sum.expectedCash,
-            counted_cash: sum.expectedCash,
-            variance: closeVariance(sum.expectedCash, sum.expectedCash),
+            counted_cash: null,
+            variance: null,
           }
           // The day report has no row of its own: pos_shifts.night_key is a date in Postgres, so "<day>#dia" was
           // rejected (400) on every run. Nothing reads those rows, so the day close only records that it ran.

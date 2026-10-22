@@ -1,41 +1,26 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import PhotoField from './ui/PhotoField'
 import { useAuth } from './Auth'
 import { fmtYen, fmtDate, Spinner, SectionTitle } from './utils'
 import {
-  cartTotal,
   checkPosSchema,
   computeDayMetrics,
   findLowStockProducts,
   buildStockMap,
   generateDiscountCode,
-  resolveItemPrice,
   todayKey,
-  validateDiscountCode,
-  pricingMapFromShots,
   isRestockPedido,
-  lineUnitPrice,
 } from '../lib/atomicPos'
-import { reorderLowStock, syncPosStockAndReorder } from '../lib/posSupply'
-import { commitSaleAtomic, newSaleKey } from '../lib/posCommit'
 import { isSupplierProduct } from './utils'
-import { includedTaxBreakdown } from '../lib/consumptionTax'
 import { tokyoMonthKey, tokyoNightKey } from '../lib/tokyo'
 import { useI18n } from '../lib/i18n'
-import { matchCheckoutVisit, spacesByZone, activeKeeps } from '../lib/barCrm'
-import { packTicketObs, ticketChargeLines, settingsFromRow, DEFAULT_POS_SETTINGS, effectiveServicePct, cardSurchargeLine } from '../lib/nightTicket'
-import { cardSurcharge, isCardMethod, machineFee, pickCardMachine } from '../lib/posFloor'
+import { buildVoid, canVoid, isVoidRow, isVoided } from '../lib/posVoid'
 import { summarizeNight, reconcileNight, nightWindow, closeVariance, saleOnNight, prevTokyoDateKey, lastBusyNight } from '../lib/nightClose'
-import { CASH_CHIPS, cashSettle, isCashMethod, payRecordNote } from '../lib/posPay'
-import { printGuestReceipt } from '../lib/guestReceipt'
-import { drinkBackCommission } from '../lib/drinkBackPay'
 import PosQuick from './pos/PosQuick'
 import { personCredit, staffAliases } from '../lib/saleCredit'
 import { fetchCastRoster } from '../lib/castRoster'
 import { castRoster } from '../lib/staffPos'
-import { discountGuestError } from '../lib/onAccount'
-import { addCrmGuest } from '../lib/onAccountStore'
 import { forgetLiveSelects } from '../lib/barLiveClient'
 import PosPaySettings from './pos/PosPaySettings'
 import Icon from './ui/Icon'
@@ -48,12 +33,6 @@ const SUB_TAB_IDS = [
   { id: 'drinkback', key: 'tabDrinkBack', icon: 'drinkback' },
   { id: 'prices', key: 'tabPrices', icon: 'precos' },
   { id: 'discounts', key: 'tabDiscounts', icon: 'percent' },
-]
-
-const PAY_METHODS = [
-  { id: 'Cash', key: 'payCash' },
-  { id: 'Credit card', key: 'payCard' },
-  { id: 'PayPay', key: 'payPaypay' },
 ]
 
 function SetupBanner({ onRefresh }) {
@@ -84,6 +63,8 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
   const [nightSales, setNightSales] = useState(salesHint || [])
   const [cashMoves, setCashMoves] = useState([])
   const [open, setOpen] = useState(!compact)
+  const [pending, setPending] = useState(null)
+  const [pendingCount, setPendingCount] = useState('')
 
   useEffect(() => {
     const bounds = nightWindow(nightKey)
@@ -93,8 +74,10 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
       supabase.from('pos_shifts').select('*').eq('bar_id', bar.id).eq('night_key', nightKey).maybeSingle(),
       supabase.from('pos_vendas').select(salesRich).eq('bar_id', bar.id).gte('data', `${tokyoMonthKey()}-01`),
       supabase.from('caixa_movimentos').select(cashRich).eq('bar_id', bar.id).gte('data', bounds.from).lte('data', bounds.to),
-    ]).then(async ([sh, sl, cash]) => {
+      supabase.from('pos_shifts').select('*').eq('bar_id', bar.id).eq('status', 'counting').order('night_key', { ascending: false }).limit(1),
+    ]).then(async ([sh, sl, cash, waiting]) => {
       setShift(sh.data || null)
+      setPending((waiting?.data || []).find(r => r.night_key !== nightKey) || null)
       if (sl.error && /refunded|card_fee/.test(sl.error.message || '')) {
         const plain = await supabase.from('pos_vendas').select('id,total,data,criado_em,metodo_pagamento,obs').eq('bar_id', bar.id).gte('data', `${tokyoMonthKey()}-01`)
         setNightSales(plain.data || salesHint || [])
@@ -119,6 +102,7 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
       ? { date: lastBusy.date, count: lastBusy.ticketCount, amount: lastBusy.total, split: summarizeNight(nightSales, lastBusy.date) }
       : null
   const closed = shift?.status === 'closed'
+  const countingNow = shift?.status === 'counting'
 
   if (compact && !open) {
     return (
@@ -146,7 +130,13 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
         .gte('data', lastNightKey)
     }
     const sum = reconcileNight(salesRes.data || salesHint, cashMoves, nightKey)
-    const countedCash = counted === '' ? sum.expectedCash : +counted
+    // The drawer must be counted: an empty field used to be saved as "matched", so a shortage never showed.
+    if (counted === '' || !Number.isFinite(+counted)) {
+      setBusy(false)
+      setMsg(t('atomicPos.countRequired'))
+      return
+    }
+    const countedCash = +counted
     const row = {
       bar_id: bar.id,
       night_key: nightKey,
@@ -176,51 +166,83 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
       return
     }
     setShift(s => ({ ...(s || {}), ...row, status: 'closed' }))
-    setMsg(t('atomicPos.closedOk'))
+    setMsg(`${t('atomicPos.closedOk')} · ${t('atomicPos.varianceLine', { expected: fmtYen(row.expected_cash), counted: fmtYen(row.counted_cash), diff: fmtYen(row.variance) })}`)
+  }
+
+  /** Saves the real cash for a night the automatic close shut without a count. */
+  async function saveCount(target, value, done) {
+    if (value === '' || !Number.isFinite(+value)) { setMsg(t('atomicPos.countRequired')); return }
+    setBusy(true)
+    const patch = {
+      status: 'closed',
+      counted_cash: +value,
+      variance: closeVariance(target.expected_cash, +value),
+      closed_by: user?.id || target.closed_by || null,
+    }
+    const { error } = await supabase.from('pos_shifts').update(patch).eq('id', target.id)
+    setBusy(false)
+    if (error) { setMsg(error.message); return }
+    done({ ...target, ...patch })
+    setMsg(t('atomicPos.countSaved', { diff: fmtYen(patch.variance) }))
   }
 
   return (
     <div className="pos-close-bar">
-      <div>
-        <div className="pos-ticket-label">{t('atomicPos.nightClose')}</div>
-        <div className="pos-close-meta">
-          {t('atomicPos.nightOpen', { date: nightKey })} · {summary.ticketCount} · {fmtYen(summary.drinksTotal)}
-          <div className="pos-close-split">
-            {t('atomicPos.paySplit', {
-              cash: fmtYen(summary.cashTotal),
-              card: fmtYen(summary.cardTotal),
-              paypay: fmtYen(summary.paypayTotal || 0),
-            })}
-          </div>
-          <div className="pos-close-split">
-            {t('atomicPos.booksLine', {
-              gross: fmtYen(summary.gross_sales || summary.grossSales || 0),
-              refunds: fmtYen(summary.refunds || 0),
-              net: fmtYen(summary.net_sales || summary.netSales || summary.drinksTotal || 0),
-              fees: fmtYen(summary.card_fees || summary.cardFees || 0),
-              cash: fmtYen(summary.cashNet || 0),
-            })}
-          </div>
-          {summary.ticketCount === 0 && prior && (
-            <div className="pos-close-last">
-              {t('atomicPos.lastNight', {
-                date: prior.date,
-                count: prior.count,
-                amount: fmtYen(prior.amount),
-              })}
-              <div className="pos-close-split">
-                {t('atomicPos.paySplit', {
-                  cash: fmtYen(prior.split.cashTotal),
-                  card: fmtYen(prior.split.cardTotal),
-                  paypay: fmtYen(prior.split.paypayTotal || 0),
-                })}
-              </div>
-            </div>
+      <div className="pos-close-head">
+        <span className="pos-ticket-label">{t('atomicPos.nightClose')}</span>
+        <span className={`ui-badge ${closed ? 'is-success' : countingNow ? 'is-warning' : 'is-info'}`}>
+          {t(closed ? 'atomicPos.closeStateClosed' : countingNow ? 'atomicPos.closeStateCounting' : 'atomicPos.closeStateOpen')}
+        </span>
+      </div>
+      <div className="pos-close-total">
+        <strong>{fmtYen(summary.drinksTotal)}</strong>
+        <span>{t('atomicPos.nightOpen', { date: nightKey })} · {t('atomicPos.ticketsToday', { count: summary.ticketCount })}</span>
+      </div>
+      <div className="pos-close-methods">
+        <div><span>{t('atomicPos.payCash')}</span><strong>{fmtYen(summary.cashTotal)}</strong></div>
+        <div><span>{t('atomicPos.payCard')}</span><strong>{fmtYen(summary.cardTotal)}</strong></div>
+        <div><span>{t('atomicPos.payPaypay')}</span><strong>{fmtYen(summary.paypayTotal || 0)}</strong></div>
+      </div>
+      <details className="pos-close-books">
+        <summary>{t('atomicPos.closeDetails')}</summary>
+        <dl>
+          <dt>{t('atomicPos.booksGross')}</dt><dd>{fmtYen(summary.gross_sales || summary.grossSales || 0)}</dd>
+          <dt>{t('atomicPos.booksRefunds')}</dt><dd>{fmtYen(summary.refunds || 0)}</dd>
+          <dt>{t('atomicPos.booksNet')}</dt><dd>{fmtYen(summary.net_sales || summary.netSales || summary.drinksTotal || 0)}</dd>
+          <dt>{t('atomicPos.booksFees')}</dt><dd>{fmtYen(summary.card_fees || summary.cardFees || 0)}</dd>
+          <dt>{t('atomicPos.booksCash')}</dt><dd>{fmtYen(summary.cashNet || 0)}</dd>
+        </dl>
+      </details>
+      {summary.ticketCount === 0 && prior && (
+        <div className="pos-close-last">
+          {t('atomicPos.lastNight', { date: prior.date, count: prior.count, amount: fmtYen(prior.amount) })}
+          <span>{t('atomicPos.paySplit', { cash: fmtYen(prior.split.cashTotal), card: fmtYen(prior.split.cardTotal), paypay: fmtYen(prior.split.paypayTotal || 0) })}</span>
+        </div>
+      )}
+      {pending && (
+        <div className="pos-close-actions pos-close-pending">
+          <div className="pos-close-msg">{t('atomicPos.countPending', { date: pending.night_key, expected: fmtYen(pending.expected_cash) })}</div>
+          <input type="number" min="0" placeholder={t('atomicPos.cashCounted')} value={pendingCount} onChange={e => setPendingCount(e.target.value)} />
+          <button type="button" className="btn-primary" disabled={busy || pendingCount === ''} onClick={() => saveCount(pending, pendingCount, () => { setPending(null); setPendingCount('') })}>
+            {t('atomicPos.saveCount')}
+          </button>
+        </div>
+      )}
+      {closed ? (
+        <div className="pos-close-done">
+          {t('atomicPos.alreadyClosed')} · {fmtYen(shift.drinks_total || summary.drinksTotal)}
+          {shift.counted_cash != null && (
+            <div className="pos-close-split">{t('atomicPos.varianceLine', { expected: fmtYen(shift.expected_cash), counted: fmtYen(shift.counted_cash), diff: fmtYen(shift.variance) })}</div>
           )}
         </div>
-      </div>
-      {closed ? (
-        <div className="pos-close-done">{t('atomicPos.alreadyClosed')} · {fmtYen(shift.drinks_total || summary.drinksTotal)}</div>
+      ) : countingNow ? (
+        <div className="pos-close-actions">
+          <div className="pos-close-msg">{t('atomicPos.countPending', { date: shift.night_key, expected: fmtYen(shift.expected_cash) })}</div>
+          <input type="number" min="0" placeholder={t('atomicPos.cashCounted')} value={counted} onChange={e => setCounted(e.target.value)} />
+          <button type="button" className="btn-primary" disabled={busy || counted === ''} onClick={() => saveCount(shift, counted, setShift)}>
+            {t('atomicPos.saveCount')}
+          </button>
+        </div>
       ) : (
         <div className="pos-close-actions">
           <input
@@ -230,7 +252,7 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
             value={counted}
             onChange={e => setCounted(e.target.value)}
           />
-          <button type="button" className="btn-primary" disabled={busy} onClick={closeNight}>
+          <button type="button" className="btn-primary" disabled={busy || counted === ''} title={counted === '' ? t('atomicPos.countRequired') : undefined} onClick={closeNight}>
             {busy ? t('common.saving') : t('atomicPos.closeNight')}
           </button>
         </div>
@@ -239,723 +261,6 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
       {compact && (
         <button type="button" className="pos-close-hide" onClick={() => setOpen(false)}>{t('atomicPos.hideClose')}</button>
       )}
-    </div>
-  )
-}
-
-// ── CHECKOUT ──────────────────────────────────────────────────────────────────
-function PosCheckoutTab({ bar, drinks, shots, discountCodes, vipMembers, drinkBackAgents, onSale }) {
-  const { t } = useI18n()
-  const { user } = useAuth()
-  const [cart, setCart] = useState([])
-  const [search, setSearch] = useState('')
-  const [priceType, setPriceType] = useState('regular')
-  const [codeInput, setCodeInput] = useState('')
-  const [activeCode, setActiveCode] = useState(null)
-  const [vipId, setVipId] = useState('')
-  const [agentId, setAgentId] = useState('')
-  const [spaceId, setSpaceId] = useState('')
-  const [guestId, setGuestId] = useState('')
-  const [newGuestName, setNewGuestName] = useState('')
-  const [addGuestOpen, setAddGuestOpen] = useState(false)
-  const [ticketNote, setTicketNote] = useState('')
-  const [addCastOpen, setAddCastOpen] = useState(false)
-  const [newCastName, setNewCastName] = useState('')
-  const [spaces, setSpaces] = useState([])
-  const [guests, setGuests] = useState([])
-  const [visits, setVisits] = useState([])
-  const [keeps, setKeeps] = useState([])
-  const [ticketReady, setTicketReady] = useState(false)
-  const [agents, setAgents] = useState(drinkBackAgents || [])
-  const [payMethod, setPayMethod] = useState('Cash')
-  const [machineId, setMachineId] = useState('')
-  const [cashTendered, setCashTendered] = useState('')
-  const [restMethod, setRestMethod] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [settings, setSettings] = useState(DEFAULT_POS_SETTINGS)
-  const [servicePct, setServicePct] = useState(String(DEFAULT_POS_SETTINGS.service_pct))
-  const [nominho, setNominho] = useState('')
-  const [setMinutes, setSetMinutes] = useState(String(DEFAULT_POS_SETTINGS.set_minutes))
-  const [setPrice, setSetPrice] = useState('')
-  const [keepId, setKeepId] = useState('')
-  const [keepPourPct, setKeepPourPct] = useState('')
-  const [lastSale, setLastSale] = useState(null)
-  const [saleErr, setSaleErr] = useState('')
-  // One idempotency key per checkout: kept across retries of the same cart, renewed when the cart changes.
-  const saleKeyRef = useRef(newSaleKey())
-  useEffect(() => { saleKeyRef.current = newSaleKey() }, [cart])
-  const [showExtras, setShowExtras] = useState(false)
-  const [cat, setCat] = useState('all')
-
-  useEffect(() => { setAgents(drinkBackAgents || []) }, [drinkBackAgents])
-
-  useEffect(() => {
-    Promise.all([
-      supabase.from('bar_spaces').select('id,nome,tipo,zona,ordem,ativo').eq('bar_id', bar.id).eq('ativo', true).order('ordem'),
-      supabase.from('bar_guests').select('id,nome,line_id,vip_member_id,preferencias,alergias,ativo').eq('bar_id', bar.id).eq('ativo', true).order('nome'),
-      supabase.from('bar_visits').select('id,space_id,guest_id,status').eq('bar_id', bar.id).in('status', ['seated', 'reserved']),
-      supabase.from('bar_bottle_keeps').select('id,guest_id,nome,remaining_pct,expires_on,ativo').eq('bar_id', bar.id).eq('ativo', true),
-      supabase.from('pos_settings').select('*').eq('bar_id', bar.id).maybeSingle(),
-    ]).then(([sR, gR, vR, kR, setR]) => {
-      setSpaces(sR.data || [])
-      setGuests(gR.data || [])
-      setVisits(vR.data || [])
-      setKeeps(kR.error ? [] : (kR.data || []))
-      const next = settingsFromRow(setR.data)
-      setSettings(next)
-      setServicePct(String(next.service_pct))
-      setSetMinutes(String(next.set_minutes || 60))
-    }).catch(() => {}).finally(() => setTicketReady(true))
-  }, [bar.id])
-
-  const catalog = useMemo(() => {
-    const menuItems = (drinks || []).map(d => ({
-      key: `d-${d.id}`,
-      id: d.id,
-      kind: 'drink',
-      nome: d.nome,
-      categoria: d.categoria,
-      preco_venda: d.preco_venda,
-      preco_desconto: d.preco_desconto,
-      custo: d.custo,
-    }))
-    const shotItems = (shots || []).map(s => ({
-      key: `p-${s.produto_id}`,
-      id: s.produto_id,
-      kind: 'shot',
-      nome: s.produtos?.nome || s.nome || 'Shot',
-      categoria: s.produtos?.categoria || 'Shot',
-      preco_venda: s.preco_drink,
-      preco_desconto: Math.round(s.preco_drink * 0.5),
-    }))
-    return [...menuItems, ...shotItems]
-  }, [drinks, shots])
-
-  const cats = useMemo(() => [...new Set(catalog.map(it => it.categoria).filter(Boolean))], [catalog])
-
-  const filtered = catalog.filter(it => {
-    if (cat !== 'all' && it.categoria !== cat) return false
-    if (!search) return true
-    const s = search.toLowerCase()
-    return it.nome.toLowerCase().includes(s) || it.categoria.toLowerCase().includes(s)
-  })
-
-  function applyCode() {
-    const code = discountCodes.find(c => c.codigo.toUpperCase() === codeInput.trim().toUpperCase())
-    if (!code) {
-      setSaleErr(t('atomicPos.codeNotFound'))
-      return
-    }
-    const v = validateDiscountCode(code)
-    if (!v.ok) {
-      setSaleErr(t(v.errorKey || 'atomicPos.codeNotFound'))
-      return
-    }
-    setSaleErr('')
-    setActiveCode(code)
-    setPriceType('codigo')
-  }
-
-  function addToCart(item) {
-    setSaleErr('')
-    const pricing = resolveItemPrice(item, priceType === 'codigo' ? 'regular' : priceType, activeCode)
-    setCart(prev => {
-      const ex = prev.find(x => x.key === item.key && x.tipo_preco === pricing.tipo_preco)
-      if (ex) return prev.map(x => x.key === item.key && x.tipo_preco === pricing.tipo_preco ? { ...x, qtd: x.qtd + 1 } : x)
-      return [...prev, {
-        key: item.key,
-        kind: item.kind,
-        drink_menu_id: item.kind === 'drink' ? item.id : null,
-        produto_id: item.kind === 'shot' ? item.id : null,
-        nome: item.nome,
-        qtd: 1,
-        ...pricing,
-        preco_unitario: pricing.preco,
-        forCast: false,
-      }]
-    })
-  }
-
-  const drinksTotal = cartTotal(cart)
-  const space = spaces.find(s => s.id === spaceId)
-  const tableTicket = !!(agentId || spaceId || guestId || +nominho || +setPrice)
-  const charges = ticketChargeLines({
-    drinksTotal,
-    servicePct: effectiveServicePct({ servicePct, tableTicket }),
-    nominho: +nominho || 0,
-    setMinutes: +setMinutes || 0,
-    setPrice: +setPrice || 0,
-    roomMin: settings.room_min,
-    spaceType: space?.tipo || '',
-  })
-  // Card: machine used (picked only when the bar has 2+) and the bar's optional surcharge.
-  const machines = settings.card_machines || DEFAULT_POS_SETTINGS.card_machines
-  const machine = pickCardMachine(machines, machineId)
-  const cardPay = isCardMethod(payMethod)
-  const surLine = cardPay ? cardSurchargeLine(cardSurcharge(charges.total, settings.card_surcharge_pct), settings.card_surcharge_pct) : null
-  const ticketTotal = charges.total + (surLine?.preco || 0)
-  const checkoutCart = [...cart, ...charges.lines, ...(surLine ? [surLine] : [])]
-  const cash = isCashMethod(payMethod) ? cashSettle(ticketTotal, cashTendered, restMethod) : null
-  const cardPart = cardPay ? ticketTotal : (cash?.restMethod === 'Card' ? cash.rest : 0)
-  const cashShort = !!(cash && cash.short)
-  // A discount (code or VIP price) is only for a recurring customer of the CRM, and the sale is linked to them.
-  const discountErr = discountGuestError({
-    priceType: priceType === 'codigo' && !activeCode ? 'regular' : priceType,
-    codeId: activeCode?.id || null,
-    guest: guests.find(g => g.id === guestId) || null,
-  })
-
-  async function addGuestToCrm() {
-    const nome = newGuestName.trim()
-    if (!nome) return
-    try {
-      const g = await addCrmGuest(supabase, bar.id, nome)
-      setGuests(prev => [...prev, g].sort((a, b) => String(a.nome).localeCompare(String(b.nome))))
-      setGuestId(g.id)
-      setNewGuestName('')
-      setAddGuestOpen(false)
-      setSaleErr('')
-    } catch (e) {
-      setSaleErr(t('onAccount.errAdd', { error: e.message }))
-    }
-  }
-
-  async function completeSale() {
-    if (!cart.length && !charges.lines.length) return
-    if (priceType === 'vip' && !vipId) {
-      setSaleErr(t('atomicPos.vipMemberRequired'))
-      return
-    }
-    if (discountErr) {
-      setSaleErr(t(discountErr))
-      setShowExtras(true)
-      return
-    }
-    if (cashShort) {
-      setSaleErr(t('atomicPos.cashShort'))
-      return
-    }
-    setSaving(true)
-    setSaleErr('')
-    const openVisit = matchCheckoutVisit(visits, { spaceId, guestId })
-    const guest = guests.find(g => g.id === guestId)
-    const agent = agents.find(a => a.id === agentId)
-    const bottleFee = agent ? drinkBackCommission(cart, agent.comissao_pct) : null
-    const obs = packTicketObs({
-      details: ticketNote,
-      castName: agent?.nome || '',
-      castId: agentId,
-      nightKey: tokyoNightKey(),
-      servicePct: effectiveServicePct({ servicePct, tableTicket }),
-      nominho: +nominho || 0,
-      setMinutes: +setMinutes || 0,
-      setPrice: +setPrice || 0,
-      roomMin: space?.tipo === 'vip_room' ? settings.room_min : 0,
-      keepId,
-      keepPourPct: +keepPourPct || 0,
-      commission: bottleFee,
-      cardNote: cardPart > 0 ? `${machine.nome} ${machine.fee_pct}%` : '',
-      cardFee: cardPart > 0 ? machineFee(cardPart, machine) : 0,
-      cardSurcharge: surLine?.preco || 0,
-      payNote: payRecordNote({
-        method: payMethod,
-        total: ticketTotal,
-        tendered: isCashMethod(payMethod) ? cashTendered : undefined,
-        restMethod: cash?.restMethod,
-      }),
-    })
-    const recordedMethod = cash?.restMethod ? `Cash+${cash.restMethod}` : payMethod
-    const legacy = {
-      bar,
-      payMethod: recordedMethod,
-      priceType,
-      vipId: priceType === 'vip' ? (vipId || guest?.vip_member_id || null) : null,
-      activeCode,
-      agentId,
-      spaceId: spaceId || null,
-      guestId: guestId || null,
-      visitId: openVisit?.id || null,
-      obs,
-      keepPour: keepId && +keepPourPct > 0 ? { id: keepId, pct: +keepPourPct } : null,
-      userId: user?.id,
-      shots,
-      syncStock: args => syncPosStockAndReorder(supabase, {
-        ...args,
-        pricingByProduto: pricingMapFromShots(shots),
-        buildStockMap,
-        findLowStockProducts,
-      }),
-    }
-    const result = await commitSaleAtomic(supabase, {
-      key: saleKeyRef.current,
-      barId: bar.id,
-      cart: checkoutCart,
-      payMethod: recordedMethod,
-      obs,
-      agentId: agentId || null,
-      spaceId: spaceId || null,
-      vipId: legacy.vipId,
-      codeId: activeCode?.id || null,
-      commission: bottleFee,
-      pricingByProduto: pricingMapFromShots(shots),
-      legacy,
-    })
-    if (result.ok && result.atomic && !result.replay) {
-      // Attribution and keep pours are not money: best effort after the sale, as before.
-      const venda = result.vendaId
-      if (guestId || openVisit?.id) supabase.from('pos_vendas').update({ guest_id: guestId || null, visit_id: openVisit?.id || null }).eq('id', venda).then(() => {}, () => {})
-      if (openVisit?.id) supabase.from('bar_visits').update({ pos_venda_id: venda }).eq('id', openVisit.id).then(() => {}, () => {})
-      if (legacy.keepPour) {
-        supabase.from('bar_bottle_keeps').select('id,remaining_pct').eq('id', legacy.keepPour.id).maybeSingle().then(({ data: keep }) => {
-          if (!keep) return
-          const remaining = Math.max(0, Math.round((+keep.remaining_pct || 0) - legacy.keepPour.pct))
-          supabase.from('bar_bottle_keeps').update({ remaining_pct: remaining, ativo: remaining > 0 }).eq('id', keep.id).then(() => {}, () => {})
-        }, () => {})
-      }
-      reorderLowStock(supabase, { bar, userId: user?.id, buildStockMap, findLowStockProducts }).catch(() => {})
-    }
-    if (result.ok) {
-      result.venda = result.venda || { id: result.vendaId, total: result.total, data: tokyoNightKey(), obs, metodo_pagamento: recordedMethod }
-      saleKeyRef.current = newSaleKey()
-    }
-    setSaving(false)
-    if (!result.ok) {
-      setSaleErr(result.errorKey ? t(result.errorKey) : (result.error || t('atomicPos.saleStockFailed')))
-      return
-    }
-    const snapshot = {
-      sale: result.venda,
-      total: result.total,
-      items: checkoutCart,
-      guestNome: guest?.nome || '',
-      castNome: agent?.nome || '',
-      spaceNome: space?.nome || '',
-      payMethod: recordedMethod,
-      cash,
-    }
-    setLastSale(snapshot)
-    setCart([])
-    setActiveCode(null)
-    setCodeInput('')
-    setAgentId('')
-    setSpaceId('')
-    setGuestId('')
-    setTicketNote('')
-    setNominho('')
-    setSetPrice('')
-    setKeepId('')
-    setKeepPourPct('')
-    setCashTendered('')
-    setRestMethod('')
-    onSale?.()
-  }
-
-  function bumpCart(i, delta) {
-    setCart(c => {
-      const next = c.map((x, j) => j === i ? { ...x, qtd: x.qtd + delta } : x)
-      return next.filter(x => x.qtd > 0)
-    })
-  }
-
-  return (
-    <div className="pos-checkout">
-      <div className="pos-menu">
-        <div className="pos-cast-bar">
-          <div className="pos-ticket-label">{t('atomicPos.castSpaceLabel')}</div>
-          <div className="pos-row-scroll">
-            {agents.filter(a => a.ativo !== false).map(a => (
-              <button
-                key={a.id}
-                type="button"
-                className={`pos-chip pos-chip-cast${agentId === a.id ? ' is-on' : ''}`}
-                onClick={() => setAgentId(agentId === a.id ? '' : a.id)}
-              >{a.nome}{a.comissao_pct ? ` ${a.comissao_pct}%` : ''}</button>
-            ))}
-            <button type="button" className="pos-chip" onClick={() => setAddCastOpen(v => !v)}>{t('atomicPos.addCast')}</button>
-            {!ticketReady && !agents.some(a => a.ativo !== false) && spaces.length === 0 && (
-              <span className="pos-ticket-empty">{t('common.loading')}</span>
-            )}
-            {ticketReady && spaces.length === 0 && <span className="pos-ticket-empty">{t('atomicPos.spaceOptional')}</span>}
-            {spacesByZone(spaces).flatMap(z => z.spaces).map(s => {
-              const visit = matchCheckoutVisit(visits, { spaceId: s.id })
-              const who = visit ? (guests.find(g => g.id === visit.guest_id)?.nome || t('atomicPos.walkIn')) : ''
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  className={`pos-chip${spaceId === s.id ? ' is-on' : ''}`}
-                  onClick={() => {
-                    const id = spaceId === s.id ? '' : s.id
-                    setSpaceId(id)
-                    if (id) {
-                      const v = matchCheckoutVisit(visits, { spaceId: id })
-                      if (v?.guest_id) setGuestId(v.guest_id)
-                    }
-                  }}
-                >{who ? `${s.nome} · ${who}` : s.nome}</button>
-              )
-            })}
-          </div>
-          {addCastOpen && (
-            <div className="pos-code-row">
-              <input value={newCastName} onChange={e => setNewCastName(e.target.value)} placeholder={t('atomicPos.castPlaceholder')} />
-              <button type="button" className="btn-primary" onClick={async () => {
-                const nome = newCastName.trim()
-                if (!nome) return
-                const { data, error } = await supabase.from('drink_back_agents').insert({
-                  bar_id: bar.id, nome, comissao_pct: 10, ativo: true,
-                }).select('*').single()
-                if (!error && data) {
-                  setAgents(prev => [...prev, data])
-                  setAgentId(data.id)
-                  setNewCastName('')
-                  setAddCastOpen(false)
-                } else {
-                  setSaleErr(error?.message || t('atomicPos.drinkBackSetup'))
-                }
-              }}>{t('common.confirm')}</button>
-            </div>
-          )}
-        </div>
-
-        <div className="pos-step">{t('atomicPos.stepDrinks')}</div>
-        <input className="pos-search" placeholder={t('atomicPos.searchDrinks')} value={search} onChange={e => setSearch(e.target.value)} />
-        {cats.length > 0 && (
-          <div className="pos-row-scroll pos-cats">
-            <button type="button" className={`pos-chip${cat === 'all' ? ' is-on' : ''}`} onClick={() => setCat('all')}>{t('atomicPos.allDrinks')}</button>
-            {cats.map(c => (
-              <button key={c} type="button" className={`pos-chip${cat === c ? ' is-on' : ''}`} onClick={() => setCat(c)}>{c}</button>
-            ))}
-          </div>
-        )}
-        <div className="pos-grid">
-          {filtered.length === 0 && (
-            <div className="pos-empty-menu">{catalog.length === 0 ? t('atomicPos.noMenuYet') : t('atomicPos.tapToAdd')}</div>
-          )}
-          {filtered.map(item => {
-            const p = resolveItemPrice(item, priceType === 'codigo' ? 'regular' : priceType, activeCode)
-            const inCart = cart.find(x => x.key === item.key)
-            return (
-              <button key={item.key} className={`pos-tile${inCart ? ' is-on' : ''}`} onClick={() => addToCart(item)}>
-                {inCart && <span className="pos-tile-badge">{inCart.qtd}</span>}
-                <div className="pos-tile-name">{item.nome}</div>
-                <div className="pos-tile-cat">{item.categoria}</div>
-                <div className="pos-tile-price">{fmtYen(p.preco)}</div>
-                {p.preco_lista > p.preco && <div className="pos-tile-was">{fmtYen(p.preco_lista)}</div>}
-              </button>
-            )
-          })}
-        </div>
-
-        <button type="button" className="easy-dash-more" onClick={() => setShowExtras(v => !v)}>
-          {showExtras ? t('atomicPos.hideTicket') : t('atomicPos.showTicket')}
-        </button>
-        {showExtras && (
-          <div className="pos-ticket pos-ticket-compact">
-            <div className="pos-step">{t('atomicPos.stepTicket')}</div>
-            <div className="pos-price-row">
-              {['regular', 'vip', 'codigo'].map(pt => (
-                <button key={pt} className={`pos-chip${priceType === pt ? ' is-on' : ''}`} onClick={() => { setPriceType(pt); if (pt !== 'codigo') setActiveCode(null) }}>
-                  {pt === 'regular' ? t('atomicPos.regularPrice') : pt === 'vip' ? t('atomicPos.vipPrice') : t('atomicPos.discountCode')}
-                </button>
-              ))}
-            </div>
-            {priceType === 'codigo' && (
-              <div className="pos-code-row">
-                <input placeholder={t('atomicPos.codePlaceholder')} value={codeInput} onChange={e => setCodeInput(e.target.value.toUpperCase())} />
-                <button className="btn-primary" onClick={applyCode}>{t('atomicPos.apply')}</button>
-                {activeCode && <span className="pos-code-ok">✓ {activeCode.codigo}</span>}
-              </div>
-            )}
-            {priceType === 'vip' && (
-              <select value={vipId} onChange={e => setVipId(e.target.value)} className="pos-select">
-                <option value="">{t('atomicPos.vipMemberRequired')}</option>
-                {(vipMembers || []).filter(v => v.ativo).map(v => (
-                  <option key={v.id} value={v.id}>{v.nome}{v.codigo ? ` · ${v.codigo}` : ''}</option>
-                ))}
-              </select>
-            )}
-
-            <div className="pos-ticket-label">{t('atomicPos.guestLabel')}</div>
-            <select
-              value={guestId}
-              onChange={e => {
-                const id = e.target.value
-                setGuestId(id)
-                const g = guests.find(x => x.id === id)
-                if (g?.vip_member_id && priceType === 'vip') setVipId(g.vip_member_id)
-                const visit = matchCheckoutVisit(visits, { guestId: id })
-                if (visit?.space_id) setSpaceId(visit.space_id)
-              }}
-              className="pos-select"
-            >
-              <option value="">{priceType === 'regular' ? t('atomicPos.guestOptional') : t('onAccount.guestRequired')}</option>
-              {guests.map(g => <option key={g.id} value={g.id}>{g.nome}{g.line_id ? ` · LINE ${g.line_id}` : ''}</option>)}
-            </select>
-            {discountErr && <div className="pos-sale-err">{t(discountErr)}</div>}
-            {addGuestOpen ? (
-              <div className="pos-code-row">
-                <input value={newGuestName} onChange={e => setNewGuestName(e.target.value)} placeholder={t('guests.name')} aria-label={t('guests.name')}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addGuestToCrm() } }} />
-                <button type="button" className="btn-primary" disabled={!newGuestName.trim()} onClick={addGuestToCrm}>{t('onAccount.addShort')}</button>
-              </div>
-            ) : (
-              <button type="button" className="pos-chip" onClick={() => setAddGuestOpen(true)}>{t('onAccount.addNew')}</button>
-            )}
-
-            {guestId && (() => {
-              const g = guests.find(x => x.id === guestId)
-              const guestKeeps = activeKeeps(keeps, guestId)
-              if (!g && !guestKeeps.length) return null
-              return (
-                <div className="pos-guest-chip">
-                  {g?.alergias && <div className="pos-guest-alert">{t('guests.allergies')}: {g.alergias}</div>}
-                  {g?.preferencias && <div>{t('guests.prefs')}: {g.preferencias}</div>}
-                  {guestKeeps.map(k => (
-                    <div key={k.id}>{t('atomicPos.keepChip', { name: k.nome, pct: k.remaining_pct })}</div>
-                  ))}
-                  {guestKeeps.length > 0 && (
-                    <div className="pos-keep-pour">
-                      <select value={keepId} onChange={e => setKeepId(e.target.value)}>
-                        <option value="">{t('atomicPos.keepPour')}</option>
-                        {guestKeeps.map(k => (
-                          <option key={k.id} value={k.id}>{k.nome} · {k.remaining_pct}%</option>
-                        ))}
-                      </select>
-                      {keepId && (
-                        <input
-                          type="number"
-                          min="1"
-                          max="100"
-                          placeholder="%"
-                          value={keepPourPct}
-                          onChange={e => setKeepPourPct(e.target.value)}
-                        />
-                      )}
-                    </div>
-                  )}
-                </div>
-              )
-            })()}
-
-            <div className="pos-extras">
-              <label>{t('atomicPos.servicePct')}
-                <input type="number" min="0" max="30" value={servicePct} onChange={e => setServicePct(e.target.value)} />
-              </label>
-              <label>{t('atomicPos.nominho')}
-                <input type="number" min="0" value={nominho} onChange={e => setNominho(e.target.value)} placeholder="¥" />
-              </label>
-              <label>{t('atomicPos.setMinutes')}
-                <input type="number" min="0" value={setMinutes} onChange={e => setSetMinutes(e.target.value)} />
-              </label>
-              <label>{t('atomicPos.setPrice')}
-                <input type="number" min="0" value={setPrice} onChange={e => setSetPrice(e.target.value)} placeholder="¥" />
-              </label>
-            </div>
-            {space?.tipo === 'vip_room' && settings.room_min > 0 && (
-              <div className="pos-room-min">{t('atomicPos.roomMin')}: {fmtYen(settings.room_min)}</div>
-            )}
-            <label className="pos-ticket-label" htmlFor="pos-ticket-note">{t('atomicPos.detailsLabel')}</label>
-            <textarea
-              id="pos-ticket-note"
-              className="pos-ticket-note"
-              rows={2}
-              value={ticketNote}
-              onChange={e => setTicketNote(e.target.value)}
-              placeholder={t('atomicPos.detailsPlaceholder')}
-            />
-          </div>
-        )}
-      </div>
-
-      <div className="pos-cart">
-        {lastSale && (
-          <div className="pos-receipt-bar">
-            <span>{t('atomicPos.saleRegisteredShort', { amount: fmtYen(lastSale.total) })}</span>
-            {lastSale.cash && (
-              <div className="pos-receipt-cash">
-                {lastSale.cash.restMethod
-                  ? t('atomicPos.restOnReceipt', {
-                    cash: fmtYen(lastSale.cash.tendered),
-                    method: lastSale.cash.restMethod,
-                    rest: fmtYen(lastSale.cash.rest),
-                  })
-                  : lastSale.cash.exact
-                    ? t('atomicPos.cashExact')
-                    : t('atomicPos.cashOnReceipt', { tendered: fmtYen(lastSale.cash.tendered), change: fmtYen(lastSale.cash.change) })}
-              </div>
-            )}
-            {!lastSale.cash && (
-              <div className="pos-receipt-cash">{t('atomicPos.recordOnlyShort', { method: lastSale.payMethod })}</div>
-            )}
-            <button type="button" className="btn-primary" onClick={() => printGuestReceipt({
-              barNome: bar.nome,
-              sale: { ...lastSale.sale, total: lastSale.total },
-              items: lastSale.items,
-              guestNome: lastSale.guestNome,
-              castNome: lastSale.castNome,
-              spaceNome: lastSale.spaceNome,
-              payMethod: lastSale.payMethod,
-              cash: lastSale.cash,
-            })}>{t('atomicPos.printReceipt')}</button>
-            <div className="pos-receipt-hint">{t('atomicPos.guestReceiptHint')}</div>
-          </div>
-        )}
-        {saleErr && <div className="pos-sale-err">{saleErr}</div>}
-        <div className="pos-cart-title">{t('atomicPos.stepCharge')}</div>
-        {agentId && (
-          <div className="pos-cart-ticket">
-            <div>{t('atomicPos.drinkBackRule')}</div>
-            <strong>
-              {t('atomicPos.herCommission', {
-                pct: agents.find(a => a.id === agentId)?.comissao_pct || 0,
-                amount: fmtYen(drinkBackCommission(cart, agents.find(a => a.id === agentId)?.comissao_pct || 0)),
-              })}
-            </strong>
-          </div>
-        )}
-        {(agentId || spaceId || guestId) && (
-          <div className="pos-cart-ticket">
-            {agentId && <span><Icon name="drinkback" size={13} /> {(agents.find(a => a.id === agentId)?.nome) || 'CAST'}</span>}
-            {spaceId && <span><Icon name="floor" size={13} /> {(spaces.find(s => s.id === spaceId)?.nome)}</span>}
-            {guestId && <span><Icon name="clientes" size={13} /> {(guests.find(g => g.id === guestId)?.nome)}</span>}
-          </div>
-        )}
-        {cart.length === 0 && charges.lines.length === 0 ? (
-          <div className="pos-cart-empty">{t('atomicPos.walkUpHint')}</div>
-        ) : (
-          <div className="pos-cart-list">
-            {cart.map((it, i) => (
-              <div key={i} className="pos-cart-row">
-                <div>
-                  <div className="pos-cart-name">{it.nome}</div>
-                  <div className="pos-cart-meta">{it.tipo_preco} × {it.qtd}</div>
-                </div>
-                <div className="pos-cart-qty">
-                  <button type="button" className="pos-qty pos-qty-minus" onClick={() => bumpCart(i, -1)}>−</button>
-                  <span>{it.qtd}</span>
-                  <button type="button" className="pos-qty pos-qty-plus" onClick={() => bumpCart(i, 1)}>+</button>
-                  {agentId && it.kind === 'drink' && !it.produto_id && (
-                    <button
-                      type="button"
-                      className={it.forCast ? 'pos-qty pos-qty-plus' : 'pos-qty'}
-                      onClick={() => setCart(c => c.map((row, j) => j === i ? { ...row, forCast: !row.forCast } : row))}
-                    >
-                      {it.forCast ? t('atomicPos.sheDrank') : t('atomicPos.guestDrank')}
-                    </button>
-                  )}
-                  <strong>{fmtYen(lineUnitPrice(it) * it.qtd)}</strong>
-                  <button type="button" className="pos-qty-del" onClick={() => setCart(c => c.filter((_, j) => j !== i))}>✕</button>
-                </div>
-              </div>
-            ))}
-            {[...charges.lines, ...(surLine ? [surLine] : [])].map(it => (
-              <div key={it.key} className="pos-cart-row pos-cart-extra">
-                <div>
-                  <div className="pos-cart-name">{it.nome}</div>
-                  <div className="pos-cart-meta">{it.kind === 'card_surcharge' ? t('posCard.machine') : it.tipo_preco}</div>
-                </div>
-                <strong>{fmtYen(it.preco)}</strong>
-              </div>
-            ))}
-            {cart.length > 0 && (
-              <button type="button" className="pos-clear" onClick={() => { setCart([]); setNominho(''); setSetPrice('') }}>{t('atomicPos.clearCart')}</button>
-            )}
-          </div>
-        )}
-        <div className="pos-cart-pay">
-          <div className="pos-cart-total">{fmtYen(ticketTotal)}</div>
-          <div className="pos-tax-line">
-            {t('atomicPos.taxIncluded')} · {t('atomicPos.consumptionTaxIncluded')} {fmtYen(includedTaxBreakdown(ticketTotal).tax)}
-          </div>
-          <div className="pos-pay-methods">
-            {PAY_METHODS.map(m => (
-              <button
-                key={m.id}
-                type="button"
-                className={`pos-pay-method${payMethod === m.id ? ' is-on' : ''}`}
-                onClick={() => { setPayMethod(m.id); setRestMethod('') }}
-              >{t(`atomicPos.${m.key}`)}</button>
-            ))}
-          </div>
-          {cardPay && machines.length > 1 && (
-            <div className="pos-cash-chips" role="radiogroup" aria-label={t('posCard.machine')}>
-              {machines.map(m => (
-                <button key={m.id} type="button" role="radio" aria-checked={machine.id === m.id}
-                  className={`pos-cash-chip${machine.id === m.id ? ' is-on' : ''}`} onClick={() => setMachineId(m.id)}>{m.nome}</button>
-              ))}
-            </div>
-          )}
-          {isCashMethod(payMethod) ? (
-            <div className="pos-cash-box">
-              <div className="pos-pay-hint">{t('atomicPos.payCashHint')}</div>
-              <div className="pos-cash-chips">
-                <button type="button" className={`pos-cash-chip${!cashTendered ? ' is-on' : ''}`} onClick={() => { setCashTendered(''); setRestMethod('') }}>
-                  {t('atomicPos.cashExact')}
-                </button>
-                {CASH_CHIPS.map(n => (
-                  <button
-                    key={n}
-                    type="button"
-                    className={`pos-cash-chip${String(cashTendered) === String(n) ? ' is-on' : ''}`}
-                    onClick={() => { setCashTendered(String(n)); if (+n >= ticketTotal) setRestMethod('') }}
-                  >{fmtYen(n)}</button>
-                ))}
-              </div>
-              <label className="pos-cash-label" htmlFor="pos-cash-tendered">{t('atomicPos.cashTendered')}</label>
-              <input
-                id="pos-cash-tendered"
-                className="pos-cash-input"
-                type="number"
-                min="0"
-                inputMode="numeric"
-                value={cashTendered}
-                onChange={e => {
-                  setCashTendered(e.target.value)
-                  if (e.target.value === '' || +e.target.value >= ticketTotal) setRestMethod('')
-                }}
-                placeholder={fmtYen(ticketTotal)}
-              />
-              {cash && !cash.short && !cash.restMethod && (
-                <div className={`pos-cash-change${cash.exact ? ' is-exact' : ''}`}>
-                  {cash.exact ? t('atomicPos.cashExact') : t('atomicPos.cashChange', { amount: fmtYen(cash.change) })}
-                </div>
-              )}
-              {cash?.restMethod && (
-                <div className="pos-cash-change">
-                  {t('atomicPos.restOnReceipt', { cash: fmtYen(cash.tendered), method: cash.restMethod, rest: fmtYen(cash.rest) })}
-                </div>
-              )}
-              {(cashShort || (cash && cash.due > (cash.tendered || 0) && !cash.restMethod && cashTendered !== '')) && (
-                <div className="pos-rest-pay">
-                  {['Card', 'PayPay'].map(m => (
-                    <button
-                      key={m}
-                      type="button"
-                      className={`pos-rest-chip${restMethod === m ? ' is-on' : ''}`}
-                      onClick={() => setRestMethod(m)}
-                    >
-                      {t(m === 'Card' ? 'atomicPos.restOnCard' : 'atomicPos.restOnPaypay', {
-                        amount: fmtYen(Math.max(0, ticketTotal - (+cashTendered || 0))),
-                      })}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {cashShort && <div className="pos-cash-short">{t('atomicPos.cashShortRest')}</div>}
-            </div>
-          ) : (
-            <div className="pos-pay-hint">{t('atomicPos.payRecordHint')}</div>
-          )}
-          {discountErr && (cart.length > 0 || charges.lines.length > 0) && (
-            <button type="button" className="pos-sale-err" onClick={() => setShowExtras(true)}>{t(discountErr)}</button>
-          )}
-          <button className="btn-gold pos-pay" onClick={completeSale} disabled={saving || cashShort || (!cart.length && !charges.lines.length) || (priceType === 'vip' && !vipId) || !!discountErr}>
-            {saving ? t('common.saving') : t('atomicPos.chargeNow', { amount: fmtYen(ticketTotal) })}
-          </button>
-          <NightCloseBar bar={bar} compact />
-        </div>
-      </div>
     </div>
   )
 }
@@ -1426,7 +731,7 @@ function StatCard({ label, value, sub, color }) {
 function HourlyChart({ data, height = 100 }) {
   const { t } = useI18n()
   const activeHours = data.filter(h => h.total > 0 || h.count > 0)
-  if (!activeHours.length) return <div style={{ color: 'var(--text3)', fontSize: 13, padding: 20, textAlign: 'center' }}>—</div>
+  if (!activeHours.length) return <div className="hourly-empty">{t('atomicPos.hourlyEmpty')}</div>
   const max = Math.max(...data.map(d => d.total), 1)
   return (
     <div className="hourly-chart" style={{ height: height + 32 }}>
@@ -1448,7 +753,7 @@ function HourlyChart({ data, height = 100 }) {
   )
 }
 
-function PosDashboardTab({ bar, todaySales, salesList, onOrder }) {
+function PosDashboardTab({ bar, todaySales, salesList, onOrder, onVoided }) {
   const { t } = useI18n()
   const [lowStock, setLowStock] = useState([])
   const [agentStats, setAgentStats] = useState([])
@@ -1498,96 +803,176 @@ function PosDashboardTab({ bar, todaySales, salesList, onOrder }) {
   }, [bar, todaySales])
 
   return (
-    <div className="easy-dash pos-easy-dash">
-      <div className="easy-dash-hero">
-        <div className="easy-dash-kicker">{t('atomicPos.todayAtCounter')}</div>
-        <div className="easy-dash-value" style={{ color: 'var(--green)' }}>{fmtYen(metrics.total)}</div>
-        <div className="easy-dash-hint">
-          {t('atomicPos.ticketsToday', { count: metrics.count })}
-          {' · '}
-          {t('atomicPos.avgTicketShort', { amount: fmtYen(metrics.ticketMedio) })}
-          {metrics.peakHour?.total > 0 ? ` · ${t('atomicPos.busiestHour')} ${metrics.peakHour.label}` : ''}
+    <div className="easy-dash pos-easy-dash pos-dash">
+      <div className="pos-dash-stats">
+        <div className="pos-dash-stat is-main">
+          <span>{t('atomicPos.todayAtCounter')}</span>
+          <strong>{fmtYen(metrics.total)}</strong>
+        </div>
+        <div className="pos-dash-stat">
+          <span>{t('atomicPos.dashSales')}</span>
+          <strong>{metrics.count}</strong>
+        </div>
+        <div className="pos-dash-stat">
+          <span>{t('atomicPos.avgTicket')}</span>
+          <strong>{fmtYen(metrics.ticketMedio)}</strong>
+        </div>
+        <div className="pos-dash-stat">
+          <span>{t('atomicPos.busiestHour')}</span>
+          <strong>{metrics.peakHour?.total > 0 ? metrics.peakHour.label : '—'}</strong>
         </div>
       </div>
-      <NightCloseBar bar={bar} salesHint={salesList} />
 
-      {openRestock.length === 0 && lowStock.length === 0 && (
-        <div className="easy-dash-ok" style={{ marginBottom: 16 }}>{t('atomicPos.stockOk')}</div>
-      )}
-
-      {openRestock.length > 0 && (
-        <div style={{
-          background: 'var(--navy)', borderRadius: 16, padding: '16px 20px', marginBottom: 20,
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
-        }}>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'white', marginBottom: 4 }}>
-              {t('atomicPos.restockPending', { count: openRestock.length })}
-            </div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>
-              {t('atomicPos.restockPendingHint')}
-            </div>
+      <div className="pos-dash-grid">
+        <div className="pos-dash-main">
+          <div className="card pos-dash-card">
+            <SectionTitle>{t('atomicPos.hourlyRevenue')}</SectionTitle>
+            <HourlyChart data={metrics.hourly} />
           </div>
-          {onOrder && (
-            <button onClick={onOrder} style={{
-              background: 'var(--bg2)', color: 'var(--c-text)', border: 'none', borderRadius: 12,
-              padding: '10px 18px', fontWeight: 700, fontSize: 12, cursor: 'pointer',
-            }}>
-              {t('atomicPos.seeJbmOrders')}
-            </button>
+          <TonightSales bar={bar} salesList={salesList} onVoided={onVoided} />
+          {agentStats.length > 0 && (
+            <div className="card">
+              <SectionTitle>{t('atomicPos.drinkBackToday')}</SectionTitle>
+              {agentStats.map(a => (
+                <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                  <div>
+                    <strong>{a.nome}</strong>
+                    <div style={{ fontSize: 11, color: 'var(--text2)' }}>{a.vendas} {t('atomicPos.salesWord')} · {t('atomicPos.commissionShort', { pct: a.comissao_pct })}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontWeight: 700 }}>{fmtYen(a.faturamento)}</div>
+                    <div style={{ fontSize: 11, color: 'var(--gold)' }}>{t('atomicPos.commission')} {fmtYen(a.comissao)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
-      )}
-
-      {lowStock.length > 0 && (
-        <div style={{
-          background: 'linear-gradient(135deg,var(--amber) 0%,#ff6b00 100%)',
-          borderRadius: 16, padding: '16px 20px', marginBottom: 20,
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
-        }}>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'white', marginBottom: 4 }}>
-              {t('atomicPos.lowStockAlert', { count: lowStock.length })}
-            </div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)' }}>
-              {lowStock.slice(0, 4).map(p => `${p.nome} (${p.stock}/${p.minimo})`).join(' · ')}
-            </div>
-          </div>
-          {onOrder && (
-            <button onClick={onOrder} style={{
-              background: 'var(--bg2)', color: '#ff6b00', border: 'none', borderRadius: 12,
-              padding: '10px 18px', fontWeight: 700, fontSize: 12, cursor: 'pointer',
-            }}>
-              {t('atomicPos.reorderJbm')}
-            </button>
+        <div className="pos-dash-side">
+          <NightCloseBar bar={bar} salesHint={salesList} />
+          {openRestock.length === 0 && lowStock.length === 0 && (
+            <div className="easy-dash-ok">{t('atomicPos.stockOk')}</div>
           )}
-        </div>
-      )}
-
-      <div className="card" style={{ marginBottom: 20 }}>
-        <SectionTitle>{t('atomicPos.hourlyRevenue')}</SectionTitle>
-        <HourlyChart data={metrics.hourly} />
-      </div>
-
-      {agentStats.length > 0 && (
-        <div className="card">
-          <SectionTitle>{t('atomicPos.drinkBackToday')}</SectionTitle>
-          {agentStats.map(a => (
-            <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+          {openRestock.length > 0 && (
+            <div style={{
+              background: 'var(--navy)', borderRadius: 16, padding: '16px 20px', marginBottom: 12,
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
+            }}>
               <div>
-                <strong>{a.nome}</strong>
-                <div style={{ fontSize: 11, color: 'var(--text2)' }}>{a.vendas} {t('atomicPos.salesWord')} · {t('atomicPos.commissionShort', { pct: a.comissao_pct })}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'white', marginBottom: 4 }}>
+                  {t('atomicPos.restockPending', { count: openRestock.length })}
+                </div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>
+                  {t('atomicPos.restockPendingHint')}
+                </div>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: 700 }}>{fmtYen(a.faturamento)}</div>
-                <div style={{ fontSize: 11, color: 'var(--gold)' }}>{t('atomicPos.commission')} {fmtYen(a.comissao)}</div>
-              </div>
+              {onOrder && (
+                <button onClick={onOrder} style={{
+                  background: 'var(--bg2)', color: 'var(--c-text)', border: 'none', borderRadius: 12,
+                  padding: '10px 18px', fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                }}>
+                  {t('atomicPos.seeJbmOrders')}
+                </button>
+              )}
             </div>
-          ))}
+          )}
+
+          {lowStock.length > 0 && (
+            <div style={{
+              background: 'linear-gradient(135deg,var(--amber) 0%,#ff6b00 100%)',
+              borderRadius: 16, padding: '16px 20px', marginBottom: 12,
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
+            }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'white', marginBottom: 4 }}>
+                  {t('atomicPos.lowStockAlert', { count: lowStock.length })}
+                </div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)' }}>
+                  {lowStock.slice(0, 4).map(p => `${p.nome} (${p.stock}/${p.minimo})`).join(' · ')}
+                </div>
+              </div>
+              {onOrder && (
+                <button onClick={onOrder} style={{
+                  background: 'var(--bg2)', color: '#ff6b00', border: 'none', borderRadius: 12,
+                  padding: '10px 18px', fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                }}>
+                  {t('atomicPos.reorderJbm')}
+                </button>
+              )}
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {loading && <Spinner />}
+    </div>
+  )
+}
+
+/** Tonight's tickets, each with Void for the owner/manager (this tab is never shown to the cashier). */
+function TonightSales({ bar, salesList, onVoided }) {
+  const { t } = useI18n()
+  const { user, perfil } = useAuth()
+  const [voiding, setVoiding] = useState(null)
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const nightKey = tokyoNightKey()
+  const rows = (salesList || []).filter(s => saleOnNight(s, nightKey)).slice().reverse()
+
+  async function confirmVoid() {
+    setBusy(true)
+    setMsg('')
+    try {
+      const { voidRow, originalPatch } = buildVoid({ ...voiding, bar_id: voiding.bar_id || bar.id }, {
+        reason, byName: perfil?.nome || user?.email, byId: user?.id,
+      })
+      const ins = await supabase.from('pos_vendas').insert(voidRow)
+      if (ins.error) throw ins.error
+      await supabase.from('pos_vendas').update(originalPatch).eq('id', voiding.id)
+      setVoiding(null)
+      setReason('')
+      setMsg(t('atomicPos.voidDone'))
+      onVoided?.()
+    } catch (e) {
+      setMsg(e.message || String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <SectionTitle>{t('atomicPos.salesTonight')}</SectionTitle>
+      {!rows.length && <div className="pos-close-split">{t('atomicPos.noSalesTonight')}</div>}
+      {rows.map((s, i) => {
+        const when = s.criado_em ? new Date(s.criado_em).toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit' }) : ''
+        const voidRow = isVoidRow(s)
+        return (
+          <div key={s.id || i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+            <span style={{ width: 48, color: 'var(--text2)' }}>{when}</span>
+            <span style={{ flex: 1 }}>
+              {s.metodo_pagamento || '—'}
+              {voidRow && <span className="pos-close-split"> · {t('atomicPos.voidRowTag')}</span>}
+              {isVoided(s) && <span className="pos-close-split"> · {t('atomicPos.voidedTag')}</span>}
+            </span>
+            <strong style={{ color: voidRow ? 'var(--red)' : undefined, textDecoration: isVoided(s) ? 'line-through' : undefined }}>{fmtYen(s.total)}</strong>
+            {canVoid(s) && (
+              <button type="button" className="ord-ghost" onClick={() => { setVoiding(s); setReason(''); setMsg('') }}>{t('atomicPos.voidSale')}</button>
+            )}
+          </div>
+        )
+      })}
+      {voiding && (
+        <div className="pos-close-actions" style={{ marginTop: 12 }}>
+          <input type="text" placeholder={t('atomicPos.voidReason')} value={reason} onChange={e => setReason(e.target.value)} autoFocus />
+          <button type="button" className="btn-primary" disabled={busy || !reason.trim()} onClick={confirmVoid}>
+            {busy ? t('common.saving') : t('atomicPos.voidConfirm', { amount: fmtYen(voiding.total) })}
+          </button>
+          <button type="button" className="ord-ghost" onClick={() => setVoiding(null)} disabled={busy}>{t('common.cancel')}</button>
+        </div>
+      )}
+      {msg && <div className="pos-close-msg">{msg}</div>}
     </div>
   )
 }
@@ -1705,7 +1090,6 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
   const [posErr, setPosErr] = useState('')
   const [catalogErr, setCatalogErr] = useState('')
   const [loading, setLoading] = useState(true)
-  const [classicTill, setClassicTill] = useState(false)
 
   useEffect(() => { init() }, [bar])
   useEffect(() => {
@@ -1722,7 +1106,7 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
     forgetLiveSelects('pos_vendas')
     const nightKey = tokyoNightKey()
     const from = prevTokyoDateKey(nightKey)
-    const salesSelect = 'total,refunded,card_fee,card_fee_reversed,criado_em,data,metodo_pagamento,obs,drink_back_agent_id'
+    const salesSelect = 'id,bar_id,subtotal,desconto_total,tipo,space_id,guest_id,comissao_valor,total,refunded,card_fee,card_fee_reversed,criado_em,data,metodo_pagamento,obs,drink_back_agent_id'
     const [schema, dR, sR, cR, vR, salesFirst, aR] = await Promise.all([
       checkPosSchema(supabase),
       supabase.from('drink_menu').select('*').eq('bar_id', bar.id).order('nome'),
@@ -1734,7 +1118,7 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
     ])
     let pR = salesFirst
     if (pR.error && /refunded|card_fee/.test(pR.error.message || '')) {
-      pR = await supabase.from('pos_vendas').select('total,criado_em,data,metodo_pagamento,obs,drink_back_agent_id').eq('bar_id', bar.id).gte('data', from).order('criado_em')
+      pR = await supabase.from('pos_vendas').select('id,bar_id,total,criado_em,data,metodo_pagamento,obs,drink_back_agent_id').eq('bar_id', bar.id).gte('data', from).order('criado_em')
     }
     setReady(schema.ready)
     if (dR.error) setPosErr(dR.error.message || t('atomicPos.tillLoadError'))
@@ -1793,7 +1177,7 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
       )}
 
       {subTab === 'dashboard' && (
-        <PosDashboardTab bar={bar} todaySales={todaySales} salesList={salesList} onOrder={onOrder} />
+        <PosDashboardTab bar={bar} todaySales={todaySales} salesList={salesList} onOrder={onOrder} onVoided={() => init({ quiet: true })} />
       )}
 
       {!ready && subTab === 'checkout' && (
@@ -1804,26 +1188,8 @@ export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
 
       {(ready || subTab !== 'checkout') && subTab !== 'dashboard' && (
         <>
-          {subTab === 'checkout' && ready && classicTill && access !== 'cashier' && (
+          {subTab === 'checkout' && ready && (
             <>
-              <button type="button" className="pos-chip" onClick={() => setClassicTill(false)}>{t('posFloor.floor')}</button>
-              <p className="pos-floor-empty">{t('posFloor.legacyIsolated')}</p>
-              <PosCheckoutTab
-                bar={bar}
-                drinks={drinks}
-                shots={shots}
-                discountCodes={discountCodes}
-                vipMembers={vipMembers}
-                drinkBackAgents={drinkBackAgents}
-                onSale={init}
-              />
-            </>
-          )}
-          {subTab === 'checkout' && ready && (!classicTill || access === 'cashier') && (
-            <>
-              {access !== 'cashier' && (
-                <button type="button" className="pos-chip" onClick={() => setClassicTill(true)}>{t('posFloor.classic')}</button>
-              )}
               <PosQuick
                 bar={bar}
                 drinks={drinks}

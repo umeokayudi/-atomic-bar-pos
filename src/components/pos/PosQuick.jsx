@@ -23,7 +23,9 @@ import { commitSaleAtomic, newSaleKey } from '../../lib/posCommit'
 import { floorAvailable, floorApi, isConflict, loadOpenTabs, newKey, pendingToLines, tabMoney, tabsApi } from '../../lib/comandas'
 import Icon from '../ui/Icon'
 import TabPanel from '../floor/TabPanel'
+import { seatsOf, vipTag } from '../../lib/floorEditor'
 import CustomerPicker from './CustomerPicker'
+import { meDay } from '../../lib/staffSelfApi'
 
 const PAY = [
   { id: 'Cash', key: 'atomicPos.payCash', icon: 'payCash' },
@@ -45,6 +47,10 @@ function writeJson(key, value) {
 }
 function missingTable(error) {
   return !!error && (error.code === 'PGRST205' || error.code === '42P01' || /could not find the table|does not exist/i.test(error.message || ''))
+}
+
+function firstName(nome) {
+  return String(nome || '').trim().split(/\s+/)[0] || ''
 }
 
 function Tile({ item, qty, fav, onAdd, onFav, t }) {
@@ -95,7 +101,6 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
   const staffMe = staff?.me?.id ? staff.me : null
   const defaultCast = useMemo(() => (staffMe ? [staffMe.id] : []), [staffMe])
   const [castIds, setCastIds] = useState(defaultCast)
-  const [castSheet, setCastSheet] = useState(false)
   const [serviceOn, setServiceOn] = useState(true)
   const machineKey = `pos-card-machine:${bar.id}`
   const [machineId, setMachineId] = useState(() => readJson(machineKey, ''))
@@ -108,7 +113,8 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(null)
   const [tabSheet, setTabSheet] = useState(false)
-  const [tabForm, setTabForm] = useState({ nome: '', pessoas: 2, tableId: '' })
+  const [tabForm, setTabForm] = useState({ nome: '', pessoas: 2, tableId: '', guestId: '' })
+  const [nightGoal, setNightGoal] = useState(0)
   const [orderOpen, setOrderOpen] = useState(false)
   // Phones: payment method, cash chips and customer fold away so the drinks on the order keep the room.
   const [payMore, setPayMore] = useState(false)
@@ -215,6 +221,13 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
     else setNight({ summary: summarizeNight(data || [], nightKey) })
   }, [bar.id])
 
+  // The bar's goal for the night (Goals page); any bar login may read it.
+  useEffect(() => {
+    let live = true
+    meDay().then(d => { if (live) setNightGoal(Math.max(0, +d?.barGoal || 0)) }).catch(() => {})
+    return () => { live = false }
+  }, [bar.id])
+
   useEffect(() => {
     refreshCrm()
     refreshLedger()
@@ -242,7 +255,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
         const layout = list.find(l => l.ativo) || list[0]
         return layout ? floorApi.layout(supabase, layout.id) : { tables: [] }
       })
-      .then(({ tables: rows }) => setTables((rows || []).filter(r => r.ativo !== false)))
+      .then(({ tables: rows }) => setTables(seatsOf(rows)))
       .catch(() => setTables([]))
     const id = setInterval(() => { if (document.visibilityState === 'visible') refreshTabs() }, POLL_MS)
     const onVis = () => { if (document.visibilityState === 'visible') refreshTabs() }
@@ -346,6 +359,9 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
     ...localTabIds.map(id => ({ total: cartTotal(orders[id].cart || []), paid: 0 })),
   ]
   const glance = tonightGlance({ summary: night?.summary || (night?.error ? null : todaySales && { drinksTotal: todaySales.total, ticketCount: todaySales.count }), tabs: openTabsMoney })
+  // The shared till login (role caixa) is not one person: it gets a thank-you, a named login gets congratulated.
+  const sharedTill = perfil?.role === 'caixa' || !perfil?.nome
+  const goalPct = nightGoal > 0 ? Math.min(999, Math.round((glance.soldTotal / nightGoal) * 100)) : null
   const owedTotal = useMemo(() => ledgerBalances(ledger).reduce((a, b) => a + Math.max(0, b.balance), 0), [ledger])
   const owedCount = useMemo(() => ledgerBalances(ledger).filter(b => b.balance > 0).length, [ledger])
 
@@ -421,6 +437,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
     setActive(id)
     setTendered('')
     setErr('')
+    setPayMore(false)
   }
 
   async function openTab(e) {
@@ -441,7 +458,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
         setOrders(prev => ({
           ...prev,
           [COUNTER]: active === COUNTER ? { cart: [] } : prev[COUNTER],
-          [SRV + id]: { cart: [...(prev[SRV + id]?.cart || []), ...moving] },
+          [SRV + id]: { ...(prev[SRV + id] || {}), cart: [...(prev[SRV + id]?.cart || []), ...moving], guestId: tabForm.guestId || prev[SRV + id]?.guestId || null },
         }))
         await refreshTabs()
         switchTo(SRV + id)
@@ -459,13 +476,13 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
         setOrders(prev => ({
           ...prev,
           [COUNTER]: active === COUNTER ? { cart: [] } : prev[COUNTER],
-          [id]: { label: name, spaceId, cart: moving, openedAt: new Date().toISOString() },
+          [id]: { label: name, spaceId, cart: moving, openedAt: new Date().toISOString(), guestId: tabForm.guestId || null },
         }))
         switchTo(id)
       }
     }
     setTabSheet(false)
-    setTabForm({ nome: '', pessoas: 2, tableId: '' })
+    setTabForm({ nome: '', pessoas: 2, tableId: '', guestId: '' })
   }
 
   function dropActive() {
@@ -617,6 +634,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
       rememberTop(drinkLines)
       const onAccountAmount = ledgerRows.reduce((a, r) => a + r.valor, 0)
       setDone({
+        thanks: sharedTill ? t('posQuick.thanks') : t('posQuick.congrats', { name: firstName(perfil?.nome) }),
         total: chargedTotal, change: !srvTab && cash && !cash.exact ? Math.max(0, cash.change) : 0, method: pay,
         label: tableOrder ? (srvTab?.nome || order.label) : '',
         onAccount: onAccountAmount > 0 ? t('onAccount.doneLine', { amount: fmtYen(onAccountAmount), name: ledgerRows[0].guest_nome }) : '',
@@ -624,6 +642,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
       dropActive()
       setCastIds(defaultCast)
       setTendered('')
+      setPayMore(false)
       setOrderOpen(false)
       setPanelTab(null)
       clearTimeout(doneTimer.current)
@@ -667,6 +686,10 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
               : hasSomething ? t('posQuick.charge', { amount: fmtYen(due) }) : t('posQuick.charge', { amount: '' }).trim()
 
   const sentLines = srvMoney?.lines || []
+  // Payment method, cash, customer and cast only show once the order goes to payment.
+  const needsPayStep = hasSomething && !settledTab && !setupNeeded
+  const paying = payMore && needsPayStep
+  useEffect(() => { if (!hasSomething) setPayMore(false) }, [hasSomething])
 
   return (
     <div className={`pq${orderOpen ? ' is-order-open' : ''}`}>
@@ -708,7 +731,11 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
             <div className="pq-glance-cell" title={night?.error ? t('onAccount.salesError', { error: night.error }) : t('onAccount.soldHint')}>
               <span>{t('onAccount.sold')}</span>
               <strong>{night?.error && !night?.summary ? '—' : fmtYen(glance.soldTotal)}</strong>
-              <em>{t('atomicPos.salesCount', { count: glance.soldCount })}</em>
+              <em>
+                {t('atomicPos.salesCount', { count: glance.soldCount })}
+                {goalPct != null && <b className={`pq-goal-pct${goalPct >= 100 ? ' is-hit' : ''}`} title={t('posQuick.goalHint', { goal: fmtYen(nightGoal) })}> · {t('posQuick.goalPct', { pct: goalPct })}</b>}
+              </em>
+              {goalPct != null && <i className="pq-goal-bar" aria-hidden="true"><b style={{ width: `${Math.min(100, goalPct)}%` }} /></i>}
             </div>
             <div className="pq-glance-cell" title={t('onAccount.openHint')}>
               <span>{t('onAccount.openTabs')}</span>
@@ -828,7 +855,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
           })}
         </div>
 
-        <div className={`pq-pay${payMore ? ' is-more' : ''}`}>
+        <div className={`pq-pay${paying ? ' is-paying' : ''}`}>
           {(charges.lines.length > 0 || surchargeNow > 0 || srvMoney?.paid > 0) && (
             <div className="pq-extra">
               {charges.lines.map(line => (
@@ -850,15 +877,14 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
             </button>
           )}
 
-          <button type="button" className="pq-pay-toggle" aria-expanded={payMore} onClick={() => setPayMore(v => !v)}>
-            <span>
-              <Icon name={PAY.find(row => row.id === pay)?.icon || 'payCash'} size={16} />
-              {[t(PAY.find(row => row.id === pay)?.key || 'atomicPos.payCash'), orderGuest?.nome, castLabel].filter(Boolean).join(' · ')}
-            </span>
-            <span className="pq-pay-toggle-more">{t(payMore ? 'posQuick.lessOptions' : 'posQuick.moreOptions')}<Icon name="down" size={16} /></span>
-          </button>
+          {paying && (
+            <div className="pq-pay-head">
+              <strong>{t('posQuick.payTitle')}</strong>
+              <button type="button" onClick={() => { setPayMore(false); setErr('') }}><Icon name="back" size={16} /> {t('posQuick.payBack')}</button>
+            </div>
+          )}
 
-          <div className="pq-pay-more">
+          {paying && <div className="pq-pay-more">
 
           <div className="pq-pays">
             {PAY.map(row => (
@@ -880,6 +906,24 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
                   {row.nome}
                 </button>
               ))}
+            </div>
+          )}
+
+          {people.length > 0 && (
+            <div className="pq-castrow" role="group" aria-label={t('posQuick.cast')}>
+              <span className="pq-castrow-label">{t('posQuick.cast')}{castSel.length > 1 ? ` · ${t('staffPos.splitHint', { n: castSel.length })}` : ''}</span>
+              <div className="pq-castrow-chips">
+                <button type="button" aria-pressed={!castSel.length} className={!castSel.length ? 'is-on' : ''} onClick={() => setCastIds([])}>{t('posQuick.noCast')}</button>
+                {people.map(p => {
+                  const on = castIds.includes(p.id)
+                  return (
+                    <button key={p.id} type="button" aria-pressed={on} className={on ? 'is-on' : ''}
+                      onClick={() => setCastIds(ids => (ids.includes(p.id) ? ids.filter(x => x !== p.id) : [...ids, p.id]))}>
+                      {on && <Icon name="ok" size={14} />}{staffMe && p.id === staffMe.id ? t('staffPos.meNamed', { name: p.nome }) : p.nome}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           )}
 
@@ -908,33 +952,26 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
               </span>
               <Icon name="next" size={16} />
             </button>
-            {people.length > 0 && (
-              <button type="button" className={`pq-custbtn pq-castbtn${castSel.length ? ' is-set' : ''}`} onClick={() => setCastSheet(true)} aria-label={t('posQuick.cast')}>
-                <Icon name="drinkback" size={18} />
-                <span className="pq-custbtn-name">
-                  <strong>{castSel.length ? castLabel : t('posQuick.noCast')}</strong>
-                  <span>{castSel.length > 1 ? t('staffPos.splitHint', { n: castSel.length }) : t('staffPos.castHint')}</span>
-                </span>
-                <Icon name="next" size={16} />
-              </button>
-            )}
-            {tableOrder && !srvTab && (
-              <button type="button" className={serviceOn ? 'is-on' : ''} onClick={() => setServiceOn(v => !v)}>
-                {t('posQuick.service', { pct: settings.service_pct })}
-              </button>
-            )}
-            {(cart.length > 0 || (tableOrder && !srvTab)) && (
+          </div>
+
+          </div>}
+
+          {!paying && (tableOrder && !srvTab || cart.length > 0) && (
+            <div className="pq-options">
+              {tableOrder && !srvTab && (
+                <button type="button" className={serviceOn ? 'is-on' : ''} onClick={() => setServiceOn(v => !v)}>
+                  {t('posQuick.service', { pct: settings.service_pct })}
+                </button>
+              )}
               <button type="button" className="is-quiet" onClick={() => (srvTab ? setCart([]) : dropActive())}>
                 {tableOrder && !srvTab ? t('posQuick.closeTab') : t('posQuick.clear')}
               </button>
-            )}
-          </div>
-
-          </div>
+            </div>
+          )}
 
           {err && <div className="pq-alert" role="alert">{err}</div>}
-          <button type="button" className="pq-charge" disabled={busy || !hasSomething || short || setupNeeded} onClick={needGuest ? () => setCustSheet(true) : charge} aria-keyshortcuts="Control+Enter F12">
-            {chargeLabel}
+          <button type="button" className="pq-charge" disabled={busy || !hasSomething || short || setupNeeded} onClick={!paying && needsPayStep ? () => { setPayMore(true); setErr('') } : needGuest ? () => setCustSheet(true) : charge} aria-keyshortcuts="Control+Enter F12">
+            {!paying && needsPayStep && !busy ? t('posQuick.toPay', { amount: fmtYen(due) }) : chargeLabel}
           </button>
         </div>
       </aside>
@@ -967,12 +1004,20 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
                         if (taken) { switchTo(SRV + taken.id); setTabSheet(false); return }
                         setTabForm(f => ({ ...f, tableId: f.tableId === row.id ? '' : row.id }))
                       }}>
-                      {row.nome}{taken ? ` · ${taken.nome}` : ''}
+                      {row.nome}{server && vipTag(row) ? ` · ${t('floor.vip')}` : ''}{taken ? ` · ${taken.nome}` : ''}
                     </button>
                   )
                 })}
               </div>
             )}
+            <div className="pq-sheet-crm">
+              <h3>{t('posQuick.tabCustomer')}</h3>
+              {guests === null
+                ? <div className="ui-skel" style={{ height: 48 }} />
+                : <CustomerPicker barId={bar.id} guests={guests} onGuestsChange={setGuests} value={tabForm.guestId}
+                    onPick={g => setTabForm(f => ({ ...f, guestId: g?.id || '', nome: g ? (f.nome.trim() ? f.nome : g.nome) : f.nome }))}
+                    balances={balances} error={crmErr ? t('onAccount.errCrm', { error: crmErr }) : ''} />}
+            </div>
             {!server && server !== null && <p className="pq-hint">{t('tabs.deviceOnly')}</p>}
             {active === COUNTER && cart.length > 0 && <p className="pq-hint">{t('posQuick.moveHint')}</p>}
             <button type="button" className="pq-sheet-cancel" onClick={() => setTabSheet(false)}>{t('common.cancel')}</button>
@@ -1026,15 +1071,6 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
         </div>
       )}
 
-      {castSheet && (
-        <CastSheet
-          people={people} selected={castIds} me={staffMe} t={t}
-          onToggle={id => setCastIds(ids => (ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]))}
-          onClear={() => setCastIds([])}
-          onClose={() => setCastSheet(false)}
-        />
-      )}
-
       {fiadoSheet && !staffMe && (
         <FiadoSheet
           bar={bar} ledger={ledger} guests={guests || []} userId={user?.id || null} t={t}
@@ -1046,6 +1082,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
         <div className="pq-done" role="status" onClick={() => setDone(null)}>
           <div className="pq-done-card">
             <div className="pq-done-check" aria-hidden="true"><Icon name="ok" size={40} /></div>
+            {done.thanks && <div className="pq-done-thanks">{done.thanks}</div>}
             <div className="pq-done-total">{fmtYen(done.total)}</div>
             {done.change > 0 && <div className="pq-done-change">{t('posQuick.change')} {fmtYen(done.change)}</div>}
             {done.label && <div className="pq-done-label">{done.label}</div>}
@@ -1058,37 +1095,6 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
   )
 }
 
-/**
- * Who worked this sale. Several people can be marked; the sale counts for each of them in equal parts.
- * Order follows the taps, so the first person marked gets the leftover yen of an uneven split.
- */
-function CastSheet({ people, selected, me, t, onToggle, onClear, onClose }) {
-  const n = selected.length
-  return (
-    <div className="pq-sheet" role="dialog" aria-modal="true" aria-label={t('posQuick.cast')} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="pq-sheet-card pq-cast-sheet">
-        <h2>{t('staffPos.castTitle')}</h2>
-        <p className="pq-hint">{n > 1 ? t('staffPos.splitHint', { n }) : t('staffPos.castRule')}</p>
-        <div className="pq-cast-list" role="group" aria-label={t('posQuick.cast')}>
-          {people.map(p => {
-            const on = selected.includes(p.id)
-            return (
-              <button key={p.id} type="button" aria-pressed={on} className={on ? 'is-on' : ''} onClick={() => onToggle(p.id)}>
-                <span className="cust-avatar" aria-hidden="true">{String(p.nome || '?').slice(0, 1)}</span>
-                <span className="pq-cast-name">{me && p.id === me.id ? t('staffPos.meNamed', { name: p.nome }) : p.nome}</span>
-                {on && <Icon name="ok" size={18} />}
-              </button>
-            )
-          })}
-        </div>
-        <div className="pq-cast-actions">
-          {n > 0 && <button type="button" className="pq-sheet-cancel" onClick={onClear}>{t('staffPos.nobody')}</button>}
-          <button type="button" className="pq-cast-done" onClick={onClose}>{t('common.close')}</button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 /** Who owes what ("on account" / ツケ), and taking a later payment against it. */
 function FiadoSheet({ bar, ledger, guests, userId, t, onSaved, onClose }) {
