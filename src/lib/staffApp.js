@@ -125,24 +125,6 @@ export function barBrand(bar) {
   }
 }
 
-const BRAND_KEY = 'staff_app_brand'
-
-/** Last bar seen by a staff login on this device (name, initials, colour, logo): the sign-in screen shows it. */
-export function readStaffBrand() {
-  try {
-    const raw = localStorage.getItem(BRAND_KEY)
-    const b = raw ? JSON.parse(raw) : null
-    if (!b || !b.name) return null
-    return barBrand({ nome: b.name, cor: b.color, logo_url: b.logo })
-  } catch {
-    return null
-  }
-}
-
-export function rememberStaffBrand(brand) {
-  try { localStorage.setItem(BRAND_KEY, JSON.stringify({ name: brand.name, initials: brand.initials, color: brand.color, logo: brand.logo })) } catch { /* storage blocked */ }
-}
-
 /**
  * Notification types a staff login may see in the staff app bell: only their own staff items (schedule, answers to
  * their requests, their fines and pay). Invoices, overdue bills and other owner money alarms never show there.

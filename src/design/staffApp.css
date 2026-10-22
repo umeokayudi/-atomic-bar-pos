@@ -365,7 +365,6 @@ body.sa-lock { overflow: hidden; }
 .day-board-roles { display: grid; gap: 8px; }
 .day-board-roles label { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 8px; align-items: center; font-size: 13px; }
 .day-board-roles input { min-height: 40px; }
-.login-staff-brand { display: flex; align-items: center; gap: 10px; justify-content: center; margin-top: 14px; font-weight: 800; color: #fff; --sa-brand: var(--gold, #0f766e); }
 .day-board-mission { display: grid; gap: 4px; margin: 10px 0; font-size: 13px; font-weight: 700; }
 .day-board-mission input { min-height: 40px; }
 .day-board-roles { border: 0; padding: 0; margin: 0 0 10px; }

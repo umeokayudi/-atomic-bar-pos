@@ -449,7 +449,4 @@ export default {
     roles: '今夜の担当',
     rolePh: '担当',
   },
-  login: {
-    staffOf: '{bar} スタッフ',
-  },
 }

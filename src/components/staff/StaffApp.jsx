@@ -7,7 +7,7 @@ import { tokyoMonthKey } from '../../lib/tokyo'
 import { monthRange } from '../../lib/timeClock'
 import { punchGeoFlag } from '../../lib/clockGeo'
 import {
-  barBrand, bottomTabFor, rememberStaffBrand, elapsedLabel, myClockState, staffAppTabFor, staffAppTabsFor, staffBackFor, staffMoreItemsFor, staffMoreSections,
+  barBrand, bottomTabFor, elapsedLabel, myClockState, staffAppTabFor, staffAppTabsFor, staffBackFor, staffMoreItemsFor, staffMoreSections,
 } from '../../lib/staffApp'
 import { meDay, meProfile } from '../../lib/staffSelfApi'
 import { fmtYen } from '../utils'
@@ -347,8 +347,6 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
   const meId = perfil?.id
   const competence = tokyoMonthKey()
   const schedule = useMySchedule()
-
-  useEffect(() => { if (brand.name) rememberStaffBrand(brand) }, [brand])
 
   const loadPunches = useCallback(async () => {
     const range = monthRange()

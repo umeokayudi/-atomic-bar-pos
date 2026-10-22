@@ -449,7 +449,4 @@ export default {
     roles: 'Roles tonight',
     rolePh: 'Role',
   },
-  login: {
-    staffOf: 'Staff of {bar}',
-  },
 }
