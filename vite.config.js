@@ -58,4 +58,17 @@ function localApi() {
 
 export default defineConfig({
   plugins: [react(), localApi()],
+  build: {
+    rollupOptions: {
+      output: {
+        // Libraries change far less often than app code: keep them in their own files so a
+        // redeploy only makes browsers download the app part again (assets are cached as immutable).
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+          if (id.includes('/@supabase/') || id.includes('/iceberg-js/') || id.includes('/tslib/')) return 'vendor-supabase'
+          if (/\/node_modules\/(react|react-dom|scheduler|react-router|react-router-dom|@remix-run)\//.test(id)) return 'vendor-react'
+        },
+      },
+    },
+  },
 })

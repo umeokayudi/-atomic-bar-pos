@@ -1,5 +1,12 @@
 {
   "buildCommand": "npm run build",
+  "regions": ["icn1"],
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    }
+  ],
   "rewrites": [
     { "source": "/api/time-clock", "destination": "/api/bar/time-clock" },
     { "source": "/api/bar-staff", "destination": "/api/bar/bar-staff" },
