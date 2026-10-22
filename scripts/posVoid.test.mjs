@@ -9,10 +9,12 @@ import { createHash } from 'node:crypto'
 let n = 0
 const ok = (name, fn) => { fn(); n++; console.log(`✓ ${name}`) }
 const night = '2026-10-17'
+// Voids are stamped with their own clock time, so pin it to the same night or the test depends on today's date.
+const voidAt = new Date('2026-10-17T23:30:00+09:00')
 
 ok('a card sale and its void leave nothing: total, tickets, card and fee', () => {
   const sale = { id: 's1', bar_id: 'b', data: night, total: 5000, metodo_pagamento: 'card', obs: 'Cast: Aiko|a1\nCardFee: 165' }
-  const { voidRow, originalPatch } = buildVoid(sale, { reason: 'wrong drink', byName: 'Ken', byId: 'u1' })
+  const { voidRow, originalPatch } = buildVoid(sale, { reason: 'wrong drink', byName: 'Ken', byId: 'u1', now: voidAt })
   assert.equal(voidRow.total, -5000)
   assert.equal(voidRow.card_fee, 165)
   assert.match(voidRow.obs, /^Void of s1: wrong drink \(Ken\)/)
@@ -27,7 +29,7 @@ ok('a card sale and its void leave nothing: total, tickets, card and fee', () =>
 ok('voiding a cash sale lowers the cash the drawer should hold', () => {
   const a = { id: 'c1', total: 3000, metodo_pagamento: 'Cash', data: night }
   const b = { id: 'c2', total: 1200, metodo_pagamento: 'Cash', data: night }
-  const { voidRow } = buildVoid(a, { reason: 'x' })
+  const { voidRow } = buildVoid(a, { reason: 'x', now: voidAt })
   assert.equal(summarizeNight([a, b, voidRow], night).expectedCash, 1200)
 })
 
