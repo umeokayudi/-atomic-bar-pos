@@ -22,12 +22,13 @@ export const isDecor = forma => DECOR.has(forma)
 const NOT_A_SEAT = /toilet|toalete|banheiro|\bwc\b|lavabo|elevat|elevador|entrance|entrada|fridge|geladeira|freezer|locker|\bice\b|gelo|sound|\bsom\b|\bdj\b|storage|ware ?house|estoque|dep[oó]sito|kitchen|cozinha|\bplants?\b|planta|vaso|トイレ|エレベーター/i
 
 /**
- * Places a tab can be opened on: tables, sofas, counters and rooms (a karaoke VIP drawn as a room piece)
+ * Places a tab can be opened on: tables, sofas, counters (always) and rooms (a karaoke VIP drawn as a room piece)
  * that have seats. Walls, doors, pieces with no seats and service rooms (toilet, elevator, fridge) are not.
  */
 export function isSeat(t) {
   if (!t || t.ativo === false || t.forma === 'wall' || t.forma === 'door') return false
-  if (!((+t.capacidade || 0) > 0)) return false
+  // A counter always takes orders (walk-ins standing at the bar), even with no seats of its own.
+  if (!((+t.capacidade || 0) > 0) && t.forma !== 'bar') return false
   return !NOT_A_SEAT.test(String(t.nome || ''))
 }
 
