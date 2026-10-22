@@ -1239,6 +1239,7 @@ export default {
     postAdjustment: '調整を記録',
   },
   posQuick: {
+    thanks: 'ありがとうございます！', congrats: '{name}さん、ナイス！', goalPct: '目標の{pct}%', goal: '目標', goalHint: '今夜の目標 {goal} に対する売上', tabCustomer: 'CRMのお客様（任意）',
     payTitle: 'お支払い', payBack: '戻る', toPay: 'お会計 {amount}',
     moreOptions: '支払い', lessOptions: '閉じる',
     search: 'ドリンクを検索',

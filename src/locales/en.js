@@ -1239,6 +1239,7 @@ export default {
     postAdjustment: 'Post adjustment',
   },
   posQuick: {
+    thanks: 'Thank you!', congrats: 'Well done, {name}!', goalPct: '{pct}% of goal', goal: 'Goal', goalHint: 'Tonight vs the night goal of {goal}', tabCustomer: 'Customer from the CRM (optional)',
     payTitle: 'Payment', payBack: 'Back', toPay: 'Pay {amount}',
     moreOptions: 'Payment', lessOptions: 'Hide',
     search: 'Search drinks',

@@ -9,7 +9,7 @@ import AskAiDrawer, { AskAiButton } from './ai/AskAiDrawer'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import { callGeminiChat, imageDataUrlToParts, parseJsonFromAI } from '../lib/ai'
-import { LogoSidebar } from './Logo'
+import { LogoMark, LogoSidebar } from './Logo'
 import { MobileTopBar, ShellOverlay, WorkspaceChrome, TopbarUser, useMobileMenuLock } from './MobileShell'
 import GlobalSearch from './GlobalSearch'
 import { fmtYen, fmtDate, Spinner, Empty, SectionTitle, isSupplierProduct, filterSupplierVendas, roleLabel } from './utils'
@@ -1984,15 +1984,19 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
     return (
       <div className={`app-shell is-till-kiosk${tillKiosk ? ' is-pos' : ' is-clock'}`}>
         <header className="till-kiosk-bar">
-          <div>
-            <div className="till-kiosk-name">{bar.nome}</div>
-            <div className="till-kiosk-lane">{perfil?.nome ? `${perfil.nome} · ` : ''}{tillKiosk ? t('auth.lanePos') : t('auth.laneStaff')}</div>
+          <div className="till-kiosk-brand">
+            <LogoMark size={36} />
+            <div>
+              <div className="till-kiosk-name">{bar.nome}</div>
+              <div className="till-kiosk-lane">{tillKiosk ? t('auth.lanePos') : t('auth.laneStaff')}{perfil?.nome ? ` · ${perfil.nome}` : ''}</div>
+            </div>
           </div>
           <div className="till-kiosk-actions">
+            {/* Owner and manager came here from HQ and need the way back; the till login only gets Sign out. */}
             {tillKiosk && isGerente(perfil?.role) && (
-              <button type="button" onClick={() => { setDoorHash('gerente'); setDoor('gerente') }}>{t('auth.openHq')}</button>
+              <button type="button" className="till-kiosk-hq" onClick={() => { setDoorHash('gerente'); setDoor('gerente') }}>{t('auth.openHq')}</button>
             )}
-            <button type="button" onClick={signOut}>{t('atomicPos.lockTill')}</button>
+            <button type="button" className="till-kiosk-out" onClick={signOut}><Icon name="signOut" size={18} /> {t('common.signOut')}</button>
           </div>
         </header>
         <main className="app-main app-main-wide till-kiosk-main">
