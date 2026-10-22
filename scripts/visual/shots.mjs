@@ -132,6 +132,11 @@ const PAGES = [
   { who: STAFF, path: '/bar/reports', name: 'staff-app-reports' },
   { who: STAFF, path: '/bar/profile', name: 'staff-app-profile' },
   { who: STAFF, path: '/bar/settings', name: 'staff-app-settings' },
+  { who: STAFF, path: '/', name: 'login', loggedOut: true },
+  { who: STAFF, path: '/bar/ponto', name: 'staff-app-hours' },
+  { who: STAFF, path: '/bar/ponto', name: 'staff-app-hours-pick', taps: ['.sa-hchart-bars button.has-h'] },
+  { who: STAFF, path: '/bar/profile', name: 'staff-app-account', taps: ['.sa-line .sa-link'] },
+  { who: STAFF, path: '/bar/schedule', name: 'staff-schedule-dayshift', taps: ['.sa-night:not(.is-locked)', '.sa-shiftseg button'] },
   { who: MANAGER, path: '/bar/inicio', name: 'bar-home' },
   { who: MANAGER, path: '/bar/inicio', name: 'bar-home-rail', rail: true },
 ]
@@ -425,10 +430,10 @@ async function main() {
           await page.addInitScript(rail => { if (rail) localStorage.setItem('jbm_sidebar_collapsed', '1') }, !!pg.rail)
           await page.addInitScript(([s, th]) => {
             sessionStorage.setItem('bebidas_tab_id', 'pw')
-            sessionStorage.setItem('sb-ojirgkqtqvugqktyuhem-auth-pw', JSON.stringify(s))
+            if (s) sessionStorage.setItem('sb-ojirgkqtqvugqktyuhem-auth-pw', JSON.stringify(s))
             localStorage.setItem('jbm_drinks_theme', th)
             localStorage.setItem('jbm_drinks_lang', 'en')
-          }, [session, themeValue])
+          }, [pg.loggedOut ? null : session, themeValue])
           await page.goto(`http://localhost:${PORT}${pg.path}`, { waitUntil: 'networkidle' }).catch(() => {})
           await page.waitForTimeout(900)
           if (pg.edit) {

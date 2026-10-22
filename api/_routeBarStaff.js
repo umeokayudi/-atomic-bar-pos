@@ -11,7 +11,7 @@ import { isMissingSchemaError, loadBarWithGeo, listStaffWithExtras, runLiveOp, s
 import { forgetBarActors } from './_barLaneAuth.js'
 import { canAccess, canEditAccessOf, canManageLogin, cleanAcessos, isRestricted, staffActionAreas } from '../src/lib/barAccess.js'
 import { denyMissingArea } from './_barAccess.js'
-import { OWNER_ACTIONS, PAY_WRITE_ACTIONS, SELF_ACTIONS, handleOwnerAction, handleSelfAction } from './_staffSelf.js'
+import { OWNER_ACTIONS, PAY_WRITE_ACTIONS, SELF_ACTIONS, handleOwnerAction, handleSelfAction, setLoginEmail } from './_staffSelf.js'
 import { canLinkLogin, carryFromPerson, personLinkPatch, remapIds, remapSheet } from '../src/lib/staffLink.js'
 import { castRoster } from '../src/lib/staffPos.js'
 
@@ -231,9 +231,15 @@ async function remapPersonRefs(db, barId, fromId, toId) {
  * points back), name the login after the employee, mark the bar_people row merged (kept, never deleted)
  * and move goal / day-sheet / drink-back references to the login id.
  */
-async function linkPersonToLogin(db, barId, person, loginId, { rename = true } = {}) {
+async function linkPersonToLogin(db, barId, person, loginId, { rename = true, admin = null } = {}) {
   const extras = await saveStaffExtras(db, loginId, carryFromPerson(person))
   if (!extras.ok) return { ok: false, error: extras.error || 'Could not save' }
+  // The employee file's e-mail becomes the sign-in e-mail too (one e-mail per person).
+  let email = ''
+  if (admin && String(person.email || '').includes('@')) {
+    const r = await setLoginEmail(admin, db, loginId, person.email)
+    if (r.ok) email = r.email
+  }
   if (rename && String(person.nome || '').trim()) {
     await db.from('perfis').update({ nome: String(person.nome).trim().slice(0, 80) }).eq('id', loginId)
   }
@@ -249,7 +255,7 @@ async function linkPersonToLogin(db, barId, person, loginId, { rename = true } =
   if (marked.data && marked.data.merged_into !== loginId) return { ok: false, error: 'Could not mark the employee file as linked' }
   await retagDrinkBackAgent(db, barId, person.id, loginId).catch(() => {})
   await remapPersonRefs(db, barId, person.id, loginId).catch(() => {})
-  return { ok: true }
+  return { ok: true, email }
 }
 
 /** Undo a link: the employee file shows on its own again; the login keeps the fields it already has. */
@@ -895,7 +901,7 @@ export default async function handler(req, res) {
         if (!undone.ok) return res.status(400).json({ error: undone.error || 'Could not save' })
       }
       if (person) {
-        const linked = await linkPersonToLogin(db, barId, person, login.id)
+        const linked = await linkPersonToLogin(db, barId, person, login.id, { admin })
         if (!linked.ok) return res.status(400).json({ error: linked.error })
       }
       forgetBarActors()
@@ -953,10 +959,10 @@ export default async function handler(req, res) {
       }
       if (person) {
         // The employee file brings its own pay, contract, photo, phone, sex and drink-back agent.
-        const linked = await linkPersonToLogin(db, barId, person, uid, { rename: false })
+        const linked = await linkPersonToLogin(db, barId, person, uid, { rename: false, admin })
         if (!linked.ok) return res.status(400).json({ error: linked.error, id: uid })
         forgetBarActors()
-        return res.status(200).json({ ok: true, id: uid, email: String(email).trim().toLowerCase(), password, nome: loginName, person_id: person.id })
+        return res.status(200).json({ ok: true, id: uid, email: linked.email || String(email).trim().toLowerCase(), password, nome: loginName, person_id: person.id })
       }
       const drink = await syncDrinkBackAgent(db, barId, uid, {
         nome,
@@ -970,7 +976,7 @@ export default async function handler(req, res) {
     if (req.method === 'PATCH') {
       const { id } = body
       if (!id) return res.status(400).json({ error: 'id required' })
-      const { data: existing } = await db.from('perfis').select('id,bar_id,role,nome').eq('id', id).single()
+      const { data: existing } = await db.from('perfis').select('id,bar_id,role,nome,email').eq('id', id).single()
       // Lane logins (bar_logins) have no perfis row: "Users & access" can switch them on/off, rename, set role and areas.
       if (!existing) return patchLaneLogin(req, res, db, auth, barId, body)
       if (existing.bar_id !== barId) return res.status(404).json({ error: 'Staff not found' })
@@ -992,6 +998,15 @@ export default async function handler(req, res) {
       const extraPatch = {}
       if (body.nome != null) patch.nome = body.nome
       Object.assign(extraPatch, profileExtras(body), employeeExtras(body, barId), payExtras(body))
+      // A staff login's e-mail is its sign-in: change it on the login, the profile and the sign-in together.
+      if (body.email != null && ['bar_staff', 'caixa', 'gerente'].includes(existing.role) && String(body.email).trim()) {
+        delete extraPatch.email
+        if (String(body.email).trim().toLowerCase() !== String(existing.email || '').toLowerCase()) {
+          if (!canManageLogin(auth.perfil, existing)) return res.status(403).json({ error: 'You cannot change this login' })
+          const r = await setLoginEmail(admin, db, id, body.email)
+          if (r.error) return res.status(r.status || 400).json({ error: r.error })
+        }
+      }
       if (body.ativo != null) extraPatch.ativo = !!body.ativo
       if (body.pin) extraPatch.clock_pin_hash = hashSecret(String(body.pin))
       if (body.role === 'caixa' || body.role === 'bar_staff') patch.role = body.role

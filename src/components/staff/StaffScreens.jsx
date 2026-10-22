@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../Auth'
-import { supabase } from '../../lib/supabase'
+import { drinksAuth, supabase } from '../../lib/supabase'
 import { staffFetch } from '../../lib/apiAuth'
 import { comparePlan } from '../../lib/payrollCore'
 import { monthRange, pairPunches } from '../../lib/timeClock'
 import { punchGeoFlag } from '../../lib/clockGeo'
 import { earningsRange } from '../../lib/staffNight'
 import { shiftMonthKey, tokyoDateKey, tokyoMonthKey } from '../../lib/tokyo'
-import { meEarnings, meRequests, meSendRequest, meUploadPhoto } from '../../lib/staffSelfApi'
+import { meAccount, meEarnings, meRequests, meSendRequest, meUploadPhoto } from '../../lib/staffSelfApi'
 import { fileToSquareJpeg } from '../../lib/imageSquare'
 import { listMyOrders } from '../../lib/staffOrders'
 import { errText } from '../../lib/errText'
@@ -276,6 +276,93 @@ export function ReportsScreen({ t, onBack }) {
   )
 }
 
+/**
+ * My sign-in: the e-mail I log in with (the same one on my staff profile) and my password.
+ * Both need the current password. Shared till/clock logins cannot change here.
+ */
+function AccountCard({ t, perfil, profile, onProfile }) {
+  const email = profile?.email || perfil?.email || ''
+  const [open, setOpen] = useState('')
+  const [form, setForm] = useState({ email: '', password: '', confirm: '', current: '' })
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const [msg, setMsg] = useState('')
+  const set = patch => { setErr(''); setMsg(''); setForm(f => ({ ...f, ...patch })) }
+  const start = what => { setOpen(o => (o === what ? '' : what)); setErr(''); setMsg(''); setForm({ email: what === 'email' ? email : '', password: '', confirm: '', current: '' }) }
+  const okEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()) && form.email.trim().toLowerCase() !== email.toLowerCase()
+  const okPass = form.password.length >= 8 && form.password === form.confirm
+  const ready = !!form.current && (open === 'email' ? okEmail : okPass)
+  async function save() {
+    setBusy(true); setErr(''); setMsg('')
+    try {
+      const j = await meAccount(open === 'email' ? { current: form.current, email: form.email.trim() } : { current: form.current, password: form.password })
+      if (j.email) {
+        onProfile?.({ ...(profile || {}), email: j.email })
+        await drinksAuth.auth.refreshSession().catch(() => {})
+      }
+      setMsg(open === 'email' ? t('staffApp.me.emailSaved') : t('staffApp.me.passwordSaved'))
+      setOpen('')
+    } catch (x) {
+      setErr(errText(x))
+    } finally {
+      setBusy(false)
+    }
+  }
+  if (perfil?.lane) {
+    return (
+      <Card title={t('staffApp.me.signIn')}>
+        <Row title={email || '—'} meta={t('staffApp.me.email')} />
+        <Note>{t('staffApp.me.laneNote')}</Note>
+      </Card>
+    )
+  }
+  return (
+    <Card title={t('staffApp.me.signIn')}>
+      <div className="sa-line">
+        <span className="sa-line-icon"><Icon name="profile" size={18} /></span>
+        <span className="sa-line-main"><small>{t('staffApp.me.email')}</small><strong>{email || '—'}</strong></span>
+        <button type="button" className="sa-link" onClick={() => start('email')}>{open === 'email' ? t('common.cancel') : t('staffApp.me.change')}</button>
+      </div>
+      <div className="sa-line">
+        <span className="sa-line-icon"><Icon name="lock" size={18} /></span>
+        <span className="sa-line-main"><small>{t('staffApp.me.password')}</small><strong>••••••••</strong></span>
+        <button type="button" className="sa-link" onClick={() => start('password')}>{open === 'password' ? t('common.cancel') : t('staffApp.me.change')}</button>
+      </div>
+      {open && (
+        <form className="sa-account-form" onSubmit={e => { e.preventDefault(); if (ready && !busy) save() }}>
+          {open === 'email' ? (
+            <label className="sa-field">
+              <span>{t('staffApp.me.newEmail')}</span>
+              <input type="email" autoComplete="email" autoCapitalize="none" value={form.email} onChange={e => set({ email: e.target.value })} />
+              <small>{t('staffApp.me.emailHint')}</small>
+            </label>
+          ) : (<>
+            <label className="sa-field">
+              <span>{t('staffApp.me.newPassword')}</span>
+              <input type="password" autoComplete="new-password" value={form.password} onChange={e => set({ password: e.target.value })} />
+              <small>{t('staffApp.me.passwordHint')}</small>
+            </label>
+            <label className="sa-field">
+              <span>{t('staffApp.me.confirmPassword')}</span>
+              <input type="password" autoComplete="new-password" value={form.confirm} onChange={e => set({ confirm: e.target.value })} />
+            </label>
+          </>)}
+          <label className="sa-field">
+            <span>{t('staffApp.me.currentPassword')}</span>
+            <input type="password" autoComplete="current-password" value={form.current} onChange={e => set({ current: e.target.value })} />
+          </label>
+          {open === 'password' && form.confirm && form.password !== form.confirm && <p className="sa-error">{t('staffApp.me.noMatch')}</p>}
+          <button type="submit" className="sa-btn is-primary sa-btn-block" disabled={!ready || busy}>
+            <Icon name="check" size={18} /> {busy ? t('common.wait') : t('common.save')}
+          </button>
+        </form>
+      )}
+      {msg && <p className="sa-ok" role="status">{msg}</p>}
+      {err && <div className="sa-error" role="alert">{err}</div>}
+    </Card>
+  )
+}
+
 // ── Profile, occurrences, settings ───────────────────────────────────────────
 export function ProfileScreen({ t, perfil, profile, bar, onProfile, signOut, onTab, onBack }) {
   const file = useRef(null)
@@ -318,8 +405,8 @@ export function ProfileScreen({ t, perfil, profile, bar, onProfile, signOut, onT
         <button type="button" className="sa-link" onClick={pickPhoto} disabled={busy}>{busy ? t('common.wait') : t('staffApp.me.editPhoto')}</button>
         {err && <div className="sa-error" role="alert">{err}</div>}
       </section>
+      <AccountCard t={t} perfil={perfil} profile={profile} onProfile={onProfile} />
       <Card title={t('staffApp.me.details')}>
-        {detail('profile', t('staffApp.me.email'), profile?.email || perfil?.email || '—')}
         {profile?.telefone && detail('phone', t('staffApp.me.phone'), profile.telefone)}
         {detail('bars', t('employee.homeBar'), bar?.nome || '—')}
       </Card>

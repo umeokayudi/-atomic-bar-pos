@@ -365,7 +365,6 @@ body.sa-lock { overflow: hidden; }
 .day-board-roles { display: grid; gap: 8px; }
 .day-board-roles label { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 8px; align-items: center; font-size: 13px; }
 .day-board-roles input { min-height: 40px; }
-.login-staff-brand { display: flex; align-items: center; gap: 10px; justify-content: center; margin-top: 14px; font-weight: 800; color: #fff; --sa-brand: var(--gold, #0f766e); }
 .day-board-mission { display: grid; gap: 4px; margin: 10px 0; font-size: 13px; font-weight: 700; }
 .day-board-mission input { min-height: 40px; }
 .day-board-roles { border: 0; padding: 0; margin: 0 0 10px; }
@@ -1029,3 +1028,119 @@ button.sa-bell-item:hover { background: var(--c-surface-2); }
 .sa-settings .theme-pill button, .sa-settings .ui-seg button { min-height: 44px; min-width: 0; justify-content: center; border-radius: 10px; font-size: 14px; font-weight: 700; }
 .sa-settings .theme-pill button, .sa-settings .theme-pill span { padding: 0 10px; color: var(--c-text-2); display: inline-flex; align-items: center; }
 .sa-settings .theme-pill button.on, .sa-settings .theme-pill span.on, .sa-settings .ui-seg button[aria-checked="true"] { background: var(--c-surface); color: var(--c-text); box-shadow: var(--shadow-sm); }
+
+/* ══ Atomic look: red and black, atom mark in white lines on red ═════════════════════════════════════ */
+.sa-app.is-atomic, body.sa-atomic {
+  --at-red: #D7191F;
+  --at-red-2: #B3121A;
+  --at-black: #0E0E0F;
+  --sa-brand: var(--at-red);
+  --c-accent: var(--at-red);
+  --c-accent-2: var(--at-red-2);
+  --c-accent-soft: #FBE6E7;
+  --c-on-accent: #FFFFFF;
+  --c-focus: var(--at-red);
+  --c-chrome: var(--at-black);
+  --c-chrome-2: #18181A;
+  --c-chrome-3: #222225;
+  --c-on-chrome: #F5F5F5;
+  --c-bg: #F5F3F3;
+  --c-surface: #FFFFFF;
+  --c-surface-2: #EFEBEB;
+  --c-surface-3: #E4DEDE;
+  --c-text: #141414;
+  --c-text-2: #545050;
+  --c-text-3: #7A7474;
+  --c-border: #E2DCDC;
+  --c-border-2: #CFC7C7;
+}
+[data-theme="classic"] .sa-app.is-atomic, [data-theme="classic"] body.sa-atomic {
+  --c-accent: #F0373D;
+  --c-accent-2: #FF5A5F;
+  --c-accent-soft: rgba(240,55,61,.16);
+  --c-focus: #FF5A5F;
+  --c-bg: #0B0B0C;
+  --c-surface: #161618;
+  --c-surface-2: #1F1F22;
+  --c-surface-3: #29292D;
+  --c-text: #F5F5F5;
+  --c-text-2: #BDB8B8;
+  --c-text-3: #8E8888;
+  --c-border: rgba(255,255,255,.09);
+  --c-border-2: rgba(255,255,255,.16);
+}
+.app-shell.is-staff-app:has(.sa-app.is-atomic) { background: var(--c-bg); }
+.sa-barmark.is-atom { background: var(--at-red, #D7191F); border-radius: 12px; }
+.sa-barmark.is-atom svg { display: block; }
+
+/* Black header bar across the whole width, bell and avatar on it */
+.sa-app.is-atomic .sa-top {
+  background: var(--at-black); color: #F5F5F5;
+  box-shadow: 0 0 0 100vmax var(--at-black); clip-path: inset(0 -100vmax);
+  margin-bottom: 10px;
+}
+.sa-app.is-atomic .sa-top-name small { color: rgba(255,255,255,.62); }
+.sa-app.is-atomic .sa-top .sa-bell { background: #1C1C1F; border-color: #2E2E33; color: #F5F5F5; box-shadow: none; }
+.sa-app.is-atomic .sa-top .sa-bell:hover, .sa-app.is-atomic .sa-top .sa-bell.is-open { border-color: var(--at-red); color: #fff; background: var(--at-red-2); }
+.sa-app.is-atomic .sa-top .sa-bell-badge { border-color: var(--at-black); }
+.sa-app.is-atomic .sa-top .sa-avatar { border-color: var(--at-black); box-shadow: 0 0 0 1px #2E2E33; }
+
+/* Clock card: black with a red edge; the main button red */
+.sa-app.is-atomic .sa-clock { background: linear-gradient(160deg, #1A1A1C 0%, var(--at-black) 70%); border-top-color: var(--at-red); }
+.sa-app.is-atomic .sa-clock-cta { background: var(--at-red); color: #fff; }
+.sa-app.is-atomic .sa-clock.is-on .sa-clock-cta { background: #fff; color: var(--at-red-2); }
+
+/* Bottom tabs: black bar, red for the open tab */
+.sa-app.is-atomic .sa-tabs { background: var(--at-black); border-top-color: #222; box-shadow: 0 -4px 16px rgba(0,0,0,.25); }
+.sa-app.is-atomic .sa-tabs button { color: rgba(255,255,255,.66); }
+.sa-app.is-atomic .sa-tabs button.is-on { color: #fff; background: var(--at-red); }
+
+/* Clock: my hours (month total, averages, one bar per day) */
+.sa-seg.sa-seg-sm { grid-template-columns: repeat(2, auto); padding: 3px; border-radius: 12px; }
+.sa-seg.sa-seg-sm button { min-height: 36px; padding: 0 10px; font-size: 12.5px; }
+.sa-hours-total { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 2px 0 10px; }
+.sa-hours-total strong { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 34px; font-weight: 800; line-height: 1; }
+.sa-hours-total span { font-size: 13px; color: var(--c-text-2); }
+.sa-hchart { display: grid; grid-template-columns: 28px 1fr; grid-template-rows: 132px auto; column-gap: 6px; margin-top: 14px; }
+.sa-hchart-grid { display: flex; flex-direction: column; justify-content: space-between; font-size: 10.5px; color: var(--c-text-3); text-align: right; font-variant-numeric: tabular-nums; }
+.sa-hchart-bars {
+  display: flex; align-items: flex-end; gap: 2px; height: 100%; min-width: 0;
+  border-bottom: 1px solid var(--c-border-2);
+  background: linear-gradient(to bottom, var(--c-border) 1px, transparent 1px) 0 0 / 100% 50%;
+}
+.sa-hchart-bars button { flex: 1 1 0; min-width: 0; height: 100%; padding: 0; border: 0; background: none; display: flex; align-items: flex-end; cursor: pointer; }
+.sa-hchart-bars i { display: block; width: 100%; border-radius: 4px 4px 0 0; background: var(--c-accent); opacity: .78; }
+.sa-hchart-bars button.is-today i, .sa-hchart-bars button.is-pick i { opacity: 1; }
+.sa-hchart-bars button.is-pick { background: var(--c-accent-soft); border-radius: 4px 4px 0 0; }
+.sa-hchart-bars button.is-future { cursor: default; }
+.sa-hchart-x { grid-column: 2; display: flex; justify-content: space-between; font-size: 10.5px; color: var(--c-text-3); padding-top: 4px; }
+.sa-hchart-tip { margin: 8px 0 0; font-size: 13px; color: var(--c-text-2); min-height: 18px; }
+.sa-hchart-tip b { color: var(--c-text); }
+
+/* Schedule sheet: day shift / night shift */
+.sa-seg.sa-shiftseg { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 12px; }
+.sa-seg.sa-shiftseg button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.sa-night-time { display: inline-flex; align-items: center; gap: 4px; }
+
+/* Profile: sign-in e-mail and password */
+.sa-account-form { display: grid; gap: 4px; padding-top: 6px; border-top: 1px solid var(--c-border); margin-top: 6px; }
+.sa-field input {
+  width: 100%; min-height: 44px; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid var(--c-border-2); background: var(--c-surface); color: var(--c-text); font: inherit; font-size: 16px;
+}
+.sa-account-form .sa-btn-block { margin-top: 10px; }
+.sa-line .sa-link { flex: 0 0 auto; }
+
+/* Clock card: zangyo (overtime) */
+.sa-zangyo {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; padding: 8px 12px;
+  border: 1px dashed rgba(255,255,255,.35); border-radius: 14px; background: transparent; color: inherit;
+  font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.sa-zangyo.is-sent { border-style: solid; background: rgba(255,255,255,.08); flex-wrap: wrap; }
+.sa-zangyo em { font-style: normal; font-weight: 600; font-size: 12px; opacity: .75; }
+
+/* Header: bell and avatar the same 44px box, centred on one line */
+.sa-top { align-items: center; }
+.sa-top .sa-bell, .sa-top .sa-me { align-self: center; }
+.sa-top .sa-me .sa-avatar { width: 44px; height: 44px; }

@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import {
   addDays, attendanceFor, canEditDay, cleanDays, cleanScheduleRules, deadlineMs, endMs, expectedFor, mergeAvailability, myAttendance,
   nextWeekOf, openHourOf, scheduleBoard, scheduleRules, scheduleWeeks, scheduleWindow, shiftCountdown, spanLabel, startMs,
-  submissionStatus, validWeeks, weekCheck, timePresets, nightHours, copyWeekMarks,
+  submissionStatus, validWeeks, weekCheck, timePresets, nightHours, copyWeekMarks, dayMark, shiftOf,
 } from '../src/lib/staffSchedule.js'
 import {
   canWriteFines, cleanFine, cleanPayout, fineSettings, finesByStaff, finesTotal, finesVisibleTo, payNet, paymentHistory, suggestFine,
@@ -101,7 +101,10 @@ await test('attendance: late after start + tolerance, absent when the night is o
   assert.equal(startMs('2026-10-14', '01:00'), tokyoWallToUtcMs(2026, 10, 15, 1, 0))
   // Tolerance 30: Ken is on time.
   assert.equal(attendanceFor({ day: '2026-10-14', expected, punches, toleranceMin: 30, now: at(2026, 10, 15, 15) }).find(r => r.id === 'k').status, 'ok')
-  const mine = myAttendance({ meId: 'k', from: '2026-10-13', to: '2026-10-15', availability: AV, punches, now: at(2026, 10, 15, 15) })
+  // My attendance counts only nights the owner confirmed: a night I only marked is not work.
+  assert.deepEqual(myAttendance({ meId: 'k', from: '2026-10-13', to: '2026-10-15', availability: AV, punches, now: at(2026, 10, 15, 15) }), {})
+  const schedules = [{ day: '2026-10-14', people: [{ id: 'k', nome: 'Ken', start: '21:00' }] }]
+  const mine = myAttendance({ meId: 'k', from: '2026-10-13', to: '2026-10-15', schedules, punches, now: at(2026, 10, 15, 15) })
   assert.deepEqual(Object.keys(mine), ['2026-10-14'])
   assert.equal(mine['2026-10-14'].status, 'late')
 })
@@ -430,3 +433,17 @@ await test('schedule screen helpers: hour presets from the opening hour, night l
 })
 
 console.log(`\n${n} tests passed`)
+
+await test('day shift / night shift: the mark keeps the shift, day presets, older marks are nights', () => {
+  assert.deepEqual(dayMark({ start: '10:00', end: '18:00', shift: 'day' }), { start: '10:00', end: '18:00', shift: 'day' })
+  assert.deepEqual(dayMark({ start: '20:00', end: '03:00', shift: 'night' }), { start: '20:00', end: '03:00' })
+  assert.deepEqual(dayMark({ start: '20:00', shift: 'evil' }), { start: '20:00' })
+  assert.equal(shiftOf({ start: '20:00' }), 'night')
+  assert.equal(shiftOf({ start: '10:00', shift: 'day' }), 'day')
+  assert.deepEqual(timePresets(20, 'day')[0], { start: '10:00', end: '18:00' })
+  assert.deepEqual(timePresets(20)[0], { start: '20:00', end: '01:00' })
+  assert.equal(nightHours('10:00', '18:00'), 8)
+  // A day shift that ends at midnight ends on the next calendar day.
+  assert.equal(endMs('2026-10-14', '16:00', '00:00') - startMs('2026-10-14', '16:00'), 8 * 3600e3)
+})
+
