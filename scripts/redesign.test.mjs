@@ -274,6 +274,7 @@ test('floor seats: only places a tab can be opened on, tables before VIP before 
     T('Mesa 1', 'wall', 4), T('Door', 'door', 0), T('Fridge', 'stage', 2), T('Sofa D', 'sofa', 0), { ...T('Off', 'round', 4), ativo: false },
   ]
   assert.deepEqual(fe.seatsOf(rows).map(t => t.nome), ['Mesa 2', 'Mesa 10', 'Karaoke 1'])
+  assert.equal(fe.isSeat(T('Counter', 'bar', 0)), true)
   assert.equal(fe.vipTag(T('Karaoke 1', 'stage', 6)), true)
   assert.equal(fe.vipTag(T('Karaoke VIP 1', 'stage', 6)), false)
   assert.equal(fe.isToilet(T('Toilet M', 'stage', 0)), true)
@@ -288,7 +289,7 @@ test('floor counter chairs: stools next to a counter, numbered along it; plants 
   assert.deepEqual(fe.counterChairs(tables).map(t => t.id), ['a', 'b'])
   const s = fe.numberCounterChairs({ tables }, n => `Cadeira ${n}`)
   assert.deepEqual(s.tables.filter(t => t.capacidade === 1).map(t => [t.id, t.nome]), [['b', 'Cadeira 2'], ['a', 'Cadeira 1']])
-  assert.deepEqual(fe.seatsOf(s.tables).map(t => t.nome), ['big', 'Cadeira 1', 'Cadeira 2'])
+  assert.deepEqual(fe.seatsOf(s.tables).map(t => t.nome), ['big', 'Counter', 'Cadeira 1', 'Cadeira 2'])
   assert.equal(fe.numberCounterChairs({ tables: [T('x', 'plant', 0, 0)] }).tables.length, 1)
 })
 
