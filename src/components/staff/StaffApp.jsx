@@ -3,11 +3,11 @@ import { useAuth } from '../Auth'
 import { useI18n } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 import { staffFetch } from '../../lib/apiAuth'
-import { tokyoMonthKey } from '../../lib/tokyo'
+import { shiftMonthKey, tokyoMonthKey } from '../../lib/tokyo'
 import { monthRange } from '../../lib/timeClock'
 import { punchGeoFlag } from '../../lib/clockGeo'
 import {
-  barBrand, bottomTabFor, elapsedLabel, myClockState, staffAppTabFor, staffAppTabsFor, staffBackFor, staffMoreItemsFor, staffMoreSections,
+  barBrand, bottomTabFor, hoursByNight, monthHoursStats, elapsedLabel, myClockState, staffAppTabFor, staffAppTabsFor, staffBackFor, staffMoreItemsFor, staffMoreSections,
 } from '../../lib/staffApp'
 import { meDay, meProfile } from '../../lib/staffSelfApi'
 import { fmtYen } from '../utils'
@@ -26,7 +26,22 @@ import { shiftCountdown, spanLabel } from '../../lib/staffSchedule'
 const StaffAlerts = lazy(() => import('../StaffAlerts'))
 /** Screens that stay open while next week's schedule is still to send (the rest point to "Send schedule"). */
 export const GATE_FREE = ['hoje', 'ponto', 'schedule', 'profile', 'settings']
+/** Atomic's mark: an atom in white lines on red. */
+export function AtomMark({ size = 36 }) {
+  return (
+    <span className="sa-barmark is-atom" style={{ width: size, height: size }} aria-hidden="true">
+      <svg viewBox="0 0 48 48" width="76%" height="76%" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round">
+        <ellipse cx="24" cy="24" rx="20" ry="7.5" />
+        <ellipse cx="24" cy="24" rx="20" ry="7.5" transform="rotate(60 24 24)" />
+        <ellipse cx="24" cy="24" rx="20" ry="7.5" transform="rotate(120 24 24)" />
+        <circle cx="24" cy="24" r="3.6" fill="#fff" stroke="none" />
+      </svg>
+    </span>
+  )
+}
+
 function BarMark({ brand, size = 36 }) {
+  if (brand.atomic) return <AtomMark size={size} />
   return (
     <span className="sa-barmark" style={{ width: size, height: size, ...(brand.color ? { background: brand.color } : {}) }} aria-hidden="true">
       {brand.logo ? <img src={brand.logo} alt="" /> : brand.initials}
@@ -169,12 +184,13 @@ function TonightCard({ t, day, onTab }) {
   )
 }
 
-/** Four big shortcuts with a live hint each: till, results, pay, reports. */
-function QuickActions({ t, canPos, day, monthHours, onTab }) {
+/** Big shortcuts: till, results, pay, reports. */
+function QuickActions({ t, canPos, onTab }) {
   const items = [
     canPos && { id: 'pos', icon: 'pos', label: t('staffApp.home.newOrder'), sub: t('staffApp.home.qaPosSub'), primary: true },
-    { id: 'performance', icon: 'result', label: t('staffApp.tabPerformance'), sub: t('staffApp.home.qaResultsSub', { amount: fmtYen(day?.summary?.sales || 0) }) },
-    { id: 'salary', icon: 'salary', label: t('staffApp.more.earnings'), sub: t('staffApp.home.qaPaySub', { hours: fmtHours(monthHours) }) },
+    // Results and My pay are plain doors: the numbers live on their own screens.
+    { id: 'performance', icon: 'result', label: t('staffApp.tabPerformance') },
+    { id: 'salary', icon: 'salary', label: t('staffApp.more.earnings') },
     { id: 'reports', icon: 'send', label: t('staffApp.home.qaReports'), sub: t('staffApp.home.qaReportsSub') },
   ].filter(Boolean)
   return (
@@ -184,7 +200,7 @@ function QuickActions({ t, canPos, day, monthHours, onTab }) {
           <span className="sa-quick-icon"><Icon name={it.icon} size={22} /></span>
           <span className="sa-quick-text">
             <strong>{it.label}</strong>
-            <small>{it.sub}</small>
+            {it.sub && <small>{it.sub}</small>}
           </span>
         </button>
       ))}
@@ -231,10 +247,70 @@ function HomeScreen({ t, lang, perfil, profile, clock, punch, canClock, day, mon
       <HomeHello firstName={firstName} lang={lang} />
       <ScheduleCta t={t} schedule={schedule} onOpen={() => onTab('schedule')} />
       <ClockCard t={t} clock={clock} punch={punch} canClock={canClock} compact shift={shift} tolerance={schedule?.data?.tolerance} today={today} />
-      <QuickActions t={t} canPos={canPos} day={day} monthHours={monthHours} onTab={onTab} />
+      <QuickActions t={t} canPos={canPos} onTab={onTab} />
       <TonightCard t={t} day={day} onTab={onTab} />
       <ScheduleHomeCard t={t} schedule={schedule} today={today} onOpen={() => onTab('schedule')} />
     </div>
+  )
+}
+
+/** My hours of a month: total, average per worked night and per week, and one bar per day. */
+function HoursCard({ t, punches, meId }) {
+  const [which, setWhich] = useState(0)
+  const [pick, setPick] = useState(null)
+  const now = useNow(true, 60000)
+  const today = tokyoNightKey(new Date(now))
+  const monthKey = shiftMonthKey(tokyoMonthKey(new Date(now)), which ? -1 : 0)
+  const stats = useMemo(() => monthHoursStats(hoursByNight(punches || [], meId, now), monthKey, today), [punches, meId, now, monthKey, today])
+  const top = Math.max(4, Math.ceil(stats.longest))
+  const shown = pick && stats.days.find(d => d.day === pick)
+  const dayLabel = d => fmtDay(`${d}T12:00:00+09:00`, { weekday: 'short', month: 'short', day: 'numeric' })
+  return (
+    <Card
+      title={t('staffApp.hours.title')}
+      right={(
+        <div className="sa-seg sa-seg-sm" role="radiogroup" aria-label={t('staffApp.hours.title')}>
+          {[t('staffApp.hours.thisMonth'), t('staffApp.hours.lastMonth')].map((label, i) => (
+            <button key={label} type="button" role="radio" aria-checked={which === i} className={which === i ? 'is-on' : ''} onClick={() => { setWhich(i); setPick(null) }}>{label}</button>
+          ))}
+        </div>
+      )}
+    >
+      <div className="sa-hours-total">
+        <strong>{fmtHours(stats.total)}</strong>
+        <span>{t('staffApp.hours.nights', { n: stats.worked })}</span>
+      </div>
+      <div className="sa-stats">
+        <Stat label={t('staffApp.hours.perDay')} value={fmtHours(stats.perDay)} />
+        <Stat label={t('staffApp.hours.perWeek')} value={fmtHours(stats.perWeek)} />
+        <Stat label={t('staffApp.hours.longest')} value={fmtHours(stats.longest)} />
+      </div>
+      <div className="sa-hchart" role="img" aria-label={t('staffApp.hours.chartLabel', { total: fmtHours(stats.total) })}>
+        <div className="sa-hchart-grid" aria-hidden="true">
+          <span>{top}h</span><span>{Math.round(top / 2)}h</span><span>0</span>
+        </div>
+        <div className="sa-hchart-bars">
+          {stats.days.map(d => (
+            <button
+              key={d.day}
+              type="button"
+              className={`${d.hours > 0 ? 'has-h' : ''}${d.day === today ? ' is-today' : ''}${pick === d.day ? ' is-pick' : ''}${d.future ? ' is-future' : ''}`}
+              onClick={() => setPick(p => (p === d.day ? null : d.day))}
+              onMouseEnter={() => setPick(d.day)}
+              aria-label={`${dayLabel(d.day)}: ${fmtHours(d.hours)}`}
+            >
+              <i style={{ height: `${d.hours > 0 ? Math.max(4, (d.hours / top) * 100) : 0}%` }} />
+            </button>
+          ))}
+        </div>
+        <div className="sa-hchart-x" aria-hidden="true">
+          <span>1</span><span>{Math.ceil(stats.days.length / 2)}</span><span>{stats.days.length}</span>
+        </div>
+      </div>
+      <p className="sa-hchart-tip" aria-live="polite">
+        {shown ? <><b>{dayLabel(shown.day)}</b> · {shown.hours > 0 ? fmtHours(shown.hours) : t('staffApp.hours.off')}</> : t('staffApp.hours.tapHint')}
+      </p>
+    </Card>
   )
 }
 
@@ -254,6 +330,7 @@ function ClockScreen({ t, clock, punch, canClock, venue, punches, schedule, meId
           <small>{on ? t('staffApp.clock.venueOn', { radius: venue.radius_m }) : t('staffApp.clock.venueOff')}</small>
         </span>
       </div>
+      <HoursCard t={t} punches={punches} meId={meId} />
       <Card title={t('staffApp.clock.recent')}>
         {punches == null && <Note>{t('common.wait')}</Note>}
         {punches != null && !recent.length && <Empty icon="clock" title={t('staffApp.clock.emptyTitle')} hint={t('staffApp.clock.emptyHint')} />}
@@ -349,10 +426,8 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
   const schedule = useMySchedule()
 
   const loadPunches = useCallback(async () => {
-    const range = monthRange()
-    // Look back far enough to see a shift that started yesterday (night shifts cross midnight and month ends).
-    const lookback = new Date(Date.now() - 40 * 3600e3).toISOString()
-    const from = lookback < range.from ? lookback : range.from
+    // From the 1st of last month: the Clock screen charts this month and last month (night shifts cross month ends).
+    const from = monthRange(`${shiftMonthKey(tokyoMonthKey(), -1)}-01`).from
     try {
       const j = await staffFetch(`/api/time-clock?from=${encodeURIComponent(from)}&to=${encodeURIComponent(new Date(Date.now() + 60e3).toISOString())}`).then(r => r.json())
       setPunches(Array.isArray(j?.punches) ? j.punches : [])
@@ -434,8 +509,15 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
   const fab = canPos && !mustSend && !work && ['performance', 'salary', 'shifts'].includes(shown)
   const today = tokyoNightKey()
 
+  // Sheets and the bell panel render outside the app (portals): the body carries the bar's look for them too.
+  useEffect(() => {
+    if (!brand.atomic) return undefined
+    document.body.classList.add('sa-atomic')
+    return () => document.body.classList.remove('sa-atomic')
+  }, [brand.atomic])
+
   return (
-    <div className={`sa-app${work ? ' is-work' : ''}${fab ? ' has-fab' : ''}`} style={brand.color ? { '--sa-brand': brand.color } : undefined}>
+    <div className={`sa-app${brand.atomic ? ' is-atomic' : ''}${work ? ' is-work' : ''}${fab ? ' has-fab' : ''}`} style={brand.color && !brand.atomic ? { '--sa-brand': brand.color } : undefined}>
       <header className="sa-top">
         <button type="button" className="sa-top-bar" onClick={() => go('hoje')} aria-label={t('staffApp.tabHome')}>
           <BarMark brand={brand} size={40} />

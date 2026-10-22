@@ -2008,7 +2008,8 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
 
   // Staff logins (and "Staff only" logins) get the separate employee app: no HQ sidebar, bottom tabs, phone first.
   if (usesStaffApp(perfil, myAccess.acessos)) {
-    const canOpen = id => canOpenTab(access, id)
+    // Floor staff always get the POS tab (sending an order to the bar), even on "Staff only".
+    const canOpen = id => (id === 'pos' && perfil?.role === 'bar_staff') || canOpenTab(access, id)
     return (
       <div className="app-shell is-staff-app">
         <AutoClose bar={bar} />
