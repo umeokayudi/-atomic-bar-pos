@@ -7,7 +7,7 @@
 import { chromium } from '@playwright/test'
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { ADMIN, MANAGER, STAFF, TABLES, BAR_STAFF, PUNCHES } from './fixtures.mjs'
+import { ADMIN, MANAGER, CASHIER, STAFF, TABLES, BAR_STAFF, PUNCHES } from './fixtures.mjs'
 import { castRoster } from '../../src/lib/staffPos.js'
 import { earningsByDay, earningsRange, myGoalStatus, myNightSummary } from '../../src/lib/staffNight.js'
 import { tokyoNightKey } from '../../src/lib/tokyo.js'
@@ -74,6 +74,11 @@ const PAGES = [
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-order', click: /Counter/, taps: ['.pq-tile-hit', '.pq-tile-hit', '.pq-cartbar'], tapsBelow: 901 },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-lines', click: /Counter/, taps: ['.pq-tile-hit', '.pq-grid .pq-tile:nth-child(2) .pq-tile-hit', '.pq-grid .pq-tile:nth-child(3) .pq-tile-hit', '.pq-grid .pq-tile:nth-child(4) .pq-tile-hit', '.pq-cartbar'] },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-pay', click: /Counter/, taps: ['.pq-tile-hit', '.pq-grid .pq-tile:nth-child(2) .pq-tile-hit', '.pq-cartbar', '.pq-charge'] },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-tab-crm', click: /Counter/, taps: ['.pq-cartbar', '.pq-tab.is-add'] },
+  { who: CASHIER, path: '/bar/pos', name: 'till-kiosk' },
+  { who: CASHIER, path: '/bar/pos', name: 'till-kiosk-pay', taps: ['.pq-tile-hit', '.pq-grid .pq-tile:nth-child(2) .pq-tile-hit', '.pq-grid .pq-tile:nth-child(3) .pq-tile-hit', '.pq-cartbar', '.pq-charge'] },
+  { who: CASHIER, path: '/bar/pos', name: 'till-kiosk-done', taps: ['.pq-tile-hit', '.pq-cartbar', '.pq-charge', '.pq-charge'] },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-done', click: /Counter/, taps: ['.pq-tile-hit', '.pq-cartbar', '.pq-charge', '.pq-charge'] },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-vip', chip: /VIP/ },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-drinkback', chip: /Drink Back/ },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-prices', chip: /Prices/ },
@@ -97,8 +102,8 @@ const PAGES = [
   { who: STAFF, path: '/bar/goals', name: 'staff-goals' },
   { who: STAFF, path: '/bar/pos', name: 'staff-pos' },
   { who: STAFF, path: '/bar/pos', name: 'staff-pos-order', taps: ['.pq-tile-hit', '.pq-tile-hit', '.pq-cartbar', '.pq-charge'], tapsBelow: 901 },
-  { who: STAFF, path: '/bar/pos', name: 'staff-pos-cast', phoneOnly: true, taps: ['.pq-tile-hit', '.pq-cartbar', '.pq-charge', '.pq-castbtn', '.pq-cast-list button:nth-child(2)'] },
-  { who: STAFF, path: '/bar/pos', name: 'staff-pos-cast-wide', wideOnly: true, taps: ['.pq-tile-hit', '.pq-charge', '.pq-castbtn', '.pq-cast-list button:nth-child(2)'] },
+  { who: STAFF, path: '/bar/pos', name: 'staff-pos-cast', phoneOnly: true, taps: ['.pq-tile-hit', '.pq-cartbar', '.pq-charge', '.pq-castrow-chips button:nth-child(2)'] },
+  { who: STAFF, path: '/bar/pos', name: 'staff-pos-cast-wide', wideOnly: true, taps: ['.pq-tile-hit', '.pq-charge', '.pq-castrow-chips button:nth-child(2)'] },
   { who: STAFF, path: '/bar/pos', name: 'staff-pos-mine', taps: ['.pq-glance.is-mine .is-btn'] },
   { who: STAFF, path: '/bar/performance', name: 'staff-app-performance' },
   { who: STAFF, path: '/bar/ponto', name: 'staff-app-clock' },

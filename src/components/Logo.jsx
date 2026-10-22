@@ -1,4 +1,4 @@
-function LogoMark({ size = 40, stroke = 'white', fill = 'white', style }) {
+export function LogoMark({ size = 40, stroke = 'white', fill = 'white', style }) {
   return (
     <svg viewBox="258 173 1484 1484" xmlns="http://www.w3.org/2000/svg" style={{ width: size, height: size, flexShrink: 0, ...style }}>
       <polygon fill="var(--gold)" points="1598.7,273.1 1642,273.1 1642,316.5 1742,416.5 1742,173.1 1498.7,173.1 1598.7,273.1"/>
