@@ -170,14 +170,14 @@ export default function RelatorioTab() {
     >
       <div className="admin-kpi-grid" style={{ marginBottom: 18 }}>
         {companyLedger && (
-          <PortalKpi label={t('report.purchasesNotes')} value={fmtYen(custoCompras)} color="var(--red)"
+          <PortalKpi label={t('report.purchasesNotes')} value={fmtYen(custoCompras)} color={custoCompras > 0 ? 'var(--red)' : undefined}
             sub={dash.comprasEstimadas ? t('report.purchasesSubEst', { count: comprasMes.length }) : t('report.purchasesSub', { count: comprasMes.length })} />
         )}
         <PortalKpi label={t('report.billing')} value={fmtYen(faturamento)} color="var(--navy)"
           sub={t('report.billingSub', { count: vendasMes.length, type: dash.comprasEstimadas ? t('report.billingTypeOrders') : t('report.billingTypeCharge') })} />
         {companyLedger && (
           <PortalKpi label={t('report.projectedProfit')} value={fmtYen(lucroTotal)} color="var(--green)"
-            sub={t('report.profitSub', { margin: margemGeral })} />
+            sub={custoCompras > 0 ? t('report.profitSub', { margin: margemGeral }) : t('dashboard.noPurchasesLogged')} />
         )}
         <PortalKpi label={t('report.toReceive')} value={fmtYen(aReceber)} color={aReceber > 0 ? 'var(--amber)' : 'var(--green)'}
           sub={faturasMes.length ? t('report.openInvoices', { count: faturasMes.length }) : t('report.nothingPending')} />
