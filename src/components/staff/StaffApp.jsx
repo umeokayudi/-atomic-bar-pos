@@ -587,7 +587,7 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
         </button>
         <StaffBell t={t} schedule={schedule} onNavigate={go} />
         <span className={`sa-me${clock.onShift ? ' is-on' : ''}`}>
-          <Avatar name={profile?.nome || perfil?.nome} url={profile?.foto_url} size={42} onClick={() => go('profile')} label={t('employee.profile')} />
+          <Avatar name={profile?.nome || perfil?.nome} url={profile?.foto_url} size={44} onClick={() => go('profile')} label={t('employee.profile')} />
         </span>
       </header>
 

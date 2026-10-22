@@ -1139,3 +1139,8 @@ button.sa-bell-item:hover { background: var(--c-surface-2); }
 }
 .sa-zangyo.is-sent { border-style: solid; background: rgba(255,255,255,.08); flex-wrap: wrap; }
 .sa-zangyo em { font-style: normal; font-weight: 600; font-size: 12px; opacity: .75; }
+
+/* Header: bell and avatar the same 44px box, centred on one line */
+.sa-top { align-items: center; }
+.sa-top .sa-bell, .sa-top .sa-me { align-self: center; }
+.sa-top .sa-me .sa-avatar { width: 44px; height: 44px; }
