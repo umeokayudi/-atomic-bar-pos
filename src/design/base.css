@@ -156,6 +156,12 @@ html[data-pointer="coarse"] .ui-btn { min-height: var(--tap); }
 .ui-grid.cols-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
 @media (max-width: 1023px) { .ui-grid.cols-4 { grid-template-columns: repeat(2, minmax(0,1fr)); } .ui-grid.cols-3 { grid-template-columns: repeat(2, minmax(0,1fr)); } }
 @media (max-width: 639px) { .ui-grid.cols-4, .ui-grid.cols-3, .ui-grid.cols-2 { grid-template-columns: 1fr; } .ui-grid.cols-4.keep-2 { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+/* Phones: a row of number tiles stays two across, icon above the label, instead of one long column. */
+@media (max-width: 639px) {
+  .ui-grid.cols-4:has(> .ui-kpi), .ui-grid.cols-3:has(> .ui-kpi) { grid-template-columns: repeat(2, minmax(0,1fr)); gap: var(--sp-3); }
+  .ui-grid > .ui-kpi { flex-direction: column; gap: 6px; min-width: 0; }
+  .ui-grid > .ui-kpi .ui-kpi-value { font-size: 19px; overflow-wrap: anywhere; }
+}
 
 .ui-row { display: flex; align-items: center; gap: 8px; }
 .ui-row.is-wrap { flex-wrap: wrap; min-width: 0; }
@@ -833,7 +839,10 @@ html .ops-kpi:hover { border-color: var(--c-accent); }
 .ui-empty-state { display: grid; justify-items: center; gap: 10px; padding: 36px 12px; color: var(--c-text-3); font-size: 13px; text-align: center; }
 .ui-empty-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--c-surface-2); color: var(--c-text-2); }
 .portal-hero-grid.is-three-even { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-@media (max-width: 520px) { html .portal-hero-grid.is-three-even { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } html .portal-hero-grid.is-three-even .portal-kpi-icon { display: none; } }
+@media (max-width: 520px) { html .portal-hero-grid.is-three-even { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } html .portal-hero-grid.is-three-even .portal-kpi-icon { display: none; }
+  /* Labels wrap to one or two lines: keep them at the top so the three numbers sit on one line. */
+  html .portal-hero-grid.is-three-even .portal-kpi-card { display: flex; flex-direction: column; }
+  html .portal-hero-grid.is-three-even .portal-kpi-top { flex: 1; align-items: flex-start; } }
 .ui-banner { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; margin-bottom: 12px; border: 1px solid var(--c-border); background: var(--c-surface); flex-wrap: wrap; }
 .ui-banner.is-danger { background: var(--c-danger-bg); border-color: color-mix(in srgb, var(--c-danger) 30%, transparent); }
 .ui-banner.is-warning { background: var(--c-warning-bg); border-color: color-mix(in srgb, var(--c-warning) 30%, transparent); }

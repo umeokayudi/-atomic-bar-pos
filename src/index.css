@@ -959,18 +959,6 @@ html[data-layout="tablet"] .workspace-chrome {
   color: rgba(255,255,255,0.72);
 }
 
-.mobile-device-pill {
-  flex-shrink: 0;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--c-on-accent);
-  background: var(--gold);
-  border-radius: 99px;
-  padding: 1px 6px;
-}
-
 .shell-overlay {
   display: none;
 }
@@ -1811,10 +1799,14 @@ html[data-layout="mobile"] .metric-card-hover:hover {
   }
 }
 
+/* Phones: two small tiles a row instead of one tall card per number. */
 @media (max-width: 520px) {
   .admin-kpi-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
+  html .admin-kpi-grid .portal-kpi-card { padding: 12px; }
+  html .admin-kpi-grid .portal-kpi-value { font-size: 19px; }
 }
 
 .billing-hub-links {
@@ -1919,8 +1911,9 @@ html[data-layout="mobile"] .metric-card-hover:hover {
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--gold) 25%, transparent);
-  background: rgba(255,255,255,0.08);
+  border: 1px solid color-mix(in srgb, var(--c-on-chrome, #fff) 16%, transparent);
+  background: transparent;
+  color: var(--c-on-chrome, #fff);
   font-size: 18px;
   cursor: pointer;
   display: flex;

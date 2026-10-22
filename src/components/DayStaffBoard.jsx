@@ -146,7 +146,7 @@ export default function DayStaffBoard() {
         {t('portal.close.boardSummary', {
           late: late.length,
           absent: absent.length,
-          dj: dj ? fmtYen(Math.round(+djCusto || 0)) : t('portal.close.boardDjNo'),
+          dj: dj ? t('portal.close.boardDjPaid', { amount: fmtYen(Math.round(+djCusto || 0)) }) : t('portal.close.boardDjNo'),
         })}
       </p>
       <div className="day-board-expected">

@@ -225,6 +225,7 @@ export default {
     },
     suggest: {
       overview: ['What needs my attention today?', 'Which bars had the biggest drop versus the previous period?', 'Compare all bars over the last 90 days and build an action plan for each.'],
+      overviewBar: ['What needs my attention today?', 'What changed most versus the previous period?', 'Build an action plan for this bar for the next 30 days.'],
       sales: ['Which products grew most this week?', 'What is the average ticket by hour?', 'Which payment methods are customers using?'],
       stock: ['What should I reorder today?', 'Which products are below their minimum?'],
       supply: ['Compare the supplier prices we have on record.', 'Which purchases are still unpaid?', 'Which orders are waiting the longest?'],
@@ -248,7 +249,7 @@ export default {
     searchBars: 'Search bars', sortBy: 'Sort by', sortRevenue: 'Highest sales', sortGrowth: 'Growth', sortOverdue: 'Most overdue',
     sortQuiet: 'Longest without orders', sortName: 'Name', onlyAttention: 'Only bars needing attention', noClients: 'No bars match.',
     colRevenue: 'Sales ({n}d)', colGrowth: 'vs previous period', colLastOrder: 'Last order', colReceivable: 'To receive', colSignals: 'Signals',
-    salesCount: '{n} sales', noBase: 'no base', daysAgo: '{n} days ago', never: 'never', overdueAmt: '{amount} overdue', openInvoices: 'Invoices',
+    salesCount: '{n} sale(s)', noBase: 'no base', daysAgo: '{n} day(s) ago', never: 'never', overdueAmt: '{amount} overdue', openInvoices: 'Invoices',
     sigOk: 'OK', sig: { overdue: 'Overdue invoices', falling: 'Sales falling', quiet: 'No recent orders' },
     crmFormula: 'Sales = sum of JBM supply sales (vendas) in the last {n} days; growth compares with the {n} days before. To receive = invoice total minus paid, for unpaid invoices; overdue when the due date has passed. Signals: overdue > 0, growth ≤ −20%, or 21+ days without an order.',
     newCampaign: 'New campaign', editCampaign: 'Edit campaign', suggestWithAi: 'Suggest with AI',
@@ -401,7 +402,7 @@ export default {
     errAmount: 'Enter an amount above ¥0.', errOverDue: 'More than what is left to pay ({amount}).', errOverBalance: 'More than the customer owes ({amount}).',
     errAdd: 'Could not add to the CRM: {error}', errCrm: 'Could not load the CRM: {error}',
     errStore: 'The on-account book cannot be reached from this device right now.',
-    pendingSave: 'Sale saved. {n} on-account record(s) are waiting on this device and will be sent automatically.',
+    pendingSave: 'Sale saved. {n} on-account record(s) waiting on this device. They are sent automatically.',
   },
   // Staff POS (src/components/pos/StaffPos.jsx) and the multi-person cast picker on every till.
   staffPos: {
