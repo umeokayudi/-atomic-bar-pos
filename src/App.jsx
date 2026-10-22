@@ -59,6 +59,7 @@ const AiCenter = lazy(() => import('./components/ai/AiCenter'))
 const ClientsCrm = lazy(() => import('./components/growth/ClientsCrm'))
 const MarketingHub = lazy(() => import('./components/growth/MarketingHub'))
 const ConsultingHub = lazy(() => import('./components/growth/ConsultingHub'))
+const BarFinanceHq = lazy(() => import('./components/growth/BarFinanceHq'))
 
 // ── TABS por role ─────────────────────────────────────────────────────────────
 const ADMIN_TABS = [
@@ -104,6 +105,7 @@ const STAFF_TABS = [
 
 const GROWTH_TABS = [
   { id:'crm', labelKey:'nav.crm', icon:'crm' },
+  { id:'barFinance', labelKey:'nav.barFinance', icon:'bars' },
   { id:'marketing', labelKey:'nav.marketing', icon:'marketing' },
   { id:'consultoria', labelKey:'nav.consultoria', icon:'consultoria' },
   { id:'ai', labelKey:'nav.ai', icon:'ai' },
@@ -701,6 +703,7 @@ function Shell() {
           {activeTab==='suppliers' && <Fornecedores />}
           {activeTab==='ai' && <AiCenter />}
           {activeTab==='crm' && <ClientsCrm onNav={selectTab} />}
+          {activeTab==='barFinance' && <BarFinanceHq />}
           {activeTab==='marketing' && <MarketingHub />}
           {activeTab==='consultoria' && <ConsultingHub />}
         </div>

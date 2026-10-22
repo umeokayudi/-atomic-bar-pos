@@ -1443,3 +1443,23 @@ html .ui-prefs-wrap.is-chrome .ui-prefs-popover .theme-pill button.on { backgrou
 
 .fe-photo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; white-space: normal; line-height: 1.35; }
 .fe-photo > span { flex: 1 1 220px; }
+
+/* HQ · bar finances */
+.bar-fin-name { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--c-accent); cursor: pointer; text-align: left; }
+.bar-fin-name:hover { text-decoration: underline; }
+.bar-fin-row { cursor: pointer; }
+.bar-fin-row:hover td { background: var(--c-surface-2); }
+.bar-fin .ui-grid { margin-bottom: var(--sp-4); }
+.bar-fin .ui-card { margin-bottom: var(--sp-4); min-width: 0; }
+.bar-fin-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.bar-fin-facts > div { display: flex; flex-direction: column; gap: 2px; padding: 10px; border-radius: var(--radius); background: var(--c-surface-2); }
+.bar-fin-facts span { font-size: 11px; color: var(--c-text-3); }
+.bar-fin-facts b { font-size: 15px; font-variant-numeric: tabular-nums; }
+.bar-fin-pl { display: flex; flex-direction: column; }
+.bar-fin-pl-row { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--c-border); font-size: 13px; color: var(--c-text-2); }
+.bar-fin-pl-row b { font-variant-numeric: tabular-nums; font-weight: 500; color: var(--c-text); }
+.bar-fin-pl-row em { font-style: normal; font-size: 11px; color: var(--c-text-3); }
+.bar-fin-pl-row.is-strong { color: var(--c-text); font-weight: 700; }
+.bar-fin-pl-row.is-strong b { font-weight: 700; }
+.bar-fin-items { margin-top: 12px; font-size: 13px; }
+.bar-fin-items summary { cursor: pointer; color: var(--c-text-2); margin-bottom: 6px; }
