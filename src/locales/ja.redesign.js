@@ -253,7 +253,7 @@ export default {
       variable: '変動費', cardFee: 'カード手数料', commission: 'ドリンクバック', tax: '税金', accountant: '税理士',
     },
     agenda: '今後の支払いと入金', noAgenda: '31日以内の予定はありません。',
-    agendaNow: '今後の支払いは今月の表示で確認できます。', date: '日付', inDays: '{n}日後',
+    agendaNow: '今後の支払いは今月の表示で確認できます。', date: '日付', today: '今日', inDays: '{n}日後',
     kind: {
       salario: '給与', drink: 'ドリンクバック', aluguel: '家賃', energia: '電気', contador: '税理士',
       imposto: '税金', variavel: '変動費', fixo: '固定費', bebidas: 'JBM請求', cartao_cai: 'カード入金', cartao: 'カード端末',

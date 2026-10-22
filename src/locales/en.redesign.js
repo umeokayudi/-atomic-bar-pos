@@ -260,7 +260,7 @@ export default {
       variable: 'Variable costs', cardFee: 'Card fees', commission: 'Drink-back commissions', tax: 'Tax', accountant: 'Accountant',
     },
     agenda: 'Next payments and money coming in', noAgenda: 'Nothing due in the next 31 days.',
-    agendaNow: 'Upcoming payments show on the current month.', date: 'Date', inDays: 'in {n} days',
+    agendaNow: 'Upcoming payments show on the current month.', date: 'Date', today: 'today', inDays: 'in {n} days',
     kind: {
       salario: 'Salaries', drink: 'Drink-back commissions', aluguel: 'Rent', energia: 'Power', contador: 'Accountant',
       imposto: 'Tax', variavel: 'Variable costs', fixo: 'Fixed cost', bebidas: 'JBM invoice', cartao_cai: 'Card payout', cartao: 'Card machine',

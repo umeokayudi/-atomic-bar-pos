@@ -5,6 +5,7 @@
 
 import { monthBounds, paymentAgenda, periodReport } from './barClose.js'
 import { lastDayOfMonth, shiftMonthKey, tokyoNightKey } from './tokyo.js'
+import { nightKeyOfSale } from './nightClose.js'
 
 const pad = n => String(n).padStart(2, '0')
 
@@ -105,7 +106,10 @@ export function barMonth(pack, monthKey, today = tokyoNightKey()) {
 
 /** Six months of money in (till) and out (every cost), oldest first. */
 export function cashflowSeries(pack, monthKey, count = 6, today = tokyoNightKey()) {
+  // Months before the bar's first till sale have no data to compare: leave them out instead of showing only costs.
+  const first = ticketsFor(pack).map(s => nightKeyOfSale(s)).filter(Boolean).sort()[0]
   const keys = Array.from({ length: count }, (_, i) => shiftMonthKey(monthKey, -(count - 1 - i)))
+    .filter(key => first && key >= first.slice(0, 7))
   return keys.map(key => {
     const r = barMonth(pack, key, today)
     return { key, in: r.money.sales, out: r.money.costs, net: r.money.result }

@@ -294,7 +294,7 @@ function BarPage({ barId, month, setMonth, onBack }) {
                   <tbody>
                     {view.agenda.map(a => (
                       <tr key={`${a.id}-${a.date}`}>
-                        <td data-label={t('barFin.date')}>{a.date}<div className="ui-muted">{t('barFin.inDays', { n: a.days })}</div></td>
+                        <td data-label={t('barFin.date')}>{a.date}<div className="ui-muted">{a.days ? t('barFin.inDays', { n: a.days }) : t('barFin.today')}</div></td>
                         <td>{a.title || t(`barFin.kind.${a.kind}`, { fallback: a.kind })}</td>
                         <td className={`num ${a.inflow ? 'txt-success' : ''}`}>{a.inflow ? '+' : '−'}{fmtYen(a.amount)}</td>
                       </tr>
