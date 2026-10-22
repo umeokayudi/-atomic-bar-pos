@@ -1121,3 +1121,21 @@ button.sa-bell-item:hover { background: var(--c-surface-2); }
 .sa-seg.sa-shiftseg { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 12px; }
 .sa-seg.sa-shiftseg button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .sa-night-time { display: inline-flex; align-items: center; gap: 4px; }
+
+/* Profile: sign-in e-mail and password */
+.sa-account-form { display: grid; gap: 4px; padding-top: 6px; border-top: 1px solid var(--c-border); margin-top: 6px; }
+.sa-field input {
+  width: 100%; min-height: 44px; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid var(--c-border-2); background: var(--c-surface); color: var(--c-text); font: inherit; font-size: 16px;
+}
+.sa-account-form .sa-btn-block { margin-top: 10px; }
+.sa-line .sa-link { flex: 0 0 auto; }
+
+/* Clock card: zangyo (overtime) */
+.sa-zangyo {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; padding: 8px 12px;
+  border: 1px dashed rgba(255,255,255,.35); border-radius: 14px; background: transparent; color: inherit;
+  font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.sa-zangyo.is-sent { border-style: solid; background: rgba(255,255,255,.08); flex-wrap: wrap; }
+.sa-zangyo em { font-style: normal; font-weight: 600; font-size: 12px; opacity: .75; }
