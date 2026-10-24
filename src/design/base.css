@@ -1160,6 +1160,14 @@ html .sdr-row-main { width: 100%; display: grid; grid-template-columns: 36px min
 .f3-fixture .f3-side.is-s, .f3-fixture .f3-side.is-e { background: #dcdcd6; }
 .f3-fixture.is-bowl .f3-top { border-radius: 30% 30% 50% 50%; background: radial-gradient(ellipse at 50% 58%, #c9d2d8 0 30%, #f4f4f1 33%); }
 .f3-fixture.is-sink .f3-top { background: radial-gradient(ellipse at 50% 55%, #b9c4cc 0 34%, #f4f4f1 36%); }
+/* Items placed in the room: mirror, TV, darts board, pool table, game machine */
+.f3-table .f3-item.is-mirror .f3-side, .f3-table .f3-item.is-mirror .f3-top { background: linear-gradient(115deg, #a9bfcc, #eef5f8 40%, #c3d4de 55%, #93aab8); border: 2px solid #7d7468; }
+.f3-table .f3-item.is-screen .f3-side.is-s, .f3-table .f3-item.is-screen .f3-side.is-n { background: linear-gradient(160deg, #24365a, #0d1424 60%, #1b2a48); border: 3px solid #111; }
+.f3-table .f3-item.is-darts .f3-side.is-s, .f3-table .f3-item.is-darts .f3-side.is-n { border-radius: 50%; background: radial-gradient(circle, #c23a2b 0 6%, #1f7a3e 6% 12%, #f1e6c8 12% 30%, #c23a2b 30% 36%, #1b1b1b 36% 62%, #1f7a3e 62% 68%, #1b1b1b 68% 100%); border: 2px solid #111; }
+.f3-table .f3-item.is-darts .f3-side.is-w, .f3-table .f3-item.is-darts .f3-side.is-e, .f3-table .f3-item.is-darts .f3-top { background: #111; }
+.f3-table .f3-item.is-pool .f3-top { background: radial-gradient(ellipse, #2b8a57, #1d6440); border: 6px solid #5a3b24; box-sizing: border-box; }
+.f3-table .f3-item.is-pool .f3-side { background: #4a2f1c; }
+.f3-table .f3-item.is-arcade .f3-side.is-s, .f3-table .f3-item.is-arcade .f3-side.is-n { background: linear-gradient(to top, #1d1a3a 0 45%, #111 45% 48%, #3fb6e0 48%, #b04fd0 78%, #1d1a3a 80%); }
 .f3-view.is-pov .f3-card { bottom: 120px; }
 .f3-pad { position: absolute; right: 10px; bottom: 10px; display: grid; grid-template-columns: repeat(3, 44px); gap: 4px; touch-action: none; user-select: none; }
 .f3-pad .ui-btn { width: 44px; height: 44px; background: color-mix(in srgb, var(--c-surface) 90%, transparent); }
@@ -1321,6 +1329,12 @@ html .sdr-row-main { width: 100%; display: grid; grid-template-columns: 36px min
 .fe-table.is-plant { border-radius: 50%; border-color: var(--fe-color, #3f8a4f); background: radial-gradient(circle, color-mix(in srgb, var(--fe-color, #3f8a4f) 55%, transparent) 30%, color-mix(in srgb, var(--fe-color, #3f8a4f) 20%, var(--c-surface)) 70%); }
 .fe-table.is-plant .fe-table-name { display: none; }
 .fe-table.is-sofa { border-radius: 18px 18px 8px 8px; border-top-width: 10px; }
+.fe-table.is-item { border-radius: 4px; overflow: visible; border-color: var(--fe-color, #6b7a8f); background: color-mix(in srgb, var(--fe-color, #6b7a8f) 30%, var(--c-surface)); }
+.fe-table.is-item .fe-table-name { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 700; overflow: visible; }
+.fe-table.is-item-mirror { border-color: #9fb8c8; background: linear-gradient(110deg, #cfe0ea, #f4f8fa 45%, #b9ccd8); }
+.fe-table.is-item-pool { border: 6px solid #5a3b24; background: #1f6b44; border-radius: 6px; }
+.fe-table.is-item-pool .fe-table-name { color: #fff; }
+.fe-table.is-item-chair { border-radius: 6px 6px 4px 4px; border-top-width: 6px; }
 .floor-live .fe-table.is-decor { cursor: default; pointer-events: none; }
 .floor-planonly { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 12px; }
 .fe-swatch-custom { position: relative; display: grid; place-items: center; overflow: hidden; cursor: pointer; background: conic-gradient(#e55, #ec5, #5c7, #5ae, #a6e, #e55); color: #fff; }

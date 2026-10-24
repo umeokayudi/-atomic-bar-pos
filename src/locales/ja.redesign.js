@@ -345,6 +345,7 @@ export default {
     peopleLess: '1人減らす', peopleMore: '1人増やす', vip: 'VIP',
     chairName: 'チェア {n}', numberChairs: 'カウンター席に番号 ({n})', numberChairsHint: 'カウンターのスツールをチェア1、2、3…（各1席）にして、席ごとに伝票を開けるようにします。元に戻すで取り消せます。',
     addRoom: '部屋のパーツを追加', customColor: '好きな色',
+    addItem: 'アイテムを追加', item: { mirror: '鏡', darts: 'ダーツ', chair: '椅子', pool: 'ビリヤード台', arcade: 'ゲーム機', tv: 'テレビ' },
     planOnly: 'フロア図は保存でき、今すぐ使えます。テーブルで伝票を開くにはデータベース更新（sql/floor_comandas.sql）が必要です。それまではレジを使ってください。',
     planOnlyTable: '{n}席。このテーブルで伝票を開くにはデータベース更新が必要です。今はレジを使ってください。',
     view3d: '3D表示', camera: 'カメラ', cam: { persp: '斜め', front: '正面', top: '真上' }, turnLeft: '左に回す', turnRight: '右に回す', resetView: '表示をリセット', preview3d: '3Dプレビュー',
