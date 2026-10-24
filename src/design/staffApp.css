@@ -1197,3 +1197,10 @@ button.sa-bell-item:hover { background: var(--c-surface-2); }
   .sa-app .sa-tabs button { padding: 0 10px; font-size: 13px; gap: 6px; }
   .sa-top-bar { max-width: calc(50% - 270px); }
 }
+
+/* The old global `button:hover` grey sticks after a tap on phones: the brand button in the header keeps
+   no background (white text stays readable on the black bar), and cards keep their own colour. */
+.sa-top-bar:hover, .sa-top-bar:active, .sa-top-bar:focus { background: none; }
+.sa-top-bar:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 4px; border-radius: 12px; }
+.sa-quick-btn:not(.is-primary):hover { background: var(--c-surface); }
+.sa-quick-btn.is-primary:hover { background: var(--c-accent); }
