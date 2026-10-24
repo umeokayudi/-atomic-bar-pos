@@ -293,6 +293,26 @@ test('floor counter chairs: stools next to a counter, numbered along it; plants 
   assert.equal(fe.numberCounterChairs({ tables: [T('x', 'plant', 0, 0)] }).tables.length, 1)
 })
 
+test('floor items: mirror, darts, chair... saved as tagged pieces, numbered, only the chair is a seat', () => {
+  let st = fe.addItem(base(), 'darts', 'Dardo')
+  st = fe.addItem(st, 'chair', 'Cadeira')
+  st = fe.addItem(st, 'chair', 'Cadeira')
+  const [, darts, c1, c2] = st.tables
+  assert.deepEqual([darts.forma, darts.nota, darts.nome], ['plant', 'item:darts', 'Dardo 1'])
+  assert.deepEqual([c1.nome, c2.nome], ['Cadeira 1', 'Cadeira 2'])
+  assert.equal(fe.itemOf(c1), 'chair')
+  assert.equal(fe.itemOf({ ...c1, forma: 'round' }), null)
+  assert.equal(fe.itemOf({ forma: 'plant', nota: 'item:nope' }), null)
+  assert.equal(fe.isSeat(c1), true)
+  assert.equal(fe.isSeat(darts), false)
+  const rows = fe.toSavePayload(st).tables
+  assert.equal(rows.find(r => r.nome === 'Dardo 1').nota, 'item:darts')
+  assert.equal('nota' in rows[0], false)
+  const counter = { id: 'c', nome: 'Counter', forma: 'bar', x: 0, y: 100, largura: 300, altura: 50, capacidade: 0 }
+  const near = { ...darts, id: 'd', x: 40, y: 160 }
+  assert.deepEqual(fe.counterChairs([counter, near, { ...c1, id: 'k', x: 120, y: 160 }]).map(t => t.id), ['k'])
+})
+
 test('floor photo: AI pieces scaled into the plan, bad ones skipped', () => {
   const answer = { room: { w: 1000, d: 500 }, pieces: [
     { name: 'Mesa 1', shape: 'square', x: 100, y: 100, w: 80, d: 80, seats: 4 },

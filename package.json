@@ -26,6 +26,7 @@
     "test:floor-status": "node scripts/floorStatus.test.mjs",
     "test:bar-access": "node scripts/barAccess.test.mjs",
     "test:staff-app": "node scripts/staffApp.test.mjs",
+    "test:bar-brand": "node scripts/barBrand.test.mjs",
     "test:time-clock": "node scripts/timeClockRoute.test.mjs",
     "test:bar-finance": "node scripts/barFinanceHq.test.mjs",
     "test:sale-credit": "node scripts/saleCredit.test.mjs",

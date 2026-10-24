@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { ensureVendaFromPedido, findVendaForPedido, findVendaKeysForPedidos, pedidoSaleDate, mergeOrInsertPeriodFatura } from '../lib/pedidoVenda'
 import { addStockFromDelivery } from '../lib/posSupply'
@@ -12,6 +12,9 @@ import { asReactText, errText } from '../lib/errText'
 import { canReadProductCost } from '../lib/legacyScope'
 import Icon from './ui/Icon'
 import OrderDetailPopup from './OrderDetailPopup'
+import { BarIdentity, BarMark } from './BarIdentity'
+import { ATOMIC_RED, BRAND_COLORS, brandColorOf, brandRow, brandTokens, cleanHex, cleanLogo, fileToLogo, resolveBrand } from '../lib/barBrand'
+import { initialsOf } from '../lib/staffApp'
 
 // ── PRODUTOS ─────────────────────────────────────────────────────────────────
 export function ProductsTab() {
@@ -136,29 +139,102 @@ export function ProductsTab() {
 }
 
 // ── BARES ─────────────────────────────────────────────────────────────────────
+const EMPTY_BAR = { id: null, nome: '', cor: '#1C7ED6', logo: '' }
+
+/** A small picture of the bar app's top with the chosen colour, logo and name. */
+function BrandPreview({ form }) {
+  const { t } = useI18n()
+  const bar = { id: form.id, nome: form.nome || t('configs.barName'), marca: { cor: form.cor, logo: form.logo } }
+  const brand = resolveBrand(bar)
+  const tokens = brandTokens(brand.color)
+  const chrome = brand.theme === 'atomic' ? '#0E0E0F' : tokens?.['--bb-chrome'] || 'var(--c-chrome)'
+  const accent = brand.theme === 'atomic' ? ATOMIC_RED : tokens?.['--bb-accent'] || 'var(--c-accent)'
+  const onAccent = tokens?.['--bb-on'] || '#fff'
+  return (
+    <div className="brand-preview" aria-label={t('configs.preview')}>
+      <div className="brand-preview-top" style={{ background: chrome, borderBottom: `3px solid ${brand.color || accent}` }}>
+        <BarIdentity bar={bar} size={40} sub={t('configs.previewSub')} />
+      </div>
+      <div className="brand-preview-body">
+        <div className="brand-preview-chip" style={{ width: '70%' }} />
+        <div className="brand-preview-chip" style={{ width: '45%' }} />
+        <div className="brand-preview-btn" style={{ background: accent, color: onAccent }}>{t('configs.previewButton')}</div>
+      </div>
+      <div className="brand-preview-nav">
+        <span style={{ background: accent }} /><span /><span /><span />
+      </div>
+    </div>
+  )
+}
+
 export function BarsTab() {
   const { t } = useI18n()
   const [bars,    setBars]    = useState([])
+  const [marcas,  setMarcas]  = useState({})
   const [vendas,  setSales]  = useState([])
   const [loading, setLoading] = useState(true)
-  const [nome, setName] = useState('')
-  const [cor,  setColor]  = useState('var(--blue)')
+  const [form, setForm] = useState(EMPTY_BAR)
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [err, setErr] = useState('')
+  const logoInput = useRef(null)
 
   useEffect(() => { load() }, [])
   async function load() {
     setLoading(true)
-    const [{ data: b }, { data: v }] = await Promise.all([
+    const [{ data: b }, { data: v }, brandRes] = await Promise.all([
       supabase.from('bars').select('*').order('nome'),
-      supabase.from('vendas').select('bar_id, total')
+      supabase.from('vendas').select('bar_id, total'),
+      supabase.from('bar_brand').select('*'),
     ])
     setBars(b||[]); setSales(filterSupplierVendas(v||[]))
+    setMarcas(Object.fromEntries((brandRes?.data || []).map(r => [r.bar_id || r.id, r])))
     setLoading(false)
   }
 
-  async function add() {
+  const withMarca = b => (marcas[b.id] ? { ...b, marca: marcas[b.id] } : b)
+
+  function startEdit(b) {
+    const full = withMarca(b)
+    setForm({ id: b.id, nome: b.nome || '', cor: brandColorOf(full) || EMPTY_BAR.cor, logo: cleanLogo(full.marca?.logo) })
+    setMsg(''); setErr('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  async function pickLogo(file) {
+    setErr('')
+    try {
+      const logo = await fileToLogo(file)
+      setForm(f => ({ ...f, logo }))
+    } catch (e) {
+      setErr(errText(e))
+    }
+  }
+
+  async function save() {
+    const nome = form.nome.trim()
     if (!nome) return
-    await supabase.from('bars').insert({ nome, cor })
-    setName(''); setColor('var(--blue)'); load()
+    setSaving(true); setMsg(''); setErr('')
+    try {
+      const cor = cleanHex(form.cor)
+      let id = form.id
+      if (id) {
+        const { error } = await supabase.from('bars').update({ nome, cor }).eq('id', id)
+        if (error) throw error
+      } else {
+        const { data, error } = await supabase.from('bars').insert({ nome, cor }).select('id').single()
+        if (error) throw error
+        id = data.id
+      }
+      const { error: brandErr } = await supabase.from('bar_brand').upsert(brandRow(id, { cor, logo: form.logo }))
+      if (brandErr) throw brandErr
+      setForm(EMPTY_BAR)
+      setMsg(t('configs.barSaved'))
+      load()
+    } catch (e) {
+      setErr(errText(e))
+    }
+    setSaving(false)
   }
 
   async function del(id) {
@@ -167,32 +243,75 @@ export function BarsTab() {
     load()
   }
 
+  const customOn = !BRAND_COLORS.some(c => c.hex.toLowerCase() === cleanHex(form.cor))
+
   return (
     <AdminPage title={t('nav.bars')} subtitle={t('configs.barsSubtitle')}>
-      <PortalSurface title={t('configs.addBar')} style={{ marginBottom: 16 }}>
-        <div style={{ display:'grid', gridTemplateColumns:'2fr 60px auto', gap:10, alignItems:'end' }}>
-          <div><label className="form-label">{t('configs.barName')}</label>
-            <input type="text" value={nome} onChange={e=>setName(e.target.value)} placeholder={t('configs.barName')} /></div>
-          <div><label className="form-label">{t('configs.color')}</label>
-            <input type="color" value={cor} onChange={e=>setColor(e.target.value)} style={{ height:38, padding:'2px 4px' }} /></div>
-          <button className="btn-primary" onClick={add}>{t('configs.addBarBtn')}</button>
+      <PortalSurface title={form.id ? t('configs.editBar') : t('configs.addBar')} style={{ marginBottom: 16 }}>
+        <div className="brand-form">
+          <div className="brand-fields">
+            <div><label className="form-label">{t('configs.barName')}</label>
+              <input type="text" value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} placeholder={t('configs.barName')} /></div>
+            <div>
+              <label className="form-label">{t('configs.appColor')}</label>
+              <div className="brand-swatches" role="radiogroup" aria-label={t('configs.appColor')}>
+                {BRAND_COLORS.map(c => (
+                  <button key={c.hex} type="button" role="radio" aria-checked={cleanHex(form.cor) === c.hex.toLowerCase()}
+                    className={`brand-swatch${cleanHex(form.cor) === c.hex.toLowerCase() ? ' is-on' : ''}`}
+                    style={{ background: c.hex }} title={c.hex === ATOMIC_RED ? `${c.hex} · ${t('configs.redBlack')}` : c.hex}
+                    aria-label={c.hex} onClick={() => setForm({ ...form, cor: c.hex })} />
+                ))}
+                <label className={`brand-swatch brand-swatch-custom${customOn ? ' is-on' : ''}`} title={t('configs.customColor')} style={customOn ? { background: form.cor } : undefined}>
+                  <input type="color" value={cleanHex(form.cor) || '#1c7ed6'} onChange={e => setForm({ ...form, cor: e.target.value })} aria-label={t('configs.customColor')} />
+                </label>
+              </div>
+            </div>
+            <div>
+              <label className="form-label">{t('configs.logo')}</label>
+              <div className="brand-logo-row">
+                <span className="brand-logo-box">{form.logo ? <img src={form.logo} alt="" /> : <Icon name="bars" size={22} />}</span>
+                <button type="button" onClick={() => logoInput.current?.click()}>{form.logo ? t('configs.changeLogo') : t('configs.uploadLogo')}</button>
+                <input ref={logoInput} type="file" accept="image/*" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) pickLogo(f) }} />
+                {form.logo && <button type="button" onClick={() => setForm({ ...form, logo: '' })}>{t('configs.removeLogo')}</button>}
+              </div>
+              <div className="brand-hint" style={{ marginTop: 6 }}>{t('configs.logoHint')}</div>
+            </div>
+            <div className="brand-hint">{t('configs.brandHint')}</div>
+            {err && <div style={{background:'var(--red-bg)',color:'var(--red)',borderRadius:8,padding:'10px 16px',fontSize:13}}>{asReactText(err)}</div>}
+            {msg && <div style={{background:'var(--green-bg)',color:'var(--green)',borderRadius:8,padding:'10px 16px',fontSize:13}}>{msg}</div>}
+            <div className="brand-actions">
+              <button className="btn-primary" onClick={save} disabled={saving || !form.nome.trim()}>
+                {saving ? <><span className="spinner"/>{t('common.saving')}</> : form.id ? t('configs.saveBar') : t('configs.addBarBtn')}
+              </button>
+              {form.id && <button onClick={() => { setForm(EMPTY_BAR); setErr('') }}>{t('common.cancel')}</button>}
+            </div>
+          </div>
+          <div>
+            <label className="form-label">{t('configs.preview')}</label>
+            <BrandPreview form={form} />
+          </div>
         </div>
       </PortalSurface>
       <PortalSurface>
         {loading ? <Spinner /> : bars.length===0 ? <Empty text={t('configs.noBars')} /> : (
           <table>
-            <thead><tr><th>{t('nav.bars')}</th><th>{t('configs.color')}</th><th>{t('nav.sales')}</th><th>{t('configs.totalRevenue')}</th><th></th></tr></thead>
+            <thead><tr><th>{t('nav.bars')}</th><th>{t('configs.lookCol')}</th><th>{t('nav.sales')}</th><th>{t('configs.totalRevenue')}</th><th></th></tr></thead>
             <tbody>
               {bars.map(b=>{
                 const v = vendas.filter(x=>x.bar_id===b.id)
                 const receita = v.reduce((a,x)=>a+(+x.total||0),0)
+                const full = withMarca(b)
+                const look = resolveBrand(full)
                 return (
                   <tr key={b.id}>
-                    <td style={{ fontWeight:600 }}>{b.nome}</td>
-                    <td><div style={{ width:24,height:24,borderRadius:6,background:b.cor,border:'0.5px solid var(--border)' }}/></td>
+                    <td><div className="bar-row-mark"><BarMark brand={{ ...look, initials: initialsOf(b.nome) }} size={32} /><strong>{b.nome}</strong></div></td>
+                    <td><div style={{ display:'flex', alignItems:'center', gap:8 }}><div style={{ width:24,height:24,borderRadius:6,background:look.color || 'var(--c-surface-2)',border:'0.5px solid var(--border)' }}/>{look.theme === 'atomic' && <span style={{ fontSize:12, color:'var(--text3)' }}>{t('configs.redBlack')}</span>}</div></td>
                     <td>{v.length}</td>
                     <td style={{ fontWeight:600 }}>{fmtYen(receita)}</td>
-                    <td><DelBtn onClick={()=>del(b.id)} /></td>
+                    <td><div style={{ display:'flex', gap:4, justifyContent:'flex-end' }}>
+                      <button style={{padding:'4px 8px',fontSize:12}} onClick={()=>startEdit(b)} aria-label={t('configs.editBar')}><Icon name="edit" size={14} /></button>
+                      <DelBtn onClick={()=>del(b.id)} />
+                    </div></td>
                   </tr>
                 )
               })}

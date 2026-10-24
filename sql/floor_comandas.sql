@@ -282,7 +282,7 @@ CREATE TRIGGER floor_layouts_guard BEFORE DELETE ON public.floor_layouts
   FOR EACH ROW EXECUTE FUNCTION public.floor_layouts_guard();
 
 -- Save a whole layout in one transaction (the editor's "Save"). Optimistic lock on versao.
--- p_tables: [{id?, nome, forma, x, y, largura, altura, rotacao, capacidade, cor, sector_id?, sector_key?, ativo}]
+-- p_tables: [{id?, nome, forma, x, y, largura, altura, rotacao, capacidade, cor, sector_id?, sector_key?, ativo, nota?}]
 -- p_sectors: [{id?, key, nome, cor, ordem}]   (key lets new tables point at new sectors)
 CREATE OR REPLACE FUNCTION public.floor_save_layout(
   p_layout uuid, p_versao integer, p_nome text, p_largura integer, p_altura integer,
@@ -330,13 +330,14 @@ BEGIN
         largura = (t->>'largura')::numeric, altura = (t->>'altura')::numeric,
         rotacao = COALESCE((t->>'rotacao')::numeric, 0), capacidade = COALESCE((t->>'capacidade')::int, 2),
         cor = t->>'cor', ativo = COALESCE((t->>'ativo')::boolean, true),
+        nota = CASE WHEN t ? 'nota' THEN t->>'nota' ELSE nota END,
         sector_id = COALESCE((v_keymap->>(t->>'sector_key'))::uuid, (t->>'sector_id')::uuid)
       WHERE id = v_id;
     ELSE
-      INSERT INTO floor_tables (bar_id, layout_id, nome, forma, x, y, largura, altura, rotacao, capacidade, cor, ativo, sector_id)
+      INSERT INTO floor_tables (bar_id, layout_id, nome, forma, x, y, largura, altura, rotacao, capacidade, cor, ativo, nota, sector_id)
       VALUES (v_bar, p_layout, t->>'nome', COALESCE(t->>'forma', 'square'), (t->>'x')::numeric, (t->>'y')::numeric,
         (t->>'largura')::numeric, (t->>'altura')::numeric, COALESCE((t->>'rotacao')::numeric, 0),
-        COALESCE((t->>'capacidade')::int, 2), t->>'cor', COALESCE((t->>'ativo')::boolean, true),
+        COALESCE((t->>'capacidade')::int, 2), t->>'cor', COALESCE((t->>'ativo')::boolean, true), t->>'nota',
         COALESCE((v_keymap->>(t->>'sector_key'))::uuid, (t->>'sector_id')::uuid))
       RETURNING id INTO v_id;
     END IF;
@@ -368,8 +369,8 @@ BEGIN
     INSERT INTO floor_sectors (bar_id, layout_id, nome, cor, ordem) VALUES (v_bar, v_new, r.nome, r.cor, r.ordem) RETURNING id INTO v_sec;
     v_map := v_map || jsonb_build_object(r.id::text, v_sec);
   END LOOP;
-  INSERT INTO floor_tables (bar_id, layout_id, sector_id, nome, forma, x, y, largura, altura, rotacao, capacidade, cor, ativo)
-    SELECT v_bar, v_new, (v_map->>(sector_id::text))::uuid, nome, forma, x, y, largura, altura, rotacao, capacidade, cor, ativo
+  INSERT INTO floor_tables (bar_id, layout_id, sector_id, nome, forma, x, y, largura, altura, rotacao, capacidade, cor, ativo, nota)
+    SELECT v_bar, v_new, (v_map->>(sector_id::text))::uuid, nome, forma, x, y, largura, altura, rotacao, capacidade, cor, ativo, nota
     FROM floor_tables WHERE layout_id = p_layout;
   RETURN v_new;
 END $$;

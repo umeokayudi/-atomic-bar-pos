@@ -5,6 +5,7 @@ import './design/tokens.css'
 import './index.css'
 import './design/base.css'
 import './design/staffApp.css'
+import './design/barBrand.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

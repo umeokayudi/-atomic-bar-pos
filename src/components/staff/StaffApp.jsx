@@ -20,6 +20,7 @@ import { OccurrencesScreen, PerformanceScreen, ProfileScreen, ReportsScreen, Set
 import { PayHubScreen } from './PayHub'
 import { END_TIMES, ScheduleCta, ScheduleHomeCard, ScheduleScreen, rangeLabel, useMySchedule } from './ScheduleScreen'
 import StaffBell from './StaffBell'
+import { BarMark } from '../BarIdentity'
 import { tokyoNightKey } from '../../lib/tokyo'
 import { greetingPart } from '../../lib/greeting'
 import { shiftCountdown, spanLabel } from '../../lib/staffSchedule'
@@ -28,29 +29,6 @@ const StaffAlerts = lazy(() => import('../StaffAlerts'))
 /** Screens that stay open while next week's schedule is still to send (the rest point to "Send schedule"). */
 // The till stays open too: an order mid-shift never waits on next week's schedule.
 export const GATE_FREE = ['hoje', 'ponto', 'schedule', 'profile', 'settings', 'pos']
-/** Atomic's mark: an atom in white lines on red. */
-export function AtomMark({ size = 36 }) {
-  return (
-    <span className="sa-barmark is-atom" style={{ width: size, height: size }} aria-hidden="true">
-      <svg viewBox="0 0 48 48" width="76%" height="76%" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round">
-        <ellipse cx="24" cy="24" rx="20" ry="7.5" />
-        <ellipse cx="24" cy="24" rx="20" ry="7.5" transform="rotate(60 24 24)" />
-        <ellipse cx="24" cy="24" rx="20" ry="7.5" transform="rotate(120 24 24)" />
-        <circle cx="24" cy="24" r="3.6" fill="#fff" stroke="none" />
-      </svg>
-    </span>
-  )
-}
-
-function BarMark({ brand, size = 36 }) {
-  if (brand.atomic) return <AtomMark size={size} />
-  return (
-    <span className="sa-barmark" style={{ width: size, height: size, ...(brand.color ? { background: brand.color } : {}) }} aria-hidden="true">
-      {brand.logo ? <img src={brand.logo} alt="" /> : brand.initials}
-    </span>
-  )
-}
-
 /** Greeting in English and Japanese at once (Tokyo time): morning 5–12, afternoon 12–18, evening after. */
 export const GREETINGS = {
   morning: { en: 'Good morning', ja: 'おはようございます', icon: 'sun' },
@@ -576,13 +554,13 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
 
   // Sheets and the bell panel render outside the app (portals): the body carries the bar's look for them too.
   useEffect(() => {
-    if (!brand.atomic) return undefined
+    if (brand.theme !== 'atomic') return undefined
     document.body.classList.add('sa-atomic')
     return () => document.body.classList.remove('sa-atomic')
-  }, [brand.atomic])
+  }, [brand.theme])
 
   return (
-    <div className={`sa-app${brand.atomic ? ' is-atomic' : ''}${shown === 'hoje' ? ' is-home' : ''}${work ? ' is-work' : ''}${fab ? ' has-fab' : ''}`} style={brand.color && !brand.atomic ? { '--sa-brand': brand.color } : undefined}>
+    <div className={`sa-app${brand.theme === 'atomic' ? ' is-atomic' : ''}${shown === 'hoje' ? ' is-home' : ''}${work ? ' is-work' : ''}${fab ? ' has-fab' : ''}`} style={brand.theme === 'custom' ? { '--sa-brand': brand.color } : undefined}>
       <header className="sa-top">
         <button type="button" className="sa-top-bar" onClick={() => go('hoje')} aria-label={t('staffApp.tabHome')}>
           <BarMark brand={brand} size={40} />

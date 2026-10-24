@@ -3,13 +3,18 @@ import { useI18n } from '../../lib/i18n'
 import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
 import { SEAT, contentBounds, fitScale, guestSpots, hits, obstacles, pieceRects, safeWalks, seatSpots, standSpot, unitsPerCm, wallPieces } from '../../lib/floor3d'
-import { isDecor, isSeat, isToilet } from '../../lib/floorEditor'
+import { isDecor, isSeat, isToilet, itemOf } from '../../lib/floorEditor'
 import PeopleStepper from './PeopleStepper'
 
 // Real heights in centimetres; the plan's own scale (units per cm, guessed from its tables) turns
 // them into plan units, so walls, tables, seats and people keep their proportions on any plan.
 const HEIGHT_CM = { round: 75, square: 75, rect: 75, bar: 105, sofa: 45, wall: 250, door: 2, stage: 25, plant: 90 }
 const DECOR_COLOR = { wall: '#9a958c', door: '#b08a5a', stage: '#4a3f5c', plant: '#3f8a4f' }
+// Items placed in the room (see ITEMS in floorEditor): colour and how tall each stands, in cm.
+const ITEM_COLOR = { mirror: '#b9ccd8', darts: '#2b2b2b', chair: '#6b4a32', pool: '#1f6b44', arcade: '#2a2350', tv: '#1b1b1f' }
+const ITEM_CM = { mirror: 200, darts: 200, chair: 90, pool: 80, arcade: 170, tv: 150 }
+// Hung on a wall: cut down with the walls in the map view, like doorways.
+const ON_WALL = new Set(['mirror', 'darts', 'tv'])
 const SEAT_CM = 45
 // Height of a doorway (cm): the wall above it is drawn as a beam.
 const DOOR_CM = 210
@@ -129,6 +134,38 @@ function ToiletFixtures({ w, d, h, k }) {
 }
 
 /**
+ * An item in its own box (w × d plan units, sizes in cm times `k`): a mirror and a TV hang on the wall,
+ * the darts board at the regulation 173 cm, a chair has a seat and a back, a pool table its felt, a game
+ * machine its screen.
+ */
+function ItemModel({ kind, w, d, k }) {
+  const box = (h, z = 0, extra = '', style = null, bw = w, bd = d) => (
+    <Box className={`f3-surface f3-item${extra}`} w={bw} d={bd} h={h} style={{ ...(z ? { transform: `translateZ(${z}px)` } : null), ...style }} />
+  )
+  if (kind === 'mirror') return box(160 * k, 40 * k, ' is-mirror')
+  if (kind === 'tv') {
+    const h = Math.min(w * 0.58, 90 * k)
+    return box(h, 150 * k - h, ' is-screen')
+  }
+  if (kind === 'darts') {
+    const h = Math.min(w, 60 * k)
+    return box(h, 173 * k - h / 2, ' is-darts', { left: (w - h) / 2 }, h)
+  }
+  if (kind === 'chair') {
+    const back = Math.max(3, d * 0.18)
+    return (
+      <>
+        {box(45 * k)}
+        {box(45 * k, 45 * k, '', null, w, back)}
+      </>
+    )
+  }
+  if (kind === 'pool') return box(80 * k, 0, ' is-pool')
+  if (kind === 'arcade') return box(170 * k, 0, ' is-arcade')
+  return null
+}
+
+/**
  * The static part of the scene: floor, walls (with doorways cut out), tables, seats and guests. It does
  * not depend on the camera, so turning, tilting or zooming never re-renders it; guests face the viewer
  * through the `--f3-spin` custom property the camera writes on the world node. Names are drawn on a
@@ -137,6 +174,14 @@ function ToiletFixtures({ w, d, h, k }) {
 const Scene = memo(function Scene({ area, tables, sectors, live, tappable, selectedId, k, walls, blocks, people = true }) {
   const sectorColor = id => sectors.find(s => s.id === id)?.cor
   const wallH = HEIGHT_CM.wall * k
+  // Rooms (karaoke VIP, toilet...) are a raised floor; what is placed inside one stands on it.
+  const rooms = tables.filter(tb => tb.forma === 'stage' && tb.ativo !== false)
+  const roomLift = tb => {
+    if (tb.forma === 'stage' || tb.forma === 'door') return 0
+    const c = centerOf(tb)
+    const r = rooms.find(p => c.x > +p.x && c.x < +p.x + +p.largura && c.y > +p.y && c.y < +p.y + +p.altura)
+    return r ? HEIGHT_CM.stage * k : 0
+  }
   return (
     <>
       <div className="f3-floor" style={{ left: area.x, top: area.y, width: area.w, height: area.h, '--tile': `${Math.round(60 * k)}px` }} />
@@ -157,11 +202,13 @@ const Scene = memo(function Scene({ area, tables, sectors, live, tappable, selec
         if (tb.forma === 'wall') return null
         const w = +tb.largura
         const d = +tb.altura
-        const h = Math.max(2, (HEIGHT_CM[tb.forma] || 75) * k)
+        const item = itemOf(tb)
+        const h = Math.max(2, ((item ? ITEM_CM[item] : HEIGHT_CM[tb.forma]) || 75) * k)
+        const lift = roomLift(tb)
         const decor = isDecor(tb.forma)
         // A seat place (table, or a VIP room drawn as a room piece) takes tabs, names and guests.
         const seat = isSeat(tb)
-        const color = tb.cor || DECOR_COLOR[tb.forma] || sectorColor(tb.sector_id) || 'var(--c-accent)'
+        const color = tb.cor || (item && ITEM_COLOR[item]) || DECOR_COLOR[tb.forma] || sectorColor(tb.sector_id) || 'var(--c-accent)'
         const seats = decor || tb.forma === 'sofa' ? [] : seatSpots(tb.forma, w, d, tb.capacidade)
         const guests = live && seat && people ? safeWalks(tb, guestSpots(tb, tb.pessoas), blocks, k) : []
         const round = tb.forma === 'round' || tb.forma === 'plant'
@@ -175,14 +222,18 @@ const Scene = memo(function Scene({ area, tables, sectors, live, tappable, selec
             data-f3-id={canTap ? tb.id : undefined}
             data-f3-name={seat ? tb.id : undefined}
             data-f3-room={!seat && tb.forma === 'stage' && Math.min(w, d) >= DECOR_LABEL_CM * k * 0.5 && Math.max(w, d) >= DECOR_LABEL_CM * k ? tb.id : undefined}
-            className={`f3-table is-${tb.forma}${decor ? ' is-decor' : ''}${live && seat ? ` st-${tb.state}` : ''}${tb.ativo === false ? ' is-off' : ''}${canTap ? ' is-tappable' : ''}${selected ? ' is-selected' : ''}`}
-            style={{ left: +tb.x, top: +tb.y, width: w, height: d, transform: `translateZ(var(--f3-lift, 0px)) rotateZ(${+tb.rotacao || 0}deg)`, '--f3-rot': +tb.rotacao || 0, ...(live && seat ? null : { '--f3-color': color }) }}
+            className={`f3-table is-${tb.forma}${item ? ` is-item is-item-${item}` : ''}${decor ? ' is-decor' : ''}${live && seat ? ` st-${tb.state}` : ''}${tb.ativo === false ? ' is-off' : ''}${canTap ? ' is-tappable' : ''}${selected ? ' is-selected' : ''}`}
+            style={{ left: +tb.x, top: +tb.y, width: w, height: d, transform: `translateZ(${lift ? `calc(var(--f3-lift, 0px) + ${lift}px)` : 'var(--f3-lift, 0px)'}) rotateZ(${+tb.rotacao || 0}deg)`, '--f3-rot': +tb.rotacao || 0, ...(live && seat ? null : { '--f3-color': color }) }}
           >
             {selected && <div className="f3-glow" />}
             {seats.map((s, i) => (
               <Box key={i} className="f3-seat" w={SEAT} d={SEAT} h={SEAT_CM * k} round={tb.forma === 'round'} style={{ left: s.x, top: s.y }} />
             ))}
-            <Box w={w} d={d} h={h} round={round} className="f3-surface" />
+            {item ? (
+              ON_WALL.has(item)
+                ? <div className="f3-doorway" style={{ transform: 'scaleZ(var(--f3-wallk, 1))' }}><ItemModel kind={item} w={w} d={d} k={k} /></div>
+                : <ItemModel kind={item} w={w} d={d} k={k} />
+            ) : <Box w={w} d={d} h={h} round={round} className="f3-surface" />}
             {tb.forma === 'stage' && isToilet(tb) && <ToiletFixtures w={w} d={d} h={h} k={k} />}
             {tb.forma === 'door' && (
               // The doorway: the wall above the gap (same colour as the wall it cuts) and a door leaf on a
@@ -286,7 +337,7 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, on
   const solids = useMemo(() => {
     const wallR = pieceRects(walls)
     const pieces = tables.filter(tb => !['wall', 'door', 'round', 'square', 'rect'].includes(tb.forma))
-    return { walk: [...wallR, ...obstacles(pieces.filter(tb => tb.forma === 'bar' || tb.forma === 'sofa'))], guests: [...wallR, ...obstacles(pieces)] }
+    return { walk: [...wallR, ...obstacles(pieces.filter(tb => tb.forma === 'bar' || tb.forma === 'sofa' || ['pool', 'arcade'].includes(itemOf(tb))))], guests: [...wallR, ...obstacles(pieces)] }
   }, [walls, geomKey]) // eslint-disable-line react-hooks/exhaustive-deps
   const wallsRef = useRef(solids.walk)
   wallsRef.current = solids.walk

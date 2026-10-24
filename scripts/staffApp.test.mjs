@@ -184,7 +184,9 @@ test('staff app: live timer, my clock state, initials, bar brand', () => {
   assert.equal(initialsOf('Atomic Bar'), 'AB')
   assert.equal(initialsOf('Ponette'), 'PO')
   assert.equal(initialsOf(''), '?')
-  assert.deepEqual(barBrand({ nome: 'Atomic Bar', cor: '#3F7F67' }), { atomic: true, name: 'Atomic Bar', initials: 'AB', color: '#3F7F67', logo: '' })
+  // Atomic's old bars.cor (a blue from the import) does not change its look: red and black until HQ picks a colour.
+  assert.deepEqual(barBrand({ nome: 'Atomic Bar', cor: '#3F7F67' }), { atomic: true, theme: 'atomic', name: 'Atomic Bar', initials: 'AB', color: '#d7191f', logo: '' })
+  assert.equal(barBrand({ nome: 'Atomic Bar', marca: { cor: '#3F7F67' } }).color, '#3f7f67')
   assert.equal(barBrand({ nome: 'Kuri Bar' }).atomic, false)
   assert.equal(barBrand({ id: 'b23a5f97-ad4c-4c2a-baa6-72a0d3ba85b9', nome: 'X' }).atomic, true)
   assert.equal(barBrand({ nome: 'X', cor: 'red; background:url(x)' }).color, '', 'only a hex colour')

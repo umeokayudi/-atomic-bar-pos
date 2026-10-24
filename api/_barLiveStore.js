@@ -35,6 +35,8 @@ export const LIVE_TABLES = [
   'floor_sectors',
   'floor_tables',
   'bar_guest_ledger',
+  // Each bar's colour and logo in its app (HQ → Bars). Everyone at the bar reads it; only HQ writes it.
+  'bar_brand',
   // Staff app: requests to the owner and the check-out day reports. Server routes only (secret in /api/bar/live-db).
   'staff_requests',
   'staff_day_reports',
