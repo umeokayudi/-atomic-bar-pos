@@ -104,6 +104,8 @@ const PAGES = [
   { who: STAFF, path: '/bar/hoje', name: 'staff-today-only', acessos: ['clock'] },
   { who: STAFF, path: '/bar/goals', name: 'staff-goals' },
   { who: STAFF, path: '/bar/pos', name: 'staff-pos' },
+  { who: STAFF, path: '/bar/pos', name: 'staff-pos-only', acessos: ['clock'] },
+  { who: STAFF, path: '/bar/pos', name: 'staff-pos-gate', gate: true, acessos: ['clock'] },
   { who: STAFF, path: '/bar/pos', name: 'staff-pos-order', taps: ['.pq-tile-hit', '.pq-tile-hit', '.pq-cartbar', '.pq-charge'], tapsBelow: 901 },
   { who: STAFF, path: '/bar/pos', name: 'staff-pos-cast', phoneOnly: true, taps: ['.pq-tile-hit', '.pq-cartbar', '.pq-charge', '.pq-castrow-chips button:nth-child(2)'] },
   { who: STAFF, path: '/bar/pos', name: 'staff-pos-cast-wide', wideOnly: true, taps: ['.pq-tile-hit', '.pq-charge', '.pq-castrow-chips button:nth-child(2)'] },

@@ -26,7 +26,8 @@ import { shiftCountdown, spanLabel } from '../../lib/staffSchedule'
 
 const StaffAlerts = lazy(() => import('../StaffAlerts'))
 /** Screens that stay open while next week's schedule is still to send (the rest point to "Send schedule"). */
-export const GATE_FREE = ['hoje', 'ponto', 'schedule', 'profile', 'settings']
+// The till stays open too: an order mid-shift never waits on next week's schedule.
+export const GATE_FREE = ['hoje', 'ponto', 'schedule', 'profile', 'settings', 'pos']
 /** Atomic's mark: an atom in white lines on red. */
 export function AtomMark({ size = 36 }) {
   return (
@@ -311,12 +312,17 @@ function HomeScreen({ t, lang, perfil, profile, clock, punch, canClock, day, onT
   const shift = confirmedShift(schedule, punches, meId, today)
   return (
     <div className="sa-screen sa-home">
-      <HomeHello firstName={firstName} lang={lang} />
-      <ScheduleCta t={t} schedule={schedule} onOpen={() => onTab('schedule')} />
-      <ClockCard t={t} clock={clock} punch={punch} canClock={canClock} compact shift={shift} tolerance={schedule?.data?.tolerance} today={today} zangyo={zangyo} onZangyo={onZangyo} />
-      <QuickActions t={t} canPos={canPos} onTab={onTab} />
-      <TonightCard t={t} day={day} onTab={onTab} />
-      <ScheduleHomeCard t={t} schedule={schedule} today={today} onOpen={() => onTab('schedule')} />
+      {/* One column on the phone; on a laptop the clock column and the shortcuts column sit side by side. */}
+      <div className="sa-home-main">
+        <HomeHello firstName={firstName} lang={lang} />
+        <ScheduleCta t={t} schedule={schedule} onOpen={() => onTab('schedule')} />
+        <ClockCard t={t} clock={clock} punch={punch} canClock={canClock} compact shift={shift} tolerance={schedule?.data?.tolerance} today={today} zangyo={zangyo} onZangyo={onZangyo} />
+      </div>
+      <div className="sa-home-side">
+        <QuickActions t={t} canPos={canPos} onTab={onTab} />
+        <TonightCard t={t} day={day} onTab={onTab} />
+        <ScheduleHomeCard t={t} schedule={schedule} today={today} onOpen={() => onTab('schedule')} />
+      </div>
     </div>
   )
 }
@@ -576,7 +582,7 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
   }, [brand.atomic])
 
   return (
-    <div className={`sa-app${brand.atomic ? ' is-atomic' : ''}${work ? ' is-work' : ''}${fab ? ' has-fab' : ''}`} style={brand.color && !brand.atomic ? { '--sa-brand': brand.color } : undefined}>
+    <div className={`sa-app${brand.atomic ? ' is-atomic' : ''}${shown === 'hoje' ? ' is-home' : ''}${work ? ' is-work' : ''}${fab ? ' has-fab' : ''}`} style={brand.color && !brand.atomic ? { '--sa-brand': brand.color } : undefined}>
       <header className="sa-top">
         <button type="button" className="sa-top-bar" onClick={() => go('hoje')} aria-label={t('staffApp.tabHome')}>
           <BarMark brand={brand} size={40} />

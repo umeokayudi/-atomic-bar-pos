@@ -1901,15 +1901,17 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   const myAccess = useMyBarAccess(perfil)
   const access = { id: perfil?.id, role: perfil?.role, acessos: myAccess.acessos }
   const NAV_GROUPS = filterNavGroups(groupedNavForRole(perfil?.role), access)
-  const DOCK = dockForLogin(perfil?.role, id => canOpenTab(access, id))
+  // Floor staff always get the POS (sending an order to the bar), even on "Staff only": URL, tabs and screen agree.
+  const canOpenHere = id => (id === 'pos' && perfil?.role === 'bar_staff') || canOpenTab(access, id)
+  const DOCK = dockForLogin(perfil?.role, canOpenHere)
   const location = useLocation()
   const navigate = useNavigate()
   // Tabs reachable by URL (/bar/<tab>): the role's menu plus staff self-service sections, minus areas this login lacks.
   const allowedTabs = [...NAV_GROUPS.flatMap(g => g.items.map(n => n.id)), ...DOCK.map(d => d.id), ...STAFF_SELF_TABS, 'equipe', 'entregas', 'energia', 'aluguel', 'senha']
-    .filter(id => canOpenTab(access, id))
+    .filter(canOpenHere)
   const homeTab = firstOpenTab(access, [defaultBarTab(perfil?.role), ...allowedTabs], defaultBarTab(perfil?.role))
   const tab = tabFromPath(location.pathname, 'bar', allowedTabs, homeTab)
-  const tabOk = canOpenTab(access, tab)
+  const tabOk = canOpenHere(tab)
   const [opened, setOpened] = useState(() => new Set([tab]))
   const [menuOpen, setMenuOpen] = useState(false)
   const [door, setDoor] = useState(() => loginDoorFromHash())
@@ -1933,7 +1935,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   // When the area list arrives or changes, drop screens kept mounted in the background that it no longer allows.
   const accessKey = JSON.stringify(myAccess.acessos)
   useEffect(() => {
-    setOpened(prev => new Set([...prev].filter(id => canOpenTab(access, id))))
+    setOpened(prev => new Set([...prev].filter(canOpenHere)))
   }, [accessKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -2012,8 +2014,6 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
 
   // Staff logins (and "Staff only" logins) get the separate employee app: no HQ sidebar, bottom tabs, phone first.
   if (usesStaffApp(perfil, myAccess.acessos)) {
-    // Floor staff always get the POS tab (sending an order to the bar), even on "Staff only".
-    const canOpen = id => (id === 'pos' && perfil?.role === 'bar_staff') || canOpenTab(access, id)
     return (
       <div className="app-shell is-staff-app">
         <AutoClose bar={bar} />
@@ -2023,7 +2023,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
             tab={tab}
             onTab={selectTab}
             signOut={signOut}
-            canOpen={canOpen}
+            canOpen={canOpenHere}
             renderWork={id => (
               <TabHold>
                 {id === 'pos' && posAccess !== 'none' && (perfil?.role === 'bar_staff' ? <StaffPos bar={bar} /> : <AtomicPosPanel bar={bar} access={posAccess === 'owner' ? 'cashier' : posAccess} />)}
