@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { DEFAULT_RULES, addDays, copyWeekMarks, nightHours, scheduleWeeks, spanLabel, timePresets, weekCheck } from '../../lib/staffSchedule'
+import { DEFAULT_RULES, SHIFTS, addDays, copyWeekMarks, nightHours, scheduleWeeks, shiftOf, spanLabel, timePresets, weekCheck } from '../../lib/staffSchedule'
 import { meAvailability, meSaveAvailability } from '../../lib/staffSelfApi'
 import { errText } from '../../lib/errText'
 import Icon from '../ui/Icon'
@@ -29,6 +29,14 @@ export const END_TIMES = (() => {
   }
   return out
 })()
+
+/** Day shift times: start 06:00 → 17:30, end 08:00 → 24:00, every 30 minutes. */
+const halfHours = (fromMin, count) => Array.from({ length: count }, (_, i) => {
+  const min = fromMin + i * 30
+  return `${pad(Math.floor(min / 60) % 24)}:${min % 60 ? '30' : '00'}`
+})
+export const DAY_START_TIMES = halfHours(6 * 60, 24)
+export const DAY_END_TIMES = halfHours(8 * 60, 33)
 
 const hoursLabel = m => (m?.start ? `${m.start}${m.end ? `–${m.end}` : ''}` : '')
 /** "Oct 19 – 25" (same month) or "Oct 26 – Nov 1". */
@@ -181,7 +189,7 @@ function useScheduleEditor(schedule) {
       for (const [day, mark] of Object.entries(updates)) {
         if (!editable.has(day)) continue
         if (!mark) delete out[day]
-        else out[day] = mark.end ? { start: mark.start, end: mark.end } : { start: mark.start }
+        else out[day] = { ...(mark.end ? { start: mark.start, end: mark.end } : { start: mark.start }), ...(mark.shift === 'day' ? { shift: 'day' } : {}) }
       }
       return out
     })
@@ -213,8 +221,10 @@ function weekProblems(t, check, rules) {
 }
 
 /** Bottom sheet for one night (or every marked night of the week): preset chips, or custom start + end. */
-function TimeSheet({ t, title, sub, mark, presets, needEnd, canRemove, onSave, onRemove, onClose }) {
-  const isPreset = p => mark && p.start === mark.start && p.end === (mark.end || '')
+function TimeSheet({ t, title, sub, mark, openHour, needEnd, canRemove, onSave, onRemove, onClose }) {
+  const [shift, setShift] = useState(shiftOf(mark))
+  const presets = useMemo(() => timePresets(openHour, shift), [openHour, shift])
+  const isPreset = p => mark && shiftOf(mark) === shift && p.start === mark.start && p.end === (mark.end || '')
   // New night: first preset ready (one tap to save). Full mark: its preset or custom. Half mark (no end): nothing picked.
   const startPreset = !mark ? 0 : !mark.end && needEnd ? null : presets.findIndex(isPreset)
   const [pick, setPick] = useState(startPreset === null ? null : startPreset >= 0 ? startPreset : 'custom')
@@ -227,6 +237,13 @@ function TimeSheet({ t, title, sub, mark, presets, needEnd, canRemove, onSave, o
     return () => { window.removeEventListener('keydown', onKey); document.body.classList.remove('sa-lock') }
   }, [onClose])
   const choose = i => { setPick(i); if (i !== 'custom') { setStart(presets[i].start); setEnd(presets[i].end) } }
+  const switchShift = next => {
+    if (next === shift) return
+    const list = timePresets(openHour, next)
+    setShift(next); setPick(0); setStart(list[0].start); setEnd(list[0].end)
+  }
+  const startTimes = shift === 'day' ? DAY_START_TIMES : START_TIMES
+  const endTimes = shift === 'day' ? DAY_END_TIMES : END_TIMES
   const ok = !!start && (!needEnd || !!end)
   const len = nightHours(start, end)
   return (
@@ -240,6 +257,13 @@ function TimeSheet({ t, title, sub, mark, presets, needEnd, canRemove, onSave, o
           </div>
           <button type="button" className="sa-icon-btn" onClick={onClose} aria-label={t('common.close')}><Icon name="close" size={20} /></button>
         </header>
+        <div className="sa-seg sa-shiftseg" role="radiogroup" aria-label={t('schedule.shiftLabel')}>
+          {SHIFTS.map(id => (
+            <button key={id} type="button" role="radio" aria-checked={shift === id} className={shift === id ? 'is-on' : ''} onClick={() => switchShift(id)}>
+              <Icon name={id === 'day' ? 'sun' : 'moon'} size={16} /> {t(`schedule.shift_${id}`)}
+            </button>
+          ))}
+        </div>
         <div className="sa-presets" role="radiogroup" aria-label={t('schedule.pickHours')}>
           {presets.map((p, i) => (
             <button key={`${p.start}-${p.end}`} type="button" role="radio" aria-checked={pick === i} className={pick === i ? 'is-on' : ''} onClick={() => choose(i)}>
@@ -258,20 +282,20 @@ function TimeSheet({ t, title, sub, mark, presets, needEnd, canRemove, onSave, o
               <span>{t('schedule.startAt')}</span>
               <select className="sa-time" value={start} onChange={e => setStart(e.target.value)}>
                 <option value="">{t('schedule.pick')}</option>
-                {START_TIMES.map(tm => <option key={tm} value={tm}>{tm}</option>)}
+                {startTimes.map(tm => <option key={tm} value={tm}>{tm}</option>)}
               </select>
             </label>
             <label>
               <span>{t('schedule.endAt')}{needEnd ? '' : ` ${t('schedule.optional')}`}</span>
               <select className="sa-time" value={end} onChange={e => setEnd(e.target.value)}>
                 <option value="">{needEnd ? t('schedule.pick') : t('schedule.noEnd')}</option>
-                {END_TIMES.map(tm => <option key={tm} value={tm}>{tm}</option>)}
+                {endTimes.map(tm => <option key={tm} value={tm}>{tm}</option>)}
               </select>
             </label>
           </div>
         )}
         <div className="sa-sheet-actions">
-          <button type="button" className="sa-btn is-primary" disabled={!ok} onClick={() => onSave({ start, end })}>
+          <button type="button" className="sa-btn is-primary" disabled={!ok} onClick={() => onSave({ start, end, shift })}>
             <Icon name="check" size={18} /> {ok ? t('schedule.saveNight', { time: `${start}${end ? `–${end}` : ''}`, h: len ? ` · ${t('schedule.hoursN', { n: len })}` : '' }) : t('schedule.pickHours')}
           </button>
           {canRemove && (
@@ -308,7 +332,7 @@ function NightCard({ t, day, today, mark, canEdit, confirmed, problem, onOpen })
       </span>
       {on ? (
         <span className="sa-night-right">
-          <b className="sa-night-time">{hoursLabel(mark) || '—'}</b>
+          <b className="sa-night-time">{shiftOf(mark) === 'day' && <Icon name="sun" size={13} />}{hoursLabel(mark) || '—'}</b>
           {confirmed ? <ConfirmChip t={t} c={confirmed} /> : null}
         </span>
       ) : !canEdit ? <Icon name="lock" size={16} /> : <span className="sa-night-add"><Icon name="plus" size={18} /></span>}
@@ -336,7 +360,6 @@ export function ScheduleScreen({ t, today, schedule, onBack }) {
   const idx = weekIdx ?? (status && !status.submitted ? nextIdx : 0)
   const week = weeks[idx] || []
 
-  const presets = useMemo(() => timePresets(data?.openHour ?? 20), [data?.openHour])
   const changed = data ? [...new Set([...Object.keys(days), ...Object.keys(data.days || {})])]
     .filter(d => editable.has(d) && (!!days[d] !== !!data.days?.[d] || (days[d]?.start || '') !== (data.days?.[d]?.start || '') || (days[d]?.end || '') !== (data.days?.[d]?.end || ''))).length : 0
   const nextCheck = status?.week ? weekCheck(days, { ...status.week, rules: ed.rules }) : null
@@ -461,7 +484,7 @@ export function ScheduleScreen({ t, today, schedule, onBack }) {
           title={sheetDay ? fmtDay(noon(sheetDay), { weekday: 'long', month: 'long', day: 'numeric' }) : t('schedule.sameTime')}
           sub={sheetDay ? t('schedule.sheetLead') : t('schedule.sameTimeLead', { n: markedInWeek.length })}
           mark={sheetDay ? days[sheetDay] : days[markedInWeek[0]]}
-          presets={presets}
+          openHour={data?.openHour ?? 20}
           needEnd={ed.rules.needEnd}
           canRemove={!!(sheetDay && days[sheetDay])}
           onClose={() => setSheet(null)}

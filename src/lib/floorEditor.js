@@ -17,6 +17,80 @@ export const SHAPES = {
 /** Pieces of the room that are not tables: no tab, no seats, not counted in the service view. */
 export const DECOR = new Set(['wall', 'door', 'stage', 'plant'])
 export const isDecor = forma => DECOR.has(forma)
+
+// Names of room pieces nobody sits at, even when a capacity was typed on them (a toilet with 4).
+const NOT_A_SEAT = /toilet|toalete|banheiro|\bwc\b|lavabo|elevat|elevador|entrance|entrada|fridge|geladeira|freezer|locker|\bice\b|gelo|sound|\bsom\b|\bdj\b|storage|ware ?house|estoque|dep[oó]sito|kitchen|cozinha|\bplants?\b|planta|vaso|トイレ|エレベーター/i
+
+/**
+ * Places a tab can be opened on: tables, sofas, counters (always) and rooms (a karaoke VIP drawn as a room piece)
+ * that have seats. Walls, doors, pieces with no seats and service rooms (toilet, elevator, fridge) are not.
+ */
+export function isSeat(t) {
+  if (!t || t.ativo === false || t.forma === 'wall' || t.forma === 'door') return false
+  // A counter always takes orders (walk-ins standing at the bar), even with no seats of its own.
+  if (!((+t.capacidade || 0) > 0) && t.forma !== 'bar') return false
+  return !NOT_A_SEAT.test(String(t.nome || ''))
+}
+
+/** VIP places: rooms and areas named VIP, karaoke or private room (a karaoke room is VIP too). */
+export const isVip = t => /\bvip\b|karaok|カラオケ|個室|privad|private/i.test(String(t?.nome || ''))
+
+/** Toilet rooms, drawn with a toilet and a sink inside. */
+export const isToilet = t => /toilet|toalete|banheiro|\bwc\b|lavabo|restroom|トイレ/i.test(String(t?.nome || ''))
+
+const seatGroup = t => (isVip(t) ? 1 : t.forma === 'plant' ? 2 : 0)
+/** VIP needs a tag next to its name only when the name does not already say VIP (a karaoke room). */
+export const vipTag = t => isVip(t) && !/\bvip\b/i.test(String(t.nome || ''))
+
+/**
+ * Seat places in the order people look for them: tables, then VIP rooms, then counter chairs; by name
+ * inside each, numbers counted (Mesa 2 before Mesa 10).
+ */
+export const seatsOf = tables => (tables || []).filter(isSeat)
+  .sort((a, b) => (seatGroup(a) - seatGroup(b)) || String(a.nome).localeCompare(String(b.nome), undefined, { numeric: true }))
+
+const gapBetween = (a, b) => Math.max(
+  0,
+  Math.max(+a.x, +b.x) - Math.min(+a.x + +a.largura, +b.x + +b.largura),
+  Math.max(+a.y, +b.y) - Math.min(+a.y + +a.altura, +b.y + +b.altura),
+)
+
+/**
+ * The stools in front of each counter: small round, square or plant pieces right next to a counter
+ * (forma 'bar'), not named as a plant. Ordered along each counter, counters in plan order.
+ */
+export function counterChairs(tables) {
+  const counters = (tables || []).filter(t => t.forma === 'bar' && t.ativo !== false)
+    .sort((a, b) => (+a.y - +b.y) || (+a.x - +b.x))
+  if (!counters.length) return []
+  const near = new Map(counters.map(c => [c.id, []]))
+  for (const t of tables) {
+    if (!['plant', 'round', 'square'].includes(t.forma) || t.ativo === false) continue
+    if (/\bplants?\b|planta|vaso/i.test(String(t.nome || ''))) continue
+    const side = Math.max(+t.largura, +t.altura)
+    if (side > 80 || (+t.capacidade || 0) > 1) continue
+    let best = null
+    for (const c of counters) {
+      const g = gapBetween(t, c)
+      if (g <= Math.max(20, side) && (!best || g < best.g)) best = { c, g }
+    }
+    if (best) near.get(best.c.id).push(t)
+  }
+  return counters.flatMap(c => {
+    const wide = +c.largura >= +c.altura
+    return near.get(c.id).sort((a, b) => (wide ? (+a.x - +b.x) || (+a.y - +b.y) : (+a.y - +b.y) || (+a.x - +b.x)))
+  })
+}
+
+/** Turn the counter stools into seats of one: "Chair 1", "Chair 2"... so a tab can be opened per chair. */
+export function numberCounterChairs(state, label = n => `Chair ${n}`) {
+  const order = new Map(counterChairs(state.tables).map((t, i) => [t.id, i + 1]))
+  if (!order.size) return state
+  return {
+    ...state,
+    tables: state.tables.map(t => (order.has(t.id) ? { ...t, nome: label(order.get(t.id)), capacidade: 1 } : t)),
+  }
+}
 export const GRID = 10
 export const MIN_SIZE = 10
 export const TABLE_COLORS = ['', '#3F7F67', '#83B7A0', '#C9A15B', '#B5655B', '#5B7FB5', '#8A6BB5', '#6B7A75']

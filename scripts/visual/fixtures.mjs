@@ -1,8 +1,9 @@
 /** Fictional data for the visual checks only. Nothing here is read by the app in production. */
-export const BAR = { id: '00000000-0000-4000-8000-0000000000b1', nome: 'Bar Demo', cor: '#3F7F67', criado_em: '2026-01-01T00:00:00Z' }
+export const BAR = { id: '00000000-0000-4000-8000-0000000000b1', nome: process.env.BAR_NAME || 'Bar Demo', cor: '#3F7F67', criado_em: '2026-01-01T00:00:00Z' }
 export const BAR2 = { id: '00000000-0000-4000-8000-0000000000b2', nome: 'Lounge Demo', cor: '#C9A15B', criado_em: '2026-01-01T00:00:00Z' }
 export const ADMIN = { id: '00000000-0000-4000-8000-00000000a001', nome: 'Admin Demo', role: 'admin', bar_id: null, email: 'admin@example.com' }
 export const MANAGER = { id: '00000000-0000-4000-8000-00000000a002', nome: 'Gerente Demo', role: 'gerente', bar_id: BAR.id, email: 'gerente@example.com' }
+export const CASHIER = { id: '00000000-0000-4000-8000-00000000a0c1', nome: 'Caixa Demo', role: 'caixa', bar_id: BAR.id, email: 'caixa@example.com' }
 export const STAFF = { id: 'st1', nome: 'Aiko Tanaka', role: 'bar_staff', bar_id: BAR.id, email: 'aiko@example.com' }
 
 const day = n => { const d = new Date(Date.now() - n * 86400000); return d.toISOString().slice(0, 10) }
@@ -72,7 +73,7 @@ vendas[2] = { ...vendas[2], vendas_itens: [{ id: 'vi3', qtd: 2, preco_unitario: 
 
 export const TABLES = {
   bars: [BAR, BAR2],
-  perfis: [ADMIN, MANAGER, { ...STAFF }],
+  perfis: [ADMIN, MANAGER, { ...STAFF }, { ...CASHIER }],
   drink_menu: drinks,
   floor_layouts: [{ id: 'L1', bar_id: BAR.id, nome: 'Salão', ativo: true, largura: 900, altura: 420, versao: 3, criado_em: '2026-10-01T00:00:00Z' }],
   floor_sectors: [{ id: 'S1', bar_id: BAR.id, layout_id: 'L1', nome: 'VIP', cor: '#C9A15B', ordem: 0 }],

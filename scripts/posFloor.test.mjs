@@ -413,16 +413,17 @@ assert.doesNotMatch(authSql, /fornecedor/)
 
 const panel = readFileSync('src/components/AtomicPos.jsx', 'utf8')
 assert.match(panel, /access !== 'cashier'/)
-assert.match(panel, /legacyIsolated/)
 assert.match(sql, /operational_day/)
 assert.match(sql, /reason required/)
-// The till commits through posCommit (one atomic RPC; commitPosSale only as fallback before the migration).
-assert.match(panel, /commitSaleAtomic/)
+// The till (PosQuick, the only checkout) commits through posCommit (one atomic RPC; commitPosSale only as fallback before the migration).
+const quickTill = readFileSync('src/components/pos/PosQuick.jsx', 'utf8')
+assert.match(quickTill, /commitSaleAtomic/)
 const commitSource = readFileSync('src/lib/posCommit.js', 'utf8')
 assert.match(commitSource, /pos_commit_sale/)
 assert.match(commitSource, /commitPosSale/)
-assert.match(panel, /syncPosStockAndReorder/)
+assert.match(quickTill, /syncPosStockAndReorder/)
 assert.match(panel, /PosQuick/)
+assert.doesNotMatch(panel, /PosCheckoutTab|classicTill/)
 
 const at0530 = new Date(tokyoWallToUtcMs(2026, 9, 28, 5, 30)).toISOString()
 const at0600 = new Date(tokyoWallToUtcMs(2026, 9, 28, 6, 0)).toISOString()
@@ -640,18 +641,20 @@ assert.doesNotMatch(quickSource, /pos_void_sale/)
   assert.deepEqual(tonightGlance(), { soldTotal: 0, soldCount: 0, openTotal: 0, openPaid: 0, openCount: 0 })
 }
 
-// The till and the tab panel offer "on account" and require a CRM customer; the classic till blocks discounts without one.
+// The till and the tab panel offer "on account" and require a CRM customer.
 {
   const quick = readFileSync(new URL('../src/components/pos/PosQuick.jsx', import.meta.url), 'utf8')
   const panel = readFileSync(new URL('../src/components/floor/TabPanel.jsx', import.meta.url), 'utf8')
-  const classic = readFileSync(new URL('../src/components/AtomicPos.jsx', import.meta.url), 'utf8')
   assert.match(quick, /discountGuestError/)
   assert.match(quick, /tabOnAccountRows/)
   assert.match(quick, /pq-glance/)
+  // Service charge: None / presets / Other on any order; a server tab saves its % on the tab.
+  assert.match(quick, /SERVICE_PRESETS/)
+  assert.match(quick, /tabsApi\.update\(supabase, srvTab\.id, \{ servicePct: pct \}\)/)
+  assert.doesNotMatch(quick, /serviceOn/)
   assert.doesNotMatch(quick, /pq-night/)
   assert.match(panel, /ON_ACCOUNT/)
   assert.match(panel, /CustomerPicker/)
-  assert.match(classic, /discountGuestError/)
   const live = readFileSync(new URL('../src/lib/barLiveClient.js', import.meta.url), 'utf8')
   const store = readFileSync(new URL('../api/_barLiveStore.js', import.meta.url), 'utf8')
   assert.match(live, /'bar_guest_ledger'/)

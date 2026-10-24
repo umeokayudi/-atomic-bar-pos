@@ -4,6 +4,9 @@
  */
 
 import { presetFor } from './barAccess.js'
+import { tokyoNightKey } from './tokyo.js'
+
+const ATOMIC_BAR_ID = 'b23a5f97-ad4c-4c2a-baa6-72a0d3ba85b9'
 
 /** Bottom tabs, in order. `id` is the /bar/<tab> path that opens it; 'more' opens the full-screen menu. */
 export const STAFF_APP_TABS = [
@@ -104,6 +107,57 @@ export function myClockState(punches = [], meId) {
   return { mine, last, onShift, since: onShift ? last.punched_at : null, openInId: onShift ? (last.id || null) : null }
 }
 
+/**
+ * My hours per bar night from my punches: in → out pairs, each counted on the night of its clock-in.
+ * A shift still open counts up to `now` (an open shift older than 20h is a forgotten clock-out: left out).
+ */
+export function hoursByNight(punches = [], meId, now = Date.now()) {
+  const mine = (punches || [])
+    .filter(p => p && (!meId || p.staff_id === meId) && p.punched_at)
+    .sort((a, b) => Date.parse(a.punched_at) - Date.parse(b.punched_at))
+  const out = {}
+  let open = null
+  const add = (inAt, ms) => {
+    const key = tokyoNightKey(new Date(inAt))
+    out[key] = Math.round(((out[key] || 0) + ms / 3600e3) * 100) / 100
+  }
+  for (const p of mine) {
+    if (p.tipo === 'in') open = p
+    else if (p.tipo === 'out' && open) { add(open.punched_at, Math.max(0, Date.parse(p.punched_at) - Date.parse(open.punched_at))); open = null }
+  }
+  if (open && now - Date.parse(open.punched_at) < 20 * 3600e3) add(open.punched_at, Math.max(0, now - Date.parse(open.punched_at)))
+  return out
+}
+
+const shiftKey = (key, n) => {
+  const [y, m, d] = key.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10)
+}
+
+/**
+ * Hours of one calendar month (YYYY-MM), up to `today` for the current month:
+ *   days: [{ day, hours }] for every day of the month · total · worked (nights with hours)
+ *   perDay: average per worked night · perWeek: total / weeks elapsed (7 days, at least 1).
+ */
+export function monthHoursStats(byNight = {}, monthKey, today = tokyoNightKey()) {
+  const [y, m] = String(monthKey).split('-').map(Number)
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  const first = `${monthKey}-01`
+  const end = `${monthKey}-${String(last).padStart(2, '0')}`
+  const days = []
+  for (let d = first; d <= end; d = shiftKey(d, 1)) days.push({ day: d, hours: +byNight[d] || 0, future: d > today })
+  const counted = days.filter(d => !d.future)
+  const total = Math.round(counted.reduce((a, d) => a + d.hours, 0) * 100) / 100
+  const worked = counted.filter(d => d.hours > 0).length
+  const weeks = Math.max(1, counted.length / 7)
+  return {
+    days, total, worked,
+    perDay: worked ? Math.round((total / worked) * 100) / 100 : 0,
+    perWeek: counted.length ? Math.round((total / weeks) * 100) / 100 : 0,
+    longest: Math.max(0, ...counted.map(d => d.hours)),
+  }
+}
+
 /** Initials for a bar or a person with no picture: "Atomic Bar" → "AB". */
 export function initialsOf(name) {
   const words = String(name || '').trim().split(/\s+/).filter(Boolean)
@@ -117,30 +171,15 @@ export function barBrand(bar) {
   const raw = String(bar?.cor || bar?.color || '').trim()
   const color = /^#[0-9a-f]{6}$/i.test(raw) || /^#[0-9a-f]{3}$/i.test(raw) ? raw : ''
   const logo = String(bar?.logo_url || bar?.logo || '').trim()
+  const name = String(bar?.nome || '').trim()
   return {
-    name: String(bar?.nome || '').trim(),
+    // Atomic's staff app has its own look: red and black, an atom mark in white lines on red.
+    atomic: bar?.id === ATOMIC_BAR_ID || /\batomic\b/i.test(name),
+    name,
     initials: initialsOf(bar?.nome),
     color,
     logo: /^https:\/\//.test(logo) || /^data:image\//.test(logo) ? logo : '',
   }
-}
-
-const BRAND_KEY = 'staff_app_brand'
-
-/** Last bar seen by a staff login on this device (name, initials, colour, logo): the sign-in screen shows it. */
-export function readStaffBrand() {
-  try {
-    const raw = localStorage.getItem(BRAND_KEY)
-    const b = raw ? JSON.parse(raw) : null
-    if (!b || !b.name) return null
-    return barBrand({ nome: b.name, cor: b.color, logo_url: b.logo })
-  } catch {
-    return null
-  }
-}
-
-export function rememberStaffBrand(brand) {
-  try { localStorage.setItem(BRAND_KEY, JSON.stringify({ name: brand.name, initials: brand.initials, color: brand.color, logo: brand.logo })) } catch { /* storage blocked */ }
 }
 
 /**

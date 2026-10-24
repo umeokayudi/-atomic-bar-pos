@@ -8,6 +8,8 @@ import { cardMethodLabel, cardSurcharge, isCardMethod, normalizeCardMachines, pi
 import { ON_ACCOUNT, methodDisplay, onAccountError, onAccountMethod, parseOnAccountMethod } from '../../lib/onAccount'
 import { loadCrmGuests } from '../../lib/onAccountStore'
 import Icon from '../ui/Icon'
+import { seatsOf } from '../../lib/floorEditor'
+import PeopleStepper from './PeopleStepper'
 import CustomerPicker from '../pos/CustomerPicker'
 
 const METHODS = [
@@ -69,6 +71,7 @@ export default function TabPanel({ tab, tabs = [], tables = [], settings = {}, o
               {tab.responsavel_nome ? ` · ${tab.responsavel_nome}` : ''}
             </div>
           </div>
+          {!locked && <PeopleStepper value={+tab.pessoas || 1} onSave={n => act(() => tabsApi.update(supabase, tab.id, { pessoas: n }))} />}
           <button type="button" className="ui-btn is-ghost is-icon" onClick={onClose} aria-label={t('common.close')}><Icon name="close" /></button>
         </div>
 
@@ -381,7 +384,7 @@ function DetailsSection({ tab, tables, tabs, busy, act, money, onClose }) {
       <div className="ui-row">
         <select value={table} onChange={e => setTable(e.target.value)} aria-label={t('tabs.moveTable')}>
           <option value="">{t('tabs.noTable')}</option>
-          {tables.filter(x => x.ativo !== false).map(x => <option key={x.id} value={x.id} disabled={busyTables.has(x.id)}>{x.nome}{busyTables.has(x.id) ? ` (${t('tabs.busy')})` : ''}</option>)}
+          {seatsOf(tables).map(x => <option key={x.id} value={x.id} disabled={busyTables.has(x.id)}>{x.nome}{busyTables.has(x.id) ? ` (${t('tabs.busy')})` : ''}</option>)}
         </select>
         <button type="button" className="ui-btn" disabled={busy || table === (tab.table_id || '')} onClick={() => act(() => tabsApi.moveTable(supabase, tab.id, table || null))}>
           <Icon name="move" size={16} /> {t('tabs.move')}

@@ -1,4 +1,4 @@
-function LogoMark({ size = 40, stroke = 'white', fill = 'white', style }) {
+export function LogoMark({ size = 40, stroke = 'white', fill = 'white', style }) {
   return (
     <svg viewBox="258 173 1484 1484" xmlns="http://www.w3.org/2000/svg" style={{ width: size, height: size, flexShrink: 0, ...style }}>
       <polygon fill="var(--gold)" points="1598.7,273.1 1642,273.1 1642,316.5 1742,416.5 1742,173.1 1498.7,173.1 1598.7,273.1"/>
@@ -14,7 +14,7 @@ export function LogoMobileHeader() {
   return (
     <div className="logo-mobile-header">
       <LogoMark size={30} stroke="white" fill="white" />
-      <span>JBM Drinks</span>
+      <span>JBM</span>
     </div>
   )
 }
@@ -24,8 +24,7 @@ export function LogoSidebar() {
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
       <LogoMark size={40} stroke="white" fill="white" />
       <div style={{ lineHeight: 1 }}>
-        <div style={{ fontSize: 16, fontWeight: 900, color: 'white', letterSpacing: 1 }}>JBM</div>
-        <div style={{ fontSize: 9, color: 'var(--gold)', letterSpacing: 3, textTransform: 'uppercase', marginTop: 3 }}>Drinks</div>
+        <div style={{ fontSize: 18, fontWeight: 900, color: 'white', letterSpacing: 1 }}>JBM</div>
       </div>
     </div>
   )

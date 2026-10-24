@@ -11,14 +11,14 @@ export const HQ_AREAS = [
   { id: 'supply', labelKey: 'navArea.supply', ids: ['purchases', 'fulfillment', 'procurement', 'suppliers'] },
   { id: 'finance', labelKey: 'navArea.finance', ids: ['cashflow', 'faturas', 'relatorio', 'ryoshusho', 'seikyusho'] },
   { id: 'people', labelKey: 'navArea.people', ids: ['payroll', 'profile', 'shifts', 'clock', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary'] },
-  { id: 'growth', labelKey: 'navArea.growth', ids: ['crm', 'marketing', 'consultoria'] },
+  { id: 'growth', labelKey: 'navArea.growth', ids: ['crm', 'barFinance', 'marketing', 'consultoria'] },
   { id: 'settings', labelKey: 'navArea.settings', ids: ['usuarios'] },
 ]
 
 /** Screens that are administrative: they get the "Ask AI" button. */
 export const HQ_ADMIN_TABS = new Set([
   'dashboard', 'billingHub', 'purchases', 'sales', 'pedidos', 'fulfillment', 'procurement', 'relatorio',
-  'products', 'bars', 'usuarios', 'faturas', 'suppliers', 'cashflow', 'payroll', 'crm', 'marketing', 'consultoria',
+  'products', 'bars', 'usuarios', 'faturas', 'suppliers', 'cashflow', 'payroll', 'crm', 'barFinance', 'marketing', 'consultoria',
 ])
 
 /** Bar-portal tabs that are administrative (owner/manager); the till and the clock are not. */
@@ -42,6 +42,7 @@ const MODULE_BY_TAB = {
   marketing: 'marketing', eventos: 'marketing',
   consultoria: 'consulting', bars: 'consulting',
   mesas: 'floor', espacos: 'floor', vip: 'floor', ordens: 'team',
+  barFinance: 'finance',
   ai: 'overview',
 }
 

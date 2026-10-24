@@ -7,10 +7,11 @@
 import { chromium } from '@playwright/test'
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { ADMIN, MANAGER, STAFF, TABLES, BAR_STAFF, PUNCHES } from './fixtures.mjs'
+import { ADMIN, MANAGER, CASHIER, STAFF, TABLES, BAR_STAFF, PUNCHES } from './fixtures.mjs'
 import { castRoster } from '../../src/lib/staffPos.js'
 import { earningsByDay, earningsRange, myGoalStatus, myNightSummary } from '../../src/lib/staffNight.js'
-import { tokyoNightKey } from '../../src/lib/tokyo.js'
+import { tokyoNightKey, tokyoMonthKey } from '../../src/lib/tokyo.js'
+import { barListRow } from '../../src/lib/barFinanceHq.js'
 import { DEFAULT_RULES, addDays, nextWeekOf, scheduleWindow, submissionStatus } from '../../src/lib/staffSchedule.js'
 import {
   monthDashboardStats, buildDashboardAlertas, entregasDetalheForMonth, buildDashboardCalendar,
@@ -26,6 +27,8 @@ const PAGES = [
   { who: ADMIN, path: '/hq/dashboard', name: 'hq-dashboard-rail', rail: true },
   { who: ADMIN, path: '/hq/dashboard', name: 'hq-dashboard-edit', click: /^Customize$/ },
   { who: ADMIN, path: '/hq/crm', name: 'hq-crm' },
+  { who: ADMIN, path: '/hq/barFinance', name: 'hq-bar-finance' },
+  { who: ADMIN, path: `/hq/barFinance?bar=${TABLES.bars[0].id}`, name: 'hq-bar-finance-bar' },
   { who: ADMIN, path: '/hq/marketing', name: 'hq-marketing' },
   { who: ADMIN, path: '/hq/consultoria', name: 'hq-consulting' },
   { who: ADMIN, path: '/hq/ai', name: 'hq-ai-center' },
@@ -69,7 +72,16 @@ const PAGES = [
   { who: MANAGER, path: '/bar/mesas', name: 'bar-floor-edit-3d', edit: true, click: /3D preview/ },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos' },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-counter', click: /Counter/ },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-dashboard', click: /^Dashboard$/ },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-void', click: /^Dashboard$/, then: /^Void$/ },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-order', click: /Counter/, taps: ['.pq-tile-hit', '.pq-tile-hit', '.pq-cartbar'], tapsBelow: 901 },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-lines', click: /Counter/, taps: ['.pq-tile-hit', '.pq-grid .pq-tile:nth-child(2) .pq-tile-hit', '.pq-grid .pq-tile:nth-child(3) .pq-tile-hit', '.pq-grid .pq-tile:nth-child(4) .pq-tile-hit', '.pq-cartbar'] },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-pay', click: /Counter/, taps: ['.pq-tile-hit', '.pq-grid .pq-tile:nth-child(2) .pq-tile-hit', '.pq-cartbar', '.pq-charge'] },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-tab-crm', click: /Counter/, taps: ['.pq-cartbar', '.pq-tab.is-add'] },
+  { who: CASHIER, path: '/bar/pos', name: 'till-kiosk' },
+  { who: CASHIER, path: '/bar/pos', name: 'till-kiosk-pay', taps: ['.pq-tile-hit', '.pq-grid .pq-tile:nth-child(2) .pq-tile-hit', '.pq-grid .pq-tile:nth-child(3) .pq-tile-hit', '.pq-cartbar', '.pq-charge'] },
+  { who: CASHIER, path: '/bar/pos', name: 'till-kiosk-done', taps: ['.pq-tile-hit', '.pq-cartbar', '.pq-charge', '.pq-charge'] },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-done', click: /Counter/, taps: ['.pq-tile-hit', '.pq-cartbar', '.pq-charge', '.pq-charge'] },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-vip', chip: /VIP/ },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-drinkback', chip: /Drink Back/ },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-prices', chip: /Prices/ },
@@ -92,9 +104,9 @@ const PAGES = [
   { who: STAFF, path: '/bar/hoje', name: 'staff-today-only', acessos: ['clock'] },
   { who: STAFF, path: '/bar/goals', name: 'staff-goals' },
   { who: STAFF, path: '/bar/pos', name: 'staff-pos' },
-  { who: STAFF, path: '/bar/pos', name: 'staff-pos-order', taps: ['.pq-tile-hit', '.pq-tile-hit', '.pq-cartbar', '.pq-pay-toggle'], tapsBelow: 901 },
-  { who: STAFF, path: '/bar/pos', name: 'staff-pos-cast', phoneOnly: true, taps: ['.pq-tile-hit', '.pq-cartbar', '.pq-pay-toggle', '.pq-castbtn', '.pq-cast-list button:nth-child(2)'] },
-  { who: STAFF, path: '/bar/pos', name: 'staff-pos-cast-wide', wideOnly: true, taps: ['.pq-tile-hit', '.pq-castbtn', '.pq-cast-list button:nth-child(2)'] },
+  { who: STAFF, path: '/bar/pos', name: 'staff-pos-order', taps: ['.pq-tile-hit', '.pq-tile-hit', '.pq-cartbar', '.pq-charge'], tapsBelow: 901 },
+  { who: STAFF, path: '/bar/pos', name: 'staff-pos-cast', phoneOnly: true, taps: ['.pq-tile-hit', '.pq-cartbar', '.pq-charge', '.pq-castrow-chips button:nth-child(2)'] },
+  { who: STAFF, path: '/bar/pos', name: 'staff-pos-cast-wide', wideOnly: true, taps: ['.pq-tile-hit', '.pq-charge', '.pq-castrow-chips button:nth-child(2)'] },
   { who: STAFF, path: '/bar/pos', name: 'staff-pos-mine', taps: ['.pq-glance.is-mine .is-btn'] },
   { who: STAFF, path: '/bar/performance', name: 'staff-app-performance' },
   { who: STAFF, path: '/bar/ponto', name: 'staff-app-clock' },
@@ -120,6 +132,11 @@ const PAGES = [
   { who: STAFF, path: '/bar/reports', name: 'staff-app-reports' },
   { who: STAFF, path: '/bar/profile', name: 'staff-app-profile' },
   { who: STAFF, path: '/bar/settings', name: 'staff-app-settings' },
+  { who: STAFF, path: '/', name: 'login', loggedOut: true },
+  { who: STAFF, path: '/bar/ponto', name: 'staff-app-hours' },
+  { who: STAFF, path: '/bar/ponto', name: 'staff-app-hours-pick', taps: ['.sa-hchart-bars button.has-h'] },
+  { who: STAFF, path: '/bar/profile', name: 'staff-app-account', taps: ['.sa-line .sa-link'] },
+  { who: STAFF, path: '/bar/schedule', name: 'staff-schedule-dayshift', taps: ['.sa-night:not(.is-locked)', '.sa-shiftseg button'] },
   { who: MANAGER, path: '/bar/inicio', name: 'bar-home' },
   { who: MANAGER, path: '/bar/inicio', name: 'bar-home-rail', rail: true },
 ]
@@ -369,6 +386,18 @@ async function mock(page, who, missing = [], vault = null, acessos = null) {
     if (req.method() === 'GET' && path === '/api/bar/hq-sync') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(hqSnapshot()) })
     }
+    if (req.method() === 'GET' && path === '/api/bar/bar-finance') {
+      const month = tokyoMonthKey()
+      const one = bar => {
+        const hq = { ...hqSnapshot(), mes: month, books: { pos: { amount: 0 }, jbm: { amount: 84000 }, staff: { amount: 152000 }, rent: { amount: 0 } }, payroll: [{ staff_id: 's1', nome: 'Yuki', hours: 62, pay: 93000 }, { staff_id: 's2', nome: 'Ken', hours: 40, pay: 59000 }], jbm: { comprasMes: 84000, totalPendente: 42000, faturasAtraso: 1, openInvoices: [] } }
+        return { bar, month, hq, registry: BAR_STAFF.registry || [], goals: BAR_STAFF.goals || {}, wagesByMonth: {} }
+      }
+      const barId = new URL(req.url()).searchParams.get('bar_id')
+      const body = barId
+        ? one(TABLES.bars.find(b => b.id === barId) || TABLES.bars[0])
+        : { month, bars: TABLES.bars.map((b, i) => (i ? { ...barListRow(b, { hq: { pos: { history: [] }, jbm: {} } }, month) } : barListRow(b, one(b), month))) }
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
+    }
     if (path === '/api/dashboard') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(dashboardPayload()) })
     }
@@ -401,10 +430,10 @@ async function main() {
           await page.addInitScript(rail => { if (rail) localStorage.setItem('jbm_sidebar_collapsed', '1') }, !!pg.rail)
           await page.addInitScript(([s, th]) => {
             sessionStorage.setItem('bebidas_tab_id', 'pw')
-            sessionStorage.setItem('sb-ojirgkqtqvugqktyuhem-auth-pw', JSON.stringify(s))
+            if (s) sessionStorage.setItem('sb-ojirgkqtqvugqktyuhem-auth-pw', JSON.stringify(s))
             localStorage.setItem('jbm_drinks_theme', th)
             localStorage.setItem('jbm_drinks_lang', 'en')
-          }, [session, themeValue])
+          }, [pg.loggedOut ? null : session, themeValue])
           await page.goto(`http://localhost:${PORT}${pg.path}`, { waitUntil: 'networkidle' }).catch(() => {})
           await page.waitForTimeout(900)
           if (pg.edit) {
@@ -422,6 +451,8 @@ async function main() {
             await page.waitForTimeout(800)
           }
           for (const sel of (pg.tapsBelow && width >= pg.tapsBelow ? [] : pg.taps || [])) {
+            // The phone order bar does not exist on wide screens, where the order panel is always open.
+            if (sel === '.pq-cartbar' && !(await page.locator(`${sel}:visible`).count())) continue
             await page.locator(`${sel}:visible`).first().click({ timeout: 5000 }).catch(e => errors.push(`tap ${sel}: ${e.message}`))
             await page.waitForTimeout(300)
           }
