@@ -5,7 +5,7 @@ import { useAuth } from '../Auth'
 import { useAiPageContext } from '../../lib/aiPanel'
 import { DEFAULT_POS_SETTINGS, settingsFromRow } from '../../lib/nightTicket'
 import { TABLE_STATES, floorApi, floorAvailable, floorPlanAvailable, loadOpenTabs, loadTabHistory, newKey, tableState, tabMoney, tabsApi } from '../../lib/comandas'
-import { fitZoom, isSeat } from '../../lib/floorEditor'
+import { fitZoom, isSeat, itemOf } from '../../lib/floorEditor'
 import { tablesInState } from '../../lib/floorStatus'
 import { contentBounds, guestSpots } from '../../lib/floor3d'
 import { fmtYen } from '../utils'
@@ -313,7 +313,7 @@ export default function FloorScreen({ bar, onOpenTill }) {
               <div className="fe-canvas" style={{ width: planBox.w * zoom, height: planBox.h * zoom }}>
                 <div className="fe-plane floor-live" style={{ width: planBox.w, height: planBox.h, transform: `scale(${zoom})`, '--fz': zoom }}>
                   {decor.map(tb => (
-                    <div key={tb.id} className={`fe-table is-${tb.forma} is-decor`} aria-hidden="true"
+                    <div key={tb.id} className={`fe-table is-${tb.forma} is-decor${itemOf(tb) ? ` is-item is-item-${itemOf(tb)}` : ''}`} aria-hidden="true"
                       style={{ left: +tb.x - planBox.x, top: +tb.y - planBox.y, width: +tb.largura, height: +tb.altura, transform: tb.rotacao ? `rotate(${tb.rotacao}deg)` : undefined, '--fe-color': tb.cor || undefined }}>
                       <span className="fe-table-name">{tb.nome}</span>
                     </div>
@@ -328,7 +328,7 @@ export default function FloorScreen({ bar, onOpenTill }) {
                         ))}
                         <button
                           type="button"
-                          className={`fe-table is-${tb.forma} st-${tb.state}${compact ? ' is-compact' : ''}`}
+                          className={`fe-table is-${tb.forma}${itemOf(tb) ? ` is-item is-item-${itemOf(tb)}` : ''} st-${tb.state}${compact ? ' is-compact' : ''}`}
                           style={{ left: 0, top: 0, width: '100%', height: '100%' }}
                           onClick={() => onTable(tb)}
                           aria-label={label}
