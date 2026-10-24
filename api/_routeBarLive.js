@@ -31,6 +31,8 @@ const PG_MENU_TABLES = new Set(['drink_menu', 'bar_pricing', 'bars'])
 const GERENTE_WRITE = new Set(['bar_overhead', 'bar_hq_meta'])
 // The floor plan is drawn by the owner/manager; everyone at the bar can read it.
 const FLOOR_WRITE = new Set(['floor_layouts', 'floor_sectors', 'floor_tables'])
+// The bar's colour and logo are set in HQ → Bars; the bar itself only reads them.
+const HQ_WRITE = new Set(['bar_brand'])
 
 function bodyOf(req) {
   return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
@@ -149,6 +151,9 @@ export default async function handler(req, res) {
       if (role !== 'cliente' && role !== 'gerente') {
         return res.status(403).json({ error: 'Only the manager can write HQ books' })
       }
+    }
+    if (HQ_WRITE.has(table) && (body.mode || 'select') !== 'select' && !['admin', 'jbm'].includes(auth.perfil?.role)) {
+      return res.status(403).json({ error: 'Only HQ can change the bar look' })
     }
     if (FLOOR_WRITE.has(table) && (body.mode || 'select') !== 'select') {
       const role = auth.perfil?.role

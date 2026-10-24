@@ -5,8 +5,7 @@
 
 import { presetFor } from './barAccess.js'
 import { tokyoNightKey } from './tokyo.js'
-
-const ATOMIC_BAR_ID = 'b23a5f97-ad4c-4c2a-baa6-72a0d3ba85b9'
+import { resolveBrand } from './barBrand.js'
 
 /** Bottom tabs, in order. `id` is the /bar/<tab> path that opens it; 'more' opens the full-screen menu. */
 export const STAFF_APP_TABS = [
@@ -166,20 +165,10 @@ export function initialsOf(name) {
   return pick.toUpperCase()
 }
 
-/** The bar's look for the staff app: its logo when stored, else its initials on its colour. */
+/** The bar's look for the staff app: its logo when stored, else the atom (Atomic) or its initials on its colour. */
 export function barBrand(bar) {
-  const raw = String(bar?.cor || bar?.color || '').trim()
-  const color = /^#[0-9a-f]{6}$/i.test(raw) || /^#[0-9a-f]{3}$/i.test(raw) ? raw : ''
-  const logo = String(bar?.logo_url || bar?.logo || '').trim()
-  const name = String(bar?.nome || '').trim()
-  return {
-    // Atomic's staff app has its own look: red and black, an atom mark in white lines on red.
-    atomic: bar?.id === ATOMIC_BAR_ID || /\batomic\b/i.test(name),
-    name,
-    initials: initialsOf(bar?.nome),
-    color,
-    logo: /^https:\/\//.test(logo) || /^data:image\//.test(logo) ? logo : '',
-  }
+  const b = resolveBrand(bar)
+  return { atomic: b.atomic, theme: b.theme, name: b.name, initials: initialsOf(bar?.nome), color: b.color, logo: b.logo }
 }
 
 /**

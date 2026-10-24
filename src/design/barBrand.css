@@ -1,0 +1,144 @@
+/*
+ * Each bar's own look in its app (HQ → Bars): src/components/BarIdentity.jsx sets <html data-bar-brand> and the
+ * --bb-* tokens from src/lib/barBrand.js. Only the bar app sets it, so HQ keeps the JBM emerald.
+ */
+
+/* ── Any picked colour: accent from the colour, chrome (sidebar, top bar) the colour sunk into near-black ── */
+html[data-bar-brand="custom"] {
+  --c-accent: var(--bb-accent);
+  --c-accent-2: var(--bb-accent-2);
+  --c-accent-soft: var(--bb-soft);
+  --c-on-accent: var(--bb-on);
+  --c-focus: var(--bb-accent);
+  --c-chrome: var(--bb-chrome);
+  --c-chrome-2: var(--bb-chrome-2);
+  --c-chrome-3: var(--bb-chrome-3);
+  /* neutral greys instead of the emerald-tinted ones, so the bar colour is the only tint */
+  --c-bg: #F5F5F4;
+  --c-surface-2: #EEEDEB;
+  --c-surface-3: #E3E2DF;
+  --c-text: #161616;
+  --c-text-2: #55534F;
+  --c-text-3: #77746F;
+  --c-border: #E0DEDA;
+  --c-border-2: #CCC9C4;
+}
+html[data-bar-brand="custom"][data-theme="classic"] {
+  --c-accent: var(--bb-accent-d);
+  --c-accent-2: var(--bb-accent-2-d);
+  --c-accent-soft: var(--bb-soft-d);
+  --c-on-accent: var(--bb-on-d);
+  --c-focus: var(--bb-accent-d);
+  --c-bg: #0F0F10;
+  --c-surface: #19191B;
+  --c-surface-2: #222225;
+  --c-surface-3: #2B2B2F;
+  --c-text: #F4F4F4;
+  --c-text-2: #BDBBB8;
+  --c-text-3: #8E8B88;
+  --c-border: rgba(255,255,255,.09);
+  --c-border-2: rgba(255,255,255,.16);
+}
+
+/* ── Atomic: red and black, the same look as its staff app (staffApp.css) ── */
+html[data-bar-brand="atomic"] {
+  --at-red: #D7191F;
+  --at-red-2: #B3121A;
+  --at-black: #0E0E0F;
+  --c-accent: var(--at-red);
+  --c-accent-2: var(--at-red-2);
+  --c-accent-soft: #FBE6E7;
+  --c-on-accent: #FFFFFF;
+  --c-focus: var(--at-red);
+  --c-chrome: var(--at-black);
+  --c-chrome-2: #18181A;
+  --c-chrome-3: #222225;
+  --c-on-chrome: #F5F5F5;
+  --c-bg: #F5F3F3;
+  --c-surface: #FFFFFF;
+  --c-surface-2: #EFEBEB;
+  --c-surface-3: #E4DEDE;
+  --c-text: #141414;
+  --c-text-2: #545050;
+  --c-text-3: #7A7474;
+  --c-border: #E2DCDC;
+  --c-border-2: #CFC7C7;
+}
+html[data-bar-brand="atomic"][data-theme="classic"] {
+  --c-accent: #F0373D;
+  --c-accent-2: #FF5A5F;
+  --c-accent-soft: rgba(240,55,61,.16);
+  --c-focus: #FF5A5F;
+  --c-bg: #0B0B0C;
+  --c-surface: #161618;
+  --c-surface-2: #1F1F22;
+  --c-surface-3: #29292D;
+  --c-text: #F5F5F5;
+  --c-text-2: #BDB8B8;
+  --c-text-3: #8E8888;
+  --c-border: rgba(255,255,255,.09);
+  --c-border-2: rgba(255,255,255,.16);
+}
+/* Red bar on the selected menu item and a red line under the sidebar brand */
+html[data-bar-brand="atomic"] .sidebar .nav-item.active { background: var(--at-red); color: #fff; border-left-color: #fff; }
+html[data-bar-brand="atomic"] .sidebar-brand { border-bottom: 2px solid var(--at-red); }
+html[data-bar-brand="custom"] .sidebar-brand { border-bottom: 2px solid var(--bb-raw); }
+
+/* ── Logo + name block ── */
+.bar-identity { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.bar-identity-text { min-width: 0; line-height: 1.15; }
+.bar-identity-name {
+  font-size: 17px; font-weight: 900; letter-spacing: -0.01em; color: var(--c-on-chrome);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bar-identity-sub { margin-top: 3px; font-size: 11px; font-weight: 600; color: color-mix(in srgb, var(--c-on-chrome) 60%, transparent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-identity.is-topbar { gap: 8px; }
+.bar-identity.is-topbar .bar-identity-name { font-size: 15px; font-weight: 800; }
+.sidebar-brand .bar-identity { flex: 1; }
+.till-kiosk-bar .bar-identity-name { font-size: 22px; line-height: 1.1; }
+@media (max-width: 640px) { .till-kiosk-bar .bar-identity-name { font-size: 18px; } }
+.sidebar.is-collapsed .sidebar-brand .bar-identity { justify-content: center; }
+
+/* Uploaded logos: the whole logo on white, never cropped */
+.sa-barmark.is-logo { background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.08); }
+.sa-barmark.is-logo img { object-fit: contain; }
+
+/* ── HQ → Bars form ── */
+.brand-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px); gap: 20px; align-items: start; }
+@media (max-width: 860px) { .brand-form { grid-template-columns: minmax(0, 1fr); } }
+.brand-fields { display: grid; gap: 14px; min-width: 0; }
+.brand-swatches { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.brand-swatch {
+  width: 36px; height: 36px; min-height: 36px; padding: 0; border-radius: 10px; cursor: pointer;
+  border: 2px solid transparent; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12);
+}
+.brand-swatch.is-on { border-color: var(--c-text); box-shadow: inset 0 0 0 2px var(--c-surface); }
+.brand-swatch-custom { position: relative; overflow: hidden; display: grid; place-items: center; background: conic-gradient(#f03e3e, #fab005, #40c057, #228be6, #be4bdb, #f03e3e); }
+.brand-swatch-custom input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.brand-logo-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.brand-logo-box {
+  width: 64px; height: 64px; border-radius: 14px; display: grid; place-items: center; overflow: hidden; flex: 0 0 auto;
+  background: var(--c-surface-2); border: 1px dashed var(--c-border-2); color: var(--c-text-3);
+}
+.brand-logo-box img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+.brand-hint { font-size: 12px; color: var(--c-text-3); }
+.brand-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Live preview: a small picture of the bar's app top */
+.brand-preview { border-radius: 16px; overflow: hidden; border: 1px solid var(--c-border); background: var(--c-surface); box-shadow: var(--shadow-sm); }
+.brand-preview-top { display: flex; align-items: center; gap: 10px; padding: 14px; }
+.brand-preview-top .bar-identity-name { color: #fff; }
+.brand-preview-top .bar-identity-sub { color: rgba(255,255,255,.62); }
+.brand-preview-body { padding: 14px; display: grid; gap: 10px; }
+.brand-preview-chip { height: 10px; border-radius: 6px; background: var(--c-surface-2); }
+.brand-preview-btn { height: 38px; border-radius: 10px; display: grid; place-items: center; font-size: 13px; font-weight: 800; }
+.brand-preview-nav { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 10px 14px 14px; }
+.brand-preview-nav span { height: 30px; border-radius: 8px; background: var(--c-surface-2); }
+
+.bar-row-mark { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.bar-row-mark strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Staff app dark cards (clock, earnings): the bar's chrome instead of the JBM emerald */
+html[data-bar-brand="custom"] .sa-clock,
+html[data-bar-brand="custom"] .sa-earn { background: radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--bb-raw) 50%, transparent) 0%, transparent 55%), linear-gradient(160deg, var(--bb-chrome-3) 0%, var(--bb-chrome) 70%); }
+html[data-bar-brand="custom"] .sa-clock.is-on { background: radial-gradient(120% 140% at 100% 0%, rgba(52,211,153,.35) 0%, transparent 55%), linear-gradient(160deg, var(--bb-chrome-3) 0%, var(--bb-chrome) 70%); }
