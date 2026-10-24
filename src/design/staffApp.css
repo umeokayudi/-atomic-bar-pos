@@ -1145,13 +1145,6 @@ button.sa-bell-item:hover { background: var(--c-surface-2); }
 .sa-top .sa-bell, .sa-top .sa-me { align-self: center; }
 .sa-top .sa-me .sa-avatar { width: 44px; height: 44px; }
 
-/* Till inside the staff app on a phone: the "View order" bar sits above the bottom tabs, not on them,
-   and the last drinks scroll clear of both. */
-@media (max-width: 900px) {
-  .sa-app button.pq-cartbar { bottom: calc(80px + var(--safe-bottom)); z-index: 39; }
-  .sa-app.is-work .sa-main { padding-bottom: 96px; }
-}
-
 /* Home: the two column groups are invisible on the phone (same order as one list) */
 .sa-home-main, .sa-home-side { display: contents; }
 
@@ -1204,3 +1197,5 @@ button.sa-bell-item:hover { background: var(--c-surface-2); }
 .sa-top-bar:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 4px; border-radius: 12px; }
 .sa-quick-btn:not(.is-primary):hover { background: var(--c-surface); }
 .sa-quick-btn.is-primary:hover { background: var(--c-accent); }
+/* Atomic: the money cards (Results, My pay) black with a red glow, like the clock card */
+.sa-app.is-atomic .sa-earn { background: radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--at-red) 45%, transparent) 0%, transparent 55%), linear-gradient(160deg, #1A1A1C 0%, var(--at-black) 70%); }

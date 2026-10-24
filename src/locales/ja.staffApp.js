@@ -134,6 +134,10 @@ export default {
     },
     perf: {
       salesMonth: '今月の売上',
+      salesOfMonth: 'この月の売上',
+      calendar: '日別の売上',
+      noSales: 'この日の売上はありません',
+      sales: '売上',
       commission: 'バック',
       weekGoal: '週目標：{amount}',
       tonightEmpty: '出勤して販売すると、今夜の成績がここに表示されます。',

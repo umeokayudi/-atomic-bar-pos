@@ -15,6 +15,7 @@ import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
 import { LanguageToggle, ThemeToggle } from '../UiPrefsPanel'
 import { Avatar, Card, Empty, Note, PageHead, Row, Stat, fmtDay, fmtHours, fmtTime } from './staffUi'
+import { MonthCalendar } from './PayHub'
 
 const byNewest = (rows, key = 'created_at') => [...(rows || [])].sort((a, b) => String(b[key] || '').localeCompare(String(a[key] || '')))
 const sumPoints = rows => (rows || []).reduce((s, p) => s + (+p.points || 0), 0)
@@ -63,9 +64,52 @@ function useEarnings(from, to) {
 }
 
 // ── Performance: goals, sales, points, rewards ───────────────────────────────
+/** One day of Results: sales, tickets, commission and hours. */
+function ResultDaySheet({ t, day, row, onClose }) {
+  useEffect(() => {
+    const onKey = e => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  const title = fmtDay(`${day}T12:00:00+09:00`, { weekday: 'long', month: 'long', day: 'numeric' })
+  const r = row || { sales: 0, tickets: 0, commission: 0, hours: 0 }
+  return (
+    <div className="sa-sheet-wrap" role="dialog" aria-modal="true" aria-label={title} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="sa-sheet">
+        <div className="sa-sheet-grip" />
+        <div className="sa-sheet-head">
+          <span className="sa-sheet-icon"><Icon name="result" size={22} /></span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2>{title}</h2>
+            <p>{r.sales > 0 ? t('staffApp.out.tickets', { n: r.tickets || 0 }) : t('staffApp.perf.noSales')}</p>
+          </div>
+        </div>
+        <div className="sa-sheet-body">
+          <Row title={t('staffApp.perf.sales')} value={fmtYen(r.sales || 0)} />
+          <Row title={t('staffApp.perf.commission')} value={fmtYen(r.commission || 0)} tone={r.commission > 0 ? 'good' : undefined} />
+          <Row title={t('employee.workedHours')} value={fmtHours(r.hours || 0)} />
+        </div>
+        <div className="sa-sheet-actions">
+          <button type="button" className="sa-btn is-ghost" onClick={onClose}>{t('common.close')}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function PerformanceScreen({ t, pack, missing, day, onBack }) {
-  const range = earningsRange('month', tokyoDateKey())
+  const today = tokyoDateKey()
+  const [monthKey, setMonthKey] = useState(tokyoMonthKey())
+  const [picked, setPicked] = useState(null)
+  const range = earningsRange('month', `${monthKey}-01`)
   const month = useEarnings(range.from, range.to)
+  const byDay = useMemo(() => Object.fromEntries((month.data?.days || []).map(d => [d.day, d])), [month.data])
+  const cellFor = key => {
+    const d = byDay[key]
+    const sales = +d?.sales || 0
+    return { amount: sales, marks: d && d.hours > 0 ? ['worked'] : [], label: fmtYen(sales) }
+  }
+  const thisMonth = monthKey === tokyoMonthKey()
   const goals = pack?.goals || []
   const points = byNewest(pack?.points)
   const rewards = byNewest(pack?.rewards)
@@ -74,8 +118,9 @@ export function PerformanceScreen({ t, pack, missing, day, onBack }) {
   return (
     <div className="sa-screen">
       <PageHead t={t} title={t('staffApp.tabPerformance')} onBack={onBack} />
+      <MonthNav t={t} value={monthKey} onChange={setMonthKey} />
       <section className="sa-earn" aria-live="polite">
-        <span className="sa-earn-label">{t('staffApp.perf.salesMonth')}</span>
+        <span className="sa-earn-label">{t(thisMonth ? 'staffApp.perf.salesMonth' : 'staffApp.perf.salesOfMonth')}</span>
         <strong className="sa-earn-total">{month.data ? fmtYen(month.data.totals.sales) : month.loading ? '…' : '—'}</strong>
         {month.data && <span className="sa-earn-tag">{t('staffApp.out.tickets', { n: month.data.totals.tickets })}</span>}
         <div className="sa-earn-split">
@@ -84,6 +129,10 @@ export function PerformanceScreen({ t, pack, missing, day, onBack }) {
           <span><small>{t('employee.rewards')}</small><b>{missing ? '—' : fmtYen(approved)}</b></span>
         </div>
       </section>
+      <Card className="sa-card-cal" title={t('staffApp.perf.calendar')} right={<span className="sa-cal-legend"><i className="is-worked" />{t('staffApp.pay.mark_worked')}</span>}>
+        <MonthCalendar t={t} month={monthKey} today={today} label={t('staffApp.perf.calendar')} cellFor={cellFor} onPick={setPicked} />
+      </Card>
+      {picked && <ResultDaySheet t={t} day={picked} row={byDay[picked]} onClose={() => setPicked(null)} />}
       <Card title={t('staffApp.home.tonight')}>
         {g.target > 0 ? (
           <div className="sa-goal">

@@ -115,6 +115,7 @@ const PAGES = [
   { who: STAFF, path: '/bar/pos', name: 'staff-pos-cast-wide', wideOnly: true, taps: ['.pq-tile-hit', '.pq-charge', '.pq-castrow-chips button:nth-child(2)'] },
   { who: STAFF, path: '/bar/pos', name: 'staff-pos-mine', taps: ['.pq-glance.is-mine .is-btn'] },
   { who: STAFF, path: '/bar/performance', name: 'staff-app-performance' },
+  { who: STAFF, path: '/bar/performance', name: 'staff-results-day', taps: ['.sa-cal-cell.has-pay'] },
   { who: STAFF, path: '/bar/ponto', name: 'staff-app-clock' },
   { who: STAFF, path: '/bar/ponto', name: 'staff-app-clock-out', taps: ['.sa-clock-cta'], geo: true },
   { who: STAFF, path: '/bar/ponto', name: 'staff-app-clock-nogps', taps: ['.sa-clock-cta'] },

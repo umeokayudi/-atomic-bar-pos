@@ -134,6 +134,10 @@ export default {
     },
     perf: {
       salesMonth: 'Sales this month',
+      salesOfMonth: 'Sales in this month',
+      calendar: 'Sales by day',
+      noSales: 'No sales this day',
+      sales: 'Sales',
       commission: 'Commission',
       weekGoal: 'Week goal: {amount}',
       tonightEmpty: 'Clock in and sell to see tonight here.',
