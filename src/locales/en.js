@@ -1259,7 +1259,7 @@ export default {
     empty: 'Tap a drink to add it.',
     items: '{n} items',
     total: 'Total',
-    service: 'Service {pct}%',
+    service: 'Service {pct}%', serviceTitle: 'Service charge', serviceNone: 'None', serviceOther: 'Other %', serviceOtherHint: 'Service charge %, 0 to 50',
     exact: 'Exact',
     change: 'Change',
     short: 'Short {amount}',

@@ -5785,3 +5785,16 @@ button.pq-charge {
 /* The till kiosk has its own bar on top, so it skips the phone shell's room for the fixed HQ header. */
 html[data-layout="mobile"] .app-shell.is-till-kiosk .app-main,
 html[data-layout="desktop"] .app-shell.is-till-kiosk .app-main { padding: 12px 14px calc(12px + env(safe-area-inset-bottom)) !important; }
+
+/* Service charge: one line of chips (None, the bar's default and common %, Other) before Pay; scrolls sideways when narrow. */
+.pq-svcrow { display: flex; align-items: center; gap: 8px; flex-shrink: 0; min-width: 0; }
+.pq-svcrow-label { font-size: 12px; font-weight: 700; color: var(--text2); white-space: nowrap; }
+.pq-svcrow-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; min-width: 0; flex: 1; }
+.pq-svcrow-chips::-webkit-scrollbar { display: none; }
+.pq-svcrow-chips > button, .pq-svcrow-other button {
+  flex-shrink: 0; min-height: 38px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--border2);
+  background: var(--bg2); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.pq-svcrow-chips > button.is-on { background: var(--pq-accent); border-color: var(--pq-accent); color: #fff; }
+.pq-svcrow-other { display: flex; gap: 6px; flex-shrink: 0; }
+.pq-svcrow-other input { width: 68px; min-height: 38px; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--pq-accent); background: var(--bg); text-align: center; }

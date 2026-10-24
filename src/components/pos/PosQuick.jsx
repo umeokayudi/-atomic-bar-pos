@@ -37,6 +37,8 @@ const RECEIVE = PAY.filter(row => row.id !== ON_ACCOUNT)
 const COUNTER = 'counter'
 const SRV = 'srv:'
 const POLL_MS = 12000
+// Service charge choices on the till, besides None and the bar's own default %.
+const SERVICE_PRESETS = [5, 10, 15, 20]
 const SALES_POLL_MS = 60000
 
 function readJson(key, fallback) {
@@ -101,7 +103,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
   const staffMe = staff?.me?.id ? staff.me : null
   const defaultCast = useMemo(() => (staffMe ? [staffMe.id] : []), [staffMe])
   const [castIds, setCastIds] = useState(defaultCast)
-  const [serviceOn, setServiceOn] = useState(true)
+  const [svcOther, setSvcOther] = useState(null)
   const machineKey = `pos-card-machine:${bar.id}`
   const [machineId, setMachineId] = useState(() => readJson(machineKey, ''))
   const [spaces, setSpaces] = useState([])
@@ -322,9 +324,12 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
   const tableOrder = active !== COUNTER
   const pendingTotal = cartTotal(cart)
   const drinksTotal = (srvMoney?.drinksTotal || 0) + pendingTotal
+  // Service charge %: a server tab keeps its own; a local order picks one (tables start on the bar's default, the counter on none).
+  const servicePct = srvTab ? +srvTab.service_pct || 0 : Math.max(0, +(order.svc ?? (tableOrder ? settings.service_pct : 0)) || 0)
+  const servicePresets = [...new Set([+settings.service_pct || 0, ...SERVICE_PRESETS].filter(v => v > 0))].sort((a, b) => a - b)
   const charges = srvTab
-    ? ticketChargeLines({ drinksTotal, servicePct: +srvTab.service_pct || 0, roomMin: settings.room_min, spaceType: '' })
-    : ticketChargeLines({ drinksTotal, servicePct: tableOrder && serviceOn ? settings.service_pct : 0, roomMin: settings.room_min, spaceType: space?.tipo || '' })
+    ? ticketChargeLines({ drinksTotal, servicePct, roomMin: settings.room_min, spaceType: '' })
+    : ticketChargeLines({ drinksTotal, servicePct, roomMin: settings.room_min, spaceType: space?.tipo || '' })
   const total = charges.total
   const surchargePaid = srvMoney?.surchargePaid || 0
   const baseDue = Math.max(0, total - ((srvMoney?.paid || 0) - surchargePaid))
@@ -495,6 +500,25 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
     switchTo(COUNTER)
   }
 
+  /** Service charge % for the open order: a server tab saves it on the tab (every device sees it), a local order keeps it. */
+  async function setService(pct) {
+    setErr('')
+    if (!srvTab) {
+      setOrders(prev => ({ ...prev, [active]: { ...(prev[active] || { cart: [] }), svc: pct } }))
+      return
+    }
+    if ((+srvTab.service_pct || 0) === pct) return
+    setBusy(true)
+    try {
+      await tabsApi.update(supabase, srvTab.id, { servicePct: pct })
+      await refreshTabs()
+    } catch (e) {
+      setErr(isConflict(e) ? t('tabs.errConflict') : t('tabs.errGeneric', { error: e.message }))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   /** "Send" for a server tab: pending lines go onto the tab (idempotent per batch). */
   async function sendPending() {
     if (!srvTab || !cart.length) return true
@@ -592,7 +616,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
         cast: castSel.map(p => ({ name: p.nome, id: p.id })),
         commissionBy: castComm.by,
         nightKey: tokyoNightKey(),
-        servicePct: srvTab ? +srvTab.service_pct || 0 : (tableOrder && serviceOn ? settings.service_pct : 0),
+        servicePct,
         roomMin: space?.tipo === 'vip_room' ? settings.room_min : 0,
         commission,
         payNote,
@@ -958,13 +982,31 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
 
           </div>}
 
+          {!paying && (tableOrder || hasSomething) && (
+            <div className="pq-svcrow" role="group" aria-label={t('posQuick.serviceTitle')}>
+              <span className="pq-svcrow-label">{t('posQuick.serviceTitle')}</span>
+              <div className="pq-svcrow-chips">
+                <button type="button" className={servicePct === 0 ? 'is-on' : ''} disabled={busy} onClick={() => setService(0)}>{t('posQuick.serviceNone')}</button>
+                {servicePresets.map(v => (
+                  <button key={v} type="button" className={servicePct === v ? 'is-on' : ''} disabled={busy} onClick={() => setService(v)}>{v}%</button>
+                ))}
+                {servicePct > 0 && !servicePresets.includes(servicePct) && svcOther == null && (
+                  <button type="button" className="is-on" disabled={busy} onClick={() => setSvcOther(String(servicePct))}>{servicePct}%</button>
+                )}
+                {svcOther == null ? (
+                  <button type="button" disabled={busy} onClick={() => setSvcOther('')}>{t('posQuick.serviceOther')}</button>
+                ) : (
+                  <form className="pq-svcrow-other" onSubmit={e => { e.preventDefault(); const v = Math.round((+svcOther || 0) * 10) / 10; if (v >= 0 && v <= 50) { setService(v); setSvcOther(null) } }}>
+                    <input type="number" inputMode="decimal" min="0" max="50" step="0.5" autoFocus value={svcOther} onChange={e => setSvcOther(e.target.value)} aria-label={t('posQuick.serviceOtherHint')} placeholder="%" />
+                    <button type="submit" disabled={busy || svcOther === '' || +svcOther < 0 || +svcOther > 50}>OK</button>
+                  </form>
+                )}
+              </div>
+            </div>
+          )}
+
           {!paying && (tableOrder && !srvTab || cart.length > 0) && (
             <div className="pq-options">
-              {tableOrder && !srvTab && (
-                <button type="button" className={serviceOn ? 'is-on' : ''} onClick={() => setServiceOn(v => !v)}>
-                  {t('posQuick.service', { pct: settings.service_pct })}
-                </button>
-              )}
               <button type="button" className="is-quiet" onClick={() => (srvTab ? setCart([]) : dropActive())}>
                 {tableOrder && !srvTab ? t('posQuick.closeTab') : t('posQuick.clear')}
               </button>
