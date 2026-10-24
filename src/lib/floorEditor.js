@@ -67,6 +67,8 @@ export function counterChairs(tables) {
   for (const t of tables) {
     if (!['plant', 'round', 'square'].includes(t.forma) || t.ativo === false) continue
     if (/\bplants?\b|planta|vaso/i.test(String(t.nome || ''))) continue
+    // A darts board or a TV by the counter is not a stool; a chair item is.
+    if (itemOf(t) && itemOf(t) !== 'chair') continue
     const side = Math.max(+t.largura, +t.altura)
     if (side > 80 || (+t.capacidade || 0) > 1) continue
     let best = null
@@ -92,6 +94,34 @@ export function numberCounterChairs(state, label = n => `Chair ${n}`) {
   }
 }
 export const GRID = 10
+
+/**
+ * Things placed in the room that are not tables: a mirror, a darts board, a chair, a pool table, a game
+ * machine, a TV. The database only knows the shapes above, so an item is a 'plant' piece tagged in
+ * `nota` ("item:darts"). A chair has one seat, so a tab can be opened on it.
+ */
+export const ITEMS = {
+  mirror: { largura: 100, altura: 10, capacidade: 0 },
+  darts: { largura: 50, altura: 10, capacidade: 0 },
+  chair: { largura: 40, altura: 40, capacidade: 1 },
+  pool: { largura: 220, altura: 120, capacidade: 0 },
+  arcade: { largura: 60, altura: 70, capacidade: 0 },
+  tv: { largura: 100, altura: 10, capacidade: 0 },
+}
+const ITEM_RE = /^item:([a-z]+)/
+export const itemOf = t => {
+  if (t?.forma !== 'plant') return null
+  const m = ITEM_RE.exec(String(t.nota || ''))
+  return m && ITEMS[m[1]] ? m[1] : null
+}
+/** A new item piece of `kind`, ready for addTable's extra. */
+export const itemPiece = (kind, nome) => ({ ...ITEMS[kind], forma: 'plant', nota: `item:${kind}`, nome })
+/** Adds an item named "<label> <n>", numbered after the items of that kind already on the plan. */
+export function addItem(state, kind, label) {
+  const used = state.tables.filter(t => itemOf(t) === kind)
+    .map(t => +(String(t.nome || '').match(/(\d+)\s*$/)?.[1] || 0))
+  return addTable(state, 'plant', itemPiece(kind, `${label} ${Math.max(0, ...used) + 1}`))
+}
 export const MIN_SIZE = 10
 export const TABLE_COLORS = ['', '#3F7F67', '#83B7A0', '#C9A15B', '#B5655B', '#5B7FB5', '#8A6BB5', '#6B7A75']
 
@@ -209,6 +239,7 @@ export function toSavePayload(state) {
       largura: Math.round(t.largura), altura: Math.round(t.altura), rotacao: Math.round(t.rotacao || 0),
       capacidade: Math.round(t.capacidade || 0), cor: t.cor || null, ativo: t.ativo !== false,
     }
+    if (t.nota) row.nota = t.nota
     if (!isTemp(t.id)) row.id = t.id
     if (t.sector_id && isTemp(t.sector_id)) row.sector_key = t.sector_id
     else if (t.sector_id) row.sector_id = t.sector_id

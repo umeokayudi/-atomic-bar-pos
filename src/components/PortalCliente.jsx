@@ -9,7 +9,7 @@ import AskAiDrawer, { AskAiButton } from './ai/AskAiDrawer'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import { callGeminiChat, imageDataUrlToParts, parseJsonFromAI } from '../lib/ai'
-import { LogoMark, LogoSidebar } from './Logo'
+import { BarIdentity, useBarTheme } from './BarIdentity'
 import { MobileTopBar, ShellOverlay, WorkspaceChrome, TopbarUser, useMobileMenuLock } from './MobileShell'
 import GlobalSearch from './GlobalSearch'
 import { fmtYen, fmtDate, Spinner, Empty, SectionTitle, isSupplierProduct, filterSupplierVendas, roleLabel } from './utils'
@@ -1921,6 +1921,8 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   const vault = useVaultLock(isGerente(perfil?.role) ? tab : null)
   const aiOn = isGerente(perfil?.role) && BAR_ADMIN_TABS.has(tab) && !vault.locked
   const rail = useSidebarCollapse()
+  // The bar's own colour, logo and name (HQ → Bars) on the whole app while it is open.
+  useBarTheme(bar)
   const navLabel = id => NAV_GROUPS.flatMap(g => g.items).find(n => n.id === id)?.labelKey
 
   useEffect(() => {
@@ -1984,13 +1986,12 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
     return (
       <div className={`app-shell is-till-kiosk${tillKiosk ? ' is-pos' : ' is-clock'}`}>
         <header className="till-kiosk-bar">
-          <div className="till-kiosk-brand">
-            <LogoMark size={36} />
-            <div>
-              <div className="till-kiosk-name">{bar.nome}</div>
-              <div className="till-kiosk-lane">{tillKiosk ? t('auth.lanePos') : t('auth.laneStaff')}{perfil?.nome ? ` · ${perfil.nome}` : ''}</div>
-            </div>
-          </div>
+          <BarIdentity
+            bar={bar}
+            size={36}
+            className="till-kiosk-brand"
+            sub={<span className="till-kiosk-lane">{tillKiosk ? t('auth.lanePos') : t('auth.laneStaff')}{perfil?.nome ? ` · ${perfil.nome}` : ''}</span>}
+          />
           <div className="till-kiosk-actions">
             {/* Owner and manager came here from HQ and need the way back; the till login only gets Sign out. */}
             {tillKiosk && isGerente(perfil?.role) && (
@@ -2060,7 +2061,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
       <MobileTopBar
         open={menuOpen}
         onToggle={() => setMenuOpen(o => !o)}
-        title={<div className="logo-mobile-header"><span style={{ fontSize: 14, fontWeight: 800, color: 'white' }}>{bar.nome}</span></div>}
+        title={<BarIdentity bar={bar} size={30} className="is-topbar" />}
       >
         {aiOn && <AskAiButton />}
         <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
@@ -2068,7 +2069,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
 
       <aside className={`sidebar${menuOpen ? ' open' : ''}${rail.collapsed ? ' is-collapsed' : ''}`}>
         <div className="sidebar-brand">
-          <LogoSidebar />
+          <BarIdentity bar={bar} size={40} className="is-sidebar" sub={perfil?.role ? roleLabel(perfil.role) : null} />
           {rail.allowed && <SidebarCollapseButton collapsed={rail.collapsed} onToggle={rail.toggle} />}
         </div>
         <nav className="sidebar-nav">

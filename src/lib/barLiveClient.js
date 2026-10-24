@@ -30,6 +30,8 @@ export const LIVE_TABLES = new Set([
   'floor_tables',
   // Customer "on account" (ツケ / fiado) ledger. No Postgres table: the live store keeps it in the bar's JSON store.
   'bar_guest_ledger',
+  // Each bar's colour and logo in its app (HQ → Bars). No Postgres table: kept in the live store.
+  'bar_brand',
 ])
 
 const selectCache = new Map()

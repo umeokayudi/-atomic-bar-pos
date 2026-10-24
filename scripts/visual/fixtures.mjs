@@ -73,6 +73,8 @@ vendas[2] = { ...vendas[2], vendas_itens: [{ id: 'vi3', qtd: 2, preco_unitario: 
 
 export const TABLES = {
   bars: [BAR, BAR2],
+  // HQ → Bars look: BRAND_COLOR=#1C7ED6 paints the bar app in that colour (BAR_NAME=Atomic gives the red/black look).
+  bar_brand: process.env.BRAND_COLOR ? [{ id: BAR.id, bar_id: BAR.id, cor: process.env.BRAND_COLOR, logo: null }] : [],
   perfis: [ADMIN, MANAGER, { ...STAFF }, { ...CASHIER }],
   drink_menu: drinks,
   floor_layouts: [{ id: 'L1', bar_id: BAR.id, nome: 'Salão', ativo: true, largura: 900, altura: 420, versao: 3, criado_em: '2026-10-01T00:00:00Z' }],

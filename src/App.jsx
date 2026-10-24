@@ -13,7 +13,7 @@ import { LogoSidebar } from './components/Logo'
 import { MobileTopBar, ShellOverlay, WorkspaceChrome, TopbarUser, useMobileMenuLock } from './components/MobileShell'
 import GlobalSearch from './components/GlobalSearch'
 import { useNotifications, NotificationBell, useOverdueAlerts } from './components/Notifications'
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react'
 import { BrowserRouter, useLocation, useNavigate } from 'react-router-dom'
 import Icon from './components/ui/Icon'
 import { SidebarCollapseButton, useSidebarCollapse } from './lib/sidebarCollapse'
@@ -518,6 +518,8 @@ function Shell() {
   const location = useLocation()
   const navigate = useNavigate()
   const [bar, setBar] = useState(null)
+  const [marca, setMarca] = useState(null)
+  const barShown = useMemo(() => (bar && marca ? { ...bar, marca } : bar), [bar, marca])
   const [menuOpen, setMenuOpen] = useState(false)
   const [pedidosPendentes, setPedidosPendentes] = useState(0)
   const { notifs, unread, markRead, markAllRead, deleteNotif, deleteAll } = useNotifications()
@@ -554,6 +556,11 @@ function Shell() {
         .catch(() => {
           if (!cancelled) setBar({ id: perfil.bar_id, nome: 'Atomic Bar' })
         })
+      // The bar's colour and logo (HQ → Bars) come from the live store; the app draws its default look until they arrive.
+      supabase.from('bar_brand').select('*').eq('bar_id', perfil.bar_id).maybeSingle()
+        .then(({ data }) => {
+          if (!cancelled && data) setMarca(data)
+        }, () => {})
     }
     if (perfil?.role === 'admin') {
       supabase.from('pedidos').select('id', { count:'exact' }).eq('status','pendente')
@@ -587,7 +594,7 @@ function Shell() {
     if (!bar) return <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--navy)',color:'white',flexDirection:'column',gap:16}}><LogoSidebar /><div style={{color:'rgba(255,255,255,0.5)',fontSize:13}}>{t('auth.loadingPortal')}</div></div>
     return (
       <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--navy)', color: 'white' }}>{t('auth.loadingPortal')}</div>}>
-        <PortalCliente bar={bar} signOut={signOut} notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} />
+        <PortalCliente bar={barShown} signOut={signOut} notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} />
       </Suspense>
     )
   }
