@@ -5798,3 +5798,17 @@ html[data-layout="desktop"] .app-shell.is-till-kiosk .app-main { padding: 12px 1
 .pq-svcrow-chips > button.is-on { background: var(--pq-accent); border-color: var(--pq-accent); color: #fff; }
 .pq-svcrow-other { display: flex; gap: 6px; flex-shrink: 0; }
 .pq-svcrow-other input { width: 68px; min-height: 38px; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--pq-accent); background: var(--bg); text-align: center; }
+
+/* Phones: shorter drink tiles so about three rows fit, and the starter hint on one line. */
+@media (max-width: 520px) {
+  .pq-tile-img { aspect-ratio: 16 / 7; font-size: 30px; }
+  .pq-tile-name { padding: 8px 10px 0; font-size: 15px; }
+  .pq-tile-price { padding: 2px 10px 10px; font-size: 17px; }
+  .pq-tile-qty { top: 6px; right: 6px; min-width: 30px; height: 30px; font-size: 15px; }
+  .pq-menu > .pq-hint { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+/* Staff app: the order bar sits above the bottom tabs instead of covering them. */
+@media (max-width: 900px) {
+  .is-staff-app button.pq-cartbar { bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .is-staff-app .pq { padding-bottom: 84px; }
+}
