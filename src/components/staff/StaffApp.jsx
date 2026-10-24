@@ -27,7 +27,8 @@ import { shiftCountdown, spanLabel } from '../../lib/staffSchedule'
 
 const StaffAlerts = lazy(() => import('../StaffAlerts'))
 /** Screens that stay open while next week's schedule is still to send (the rest point to "Send schedule"). */
-export const GATE_FREE = ['hoje', 'ponto', 'schedule', 'profile', 'settings']
+// The till stays open too: an order mid-shift never waits on next week's schedule.
+export const GATE_FREE = ['hoje', 'ponto', 'schedule', 'profile', 'settings', 'pos']
 /** Greeting in English and Japanese at once (Tokyo time): morning 5–12, afternoon 12–18, evening after. */
 export const GREETINGS = {
   morning: { en: 'Good morning', ja: 'おはようございます', icon: 'sun' },
@@ -289,12 +290,17 @@ function HomeScreen({ t, lang, perfil, profile, clock, punch, canClock, day, onT
   const shift = confirmedShift(schedule, punches, meId, today)
   return (
     <div className="sa-screen sa-home">
-      <HomeHello firstName={firstName} lang={lang} />
-      <ScheduleCta t={t} schedule={schedule} onOpen={() => onTab('schedule')} />
-      <ClockCard t={t} clock={clock} punch={punch} canClock={canClock} compact shift={shift} tolerance={schedule?.data?.tolerance} today={today} zangyo={zangyo} onZangyo={onZangyo} />
-      <QuickActions t={t} canPos={canPos} onTab={onTab} />
-      <TonightCard t={t} day={day} onTab={onTab} />
-      <ScheduleHomeCard t={t} schedule={schedule} today={today} onOpen={() => onTab('schedule')} />
+      {/* One column on the phone; on a laptop the clock column and the shortcuts column sit side by side. */}
+      <div className="sa-home-main">
+        <HomeHello firstName={firstName} lang={lang} />
+        <ScheduleCta t={t} schedule={schedule} onOpen={() => onTab('schedule')} />
+        <ClockCard t={t} clock={clock} punch={punch} canClock={canClock} compact shift={shift} tolerance={schedule?.data?.tolerance} today={today} zangyo={zangyo} onZangyo={onZangyo} />
+      </div>
+      <div className="sa-home-side">
+        <QuickActions t={t} canPos={canPos} onTab={onTab} />
+        <TonightCard t={t} day={day} onTab={onTab} />
+        <ScheduleHomeCard t={t} schedule={schedule} today={today} onOpen={() => onTab('schedule')} />
+      </div>
     </div>
   )
 }
@@ -554,7 +560,7 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
   }, [brand.theme])
 
   return (
-    <div className={`sa-app${brand.theme === 'atomic' ? ' is-atomic' : ''}${work ? ' is-work' : ''}${fab ? ' has-fab' : ''}`} style={brand.theme === 'custom' ? { '--sa-brand': brand.color } : undefined}>
+    <div className={`sa-app${brand.theme === 'atomic' ? ' is-atomic' : ''}${shown === 'hoje' ? ' is-home' : ''}${work ? ' is-work' : ''}${fab ? ' has-fab' : ''}`} style={brand.theme === 'custom' ? { '--sa-brand': brand.color } : undefined}>
       <header className="sa-top">
         <button type="button" className="sa-top-bar" onClick={() => go('hoje')} aria-label={t('staffApp.tabHome')}>
           <BarMark brand={brand} size={40} />
