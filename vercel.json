@@ -17,7 +17,7 @@
     { "source": "/api/holding-audit", "destination": "/api/holding/holding-audit" },
     { "source": "/api/cashflow-export", "destination": "/api/holding/cashflow-export" },
     {
-      "source": "/((?!api/|holding/|assets/|logo|favicon\\.svg|favicon\\.ico).*)",
+      "source": "/((?!api/|holding/|assets/|icons/|logo|favicon\\.svg|favicon\\.ico|manifest\\.webmanifest).*)",
       "destination": "/index.html"
     }
   ]

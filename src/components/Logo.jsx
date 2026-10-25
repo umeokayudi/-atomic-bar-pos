@@ -38,3 +38,19 @@ export function LogoLogin() {
     </div>
   )
 }
+
+// Same look as the opening screen in index.html, without the motion: what sits under it while the app still loads.
+export function BootScreen({ children }) {
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 28, padding: 24, textAlign: 'center', color: '#F0F3F0', background: 'radial-gradient(120% 80% at 50% 42%, #1B2B27 0%, #13201D 55%, #0C1513 100%)' }}>
+      <svg viewBox="258 173 1484 1484" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style={{ width: 'clamp(96px, 28vw, 132px)', height: 'auto' }}>
+        <polygon fill="#83B7A0" points="1598.7,273.1 1642,273.1 1642,316.5 1742,416.5 1742,173.1 1498.7,173.1 1598.7,273.1"/>
+        <polygon fill="none" stroke="#F0F3F0" strokeWidth="42" points="1642,457.9 1642,1557.2 358,1557.2 358,273.1 1457.3,273.1 1357.3,173.1 258,173.1 258,1657.2 1742,1657.2 1742,557.9 1642,457.9"/>
+        <path fill="#F0F3F0" d="M841.5,447v283.6c0,48.2-13.1,85-39.2,110.5-26.1,25.5-62.1,38.3-107.8,38.3s-87.4-13.6-116.3-40.7c-29-27.1-43.4-66.2-43.4-117.2h117.8c.4,33.6,12.8,50.4,37,50.4s32.8-13.8,32.8-41.3v-283.6h119Z"/>
+        <path fill="#F0F3F0" d="M891,1194c14.8,19.2,22.2,41.2,22.2,65.9,0,36.4-12.6,65-37.7,85.6-25.1,20.6-60.3,31-105.7,31h-212v-428.2h205.3c43.7,0,78,9.7,102.9,29.2,24.9,19.4,37.4,46.8,37.4,82s-6.6,46.1-19.7,62.9c-13.2,16.8-30.7,28.2-52.5,34.3,25.1,5.7,45,18.1,59.8,37.4ZM676.9,1118.4h60.1c30,0,44.9-12.3,44.9-37s-15-38.3-44.9-38.3h-60.1v75.3ZM791.1,1242.9c0-13-3.9-22.9-11.8-29.8-7.9-6.9-19.1-10.3-33.7-10.3h-68.6v77.7h69.2c30,0,44.9-12.5,44.9-37.7Z"/>
+        <path fill="#F0F3F0" d="M1465.2,948.4v428.2h-119v-236.3l-80.8,236.3h-99.6l-81.4-238.1v238.1h-119v-428.2h143.9l107.5,278.2,105.1-278.2h143.3Z"/>
+      </svg>
+      {children}
+    </div>
+  )
+}

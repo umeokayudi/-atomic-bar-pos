@@ -4,12 +4,13 @@ class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
   static getDerivedStateFromError(e) { return { error: errText(e, e?.message || 'Error') } }
   render() {
-    if (this.state.error) return <div style={{padding:20,color:'red',fontSize:14,background: 'var(--bg2)',minHeight:'100vh'}}><h2>Error</h2><p>{asReactText(this.state.error)}</p></div>
+    if (this.state.error) { hideBootSplash(); return <div style={{padding:20,color:'red',fontSize:14,background: 'var(--bg2)',minHeight:'100vh'}}><h2>Error</h2><p>{asReactText(this.state.error)}</p></div> }
     return this.props.children
   }
 }
 
-import { LogoSidebar } from './components/Logo'
+import { LogoSidebar, BootScreen } from './components/Logo'
+import { hideBootSplash } from './lib/bootSplash'
 import { MobileTopBar, ShellOverlay, WorkspaceChrome, TopbarUser, useMobileMenuLock } from './components/MobileShell'
 import GlobalSearch from './components/GlobalSearch'
 import { useNotifications, NotificationBell, useOverdueAlerts } from './components/Notifications'
@@ -568,12 +569,11 @@ function Shell() {
     }
   }, [perfil])
 
-  if (loading || (user && !perfil)) return (
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16,background:'var(--navy)'}}>
-      <LogoSidebar />
-      <span className="spinner"/>
-    </div>
-  )
+  const booting = loading || (user && !perfil) || (isBarRole(perfil?.role) && perfil?.bar_id && !bar)
+  // Fade out the opening animation once there is a real screen (login, bar portal or HQ) to show.
+  useEffect(() => { if (!booting) hideBootSplash() }, [booting])
+
+  if (loading || (user && !perfil)) return <BootScreen />
 
   if (!user && !perfil) return <LoginPage />
 
@@ -581,19 +581,18 @@ function Shell() {
   if (isBarRole(perfil?.role)) {
     if (!perfil.bar_id) {
       return (
-        <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'var(--navy)', color:'white', flexDirection:'column', gap:16, padding:24, textAlign:'center' }}>
-          <LogoSidebar />
+        <BootScreen>
           <div style={{ fontSize:16, fontWeight:700 }}>{t('auth.accountNotLinked')}</div>
           <div style={{ fontSize:13, color:'rgba(255,255,255,0.55)', maxWidth:360, lineHeight:1.6 }}>
             {t('auth.accountNotLinkedHint')}
           </div>
           <button onClick={signOut} style={{ marginTop:8, padding:'10px 20px', borderRadius:8, border:'1px solid rgba(255,255,255,0.2)', background:'transparent', color:'white', cursor:'pointer' }}>{t('common.signOut')}</button>
-        </div>
+        </BootScreen>
       )
     }
-    if (!bar) return <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--navy)',color:'white',flexDirection:'column',gap:16}}><LogoSidebar /><div style={{color:'rgba(255,255,255,0.5)',fontSize:13}}>{t('auth.loadingPortal')}</div></div>
+    if (!bar) return <BootScreen />
     return (
-      <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--navy)', color: 'white' }}>{t('auth.loadingPortal')}</div>}>
+      <Suspense fallback={<BootScreen />}>
         <PortalCliente bar={barShown} signOut={signOut} notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} />
       </Suspense>
     )
