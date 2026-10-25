@@ -5,12 +5,13 @@ import { fetchAllStockMovements, isRestockPedido } from '../lib/posSupply'
 import { coalesceStockMoves, decorateStockList, deliveryNoteMoves, posPourMoves } from '../lib/barStock'
 import { openOrders, receivedByProduct, receivedTimeline, restockSuggestions, supplyOverview } from '../lib/drinkSupply'
 import { useI18n } from '../lib/i18n'
-import { orderDetailsFromObs } from '../lib/orderMeta'
+import { barNoteFromObs, withBarNote } from '../lib/orderMeta'
 import { tokyoDateKey, tokyoMonthKey, tokyoWallToUtcMs } from '../lib/tokyo'
 import { resolveSalePrice } from '../lib/procurementCore'
 import { schemaMissing } from '../lib/fulfillment'
 import { DeliveryConfirmation, OrderTimeline } from './fulfillment/FulfillmentWidgets'
 import { shiftMonth } from '../lib/barCalendar'
+import OwnOrders from './OwnOrders'
 import { PageHeader } from './ui/PageLayout'
 import Icon from './ui/Icon'
 
@@ -174,7 +175,7 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
     const submitted = await supabase.rpc('submit_bar_order', {
       p_bar_id: bar.id,
       p_need: need,
-      p_obs: obs.trim() || null,
+      p_obs: withBarNote(obs) || null,
       p_items: items.map(it => ({ produto_id: it.produto_id, qtd: it.qtd })),
       p_idempotency_key: idempotencyKey.current,
     })
@@ -267,6 +268,11 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
       value: t('supply.receivedCount', { n: overview.receivedCount }),
       sub: t('supply.thisMonthTotal', { amount: fmtYen(overview.receivedTotal) }),
     },
+    ...(manager ? [{
+      id: 'own', icon: 'package', n: 4, title: t('ownOrders.step'),
+      value: t('ownOrders.stepValue'),
+      sub: t('ownOrders.stepSub'),
+    }] : []),
   ]
 
   return (
@@ -431,7 +437,7 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
         ) : (
           <div className="sup-list">
             {onTheWay.map(p => {
-              const details = orderDetailsFromObs(p.obs)
+              const details = barNoteFromObs(p.obs)
               return (
                 <article key={p.id} className={`ord-card sup-order${p.late ? ' is-late' : ''}`}>
                   <div className="ord-card-top">
@@ -442,6 +448,7 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
                           {p.late ? t('supply.lateSince', { date: fmtDate(String(p.data_entrega_prevista).slice(0, 10)) }) : t('portal.orders.expected', { date: fmtDate(String(p.data_entrega_prevista).slice(0, 10)) })}
                         </div>
                       )}
+                      <div className="ord-card-sub">{t('supply.supplierJbm')}</div>
                       {isRestockPedido(p) && <div className="ord-restock">{t('portal.orders.restockFromCounter')}</div>}
                       {details && !isRestockPedido(p) && <div className="ord-details-box compact">{details}</div>}
                     </div>
@@ -511,7 +518,7 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
                     <div>
                       <div className="ord-card-date">{fmtDate(r.date)}</div>
                       <div className="ord-card-sub">
-                        {t(`supply.kind.${r.kind}`)}
+                        {t(`supply.kind.${r.kind}`)} · {t('supply.supplierJbm')}
                         {r.order && r.kind === 'note' ? ` · ${t('supply.fromOrder', { date: fmtDate(r.order.criado_em?.slice(0, 10) || r.order.data_pedido) })}` : ''}
                       </div>
                     </div>
@@ -534,6 +541,8 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
         </>
       )}
 
+      {step === 'own' && manager && <OwnOrders bar={bar} />}
+
       {orderPreview && (
         <div className="ord-modal-bg" onClick={() => setOrderPreview(null)}>
           <div className="ord-modal wide" onClick={e => e.stopPropagation()}>
@@ -548,9 +557,10 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
             {orderPreview.data_entrega_prevista && (
               <div className="ord-card-sub">{t('portal.orders.expected', { date: orderPreview.data_entrega_prevista })}</div>
             )}
+            <div className="ord-card-sub">{t('supply.supplierJbm')}</div>
             {isRestockPedido(orderPreview) && <div className="ord-restock">{t('portal.orders.restockFromCounter')}</div>}
-            {orderDetailsFromObs(orderPreview.obs) && (
-              <div className="ord-details-box">{orderDetailsFromObs(orderPreview.obs)}</div>
+            {barNoteFromObs(orderPreview.obs) && (
+              <div className="ord-details-box">{barNoteFromObs(orderPreview.obs)}</div>
             )}
             <div className="ord-meta-label" style={{ marginTop: 16 }}>{t('portal.orders.items')}</div>
             {(orderPreview.pedidos_itens || []).map(it => (
@@ -563,7 +573,6 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
               <span>{t('common.total')}</span>
               <span>{fmtYen(orderPreview.total_estimado || 0)}</span>
             </div>
-            <p className="ff-note">{t('fulfillment.hideSupplier')}</p>
             {trackErr && <p className="ff-miss">{trackErr}</p>}
             {track?.public_code && <div className="ord-card-sub">{track.public_code}</div>}
             {Array.isArray(track?.lines) && track.lines.some(line => (line.tasks || []).some(task => task.supplier_marked_delivered && !task.stock_received)) && (

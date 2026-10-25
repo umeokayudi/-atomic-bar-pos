@@ -94,7 +94,11 @@ export const TABLES = {
     { id: 'p1', bar_id: BAR.id, status: 'entregue', data_pedido: day(3), criado_em: day(3), total_estimado: 26400, pedidos_itens: [{ id: 'pi1', produto_id: 'pr1', qtd: 4, preco_unitario: 3300, produtos: { nome: 'Tanqueray Gin' } }, { id: 'pi2', produto_id: 'pr4', qtd: 24, preco_unitario: 550, produtos: { nome: 'Asahi Super Dry' } }] },
     { id: 'p2', bar_id: BAR2.id, status: 'entregue', data_pedido: day(30) },
     { id: 'aaaa1111-p', bar_id: BAR.id, status: 'confirmado', data_pedido: day(1), criado_em: day(1), data_entrega_prevista: day(-2), total_estimado: 41800, pedidos_itens: [{ id: 'pi3', produto_id: 'pr2', qtd: 6, preco_unitario: 4200, produtos: { nome: 'Jameson' } }, { id: 'pi4', produto_id: 'pr5', qtd: 12, preco_unitario: 1383, produtos: { nome: 'Wilkinson Tonic' } }] },
-    { id: 'bbbb2222-p', bar_id: BAR.id, status: 'pendente', data_pedido: day(4), criado_em: day(4), data_entrega_prevista: day(1), total_estimado: 12600, obs: 'Deliver before 17:00 please', pedidos_itens: [{ id: 'pi5', produto_id: 'pr3', qtd: 3, preco_unitario: 4200, produtos: { nome: 'Moët Impérial' } }] },
+    { id: 'bbbb2222-p', bar_id: BAR.id, status: 'pendente', data_pedido: day(4), criado_em: day(4), data_entrega_prevista: day(1), total_estimado: 12600, obs: 'Costco run for this bar\nBar: Deliver before 17:00 please', pedidos_itens: [{ id: 'pi5', produto_id: 'pr3', qtd: 3, preco_unitario: 4200, produtos: { nome: 'Moët Impérial' } }] },
+  ],
+  bar_own_orders: [
+    { id: 'own1', bar_id: BAR.id, fornecedor: 'Sakaya Tanaka', data: day(2), status: 'ordered', total: 3600, obs: 'Pick up Friday', itens: [{ nome: 'Lemons', qtd: 30, preco: 60 }, { nome: 'Limes', qtd: 20, preco: 90 }], criado_em: day(2) },
+    { id: 'own2', bar_id: BAR.id, fornecedor: 'Gyomu Super', data: day(5), status: 'received', total: 2400, itens: [{ nome: 'Ice 3kg', qtd: 8, preco: 300 }], criado_em: day(5) },
   ],
   produtos_public: [
     { id: 'pr1', nome: 'Tanqueray Gin', categoria: 'Gin', volume_ml: 750, preco_venda: 3300, ativo: true },

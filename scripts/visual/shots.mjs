@@ -99,6 +99,8 @@ const PAGES = [
   { who: MANAGER, path: '/bar/energia', name: 'bar-power-old-link' },
   { who: MANAGER, path: '/bar/pedidos', name: 'bar-supply-way', click: /On the way/ },
   { who: MANAGER, path: '/bar/entregas', name: 'bar-supply-received' },
+  { who: MANAGER, path: '/bar/pedidos', name: 'bar-supply-own', click: /Own orders/ },
+  { who: MANAGER, path: '/bar/pedidos', name: 'bar-supply-own-new', click: [/Own orders/, /New own order/] },
   { who: STAFF, path: '/bar/pedidos', name: 'staff-supply' },
   { who: MANAGER, path: '/bar/ordens', name: 'bar-orders' },
   { who: STAFF, path: '/bar/hoje', name: 'staff-today' },
@@ -457,8 +459,10 @@ async function main() {
             await page.waitForTimeout(800)
           }
           if (pg.click) {
-            await page.getByRole('button', { name: pg.click }).first().click({ timeout: 5000 }).catch(e => errors.push(`click: ${e.message}`))
-            await page.waitForTimeout(800)
+            for (const name of [].concat(pg.click)) {
+              await page.getByRole('button', { name }).first().click({ timeout: 5000 }).catch(e => errors.push(`click: ${e.message}`))
+              await page.waitForTimeout(800)
+            }
           }
           for (const sel of (pg.tapsBelow && width >= pg.tapsBelow ? [] : pg.taps || [])) {
             // The phone order bar does not exist on wide screens, where the order panel is always open.
