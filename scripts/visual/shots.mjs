@@ -45,6 +45,7 @@ const PAGES = [
   { who: ADMIN, path: '/hq/bars', name: 'hq-bars' },
   { who: MANAGER, path: '/bar/estoque', name: 'bar-settings-pop', taps: ['.ui-prefs-toggle'] },
   { who: MANAGER, path: '/bar/estoque', name: 'bar-stock' },
+  { who: MANAGER, path: '/bar/estoque', name: 'bar-stock-settings', taps: ['.reorder-per summary'] },
   { who: MANAGER, path: '/bar/custos', name: 'bar-costs' },
   { who: MANAGER, path: '/bar/faturas', name: 'bar-invoices' },
   { who: MANAGER, path: '/bar/pagamentos', name: 'bar-payments' },

@@ -128,6 +128,7 @@ export function decorateStockList(produtos = [], moves = [], regras = {}) {
       low,
       crit,
       good,
+      attention: crit || low || empty,
       unknown: !hasCount,
     }
   })
@@ -137,11 +138,18 @@ export function stockGlance(list = []) {
   const rows = list || []
   return {
     total: rows.length,
-    needAttention: rows.filter(p => p.crit || p.low).length,
+    needAttention: rows.filter(p => p.attention || p.crit || p.low).length,
     wellStocked: rows.filter(p => p.good).length,
     unknown: rows.filter(p => p.unknown).length,
     empty: rows.filter(p => p.empty).length,
   }
+}
+
+/** Out of stock first, then the lowest share of the minimum left, then by name. */
+export function attentionFirst(list = []) {
+  const share = p => (p.stock <= 0 ? -1 : p.minimo > 0 ? p.stock / p.minimo : 1)
+  return (list || []).filter(p => p.attention).sort((a, b) =>
+    share(a) - share(b) || a.stock - b.stock || String(a.nome || '').localeCompare(String(b.nome || '')))
 }
 
 export function stockFlow(moves = []) {

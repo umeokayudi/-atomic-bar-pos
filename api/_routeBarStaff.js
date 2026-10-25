@@ -750,6 +750,20 @@ export default async function handler(req, res) {
       if (body.pedido_min != null) row.pedido_min = Math.max(0, Math.min(999, Math.round(+body.pedido_min || 0)))
       if (body.pedido_em != null) row.pedido_em = String(body.pedido_em || '').slice(0, 10)
       if (body.pedido_feito != null) row.pedido_feito = String(body.pedido_feito || '').slice(0, 10)
+      if (body.pedido_entrega !== undefined) {
+        const day = Math.round(+body.pedido_entrega)
+        row.pedido_entrega = body.pedido_entrega !== null && body.pedido_entrega !== '' && day >= 0 && day <= 6 ? day : null
+      }
+      if (body.pedido_qtds && typeof body.pedido_qtds === 'object') {
+        const qtys = { ...(row.pedido_qtds || {}) }
+        for (const [id, n] of Object.entries(body.pedido_qtds).slice(0, 500)) {
+          const key = String(id).slice(0, 64)
+          const qty = Math.max(0, Math.min(99, Math.round(+n || 0)))
+          if (qty > 0) qtys[key] = qty
+          else delete qtys[key]
+        }
+        row.pedido_qtds = qtys
+      }
       const hourOf = (name, fallback) => ((Math.round(body[name] == null ? fallback : +body[name]) % 24) + 24) % 24
       if (body.abre != null) row.abre = hourOf('abre', 20)
       if (body.corta != null) row.corta = hourOf('corta', 0)
