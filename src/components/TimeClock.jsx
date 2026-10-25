@@ -12,12 +12,13 @@ import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 import { supabase } from '../lib/supabase'
 import { canAccess } from '../lib/barAccess'
-import { prevTokyoDateKey } from '../lib/nightClose'
+import { nightWindow, prevTokyoDateKey } from '../lib/nightClose'
 import { meDay } from '../lib/staffSelfApi'
 import { useClockPunch } from './staff/ClockPunch'
 import { OwnerDayReports, OwnerLocation } from './staff/OwnerStaffTools'
 import OwnerSchedule from './staff/OwnerSchedule'
-import ClockHub, { ClockOverview, useClockView } from './staff/ClockHub'
+import ClockHub, { ClockOverview, StaffFaces, useClockView } from './staff/ClockHub'
+import { staffFileUrls } from '../lib/employeeFileApi'
 
 const SALE_COLS = 'id,total,refunded,criado_em,data,obs,metodo_pagamento,drink_back_agent_id,criado_por'
 const SALE_COLS_SLIM = 'id,total,criado_em,data,obs,metodo_pagamento,drink_back_agent_id,criado_por'
@@ -127,6 +128,15 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
   })
 
   const teamRows = manager ? payrollFromPunches(punches, staff, range, { nightPremium }) : []
+  const todayRows = manager ? payrollFromPunches(punches, staff, nightWindow(), { nightPremium }) : []
+  const [photos, setPhotos] = useState({})
+  const photoKey = staff.map(s => s.foto).filter(Boolean).join('|')
+  useEffect(() => {
+    let alive = true
+    if (!manager || !photoKey) return undefined
+    staffFileUrls(photoKey.split('|')).then(u => { if (alive) setPhotos(p => ({ ...p, ...u })) }).catch(() => {})
+    return () => { alive = false }
+  }, [photoKey, manager])
   const { view, open } = useClockView(manager)
   const [summary, setSummary] = useState({})
   const [fineSignal, setFineSignal] = useState(0)
@@ -176,11 +186,17 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
         />
       )}
       {manager && view === 'home' && (
-        <ClockOverview summary={summary} teamRows={teamRows} loading={loading} onOpen={go} />
+        <ClockOverview
+          summary={summary}
+          teamRows={teamRows}
+          loading={loading}
+          onOpen={go}
+          faces={!loading && <StaffFaces staff={staff} monthRows={teamRows} todayRows={todayRows} photos={photos} showRate={canAccess(perfil, 'payroll')} onOpen={go} />}
+        />
       )}
       {manager && !loading && (
         <div className="clock-part">
-          <OwnerSchedule view={view} onSummary={setSummary} fineSignal={fineSignal} />
+          <OwnerSchedule view={view} onSummary={next => setSummary(p => ({ ...p, ...next }))} fineSignal={fineSignal} />
         </div>
       )}
       {manager && view === 'hours' && (

@@ -387,6 +387,13 @@ export default {
     cameLate: '{min}分遅れて出勤しました',
   },
   clockHub: {
+    team: 'スタッフ',
+    workingN: '勤務中 {n}人',
+    inSince: '{time}から勤務中',
+    today: '今夜',
+    month: '今月',
+    rate: '時給',
+    retry: '再読み込み',
     lead: '今夜・シフト・罰金・勤務時間。ボタンを押すとその項目だけ開きます。',
     nav: 'タイムカードの項目',
     home: '概要',

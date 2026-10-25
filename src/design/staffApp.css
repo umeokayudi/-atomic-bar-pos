@@ -512,7 +512,42 @@ i.is-fine { background: #d97706; }
 .clock-hub-btn.is-on svg { color: #fff; }
 
 .clock-overview { display: grid; gap: 12px; margin-top: 12px; }
-@media (min-width: 900px) { .clock-overview { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: start; } }
+@media (min-width: 900px) {
+  .clock-overview { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); grid-template-areas: 'tiles tonight' 'faces faces'; align-items: start; }
+  .clock-overview > .clock-tiles { grid-area: tiles; }
+  .clock-overview > .clock-tonight { grid-area: tonight; }
+  .clock-overview > .clock-faces { grid-area: faces; }
+}
+.clock-tonight-err { display: grid; gap: 8px; justify-items: start; }
+.clock-tonight-err .pos-sale-err { margin: 0; }
+
+/* Team faces: square photo, name, working or off, tonight / month hours, rate. */
+.clock-faces { display: grid; gap: 12px; }
+.clock-faces-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+@media (max-width: 420px) { .clock-faces-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.clock-face {
+  display: grid; gap: 8px; align-content: start; padding: 8px; min-width: 0; text-align: left; font: inherit; color: var(--c-text);
+  border: 1px solid var(--c-border); border-radius: var(--radius-lg); background: var(--c-surface); cursor: pointer;
+}
+.clock-face:hover { background: var(--c-surface-2); }
+.clock-face.is-open { border-color: var(--c-success); box-shadow: 0 0 0 1px var(--c-success); }
+.clock-face-photo {
+  position: relative; display: grid; place-items: center; aspect-ratio: 1 / 1; width: 100%; overflow: hidden;
+  border-radius: calc(var(--radius-lg) - 4px); background: var(--c-accent-soft); color: var(--c-accent);
+  font-size: clamp(28px, 9vw, 44px); font-weight: 800;
+}
+.clock-face-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.clock-face-photo em {
+  position: absolute; left: 6px; bottom: 6px; max-width: calc(100% - 12px); padding: 3px 8px; border-radius: 999px;
+  font-style: normal; font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: rgba(0, 0, 0, .62); color: #fff;
+}
+.clock-face-photo em.is-on { background: var(--c-success); }
+.clock-face-name { font-size: 15px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
+.clock-face-stats { display: grid; gap: 2px; padding: 6px 8px; border-radius: 8px; background: var(--c-surface-2); }
+.clock-face-stats > span { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; min-width: 0; }
+.clock-face-stats small { font-size: 12px; font-weight: 600; color: var(--c-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.clock-face-stats b { font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .clock-tonight { display: grid; gap: 8px; }
 .clock-tonight-count { margin: 0; font-size: 22px; font-weight: 800; }
 .clock-tonight-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }

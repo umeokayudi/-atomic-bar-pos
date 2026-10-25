@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '../../lib/i18n'
 import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
+import { hoursBetween } from '../../lib/timeClock'
+import { initialsOf } from '../../lib/staffApp'
 import { fmtDay, fmtTime } from './staffUi'
 
 /** The owner's clock page parts, in the order of the buttons. */
@@ -89,7 +91,57 @@ function Tile({ label, value, sub, tone = '', onClick }) {
 }
 
 /** At-a-glance numbers: tonight's list, who is working, late/absent, fines, next week sent, hours and pay. */
-export function ClockOverview({ summary, teamRows, loading, onOpen }) {
+const liveOf = row => {
+  const sh = (row?.shifts || []).find(x => x.open)
+  return sh?.clockIn?.punched_at ? { at: sh.clockIn.punched_at, hours: hoursBetween(sh.clockIn.punched_at, new Date().toISOString()) } : null
+}
+const hoursText = h => `${(Math.round((+h || 0) * 10) / 10).toFixed(1)}h`
+
+/** One square card per person: photo (or initials), name, working or off, hours tonight and this month, rate per hour. */
+export function StaffFaces({ staff, monthRows, todayRows, photos, showRate, onOpen }) {
+  const { t } = useI18n()
+  const month = new Map(monthRows.map(r => [String(r.staff_id), r]))
+  const today = new Map(todayRows.map(r => [String(r.staff_id), r]))
+  const people = staff.map(s => {
+    const m = month.get(String(s.id))
+    const d = today.get(String(s.id))
+    const live = liveOf(m)
+    const extra = live ? live.hours : 0
+    return { ...s, open: !!m?.open, live, today: (d?.hours || 0) + extra, month: (m?.hours || 0) + extra }
+  }).sort((a, b) => (b.open - a.open) || (b.today - a.today) || (b.month - a.month) || String(a.nome || '').localeCompare(String(b.nome || '')))
+  const working = people.filter(p => p.open).length
+  return (
+    <section className="desk-card clock-faces">
+      <div className="osb-head">
+        <h3><Icon name="users" size={17} /> {t('clockHub.team')}</h3>
+        <span className={`sa-chip${working ? ' is-ok' : ''}`}>{t('clockHub.workingN', { n: working })}</span>
+      </div>
+      {!people.length && <p className="desk-note">{t('clock.noStaff')}</p>}
+      <div className="clock-faces-grid">
+        {people.map(p => {
+          const url = p.foto && photos?.[p.foto]
+          const rate = +p.salario_hora || 0
+          return (
+            <button key={p.id} type="button" className={`clock-face${p.open ? ' is-open' : ''}`} onClick={() => onOpen('hours')}>
+              <span className="clock-face-photo">
+                {url ? <img src={url} alt="" loading="lazy" /> : <span>{initialsOf(p.nome || p.email || '?')}</span>}
+                <em className={p.open ? 'is-on' : ''}>{p.open ? t('clockHub.inSince', { time: fmtTime(p.live.at) }) : t('clock.offShift')}</em>
+              </span>
+              <strong className="clock-face-name">{p.nome || p.email || '—'}</strong>
+              <span className="clock-face-stats">
+                <span><small>{t('clockHub.today')}</small><b>{hoursText(p.today)}</b></span>
+                <span><small>{t('clockHub.month')}</small><b>{hoursText(p.month)}</b></span>
+                {showRate && <span><small>{t('clockHub.rate')}</small><b>{rate ? fmtYen(rate) : '—'}</b></span>}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+export function ClockOverview({ summary, teamRows, loading, onOpen, faces }) {
   const { t } = useI18n()
   const tonight = summary.tonight
   const people = tonight?.attendance || []
@@ -109,6 +161,7 @@ export function ClockOverview({ summary, teamRows, loading, onOpen }) {
         <Tile label={t('clockHub.hoursMonth')} value={loading ? dash : `${hours.toFixed(1)}h`} sub={t('clockHub.monthSub')} onClick={() => onOpen('hours')} />
         <Tile label={t('clockHub.payMonth')} value={loading ? dash : fmtYen(pay)} sub={t('clockHub.monthSub')} onClick={() => onOpen('hours')} />
       </div>
+      {faces}
       <section className="desk-card clock-tonight">
         <div className="osb-head">
           <h3><Icon name="calendar" size={17} /> {tonight ? t('clockHub.tonightDay', { day: fmtDay(`${tonight.day}T12:00:00+09:00`, { weekday: 'short', month: 'short', day: 'numeric' }) }) : t('clockHub.tonight')}</h3>
@@ -116,7 +169,13 @@ export function ClockOverview({ summary, teamRows, loading, onOpen }) {
             ? <span className="sa-chip is-ok"><Icon name="check" size={12} /> {t('clockHub.confirmed')}</span>
             : tonight.count > 0 || tonight.marked > 0 ? <span className="sa-chip is-outside">{t('clockHub.notConfirmed')}</span> : null)}
         </div>
-        {!tonight && <p className="desk-note">{t('common.wait')}</p>}
+        {!tonight && summary.boardErr && (
+          <div className="clock-tonight-err">
+            <p className="pos-sale-err">{summary.boardErr}</p>
+            {summary.reloadBoard && <button type="button" className="ui-btn" onClick={() => summary.reloadBoard()}><Icon name="refresh" size={16} /> {t('clockHub.retry')}</button>}
+          </div>
+        )}
+        {!tonight && !summary.boardErr && <p className="desk-note">{t('common.wait')}</p>}
         {tonight && (
           <>
             <p className="clock-tonight-count">{t('clockHub.expected', { n: tonight.count })}</p>
