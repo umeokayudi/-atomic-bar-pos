@@ -8,6 +8,7 @@ import { tokyoMonthKey } from '../lib/tokyo'
 import EmployeeFile from './staff/EmployeeFile'
 import { contractState, initials, isSystemLogin } from '../lib/employeeFile'
 import { staffFileUrls } from '../lib/employeeFileApi'
+import BusinessPartners from './BusinessPartners'
 
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 const LANG_KEYS = ['ja', 'pt', 'en', 'zh', 'ko', 'es']
@@ -655,6 +656,11 @@ export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
         month_key: row.month_key,
         ...profilePayload(row),
         ...costPayload(row),
+        ...(row.kind === 'fornecedor' ? {
+          ultimo_servico: String(row.ultimo_servico || '').slice(0, 10),
+          proximo_servico: String(row.proximo_servico || '').slice(0, 10),
+          custo_por: row.custo_por || '',
+        } : {}),
       }),
     })
     const json = await res.json().catch(() => ({}))
@@ -700,7 +706,10 @@ export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
           onTill={() => onTab?.('pos')}
         />
       )}
-      {spec && (
+      {spec?.kind === 'fornecedor' && (
+        <BusinessPartners registry={registry} busy={busy} onSave={saveRegistry} onDelete={deleteRegistry} onTab={onTab} />
+      )}
+      {spec && spec.kind !== 'fornecedor' && (
         <RegisterBlock
           key={spec.kind}
           spec={spec}

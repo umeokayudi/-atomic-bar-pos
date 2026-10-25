@@ -87,6 +87,15 @@ function costExtras(body) {
   return extra
 }
 
+/** Business partners (kind fornecedor): last and next service day, and what the cost is per. */
+function partnerExtras(body) {
+  const extra = {}
+  if (body.ultimo_servico != null) extra.ultimo_servico = isoDay(body.ultimo_servico)
+  if (body.proximo_servico != null) extra.proximo_servico = isoDay(body.proximo_servico)
+  if (body.custo_por != null) extra.custo_por = ['visit', 'month', 'order'].includes(body.custo_por) ? body.custo_por : ''
+  return extra
+}
+
 function payExtras(body) {
   const extra = {}
   if (body.salario_hora != null) extra.salario_hora = +body.salario_hora || 0
@@ -797,6 +806,7 @@ export default async function handler(req, res) {
         month_key: body.recorrente === false ? String(body.month_key || '') : '',
         ...profileExtras(body),
         ...costExtras(body),
+        ...(kind === 'fornecedor' ? partnerExtras(body) : {}),
       }
       const existing = await runLiveOp(db, {
         table: 'bar_registry',

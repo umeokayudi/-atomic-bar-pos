@@ -6,6 +6,8 @@ import { schemaMissing } from '../lib/fulfillment'
 import { buildOwnOrder, ownOrderTotal, ownOrdersSummary } from '../lib/ownOrders'
 import { tokyoDateKey, tokyoMonthKey } from '../lib/tokyo'
 import { shiftMonth } from '../lib/barCalendar'
+import { loadBarTeam } from '../lib/barTeam'
+import { supplierChoices } from '../lib/partners'
 import Icon from './ui/Icon'
 
 const EMPTY_LINE = { nome: '', qtd: '1', preco: '' }
@@ -27,8 +29,13 @@ export default function OwnOrders({ bar }) {
   const [lines, setLines] = useState([{ ...EMPTY_LINE }])
   const [obs, setObs] = useState('')
   const [mes, setMes] = useState(() => tokyoMonthKey())
+  const [partners, setPartners] = useState([])
 
   useEffect(() => { load() }, [bar]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Business partners the bar registered (drinks, food, ice first); free text still works.
+  useEffect(() => {
+    loadBarTeam().then(j => setPartners(supplierChoices(j?.registry || []))).catch(() => setPartners([]))
+  }, [bar])
 
   async function load() {
     const res = await supabase.from('bar_own_orders').select('*').eq('bar_id', bar.id).order('data', { ascending: false }).order('criado_em', { ascending: false }).limit(300)
@@ -43,7 +50,10 @@ export default function OwnOrders({ bar }) {
     setLoading(false)
   }
 
-  const suppliers = useMemo(() => [...new Set(rows.map(r => r.fornecedor).filter(Boolean))].sort(), [rows])
+  const suppliers = useMemo(() => {
+    const used = rows.map(r => r.fornecedor).filter(Boolean)
+    return [...new Set([...partners.map(p => p.nome), ...used.sort()])]
+  }, [rows, partners])
   const summary = useMemo(() => ownOrdersSummary(rows, mes), [rows, mes])
   const draftTotal = ownOrderTotal(lines)
   const thisMonth = tokyoMonthKey()
@@ -120,6 +130,16 @@ export default function OwnOrders({ bar }) {
               <input type="date" value={data} onChange={e => setData(e.target.value)} />
             </label>
           </div>
+
+          {partners.length > 0 && (
+            <div className="ord-row-scroll" role="group" aria-label={t('ownOrders.partners')}>
+              {partners.map(p => (
+                <button key={p.id} type="button" className={`ord-chip${fornecedor === p.nome ? ' is-on' : ''}`} aria-pressed={fornecedor === p.nome} onClick={() => setFornecedor(p.nome)}>
+                  {p.emoji ? `${p.emoji} ` : ''}{p.nome}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="own-lines">
             <div className="own-line ui-muted" aria-hidden="true" style={{ fontSize: 12 }}>
