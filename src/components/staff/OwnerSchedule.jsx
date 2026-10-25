@@ -436,7 +436,7 @@ export default function OwnerSchedule({ view = 'all', onSummary, fineSignal = 0 
   useEffect(() => {
     if (!onSummary) return
     const live = fines.filter(f => f.status !== 'cancelled')
-    const out = { fines: { count: live.length, total: finesTotal(fines) } }
+    const out = { fines: { count: live.length, total: finesTotal(fines) }, boardErr: board.err || '', boardLoading: !!board.loading, reloadBoard: board.reload }
     if (board.data && weekStart === win.from) {
       const tonight = board.rows.find(r => r.day === today)
       out.tonight = tonight ? { day: today, count: tonight.count, confirmed: !!tonight.confirmed, marked: tonight.marked.length, attendance: tonight.attendance } : { day: today, count: 0, confirmed: false, marked: 0, attendance: [] }
@@ -448,7 +448,7 @@ export default function OwnerSchedule({ view = 'all', onSummary, fineSignal = 0 
       out.nextWeek = { sent: subs.filter(r => r.sent).length, total: subs.length, deadline: deadlineMs(nw.from, ruleSet) }
     }
     onSummary(out)
-  }, [board.data, board.rows, fines, weekStart, team, rules]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [board.data, board.rows, board.err, board.loading, fines, weekStart, team, rules]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const show = part => view === 'all' || view === part
 

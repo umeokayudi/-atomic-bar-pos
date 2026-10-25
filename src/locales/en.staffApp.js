@@ -387,6 +387,13 @@ export default {
     cameLate: 'You clocked in {min} min late',
   },
   clockHub: {
+    team: 'Team',
+    workingN: '{n} working now',
+    inSince: 'In since {time}',
+    today: 'Tonight',
+    month: 'Month',
+    rate: 'Per hour',
+    retry: 'Try again',
     lead: 'Tonight, schedule, fines and hours. Tap a button to open just that part.',
     nav: 'Clock sections',
     home: 'Overview',
