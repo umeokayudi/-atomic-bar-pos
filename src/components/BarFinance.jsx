@@ -5,14 +5,12 @@ import { invalidateBarTeam, loadBarTeam, peekBarTeam } from '../lib/barTeam'
 import { fetchHqSnapshot, peekHqSnapshot } from '../lib/hqSnapshot'
 import {
   WEEK,
-  addDays,
   lastClosedWeek,
   monthBounds,
   paymentAgenda,
   periodReport,
   salaryBoard,
   stillToSell,
-  weekdayOf,
 } from '../lib/barClose'
 import { tokyoNightKey } from '../lib/tokyo'
 import { clockLabel, closeSettings } from '../lib/autoClose'
@@ -20,6 +18,7 @@ import { monthRange, payrollFromPunches, clockStaff } from '../lib/timeClock'
 import StaffPayCards from './StaffPayCards'
 import DayStaffBoard from './DayStaffBoard'
 import StaffDayReport from './StaffDayReport'
+import BarPayPlan from './BarPayPlan'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 import { listFines, listPayouts, markSalaryPaid, unmarkSalaryPaid } from '../lib/staffSelfApi'
@@ -97,11 +96,6 @@ function CloseHours({ goals, busy, onSave }) {
       </p>
     </section>
   )
-}
-
-function mondayOf(date) {
-  const wd = weekdayOf(date)
-  return addDays(date, wd === 0 ? -6 : 1 - wd)
 }
 
 function CloseDoc({ t, current, previous }) {
@@ -387,59 +381,7 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
       )}
 
       {section === 'pagamentos' && (
-        <>
-          <section className="desk-card">
-            <div className="house-editor">
-              <label>
-                {t('portal.pay.salaryDay')}
-                <input type="number" min="1" max="28" value={days.dia_salario} onChange={e => setDays(d => ({ ...d, dia_salario: e.target.value }))} onBlur={() => saveSettings({ dia_salario: days.dia_salario })} />
-              </label>
-              <label>
-                {t('portal.pay.drinkDay')}
-                <input type="number" min="1" max="28" value={days.dia_drink} onChange={e => setDays(d => ({ ...d, dia_drink: e.target.value }))} onBlur={() => saveSettings({ dia_drink: days.dia_drink })} />
-              </label>
-            </div>
-          </section>
-          {(() => {
-            const late = agenda.filter(item => !item.inflow && item.days < 0)
-            if (!late.length) return null
-            const total = late.reduce((sum, item) => sum + (+item.amount || 0), 0)
-            return (
-              <div className="pay-late">
-                <strong>{t('portal.desk.lateAlert', { count: late.length })}</strong>
-                <b>{money(total)}</b>
-              </div>
-            )
-          })()}
-          {!agenda.length && <div className="desk-empty">{t('portal.pay.empty')}</div>}
-          {[...agenda.reduce((map, item) => {
-            const start = mondayOf(item.date)
-            const list = map.get(start) || []
-            list.push(item)
-            map.set(start, list)
-            return map
-          }, new Map()).entries()].sort((a, b) => a[0] < b[0] ? -1 : 1).map(([start, items]) => (
-            <section key={start} className="desk-card">
-              <h3>{t('portal.pay.weekOf', { date: start })}</h3>
-              {items.map(item => (
-                <button key={item.id} type="button" className={`desk-alert ${item.inflow ? 'is-in' : item.days < 0 ? 'is-bad' : item.days <= 7 ? 'is-soon' : ''}`} onClick={() => onTab?.(item.tab)}>
-                  <span>
-                    <strong>{item.title || t(`portal.pay.kind.${item.kind}`)}</strong>
-                    <em>
-                      {item.date}
-                      {' · '}
-                      {item.days < 0 && t('portal.desk.overdue', { days: Math.abs(item.days) })}
-                      {item.days === 0 && t('portal.desk.dueToday')}
-                      {item.days > 0 && t('portal.desk.dueSoon', { days: item.days })}
-                      {item.metodo ? ` · ${t(`house.metodo.${item.metodo}`)}` : ''}
-                    </em>
-                  </span>
-                  <b>{item.inflow ? '+' : ''}{money(item.amount)}</b>
-                </button>
-              ))}
-            </section>
-          ))}
-        </>
+        <BarPayPlan agenda={agenda} goals={goals} today={night} busy={busy} onSave={saveSettings} onTab={onTab} />
       )}
 
       {section === 'salarios' && (

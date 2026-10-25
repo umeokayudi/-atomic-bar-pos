@@ -34,7 +34,8 @@
     "test:sale-credit": "node scripts/saleCredit.test.mjs",
     "test:staff-schedule": "node scripts/staffSchedule.test.mjs",
     "test:pos-void": "node scripts/posVoid.test.mjs",
-    "test:partners": "node scripts/partners.test.mjs"
+    "test:partners": "node scripts/partners.test.mjs",
+    "test:pay-coverage": "node scripts/payCoverage.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
