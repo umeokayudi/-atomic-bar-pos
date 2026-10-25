@@ -408,13 +408,13 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
             )}
 
             <div className="ord-sendbar">
-              <div className="ord-send-kicker">{bottleCount} {t('portal.orders.items')}</div>
-              <div className="ord-send-end">
+              <div className="ord-send-sum">
+                <div className="ord-send-kicker">{bottleCount} {t('portal.orders.items')}</div>
                 <div className="ord-send-total">{fmtYen(totalOrder)}</div>
-                <button type="button" className="btn-primary ord-send-btn" onClick={() => { setOrderErr(''); setSendOpen(true) }} disabled={saving || items.length === 0}>
-                  {t('portal.orders.sendOrder')}
-                </button>
               </div>
+              <button type="button" className="btn-primary ord-send-btn" onClick={() => { setOrderErr(''); setSendOpen(true) }} disabled={saving || items.length === 0}>
+                {t('portal.orders.sendOrder')}
+              </button>
             </div>
             {orderErr && !sendOpen && <div className="pos-sale-err">{orderErr}</div>}
           </div>

@@ -3175,10 +3175,16 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
   position: sticky;
   bottom: 8px;
 }
-.ord-send-kicker { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.72); }
-.ord-send-end { display: flex; align-items: center; gap: 14px; margin-left: auto; }
-.ord-send-total { font-size: 22px; font-weight: 800; color: var(--gold); letter-spacing: -0.3px; }
+.ord-send-sum { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ord-send-kicker { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.72); white-space: nowrap; }
+.ord-send-total { font-size: 22px; font-weight: 800; color: var(--gold); letter-spacing: -0.3px; white-space: nowrap; }
 .ord-send-btn { min-height: 48px; font-size: 15px; padding: 12px 18px; background: var(--gold); color: var(--c-on-accent); border: none; white-space: nowrap; flex-shrink: 0; }
+.ord-sendbar .ord-send-total { overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 360px) {
+  .ord-sendbar { padding: 10px 12px; gap: 10px; }
+  .ord-sendbar .ord-send-total { font-size: 19px; }
+  .ord-send-btn { padding: 12px 14px; }
+}
 .ord-card {
   background: var(--bg2);
   border: 1px solid var(--border);
