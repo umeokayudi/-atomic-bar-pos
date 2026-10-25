@@ -1,24 +1,20 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { useAuth } from './Auth'
 import { fmtYen, Spinner } from './utils'
 import { staffFetch } from '../lib/apiAuth'
 import { filterSupplierVendas } from './utils'
 import { filterJbmDrinksFaturas } from '../lib/barPortal'
 import { monthlyAccountSummary } from '../lib/clientAnalytics'
 import { tokyoMonthKey, recentMonthKeys, isMonthKey } from '../lib/tokyo'
-import { compactYen, monthChipHint, matchHqSearch, matchInvoiceStatus } from '../lib/hqFilters'
-import { payrollFromPunches, monthRange, localHoursPay } from '../lib/timeClock'
+import { payrollFromPunches, monthRange } from '../lib/timeClock'
 import { splitCostBooks } from '../lib/costBooks'
 import { asReactText, errText } from '../lib/errText'
-import { costAccessForRole } from '../lib/access'
-import { buildHqChatSystem, fetchHqSnapshot } from '../lib/hqSnapshot'
+import { fetchHqSnapshot } from '../lib/hqSnapshot'
+import { loadBarTeam, peekBarTeam } from '../lib/barTeam'
+import { buildCostOverview } from '../lib/costOverview'
+import { isKnownCostCategory } from '../lib/costCategories'
 import { useI18n } from '../lib/i18n'
-import AiPromptStrip from './ai/AiPromptStrip'
 import Icon from './ui/Icon'
-import BarOpsGlance from './BarOpsGlance'
-import { buildBarOpsGlance } from '../lib/barOpsGlance'
-import { birthdayThisMonth, decorateSpaces } from '../lib/barCrm'
 
 const ACTIONS = [
   { id: 'pos', icon: 'pos', labelKey: 'portal.home.goPos', hintKey: 'portal.home.goPosHint' },
@@ -126,46 +122,44 @@ export async function loadCostBooks(barId, monthKey) {
   return splitCostBooks({ posMonthTotal, jbmMonthBill: account.contaMes, staffMonthPay, rentMonth })
 }
 
-function HoursCalculator() {
+function CostLine({ line }) {
   const { t } = useI18n()
-  const [hours, setHours] = useState('8')
-  const [lateHours, setLateHours] = useState('2')
-  const [rate, setRate] = useState('1500')
-  const [nightPremium, setNightPremium] = useState(true)
-  const result = localHoursPay({ hours, lateHours, rate, nightPremium })
+  const catLabel = line.category
+    ? (isKnownCostCategory(line.category) ? t(`costForm.cat.${line.category}`) : line.category)
+    : ''
+  const title = line.labelKey ? t(`costView.line.${line.labelKey}`) : (line.name || catLabel)
+  const sub = line.labelKey
+    ? (line.id === 'wages' && line.hours ? t('costView.hours', { n: Number(line.hours).toFixed(1) })
+      : line.id === 'card' ? t('costView.cardSub', { pct: line.pct })
+      : line.id === 'rent' && !line.amount ? t('costView.rentMissing')
+      : t(`costView.sub.${line.labelKey}`))
+    : [catLabel && catLabel !== title ? catLabel : '', t(`costView.group.${line.group}`)].filter(Boolean).join(' · ')
   return (
-    <div className="hq-panel">
-      <div className="hq-panel-title">{t('portal.hq.calcTitle')}</div>
-      <div className="hq-panel-hint">{t('portal.hq.hoursHint')}</div>
-      <div className="hq-calc-grid">
-        <label>{t('portal.hq.calcHours')}<input type="number" min="0" step="0.25" value={hours} onChange={e => setHours(e.target.value)} /></label>
-        <label>{t('portal.hq.calcLate')}<input type="number" min="0" step="0.25" value={lateHours} onChange={e => setLateHours(e.target.value)} /></label>
-        <label>{t('portal.hq.calcRate')}<input type="number" min="0" step="50" value={rate} onChange={e => setRate(e.target.value)} /></label>
+    <li className={`cov-line${line.amount ? '' : ' is-zero'}`}>
+      <span className="cov-emoji" aria-hidden="true">{line.emoji}</span>
+      <div className="cov-line-main">
+        <div className="cov-line-top">
+          <span className="cov-line-name">{title}</span>
+          <span className="cov-line-amt">{fmtYen(line.amount)}</span>
+        </div>
+        <div className="cov-line-sub">
+          <span>{sub}</span>
+          {line.amount > 0 && <span className="cov-line-pct">{line.share}%</span>}
+        </div>
+        <div className="cov-bar" aria-hidden="true"><span style={{ width: `${line.bar}%` }} /></div>
       </div>
-      <button type="button" className={`hq-chip${nightPremium ? ' is-on' : ''}`} onClick={() => setNightPremium(v => !v)}>
-        {t('portal.close.nightPremium')} · {nightPremium ? t('portal.close.nightPremiumOn') : t('portal.close.nightPremiumOff')}
-      </button>
-      <div className="hq-calc-pay">{t('portal.hq.calcPay')}: {fmtYen(result.pay)}</div>
-    </div>
+    </li>
   )
 }
 
-export default function BarCostsTab({ bar, onTab }) {
-  const { perfil } = useAuth()
-  const { t, lang } = useI18n()
-  const access = costAccessForRole(perfil?.role)
+export default function BarCostsTab({ bar }) {
+  const { t } = useI18n()
   const [month, setMonth] = useState(tokyoMonthKey())
-  const [book, setBook] = useState('all')
-  const [jbmView, setJbmView] = useState('notes')
-  const [invoiceStatus, setInvoiceStatus] = useState('pending')
-  const [query, setQuery] = useState('')
-  const [staffFilter, setStaffFilter] = useState('all')
   const [hq, setHq] = useState(null)
   const [books, setBooks] = useState(null)
+  const [registry, setRegistry] = useState(() => peekBarTeam()?.registry || [])
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
-  const [floorGlance, setFloorGlance] = useState(null)
-  const [localOps, setLocalOps] = useState({ invoices: [], openOrders: 0 })
 
   async function load(force = false, mes = month) {
     setErr('')
@@ -184,46 +178,25 @@ export default function BarCostsTab({ bar, onTab }) {
       setHq(snap)
       setBooks(snap.books)
     } catch (e) {
+      setHq(null)
       try {
-        const fallback = await loadCostBooks(bar.id, mes)
-        setBooks(fallback)
-        setErr(errText(e))
+        setBooks(await loadCostBooks(bar.id, mes))
       } catch (e2) {
-        setErr(errText(e2))
+        setErr(errText(e2 || e))
       }
     }
   }
 
   useEffect(() => {
     let cancelled = false
+    setBooks(null)
     load(false, month).catch(e => { if (!cancelled) setErr(errText(e)) })
     return () => { cancelled = true }
   }, [bar.id, month])
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([
-      supabase.from('bar_spaces').select('id,ativo,ordem,tipo,zona').eq('bar_id', bar.id).eq('ativo', true),
-      supabase.from('bar_visits').select('id,space_id,status,guest_id').eq('bar_id', bar.id).in('status', ['seated', 'reserved']),
-      supabase.from('bar_guests').select('id,nome,aniversario,ativo').eq('bar_id', bar.id).eq('ativo', true),
-      supabase.from('faturas').select('*').eq('bar_id', bar.id),
-      supabase.from('pedidos').select('id,status').eq('bar_id', bar.id),
-    ]).then(([spR, viR, guR, fR, pR]) => {
-      if (cancelled) return
-      if (!spR.error) {
-        const floor = decorateSpaces(spR.data || [], viR.data || [])
-        setFloorGlance({
-          seated: floor.filter(s => s.occupied).length,
-          reserved: floor.filter(s => s.reserved).length,
-          free: floor.filter(s => !s.occupied && !s.reserved).length,
-          birthdays: birthdayThisMonth(guR.data || []).length,
-        })
-      }
-      setLocalOps({
-        invoices: filterJbmDrinksFaturas(fR.error ? [] : (fR.data || [])),
-        openOrders: (pR.error ? [] : (pR.data || [])).filter(p => p.status === 'pendente' || p.status === 'confirmado').length,
-      })
-    }).catch(() => { if (!cancelled) setFloorGlance(null) })
+    loadBarTeam().then(team => { if (!cancelled && !team?.error) setRegistry(team.registry || []) }).catch(() => {})
     return () => { cancelled = true }
   }, [bar.id])
 
@@ -233,301 +206,63 @@ export default function BarCostsTab({ bar, onTab }) {
     setBusy(false)
   }
 
-  const payroll = (hq?.payroll || []).filter(r => staffFilter === 'all' || r.staff_id === staffFilter)
-  const months = (hq?.months?.length ? hq.months.map(m => m.key) : recentMonthKeys(6))
-  const monthMeta = key => (hq?.months || []).find(m => m.key === key) || { key, pos: 0, jbm: 0, pedidos: 0 }
-  const monthLabel = d => {
-    const [y, m] = String(d).split('-')
-    const names = t('months.short') || []
-    return `${names[+m - 1] || m} ${y}`
+  const now = tokyoMonthKey()
+  const months = recentMonthKeys(6, now)
+  const monthLabel = (key, withYear = true) => {
+    const [y, m] = String(key).split('-')
+    const name = (t('months.short') || [])[+m - 1] || m
+    return withYear ? `${name} ${y}` : name
   }
-  const show = id => book === 'all' || book === id
-  const loading = !books && !err
-  const emptyBook = book !== 'all'
-    && !(books?.[book]?.amount)
-    && !(book === 'jbm' && (hq?.jbm?.totalPendente || hq?.jbm?.pedidosMes || hq?.jbm?.entregasMes))
-    && !(book === 'pos' && hq?.pos?.salesCount)
-    && !(book === 'staff' && (hq?.hoursTotal || hq?.payroll?.length))
-  const q = query.trim()
-  const notes = (hq?.jbm?.notesMes || []).filter(r => matchHqSearch(r, q))
-  const orders = (hq?.jbm?.pedidosRecentes || []).filter(r => matchHqSearch(r, q))
-  const invoices = (hq?.jbm?.faturasResumo || []).filter(f => matchInvoiceStatus(f, invoiceStatus, month) && matchHqSearch(f, q))
-  const tickets = (hq?.pos?.tickets || []).filter(r => matchHqSearch(r, q))
+  const view = books ? buildCostOverview({ registry, hq, books, monthKey: month }) : null
+  const good = view && view.result >= 0
 
   return (
-    <div className="fade-in portal-page hq-dash">
-      <div className="hq-top">
+    <div className="fade-in portal-page cov">
+      <header className="cov-head">
         <div>
-          <div className="hq-title">{t('portal.costs.title')}</div>
-          <div className="hq-sub">{t('portal.costs.subtitle')}</div>
+          <h1 className="cov-title">{t('costView.title')}</h1>
+          <p className="cov-sub">{t('costView.lead')}</p>
         </div>
-        <button type="button" onClick={syncNow} disabled={busy} className="btn-primary hq-sync">
-          {busy ? t('common.wait') : t('portal.hq.syncNow')}
+        <button type="button" className="cov-sync" onClick={syncNow} disabled={busy} aria-label={t('costView.refresh')} title={t('costView.refresh')}>
+          <Icon name="refresh" size={18} />
         </button>
-      </div>
-      {err && <div style={{ color: 'var(--red)', marginBottom: 12 }}>{asReactText(err)}</div>}
+      </header>
 
-      <BarOpsGlance
-        glance={buildBarOpsGlance({
-          hq,
-          books,
-          floor: floorGlance,
-          openOrders: localOps.openOrders,
-          invoices: localOps.invoices,
-          ready: !!(hq || books),
-        })}
-        onTab={onTab}
-      />
-
-      <div className="hq-filters">
-        <div className="hq-filter-group">
-          <span className="hq-filter-label">{t('portal.hq.filterMonth')}</span>
-          {months.map(m => {
-            const meta = monthMeta(m)
-            const hint = monthChipHint(meta)
-            return (
-              <button key={m} type="button" className={`hq-chip hq-chip-stack${month === m ? ' is-on' : ''}`} onClick={() => setMonth(m)}>
-                <span>{monthLabel(m)}</span>
-                <span className="hq-chip-amt">
-                  {hint.kind === 'jbm' ? compactYen(hint.amount)
-                    : hint.kind === 'pos' ? compactYen(hint.amount)
-                    : hint.kind === 'orders' ? t('portal.hq.ordersCount', { count: hint.pedidos })
-                    : '—'}
-                </span>
-              </button>
-            )
-          })}
-        </div>
-        <div className="hq-filter-group">
-          <span className="hq-filter-label">{t('portal.hq.filterBook')}</span>
-          {[
-            ['all', t('portal.hq.bookAll'), true],
-            ['pos', t('portal.costs.posTill'), access.posTill],
-            ['jbm', t('portal.costs.jbmBill'), access.jbmBill],
-            ['staff', t('portal.costs.staffWages'), access.staffWages],
-            ['rent', t('portal.costs.rent'), access.rent],
-          ].filter(row => row[2]).map(([id, label]) => (
-            <button key={id} type="button" className={`hq-chip${book === id ? ' is-on' : ''}`} onClick={() => setBook(id)}>{label}</button>
-          ))}
-        </div>
-        {(book === 'all' || book === 'jbm') && (
-          <div className="hq-filter-group">
-            <span className="hq-filter-label">{t('portal.hq.filterJbmView')}</span>
-            {[
-              ['notes', t('portal.hq.viewNotes')],
-              ['invoices', t('portal.hq.viewInvoices')],
-              ['orders', t('portal.hq.viewOrders')],
-            ].map(([id, label]) => (
-              <button key={id} type="button" className={`hq-chip${jbmView === id ? ' is-on' : ''}`} onClick={() => { setBook('jbm'); setJbmView(id) }}>{label}</button>
-            ))}
-            {jbmView === 'invoices' && ['pending', 'month', 'overdue', 'all'].map(id => (
-              <button key={id} type="button" className={`hq-chip${invoiceStatus === id ? ' is-on' : ''}`} onClick={() => setInvoiceStatus(id)}>
-                {id === 'all' ? t('portal.hq.statusAll') : id === 'pending' ? t('portal.hq.statusPending') : id === 'month' ? t('portal.hq.statusMonth') : t('portal.hq.statusOverdue')}
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="hq-filter-group">
-          <input
-            className="hq-search"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder={t('portal.hq.search')}
-          />
-        </div>
-        <div className="hq-panel-hint" style={{ margin: '4px 0 0' }}>{t('portal.hq.monthHint')}</div>
+      <div className="cov-months" role="radiogroup" aria-label={t('costView.month')}>
+        {months.map(m => (
+          <button key={m} type="button" role="radio" aria-checked={month === m} className={`cov-month${month === m ? ' is-on' : ''}`} onClick={() => setMonth(m)}>
+            <span className="cov-month-name">{monthLabel(m, false)}</span>
+            <span className="cov-month-year">{m === now ? t('costView.thisMonth') : m.slice(0, 4)}</span>
+          </button>
+        ))}
       </div>
 
-      <div className="hq-actions-label">{t('portal.hq.actionsTitle')}</div>
-      <BarCommandActions onTab={onTab} />
+      {err && <div className="cov-err">{asReactText(err)}</div>}
+      {!view && !err && <Spinner text={t('portal.costs.loading')} />}
 
-      {hq?.sources && (
-        <div className="hq-sources">
-          <span className={`hq-src${hq.sources.pos?.ok ? ' ok' : ' bad'}`}>● {t('portal.hq.sourcePos')} · {t('portal.hq.ticketsCount', { count: hq.sources.pos?.sales || 0 })}</span>
-          <span className={`hq-src${hq.sources.jbm?.ok ? ' ok' : ' bad'}`}>● {t('portal.hq.sourceJbm')} · {t('portal.hq.notesCount', { count: hq.sources.jbm?.vendasMes || 0 })} / {t('portal.hq.ordersCount', { count: hq.sources.jbm?.pedidosMes || 0 })}</span>
-          <span className={`hq-src${hq.sources.clock?.ok ? ' ok' : ' bad'}`}>● {t('portal.hq.sourceClock')} · {hq.hoursTotal || 0}h</span>
-          <span className={`hq-src${hq.sources.rent?.ok ? ' ok' : ' bad'}`}>● {t('portal.hq.sourceRent')}</span>
-          {hq.sources.inventory && (
-            <span className={`hq-src${hq.sources.inventory?.ok ? ' ok' : ' bad'}`}>● {t('portal.hq.sourceStock')} · {t('portal.hq.lowCount', { count: hq.sources.inventory?.low || 0 })}</span>
-          )}
-          {hq.syncedAt && <span className="hq-src muted">{t('portal.hq.synced', { time: new Date(hq.syncedAt).toLocaleString(lang === 'ja' ? 'ja-JP' : 'en-US') })}</span>}
-        </div>
+      {view && (
+        <>
+          <section className={`cov-result ${good ? 'is-good' : 'is-bad'}`} aria-live="polite">
+            <div className="cov-result-k">{t(good ? 'costView.profit' : 'costView.loss')} · {monthLabel(month)}</div>
+            <div className="cov-result-v">{good ? '' : '−'}{fmtYen(Math.abs(view.result))}</div>
+            <div className="cov-sum">
+              <div><span>{t('costView.till')}</span><b>{fmtYen(view.till)}</b><small>{t('costView.tickets', { n: view.tickets })}</small></div>
+              <div className="cov-sum-op" aria-hidden="true">−</div>
+              <div><span>{t('costView.costs')}</span><b>{fmtYen(view.costs)}</b><small>{view.costShare == null ? t('costView.noTill') : t('costView.ofTill', { pct: view.costShare })}</small></div>
+            </div>
+          </section>
+
+          <section className="cov-card">
+            <div className="cov-card-head">
+              <h2>{t('costView.breakdown')}</h2>
+              <span>{fmtYen(view.costs)}</span>
+            </div>
+            <ul className="cov-lines">
+              {view.lines.map(line => <CostLine key={line.id} line={line} />)}
+            </ul>
+          </section>
+        </>
       )}
-
-      {loading && <Spinner text={t('portal.costs.loading')} />}
-      {books && <CostBooksHero books={books} access={access} selected={book} onSelect={setBook} />}
-
-      {books && emptyBook && (
-        <div className="hq-empty" style={{ marginBottom: 12 }}>{t('portal.hq.emptyMonth')}</div>
-      )}
-
-      <div className="hq-layout">
-        <div>
-          {show('staff') && (
-            <div className="hq-panel">
-              <div className="hq-panel-row">
-                <div>
-                  <div className="hq-panel-title">{t('portal.hq.hoursTitle')}</div>
-                  <div className="hq-panel-hint">{t('portal.hq.hoursHint')}</div>
-                </div>
-                <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)}>
-                  <option value="all">{t('portal.hq.staffAll')}</option>
-                  {(hq?.payroll || []).map(r => <option key={r.staff_id} value={r.staff_id}>{r.nome}</option>)}
-                </select>
-              </div>
-              {!payroll.length ? (
-                <div className="hq-empty">{t('portal.hq.noPunches')}</div>
-              ) : (
-                <div className="table-scroll">
-                  <table style={{ width: '100%', fontSize: 13 }}>
-                    <thead>
-                      <tr>{[t('clock.colName'), t('clock.colHours'), t('portal.hq.colLate'), t('clock.colPay')].map(h => <th key={h} style={{ textAlign: 'left', padding: 8 }}>{h}</th>)}</tr>
-                    </thead>
-                    <tbody>
-                      {payroll.map(r => (
-                        <tr key={r.staff_id} style={{ borderTop: '1px solid var(--border)' }}>
-                          <td style={{ padding: 8, fontWeight: 700 }}>{r.nome}<div style={{ fontSize: 11, color: 'var(--text2)' }}>{r.cargo} · {fmtYen(r.salario_hora)}/h</div></td>
-                          <td>{Number(r.hours || 0).toFixed(2)}h</td>
-                          <td>{Number(r.lateHours || 0).toFixed(2)}h</td>
-                          <td style={{ fontWeight: 800 }}>{fmtYen(r.pay)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-          {show('staff') && <HoursCalculator />}
-          {show('rent') && access.rent && (
-            <div className="hq-panel">
-              <div className="hq-panel-title">{t('portal.costs.rent')}</div>
-              <div className="hq-panel-hint">{t('portal.costs.booksLead')}</div>
-              <div className="hq-kpis">
-                <div><b>{fmtYen(hq?.rent?.amount || books?.rent?.amount || 0)}</b><span>{t('portal.costs.rent')}</span></div>
-              </div>
-              <div className="goal-modes">
-                {[
-                  ['fixo', 'house.fixedCosts'],
-                  ['variavel', 'house.variableCosts'],
-                  ['cartao', 'house.card'],
-                  ['contador', 'house.accountant'],
-                  ['imposto', 'house.tax'],
-                  ['salarios', 'nav.portalSalary'],
-                  ['staff', 'house.staffTitle'],
-                ].map(([id, key]) => (
-                  <button key={id} type="button" className="hq-chip" onClick={() => onTab?.(id)}>{t(key)}</button>
-                ))}
-              </div>
-            </div>
-          )}
-          {show('jbm') && hq?.jbm && (
-            <div className="hq-panel">
-              <div className="hq-panel-title">{t('portal.hq.sourceJbm')} · {monthLabel(month)}</div>
-              <div className="hq-kpis">
-                <div><b>{fmtYen(hq.jbm.comprasMes)}</b><span>{t('portal.hq.viewNotes')}</span></div>
-                <div><b>{fmtYen(hq.jbm.totalPendente)}</b><span>{t('portal.hq.openAr')}</span></div>
-                <div><b>{hq.jbm.pedidosMes || 0}</b><span>{t('portal.hq.viewOrders')}</span></div>
-              </div>
-              {hq.jbm.gap?.kind === 'orders-other-date' && (
-                <div className="hq-gap">{t('portal.hq.ordersOtherDate', { count: hq.jbm.gap.orderCount, month: monthLabel(month), amount: fmtYen(hq.jbm.gap.orderAmount), bill: fmtYen(hq.jbm.comprasMes) })}</div>
-              )}
-              <div className="hq-panel-hint">{t('portal.hq.openInvoicesHint')}</div>
-              {!!hq.jbm.estoqueBaixo?.length && (
-                <div className="hq-empty">{t('portal.hq.lowStock')}: {hq.jbm.estoqueBaixo.map(e => `${e.nome || e.id} ${e.qtd}/${e.minimo}`).join(' · ')}</div>
-              )}
-              {jbmView === 'notes' && (
-                notes.length ? (
-                  <div className="table-scroll">
-                    <table style={{ width: '100%', fontSize: 13 }}>
-                      <thead><tr><th>{t('portal.hq.colDate')}</th><th>{t('portal.hq.colNote')}</th><th></th></tr></thead>
-                      <tbody>
-                        {notes.map(n => (
-                          <tr key={n.id} style={{ borderTop: '1px solid var(--border)' }}>
-                            <td style={{ padding: 8 }}>{n.data}</td>
-                            <td>{n.obs || '—'}</td>
-                            <td style={{ fontWeight: 800 }}>{fmtYen(n.total)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : <div className="hq-empty">{t('portal.hq.emptyNotes')}</div>
-              )}
-              {jbmView === 'orders' && (
-                orders.length ? (
-                  <div className="table-scroll">
-                    <table style={{ width: '100%', fontSize: 13 }}>
-                      <thead><tr><th>{t('portal.hq.colDate')}</th><th>{t('portal.hq.colNote')}</th><th></th></tr></thead>
-                      <tbody>
-                        {orders.map(n => (
-                          <tr key={n.id || n.criado + n.total} style={{ borderTop: '1px solid var(--border)' }}>
-                            <td style={{ padding: 8 }}>{n.criado}</td>
-                            <td>{n.status} · {n.obs || '—'}</td>
-                            <td style={{ fontWeight: 800 }}>{fmtYen(n.total)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : <div className="hq-empty">{t('portal.hq.emptyOrders')}</div>
-              )}
-              {jbmView === 'invoices' && (
-                invoices.length ? (
-                  <div className="table-scroll">
-                    <table style={{ width: '100%', fontSize: 13 }}>
-                      <thead><tr><th>{t('portal.hq.colDate')}</th><th>{t('portal.hq.colNote')}</th><th></th></tr></thead>
-                      <tbody>
-                        {invoices.map((n, i) => (
-                          <tr key={n.vencimento + i} style={{ borderTop: '1px solid var(--border)' }}>
-                            <td style={{ padding: 8 }}>{n.vencimento}<div style={{ fontSize: 11, color: 'var(--text2)' }}>{n.periodo}</div></td>
-                            <td>{n.status}{n.inMonth ? ` · ${t('portal.hq.inThisMonth')}` : ` · ${t('portal.hq.otherMonth')}`}</td>
-                            <td style={{ fontWeight: 800 }}>{fmtYen(n.remain ?? n.total)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : <div className="hq-empty">{invoiceStatus === 'month' ? t('portal.hq.emptyInvoicesMonth') : t('portal.hq.openInvoicesHint')}</div>
-              )}
-              <button type="button" className="hq-chip" style={{ marginTop: 10 }} onClick={() => onTab?.(jbmView === 'orders' ? 'pedidos' : 'faturas')}>{jbmView === 'orders' ? t('portal.hq.linkOrders') : t('portal.hq.linkJbm')}</button>
-            </div>
-          )}
-          {show('pos') && hq?.pos && (
-            <div className="hq-panel">
-              <div className="hq-panel-title">{t('portal.costs.posTill')} · {monthLabel(month)}</div>
-              <div className="hq-kpis">
-                <div><b>{fmtYen(hq.pos.till)}</b><span>{t('portal.hq.filterMonth')}</span></div>
-                <div><b>{hq.pos.salesCount || 0}</b><span>{t('atomicPos.tabCheckout')}</span></div>
-              </div>
-              {tickets.length ? (
-                <div className="table-scroll">
-                  <table style={{ width: '100%', fontSize: 13 }}>
-                    <thead><tr><th>{t('portal.hq.colDate')}</th><th>{t('portal.hq.colNote')}</th><th></th></tr></thead>
-                    <tbody>
-                      {tickets.map((n, i) => (
-                        <tr key={(n.data || '') + i} style={{ borderTop: '1px solid var(--border)' }}>
-                          <td style={{ padding: 8 }}>{n.data}</td>
-                          <td>{n.obs || '—'}</td>
-                          <td style={{ fontWeight: 800 }}>{fmtYen(n.total)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : <div className="hq-empty">{t('portal.hq.emptyTickets')}</div>}
-              <button type="button" className="hq-chip" style={{ marginTop: 10 }} onClick={() => onTab?.('pos')}>{t('portal.hq.linkPos')}</button>
-            </div>
-          )}
-        </div>
-        <AiPromptStrip
-          title={t('portal.hq.aiSlot')}
-          hint={t('portal.hq.aiSlotHint')}
-          prompts={[t('portal.hq.aiChipPos'), t('portal.hq.aiChipJbm'), t('portal.hq.aiChipHours'), t('portal.hq.aiChipRent')]}
-          notes={hq ? buildHqChatSystem(hq) : ''}
-          module="finance"
-        />
-      </div>
     </div>
   )
 }
