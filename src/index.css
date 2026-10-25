@@ -6016,3 +6016,8 @@ html[data-layout="desktop"] .app-shell.is-till-kiosk .app-main { padding: 12px 1
 .pay-days summary { cursor: pointer; font-weight: 800; font-size: 14px; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .pay-days summary span { font-weight: 600; color: var(--text2); font-size: 13px; }
 .pay-days[open] summary { margin-bottom: 10px; }
+/* New tab sheet: the people stepper on its own labelled line. Tab bar: people count, tap to change. */
+.pq-sheet-people { display: flex; align-items: center; }
+.pq-sheet-people .f3-people .ui-btn { min-width: 44px; min-height: 44px; }
+.pq-sheet-people .f3-people input { width: 56px; height: 44px; font-size: 17px; }
+button.pq-tabbar-people { border: 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }

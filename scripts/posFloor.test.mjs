@@ -652,6 +652,8 @@ assert.doesNotMatch(quickSource, /pos_void_sale/)
   assert.match(quick, /SERVICE_PRESETS/)
   assert.match(quick, /tabsApi\.update\(supabase, srvTab\.id, \{ servicePct: pct \}\)/)
   assert.doesNotMatch(quick, /serviceOn/)
+  // Atomic: service only None / 10% / 25%, no Other %.
+  assert.match(quick, /match: \/atomic\/i, presets: \[10, 25\]/)
   assert.doesNotMatch(quick, /pq-night/)
   assert.match(panel, /ON_ACCOUNT/)
   assert.match(panel, /CustomerPicker/)

@@ -26,6 +26,7 @@ import TabPanel from '../floor/TabPanel'
 import { seatsOf, vipTag } from '../../lib/floorEditor'
 import CustomerPicker from './CustomerPicker'
 import { meDay } from '../../lib/staffSelfApi'
+import PeopleStepper from '../floor/PeopleStepper'
 
 const PAY = [
   { id: 'Cash', key: 'atomicPos.payCash', icon: 'payCash' },
@@ -39,6 +40,13 @@ const SRV = 'srv:'
 const POLL_MS = 12000
 // Service charge choices on the till, besides None and the bar's own default %.
 const SERVICE_PRESETS = [5, 10, 15, 20]
+// Bars that asked for a fixed set (only these, no "Other %"), matched by bar name.
+const SERVICE_ONLY = [{ match: /atomic/i, presets: [10, 25] }]
+function servicePresetsFor(bar, defaultPct) {
+  const only = SERVICE_ONLY.find(rule => rule.match.test(String(bar?.nome || '')))
+  if (only) return { presets: only.presets, other: false }
+  return { presets: [...new Set([+defaultPct || 0, ...SERVICE_PRESETS].filter(v => v > 0))].sort((a, b) => a - b), other: true }
+}
 const SALES_POLL_MS = 60000
 
 function readJson(key, fallback) {
@@ -326,7 +334,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
   const drinksTotal = (srvMoney?.drinksTotal || 0) + pendingTotal
   // Service charge %: a server tab keeps its own; a local order picks one (tables start on the bar's default, the counter on none).
   const servicePct = srvTab ? +srvTab.service_pct || 0 : Math.max(0, +(order.svc ?? (tableOrder ? settings.service_pct : 0)) || 0)
-  const servicePresets = [...new Set([+settings.service_pct || 0, ...SERVICE_PRESETS].filter(v => v > 0))].sort((a, b) => a - b)
+  const { presets: servicePresets, other: serviceOtherOk } = servicePresetsFor(bar, settings.service_pct)
   const charges = srvTab
     ? ticketChargeLines({ drinksTotal, servicePct, roomMin: settings.room_min, spaceType: '' })
     : ticketChargeLines({ drinksTotal, servicePct, roomMin: settings.room_min, spaceType: space?.tipo || '' })
@@ -844,6 +852,9 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
         {srvTab && (
           <div className="pq-tabbar">
             <span className="ui-badge is-accent"><Icon name="comandas" size={12} /> {srvTab.mesa_nome || t('tabs.noTable')}</span>
+            <button type="button" className="ui-badge pq-tabbar-people" onClick={() => setPanelTab(srvTab.id)} aria-label={t('tabs.people', { n: +srvTab.pessoas || 1 })}>
+              <Icon name="users" size={12} /> {t('tabs.people', { n: +srvTab.pessoas || 1 })}
+            </button>
             {srvMoney.paid > 0 && <span className="ui-badge is-info">{t('tabs.paidShort', { amount: fmtYen(srvMoney.paid) })}</span>}
             {lockedTab && <span className="ui-badge is-warning">{t('tabs.state.awaiting_payment')}</span>}
             <span className="ui-spacer" />
@@ -996,9 +1007,9 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
                   <button key={v} type="button" className={servicePct === v ? 'is-on' : ''} disabled={busy} onClick={() => setService(v)}>{v}%</button>
                 ))}
                 {servicePct > 0 && !servicePresets.includes(servicePct) && svcOther == null && (
-                  <button type="button" className="is-on" disabled={busy} onClick={() => setSvcOther(String(servicePct))}>{servicePct}%</button>
+                  <button type="button" className="is-on" disabled={busy} onClick={() => serviceOtherOk && setSvcOther(String(servicePct))}>{servicePct}%</button>
                 )}
-                {svcOther == null ? (
+                {!serviceOtherOk ? null : svcOther == null ? (
                   <button type="button" disabled={busy} onClick={() => setSvcOther('')}>{t('posQuick.serviceOther')}</button>
                 ) : (
                   <form className="pq-svcrow-other" onSubmit={e => { e.preventDefault(); const v = Math.round((+svcOther || 0) * 10) / 10; if (v >= 0 && v <= 50) { setService(v); setSvcOther(null) } }}>
@@ -1039,12 +1050,13 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
             <h2>{t('posQuick.newTab')}</h2>
             <div className="pq-sheet-name">
               <input autoFocus value={tabForm.nome} onChange={e => setTabForm(f => ({ ...f, nome: e.target.value }))} placeholder={t('posQuick.tabName')} aria-label={t('posQuick.tabName')} />
-              {server && (
-                <input type="number" min="1" max="99" className="pq-people" value={tabForm.pessoas} aria-label={t('tabs.peopleLabel')}
-                  onChange={e => setTabForm(f => ({ ...f, pessoas: e.target.value }))} />
-              )}
               <button type="submit" disabled={busy || !(tabForm.nome.trim() || tabForm.tableId)}>{t('posQuick.openTab')}</button>
             </div>
+            {server && (
+              <div className="pq-sheet-people">
+                <PeopleStepper value={Math.max(1, +tabForm.pessoas || 1)} onSave={n => setTabForm(f => ({ ...f, pessoas: n }))} />
+              </div>
+            )}
             {(server ? tables : spaces).length > 0 && (
               <div className="pq-sheet-spaces" role="radiogroup" aria-label={t('tabs.table')}>
                 {(server ? tables : spaces).map(row => {
