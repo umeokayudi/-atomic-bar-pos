@@ -949,6 +949,7 @@ export default {
     deviceDesktop: 'Desktop',
     openMenu: 'Open menu',
     closeMenu: 'Close menu',
+    goHome: 'Back to dashboard',
   },
   fulfillment: {
     title: 'Order fulfillment',
