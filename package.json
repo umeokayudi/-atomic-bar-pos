@@ -13,6 +13,7 @@
     "test:procurement": "node scripts/procurement.test.mjs",
     "test:legacy": "node scripts/legacyAccess.test.mjs",
     "test:payroll": "node scripts/payroll.test.mjs",
+    "test:recipe": "node scripts/recipe.test.mjs",
     "test:pos": "node scripts/posFloor.test.mjs",
     "test:pos-visual": "node scripts/posVisual.test.mjs",
     "test:ledger": "node scripts/faturaLedger.test.mjs",

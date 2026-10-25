@@ -59,6 +59,17 @@ const PAGES = [
   { who: MANAGER, path: '/bar/staff', name: 'bar-staff-new', click: /^Add employee$/ },
   { who: MANAGER, path: '/bar/fornecedor', name: 'bar-partners' },
   { who: MANAGER, path: '/bar/fornecedor', name: 'bar-partners-new', click: /Add a partner$/ },
+  { who: MANAGER, path: '/bar/precos', name: 'bar-prices' },
+  { who: MANAGER, path: '/bar/precos', name: 'bar-prices-edit', taps: ['.bp-edit'] },
+  { who: MANAGER, path: '/bar/precos', name: 'bar-menu', click: /^Menu$/ },
+  { who: MANAGER, path: '/bar/precos', name: 'bar-recipe-new', click: /^Menu$/, then: /New recipe/ },
+  { who: MANAGER, path: '/bar/precos', name: 'bar-recipe-fill', click: /^Menu$/, then: /New recipe/, steps: [
+    { fill: ['.rb-sheet .rb-input', 'Gin & Tonic Special'] }, { fill: ['.rb-search.is-add input', 'tanq'] }, { tap: '.rb-result' },
+    { fill: ['.rb-search.is-add input', 'tonic'] }, { tap: '.rb-result' }, { fill: ['.rb-ing ~ .rb-ing .rb-mini:not(.is-wide) input', '120'] },
+    { tap: '.rb-add-row .rb-btn:last-child' }, { fill: ['.rb-ing ~ .rb-ing ~ .rb-ing .rb-ing-name-input', 'Lime'] }, { fill: ['.rb-ing ~ .rb-ing ~ .rb-ing .rb-mini.is-wide input', '20'] },
+    { fill: ['.rb-input.is-big', '1500'] },
+  ] },
+  { who: MANAGER, path: '/bar/precos', name: 'bar-recipe-edit', click: /^Menu$/, taps: ['.rm-row:not(.is-head)'] },
   { who: MANAGER, path: '/bar/metas', name: 'bar-goals' },
   { who: MANAGER, path: '/bar/ponto', name: 'bar-clock' },
   { who: MANAGER, path: '/bar/fechamento', name: 'bar-close' },
@@ -484,6 +495,13 @@ async function main() {
           for (const name of [].concat(pg.then || [])) {
             await page.getByRole('button', { name }).first().click({ timeout: 5000 }).catch(e => errors.push(`then: ${e.message}`))
             await page.waitForTimeout(500)
+          }
+          for (const step of pg.steps || []) {
+            // Typing and tapping inside an opened form: { fill: [selector, text] } or { tap: selector }.
+            const sel = step.fill ? step.fill[0] : step.tap
+            const loc = page.locator(`${sel}:visible`).first()
+            await (step.fill ? loc.fill(step.fill[1], { timeout: 5000 }) : loc.click({ timeout: 5000 })).catch(e => errors.push(`step ${sel}: ${e.message}`))
+            await page.waitForTimeout(300)
           }
           if (pg.ask) {
             await page.locator('.ui-ask-ai:visible').first().click({ timeout: 5000 }).catch(e => errors.push(`ask ai: ${e.message}`))

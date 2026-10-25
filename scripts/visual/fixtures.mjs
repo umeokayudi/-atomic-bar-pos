@@ -14,7 +14,7 @@ const drinks = [
   ['Highball', 'Whisky', 800, 'HB'], ['Gin Tonic', 'Gin', 900, '12'], ['Mojito', 'Cocktail', 1000, '13'], ['Draft beer', 'Beer', 700, 'BR'],
   ['Lemon sour', 'Shochu', 650, '21'], ['Red wine', 'Wine', 900, 'RW'], ['Cola', 'Soft drink', 400, ''], ['Oolong tea', 'Soft drink', 400, ''],
   ['Margarita', 'Tequila', 1100, '31'], ['Moscow mule', 'Vodka', 950, '32'], ['Cuba libre', 'Rum', 900, '33'], ['Nachos', 'Food', 800, 'F1'],
-].map(([nome, categoria, preco_venda, codigo], i) => ({ id: `00000000-0000-4000-8000-0000000d00${String(i).padStart(2, '0')}`, bar_id: BAR.id, nome, categoria, preco_venda, codigo, preco_desconto: Math.round(preco_venda / 2), custo: Math.round(preco_venda * 0.3), margem: 0.7, ativo: true }))
+].map(([nome, categoria, preco_venda, codigo], i) => ({ id: `00000000-0000-4000-8000-0000000d00${String(i).padStart(2, '0')}`, bar_id: BAR.id, nome, categoria, preco_venda, codigo, preco_desconto: Math.round(preco_venda / 2), custo: Math.round(preco_venda * 0.3), margem: 0.7, ativo: true, receita: nome === 'Gin Tonic' ? 'Tanqueray Gin 45ml + Wilkinson Tonic 120ml + Lime (¥20)' : nome === 'Highball' ? 'jameson 30ml + soda 150ml' : '', custom: nome === 'Mojito' }))
 
 const tables = [
   ['1', 'square', 60, 60, 100, 100, 4], ['2', 'square', 220, 60, 100, 100, 4], ['3', 'round', 380, 60, 100, 100, 4],
@@ -99,6 +99,11 @@ export const TABLES = {
   bar_own_orders: [
     { id: 'own1', bar_id: BAR.id, fornecedor: 'Sakaya Tanaka', data: day(2), status: 'ordered', total: 3600, obs: 'Pick up Friday', itens: [{ nome: 'Lemons', qtd: 30, preco: 60 }, { nome: 'Limes', qtd: 20, preco: 90 }], criado_em: day(2) },
     { id: 'own2', bar_id: BAR.id, fornecedor: 'Gyomu Super', data: day(5), status: 'received', total: 2400, itens: [{ nome: 'Ice 3kg', qtd: 8, preco: 300 }], criado_em: day(5) },
+  ],
+  bar_pricing: [
+    { id: 'bp1', bar_id: BAR.id, produto_id: 'pr4', drinks_por_garrafa: 1, preco_drink: 1000 },
+    { id: 'bp2', bar_id: BAR.id, produto_id: 'pr1', drinks_por_garrafa: 16, preco_drink: 900 },
+    { id: 'bp3', bar_id: BAR.id, produto_id: 'pr7', drinks_por_garrafa: 23, preco_drink: 2400 },
   ],
   produtos_public: [
     { id: 'pr1', nome: 'Tanqueray Gin', categoria: 'Gin', volume_ml: 750, preco_venda: 3300, ativo: true },
