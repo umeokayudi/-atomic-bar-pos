@@ -7,7 +7,7 @@
 import { chromium } from '@playwright/test'
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { ADMIN, MANAGER, CASHIER, STAFF, TABLES, BAR_STAFF, PUNCHES } from './fixtures.mjs'
+import { ADMIN, MANAGER, OWNER, CASHIER, STAFF, TABLES, BAR_STAFF, PUNCHES } from './fixtures.mjs'
 import { castRoster } from '../../src/lib/staffPos.js'
 import { earningsByDay, earningsRange, myGoalStatus, myNightSummary } from '../../src/lib/staffNight.js'
 import { tokyoNightKey, tokyoMonthKey } from '../../src/lib/tokyo.js'
@@ -146,6 +146,9 @@ const PAGES = [
   { who: STAFF, path: '/bar/schedule', name: 'staff-schedule-dayshift', taps: ['.sa-night:not(.is-locked)', '.sa-shiftseg button'] },
   { who: MANAGER, path: '/bar/inicio', name: 'bar-home' },
   { who: MANAGER, path: '/bar/inicio', name: 'bar-home-rail', rail: true },
+  { who: OWNER, path: '/bar/inicio', name: 'bar-home-owner' },
+  { who: OWNER, path: '/bar/conta', name: 'bar-account' },
+  { who: OWNER, path: '/bar/conta', name: 'bar-account-password', taps: ['.my-account-line:nth-of-type(3) .ui-btn'] },
 ]
 let CURRENT = {}
 const ONLY = process.env.PAGES ? process.env.PAGES.split(',') : null

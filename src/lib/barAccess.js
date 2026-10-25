@@ -30,6 +30,9 @@ export const TAB_AREA = {
   usuarios: 'users', senha: 'users',
 }
 
+/** Menu tabs with no area on purpose: every bar login may open its own account (name, e-mail, password). */
+export const OPEN_MENU_TABS = ['conta']
+
 /** Staff self-service tabs (/bar/<tab>): no area, so every login of the role may open them. */
 export const STAFF_SELF_TABS = ['hoje', 'profile', 'shifts', 'goals', 'result', 'points', 'occurrences', 'rewards', 'salary', 'performance', 'reports', 'settings', 'schedule']
 

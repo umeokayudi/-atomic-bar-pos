@@ -117,6 +117,8 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider value={{
       user, perfil, loading,
       signIn,
+      // After the login changes its own name or e-mail (bar → My account), show it without a reload.
+      patchPerfil: patch => setPerfil(p => (p ? { ...p, ...patch } : p)),
       signUp: (e, p, n) => supabase.auth.signUp({ email: e, password: p, options: { data: { nome: n } } }),
       signOut,
     }}>

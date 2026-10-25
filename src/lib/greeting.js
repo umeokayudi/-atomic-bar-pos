@@ -6,3 +6,11 @@ export function greetingPart(date = new Date()) {
   if (h >= 18 && h < 23) return 'evening'
   return 'night'
 }
+
+/** The bar owner's home greeting: always English, always "Boss" (owner asked for it). */
+export const BOSS_GREETING = {
+  morning: 'Good morning, Boss',
+  afternoon: 'Good afternoon, Boss',
+  evening: 'Good evening, Boss',
+  night: 'Good evening, Boss',
+}

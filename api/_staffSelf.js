@@ -30,7 +30,7 @@ export const REQUEST_STATUSES = ['open', 'seen', 'done']
 
 export const SELF_ACTIONS = new Set([
   'meDay', 'meProfile', 'meUploadPhoto', 'meRequests', 'meSendRequest', 'meEarnings',
-  'meAvailability', 'meSaveAvailability', 'mePayouts', 'meZangyo', 'meAccount',
+  'meAvailability', 'meSaveAvailability', 'mePayouts', 'meZangyo', 'meAccount', 'meName',
 ])
 export const OWNER_ACTIONS = new Set([
   'listRequests', 'answerRequest', 'listDayReports',
@@ -387,6 +387,18 @@ export async function handleSelfAction(res, { admin, db, auth, body }) {
       out.email = r.email
     }
     return res.status(200).json({ ok: true, ...out })
+  }
+
+  // My name on my own login (owner, manager or staff). Shared till/clock lane logins cannot change here.
+  if (body.action === 'meName') {
+    if (auth.lane || !auth.user?.id) return res.status(400).json({ error: 'Ask the owner to change this login' })
+    if (!admin) return res.status(503).json({ error: 'Not available on this server' })
+    const nome = String(body.nome || '').trim().replace(/\s+/g, ' ')
+    if (nome.length < 1 || nome.length > 80) return res.status(400).json({ error: 'Enter a name (up to 80 characters)' })
+    const { error } = await admin.from('perfis').update({ nome }).eq('id', meId)
+    if (error) return res.status(400).json({ error: error.message || 'Could not change the name' })
+    forgetBarActors()
+    return res.status(200).json({ ok: true, nome })
   }
 
   if (body.action === 'meUploadPhoto') {

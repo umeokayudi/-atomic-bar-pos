@@ -34,6 +34,7 @@ import BarDesk from './BarDesk'
 import DashboardGrid from './ui/DashboardGrid'
 import { ColumnChart, RankList, deltaPct } from './ui/Charts'
 import { PageHeader, PortalHero, PortalKpi, PortalPills, PortalSurface, WelcomeHeader } from './ui/PageLayout'
+import { BOSS_GREETING } from '../lib/greeting'
 import { useDashboardLayout } from '../lib/dashboardLayout'
 import { aggregateHourlySales, computeDayMetrics } from '../lib/atomicPos'
 import { nightKeyOfSale } from '../lib/nightClose'
@@ -87,6 +88,7 @@ import { asReactText } from '../lib/errText'
 import { NotificationBell, useBarOverdueAlerts } from './Notifications'
 const BarOrdersTab = lazy(() => import('./BarOrdersTab'))
 const VaultSettings = lazy(() => import('./VaultSettings'))
+const MyAccount = lazy(() => import('./MyAccount'))
 const DashboardCalendar = lazy(() => import('./DashboardCalendar'))
 
 function TabHold({ children }) {
@@ -530,7 +532,7 @@ function HomeTab({ bar, onTab }) {
         <WelcomeHeader
           kicker={`${bar.nome} · ${t('portal.home.atAGlance')}`}
           name={perfil?.nome || ''}
-          greet={(part, name) => t(name ? `welcome.${part}` : `welcome.${part}Plain`, { name })}
+          greet={(part, name) => perfil?.role === 'cliente' ? BOSS_GREETING[part] : t(name ? `welcome.${part}` : `welcome.${part}Plain`, { name })}
           lead={t('welcome.barLead')}
           actions={(
             <>
@@ -1907,7 +1909,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   const location = useLocation()
   const navigate = useNavigate()
   // Tabs reachable by URL (/bar/<tab>): the role's menu plus staff self-service sections, minus areas this login lacks.
-  const allowedTabs = [...NAV_GROUPS.flatMap(g => g.items.map(n => n.id)), ...DOCK.map(d => d.id), ...STAFF_SELF_TABS, 'equipe', 'entregas', 'energia', 'aluguel', 'senha']
+  const allowedTabs = [...NAV_GROUPS.flatMap(g => g.items.map(n => n.id)), ...DOCK.map(d => d.id), ...STAFF_SELF_TABS, 'equipe', 'entregas', 'energia', 'aluguel', 'senha', 'conta']
     .filter(canOpenHere)
   const homeTab = firstOpenTab(access, [defaultBarTab(perfil?.role), ...allowedTabs], defaultBarTab(perfil?.role))
   const tab = tabFromPath(location.pathname, 'bar', allowedTabs, homeTab)
@@ -2123,6 +2125,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         ) : vault.locked ? vault.gate : (<>
         {vault.strip}
         {tab==='senha' && isGerente(perfil?.role) && <TabHold><VaultSettings /></TabHold>}
+        {tab==='conta' && <TabHold><MyAccount /></TabHold>}
         {tab==='custos'    && isGerente(perfil?.role) && <BarCostsTab bar={bar} onTab={selectTab} />}
         {tab==='metas' && canManageBarTeam(perfil?.role) && <TabHold><BarGoalsTab bar={bar} /></TabHold>}
         {STAFF_SELF_TABS.includes(tab) && perfil?.role === 'bar_staff' && <TabHold><EmployeeDesk section={tab} bar={bar} onTab={selectTab} /></TabHold>}
