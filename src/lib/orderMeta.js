@@ -70,6 +70,20 @@ export function orderCastRefFromObs(obs) {
   return orderCastListFromObs(obs)[0] || { name: '', id: '' }
 }
 
+/**
+ * Notes the bar itself typed on a JBM order are saved as "Bar: …" lines. The bar app shows only those:
+ * anything else on pedidos.obs is JBM's own (e.g. which upstream supplier filled it) and stays with JBM.
+ */
+const BAR_NOTE_RE = /^Bar:[ \t]*(.*)$/gim
+
+export function withBarNote(text) {
+  return String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(l => `Bar: ${l}`).join('\n')
+}
+
+export function barNoteFromObs(obs) {
+  return [...String(obs || '').matchAll(BAR_NOTE_RE)].map(m => m[1].trim()).filter(Boolean).join('\n')
+}
+
 export function orderDetailsFromObs(obs) {
   return String(obs || '').replace(META_LINE_RE, '').replace(/^\s+|\s+$/g, '')
 }
