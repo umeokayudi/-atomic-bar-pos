@@ -60,7 +60,7 @@ const GERENTE_NAV = [
   { id: 'ia', labelKey: 'nav.portalAi', icon: '✨' },
   { id: 'staff', labelKey: 'house.staffTitle', icon: '👤' },
   { id: 'usuarios', labelKey: 'barUsers.nav', icon: '🔑' },
-  { id: 'fornecedor', labelKey: 'house.suppliers', icon: '🚚' },
+  { id: 'fornecedor', labelKey: 'house.suppliers', icon: '🏢' },
   { id: 'parceiro', labelKey: 'house.partners', icon: '🤝' },
   { id: 'drinkback', labelKey: 'house.drinkBackNav', icon: '🥂' },
   { id: 'cartao', labelKey: 'nav.cardMachines', icon: '💳' },
