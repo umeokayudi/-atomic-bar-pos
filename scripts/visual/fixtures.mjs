@@ -152,6 +152,8 @@ export const TABLES = {
   ],
 }
 
+function dayOffset(n) { return new Date(Date.now() + 9 * 3600000 + n * 86400000).toISOString().slice(0, 10) }
+
 /** /api/bar-staff GET: team, registry (suppliers, rent, power...), goals, events, day sheets. */
 export const BAR_STAFF = {
   staff: [
@@ -170,7 +172,10 @@ export const BAR_STAFF = {
   registry: [
     { id: 'rg1', kind: 'aluguel', nome: 'Shibuya Realty', cargo: 'Mr. Ito', contato: '03-1234-5678', amount: 180000, vence_dia: 25, metodo: 'transfer' },
     { id: 'rg2', kind: 'energia', nome: 'Tokyo Power', amount: 32000, vence_dia: 10 },
-    { id: 'rg3', kind: 'fornecedor', nome: 'Sake Wholesale', detalhe: 'Sake, shochu', contato: '03-9999-0000' },
+    { id: 'rg3', kind: 'fornecedor', nome: 'Sake Wholesale', cargo: 'bebidas', detalhe: 'Sake, shochu', contato: '03-9999-0000', dias: ['tue', 'fri'], amount: 0 },
+    { id: 'rg8', kind: 'fornecedor', nome: 'Clean Tokyo', cargo: 'limpeza', detalhe: 'Floor, toilets and VIP rooms after closing', contato: '090-1111-2222', ultimo_servico: dayOffset(-6), proximo_servico: dayOffset(1), amount: 25000, custo_por: 'visit' },
+    { id: 'rg9', kind: 'fornecedor', nome: 'Ikeda Koumuten', cargo: 'reforma', detalhe: 'New counter top and VIP 2 wallpaper', contato: 'LINE ikeda_k', email: 'office@ikeda.example', ultimo_servico: dayOffset(-120), proximo_servico: dayOffset(40), amount: 480000, custo_por: 'order' },
+    { id: 'rg10', kind: 'fornecedor', nome: 'Hoshizaki service', cargo: 'manutencao', detalhe: 'Ice machine check', contato: '0120-00-1234', proximo_servico: dayOffset(-2), amount: 8000, custo_por: 'visit' },
     { id: 'rg4', kind: 'fixo', nome: 'Internet', amount: 6000, vence_dia: 5 },
     { id: 'rg5', kind: 'cartao', nome: 'Square', maquina: 'Square Terminal', local: 'Counter', pct: 3.25, prazo_dias: 1, vence_dia: 0, conta: 'MUFG Shibuya', bandeiras: ['visa', 'master', 'jcb', 'amex', 'ic'] },
     { id: 'rg6', kind: 'cartao', nome: 'AirPAY', maquina: 'AirPAY reader', local: 'VIP rooms', pct: 3.24, prazo_dias: 0, vence_dia: 25, amount: 0, conta: 'MUFG Shibuya', bandeiras: ['visa', 'master', 'qr'] },

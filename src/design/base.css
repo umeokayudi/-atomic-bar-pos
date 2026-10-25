@@ -1394,6 +1394,54 @@ html .sdr-row-main { width: 100%; display: grid; grid-template-columns: 36px min
 .house-pay.is-missing { color: var(--c-warning); }
 .house-editor .ui-seg { flex-wrap: wrap; }
 
+/* Bar: business partners (cleaning, drinks, repairs…) */
+.partners-page .partner-add { margin: 4px 0 14px; }
+.partner-filters { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 14px; }
+.partner-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.partner-card { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--c-border); border-radius: 14px; background: var(--c-surface); min-width: 0; }
+.partner-card.is-jbm { background: var(--c-surface-2); border-style: dashed; }
+.partner-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.partner-emoji { flex: 0 0 auto; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--c-accent-soft); font-size: 24px; line-height: 1; }
+.partner-title { display: flex; flex-direction: column; min-width: 0; }
+.partner-title strong { font-size: 16px; overflow-wrap: anywhere; }
+.partner-cat { font-size: 12px; color: var(--c-text-2); }
+.partner-what { margin: 0; font-size: 14px; color: var(--c-text); }
+.partner-facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0; font-size: 13px; }
+.partner-facts > div { display: contents; }
+.partner-facts dt { color: var(--c-text-3); }
+.partner-facts dd { margin: 0; color: var(--c-text); overflow-wrap: anywhere; }
+.partner-facts a { color: var(--c-accent); text-decoration: none; }
+.partner-next { align-self: flex-start; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: var(--c-surface-2); color: var(--c-text-2); }
+.partner-next.is-soon { background: var(--c-warning-bg); color: var(--c-warning); }
+.partner-next.is-late { background: var(--c-danger-bg); color: var(--c-danger); }
+.partner-notes { margin: 0; font-size: 13px; color: var(--c-text-2); white-space: pre-wrap; }
+.partner-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: auto; }
+.partner-ask { font-size: 13px; color: var(--c-text-2); }
+.partner-actions .is-danger { color: var(--c-danger); }
+.partner-soon { margin: 0 0 14px; padding: 12px 14px; border-radius: 12px; background: var(--c-surface-2); }
+.partner-soon ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.partner-soon li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.partner-soon .house-text { padding: 0; }
+.partner-empty p { margin: 0 0 10px; color: var(--c-text-2); }
+.partner-empty { margin-bottom: 14px; }
+.partner-editor { margin: 4px 0 16px; padding: 16px; border: 1px solid var(--c-border); border-radius: 14px; background: var(--c-surface); display: flex; flex-direction: column; gap: 14px; }
+.partner-editor h2 { margin: 0; font-size: 17px; }
+.partner-label { display: block; font-size: 13px; font-weight: 600; color: var(--c-text-2); margin-bottom: 6px; }
+.partner-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.partner-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border: 1px solid var(--c-border); border-radius: 12px; background: var(--c-surface); color: var(--c-text); font-size: 12px; font-weight: 600; text-align: center; cursor: pointer; min-height: 64px; }
+.partner-tile span { font-size: 22px; line-height: 1; }
+.partner-tile.is-on { border-color: var(--c-accent); background: var(--c-accent-soft); box-shadow: inset 0 0 0 1px var(--c-accent); }
+.partner-typed { margin-top: 8px; width: 100%; }
+.partner-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.partner-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: var(--c-text-2); }
+.partner-grid input, .partner-grid textarea, .partner-typed { box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid var(--c-border); border-radius: 10px; background: var(--c-surface); color: var(--c-text); font: inherit; font-weight: 400; }
+.partner-span { grid-column: 1 / -1; }
+@media (max-width: 560px) {
+  .partner-grid { grid-template-columns: 1fr; }
+  .partner-pick { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .partner-list { grid-template-columns: 1fr; }
+}
+
 /* Owner PIN lock for money and payroll */
 .vault-gate { display: grid; place-items: center; min-height: 60vh; padding: 24px 0; }
 .vault-gate.is-loading { min-height: 40vh; }
