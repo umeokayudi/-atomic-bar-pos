@@ -220,13 +220,13 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
         </div>
       )}
       {pending && (
-        <div className="pos-close-actions pos-close-pending">
-          <div className="pos-close-msg">{t('atomicPos.countPending', { date: pending.night_key, expected: fmtYen(pending.expected_cash) })}</div>
-          <input type="number" min="0" placeholder={t('atomicPos.cashCounted')} value={pendingCount} onChange={e => setPendingCount(e.target.value)} />
-          <button type="button" className="btn-primary" disabled={busy || pendingCount === ''} onClick={() => saveCount(pending, pendingCount, () => { setPending(null); setPendingCount('') })}>
-            {t('atomicPos.saveCount')}
-          </button>
-        </div>
+        <PendingCount
+          night={pending}
+          value={pendingCount}
+          onChange={setPendingCount}
+          busy={busy}
+          onSave={() => saveCount(pending, pendingCount, () => { setPending(null); setPendingCount('') })}
+        />
       )}
       {closed ? (
         <div className="pos-close-done">
@@ -236,13 +236,7 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
           )}
         </div>
       ) : countingNow ? (
-        <div className="pos-close-actions">
-          <div className="pos-close-msg">{t('atomicPos.countPending', { date: shift.night_key, expected: fmtYen(shift.expected_cash) })}</div>
-          <input type="number" min="0" placeholder={t('atomicPos.cashCounted')} value={counted} onChange={e => setCounted(e.target.value)} />
-          <button type="button" className="btn-primary" disabled={busy || counted === ''} onClick={() => saveCount(shift, counted, setShift)}>
-            {t('atomicPos.saveCount')}
-          </button>
-        </div>
+        <PendingCount night={shift} value={counted} onChange={setCounted} busy={busy} onSave={() => saveCount(shift, counted, setShift)} />
       ) : (
         <div className="pos-close-actions">
           <input
@@ -261,6 +255,45 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
       {compact && (
         <button type="button" className="pos-close-hide" onClick={() => setOpen(false)}>{t('atomicPos.hideClose')}</button>
       )}
+    </div>
+  )
+}
+
+/** Cash count for a night the automatic close shut: labeled ¥ field, the expected cash and what saving does. */
+function PendingCount({ night, value, onChange, busy, onSave }) {
+  const { t } = useI18n()
+  const id = `pos-count-${night.id || night.night_key}`
+  const diff = value === '' || !Number.isFinite(+value) ? null : closeVariance(night.expected_cash, +value)
+  return (
+    <div className="pos-count-box">
+      <div className="pos-count-title">{t('atomicPos.countTitle', { date: night.night_key })}</div>
+      <p className="pos-count-help">{t('atomicPos.countHelp')}</p>
+      <div className="pos-count-expected">
+        <span>{t('atomicPos.countExpected')}</span>
+        <strong>{fmtYen(night.expected_cash)}</strong>
+      </div>
+      <label className="pos-count-label" htmlFor={id}>{t('atomicPos.countLabel', { date: night.night_key })}</label>
+      <div className="pos-count-field">
+        <span aria-hidden="true">¥</span>
+        <input
+          id={id}
+          type="number"
+          inputMode="numeric"
+          min="0"
+          step="1"
+          placeholder="0"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+        />
+      </div>
+      {diff != null && (
+        <div className={`pos-count-diff ${diff === 0 ? 'is-ok' : 'is-off'}`}>
+          {t('atomicPos.countDiff', { diff: fmtYen(diff) })}
+        </div>
+      )}
+      <button type="button" className="btn-primary pos-count-save" disabled={busy || value === ''} onClick={onSave}>
+        {busy ? t('common.saving') : t('atomicPos.saveCountLong', { date: night.night_key })}
+      </button>
     </div>
   )
 }

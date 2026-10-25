@@ -6021,3 +6021,19 @@ html[data-layout="desktop"] .app-shell.is-till-kiosk .app-main { padding: 12px 1
 .pq-sheet-people .f3-people .ui-btn { min-width: 44px; min-height: 44px; }
 .pq-sheet-people .f3-people input { width: 56px; height: 44px; font-size: 17px; }
 button.pq-tabbar-people { border: 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
+
+/* Leftover-night cash count (night closed by itself) */
+.pos-count-box { margin-top: 12px; padding: 12px; border-radius: 12px; border: 1px solid var(--amber, #d97706); background: var(--bg); display: grid; gap: 8px; }
+.pos-count-title { font-size: 13px; font-weight: 800; }
+.pos-count-help { margin: 0; font-size: 12px; color: var(--text2); line-height: 1.4; }
+.pos-count-expected { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; }
+.pos-count-expected span { color: var(--text2); }
+.pos-count-label { font-size: 12px; font-weight: 700; }
+.pos-count-field { display: flex; align-items: center; gap: 6px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg2); }
+.pos-count-field:focus-within { border-color: var(--text); }
+.pos-count-field span { font-size: 18px; font-weight: 800; color: var(--text2); }
+.pos-count-field input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 18px; font-weight: 700; padding: 10px 0; color: inherit; }
+.pos-count-diff { font-size: 12px; font-weight: 700; }
+.pos-count-diff.is-ok { color: var(--green); }
+.pos-count-diff.is-off { color: var(--amber, #d97706); }
+.pos-count-save { width: 100%; }
