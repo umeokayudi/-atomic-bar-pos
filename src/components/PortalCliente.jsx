@@ -68,7 +68,7 @@ const StaffAlerts = lazy(() => import('./StaffAlerts'))
 const EmployeeDesk = lazy(() => import('./EmployeeDesk'))
 const StaffApp = lazy(() => import('./staff/StaffApp'))
 import { fetchAllStockMovements } from '../lib/posSupply'
-import { coalesceStockMoves, decorateStockList, deliveryNoteMoves, posPourMoves, stockFlow, stockGlance } from '../lib/barStock'
+import { attentionFirst, coalesceStockMoves, decorateStockList, deliveryNoteMoves, posPourMoves, stockFlow, stockGlance } from '../lib/barStock'
 import { groupedNavForRole, dockForLogin, defaultBarTab, posAccessForRole, canManageBarTeam, isGerente, costAccessForRole, canPlaceDrinkOrders } from '../lib/access'
 import { isTillKiosk, isClockKiosk, loginDoorFromHash, setDoorHash, doorAllowsRole } from '../lib/barDoors'
 import UiPrefsPanel from './UiPrefsPanel'
@@ -642,9 +642,77 @@ function InventoryTab({ bar, onOrder }) {
   const filtered = showUnknown ? searched : searched.filter(p => p.hasCount)
 
   const glance = stockGlance(filtered)
-  const critical = filtered.filter(p => p.crit)
+  const critical = filtered.filter(p => p.crit || p.empty)
   const low      = filtered.filter(p => p.low)
+  const urgent   = attentionFirst(filtered)
+  const rest     = filtered.filter(p => !p.attention)
   const selectedProd = list.find(p => p.id === selected)
+
+  const stockRow = p => {
+    const isCrit = p.crit || p.empty
+    const isLow  = p.low
+    const dotColor = isCrit ? 'var(--red)' : isLow ? 'var(--amber)' : p.good ? 'var(--green)' : '#c5c5c7'
+    const pct = p.hasCount && p.minimo > 0 ? Math.min(p.stock / p.minimo * 100, 100) : null
+    return (
+      <div key={p.id} style={{
+        background:'var(--bg2)',
+        border: isCrit?'1px solid rgba(255,59,48,0.25)':isLow?'1px solid rgba(255,149,0,0.25)':'1px solid var(--border)',
+        borderRadius:14, padding:'14px 16px',
+        display:'flex', alignItems:'center', gap:14,
+        transition:'all 0.15s'
+      }}>
+        {/* Status indicator */}
+        <div style={{
+          width:8, height:8, borderRadius:'50%', flexShrink:0,
+          background:dotColor,
+          boxShadow: isCrit?'0 0 10px rgba(255,59,48,0.7)':isLow?'0 0 8px rgba(255,149,0,0.5)':'none'
+        }}/>
+
+        {/* Name + progress */}
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:14, fontWeight:600, marginBottom: pct!==null?6:0 }}>{p.nome}</div>
+          {pct !== null && (
+            <div style={{ height:4, background:'var(--bg3)', borderRadius:2, overflow:'hidden', maxWidth:160 }}>
+              <div style={{ height:'100%', width:pct+'%', background:dotColor, borderRadius:2, transition:'width 0.4s' }}/>
+            </div>
+          )}
+        </div>
+
+        {/* Stock */}
+        <div style={{ textAlign:'center', minWidth:44 }}>
+          <div style={{ fontSize:22, fontWeight:800, color:dotColor, lineHeight:1 }}>{p.hasCount ? p.stock : '—'}</div>
+          <div style={{ fontSize:9, color:'var(--text2)', textTransform:'uppercase', marginTop:2 }}>{p.hasCount ? t('portal.inventory.stock') : t('portal.inventory.noCount')}</div>
+        </div>
+
+        {/* Min rule */}
+        <div style={{ textAlign:'center', minWidth:44 }}>
+          {editMin===p.id ? (
+            <input type="number" min="0" defaultValue={p.minimo}
+              style={{ width:48, padding:'4px', fontSize:13, textAlign:'center', borderRadius:8 }}
+              autoFocus
+              onBlur={e=>saveMinimo(p.id,e.target.value)}
+              onKeyDown={e=>e.key==='Enter'&&saveMinimo(p.id,e.target.value)}
+            />
+          ) : (
+            <div onClick={()=>setEditMin(p.id)} style={{ cursor:'pointer' }} title="Set minimum stock rule">
+              <div style={{ fontSize:16, fontWeight:700, color:p.minimo>0?'var(--navy)':'var(--text3)' }}>
+                {p.minimo>0?p.minimo:'—'}
+              </div>
+              <div style={{ fontSize:9, color:'var(--text2)', textTransform:'uppercase', marginTop:2 }}>{t('portal.inventory.minimum')}</div>
+            </div>
+          )}
+        </div>
+
+        {/* Update button */}
+        <button onClick={()=>{setSelected(p.id);setModalQty(1)}} style={{
+          background:'var(--navy)', color:'white', border:'none',
+          borderRadius:10, padding:'8px 16px', fontSize:12,
+          fontWeight:600, cursor:'pointer', flexShrink:0,
+          transition:'opacity 0.15s'
+        }}>{t('portal.inventory.update')}</button>
+      </div>
+    )
+  }
 
   if (loading) return <Spinner text={t('portal.inventory.loading')} />
 
@@ -662,22 +730,6 @@ function InventoryTab({ bar, onOrder }) {
         <PortalKpi icon="ok" tone="success" label={t('portal.inventory.wellStocked')} value={glance.wellStocked} color="var(--green)" />
       </div>
 
-      {[
-        critical.length > 0 && { tone: 'danger', icon: 'warning', title: t('portal.inventory.outOfStock', { count: critical.length }), body: critical.map(p => p.nome).join('  ·  ') },
-        low.length > 0 && { tone: 'warning', icon: 'warning', title: t('portal.inventory.runningLow', { count: low.length }), body: low.map(p => t('portal.inventory.leftMin', { name: p.nome, stock: p.stock, min: p.minimo })).join('  ·  ') },
-      ].filter(Boolean).map(b => (
-        <div key={b.tone} className={`ui-banner is-${b.tone}`}>
-          <span className="ui-banner-icon"><Icon name={b.icon} size={18} /></span>
-          <div className="ui-banner-main">
-            <strong>{b.title}</strong>
-            <span>{b.body}</span>
-          </div>
-          <button type="button" className="ui-btn is-primary is-sm" onClick={onOrder}>{t('portal.inventory.orderNow')}</button>
-        </div>
-      ))}
-
-      <AutoReorder bar={bar} products={list} orders={orders} />
-
       {/* Search */}
       <div style={{ position:'relative', marginBottom:16 }}>
         <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', color:'var(--text3)', display:'flex' }}><Icon name="search" size={16} /></span>
@@ -693,6 +745,19 @@ function InventoryTab({ bar, onOrder }) {
           }}>✕</button>
         )}
       </div>
+      <section className="stock-attention">
+        <div className="stock-attention-head">
+          <div>
+            <h2>{t('portal.inventory.attentionTitle', { count: urgent.length })}</h2>
+            <p>{urgent.length ? t('portal.inventory.attentionLead') : t('portal.inventory.attentionNone')}</p>
+          </div>
+          {urgent.length > 0 && <button type="button" className="ui-btn is-primary is-sm" onClick={onOrder}>{t('portal.inventory.orderNow')}</button>}
+        </div>
+        {urgent.length > 0 && <div style={{ display:'flex', flexDirection:'column', gap:6 }}>{urgent.map(stockRow)}</div>}
+      </section>
+
+      <AutoReorder bar={bar} products={list} orders={orders} onMinimo={saveMinimo} />
+
       <div className="stock-from-hint">{t('portal.inventory.flowHint', { in: flow.delivered, out: flow.poured })}</div>
       {unknownCount > 0 && (
         <div className="stock-from-hint">
@@ -706,75 +771,12 @@ function InventoryTab({ bar, onOrder }) {
       )}
 
       {/* Product list */}
-      {[...new Set(filtered.map(p=>p.categoria))].map(cat => (
+      {rest.length > 0 && <div className="stock-all-title">{t('portal.inventory.allProducts')}</div>}
+      {[...new Set(rest.map(p=>p.categoria))].map(cat => (
         <div key={cat} style={{ marginBottom:20 }}>
           <div style={{ fontSize:11, fontWeight:700, color:'var(--text2)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:10, paddingLeft:4 }}>{cat}</div>
           <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-            {filtered.filter(p=>p.categoria===cat).map(p => {
-              const isCrit = p.crit
-              const isLow  = p.low
-              const dotColor = isCrit ? 'var(--red)' : isLow ? 'var(--amber)' : p.good ? 'var(--green)' : '#c5c5c7'
-              const pct = p.hasCount && p.minimo > 0 ? Math.min(p.stock / p.minimo * 100, 100) : null
-              return (
-                <div key={p.id} style={{
-                  background:'var(--bg2)',
-                  border: isCrit?'1px solid rgba(255,59,48,0.25)':isLow?'1px solid rgba(255,149,0,0.25)':'1px solid var(--border)',
-                  borderRadius:14, padding:'14px 16px',
-                  display:'flex', alignItems:'center', gap:14,
-                  transition:'all 0.15s'
-                }}>
-                  {/* Status indicator */}
-                  <div style={{
-                    width:8, height:8, borderRadius:'50%', flexShrink:0,
-                    background:dotColor,
-                    boxShadow: isCrit?'0 0 10px rgba(255,59,48,0.7)':isLow?'0 0 8px rgba(255,149,0,0.5)':'none'
-                  }}/>
-
-                  {/* Name + progress */}
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:14, fontWeight:600, marginBottom: pct!==null?6:0 }}>{p.nome}</div>
-                    {pct !== null && (
-                      <div style={{ height:4, background:'var(--bg3)', borderRadius:2, overflow:'hidden', maxWidth:160 }}>
-                        <div style={{ height:'100%', width:pct+'%', background:dotColor, borderRadius:2, transition:'width 0.4s' }}/>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Stock */}
-                  <div style={{ textAlign:'center', minWidth:44 }}>
-                    <div style={{ fontSize:22, fontWeight:800, color:dotColor, lineHeight:1 }}>{p.hasCount ? p.stock : '—'}</div>
-                    <div style={{ fontSize:9, color:'var(--text2)', textTransform:'uppercase', marginTop:2 }}>{p.hasCount ? t('portal.inventory.stock') : t('portal.inventory.noCount')}</div>
-                  </div>
-
-                  {/* Min rule */}
-                  <div style={{ textAlign:'center', minWidth:44 }}>
-                    {editMin===p.id ? (
-                      <input type="number" min="0" defaultValue={p.minimo}
-                        style={{ width:48, padding:'4px', fontSize:13, textAlign:'center', borderRadius:8 }}
-                        autoFocus
-                        onBlur={e=>saveMinimo(p.id,e.target.value)}
-                        onKeyDown={e=>e.key==='Enter'&&saveMinimo(p.id,e.target.value)}
-                      />
-                    ) : (
-                      <div onClick={()=>setEditMin(p.id)} style={{ cursor:'pointer' }} title="Set minimum stock rule">
-                        <div style={{ fontSize:16, fontWeight:700, color:p.minimo>0?'var(--navy)':'var(--text3)' }}>
-                          {p.minimo>0?p.minimo:'—'}
-                        </div>
-                        <div style={{ fontSize:9, color:'var(--text2)', textTransform:'uppercase', marginTop:2 }}>{t('portal.inventory.minimum')}</div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Update button */}
-                  <button onClick={()=>{setSelected(p.id);setModalQty(1)}} style={{
-                    background:'var(--navy)', color:'white', border:'none',
-                    borderRadius:10, padding:'8px 16px', fontSize:12,
-                    fontWeight:600, cursor:'pointer', flexShrink:0,
-                    transition:'opacity 0.15s'
-                  }}>{t('portal.inventory.update')}</button>
-                </div>
-              )
-            })}
+            {rest.filter(p=>p.categoria===cat).map(stockRow)}
           </div>
         </div>
       ))}
