@@ -811,6 +811,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
       </section>
 
       <aside className="pq-order" aria-label={t('posQuick.order')}>
+        <div className="pq-tabs-row">
         <div className="pq-tabs">
           <button type="button" className={`pq-tab${active === COUNTER ? ' is-on' : ''}`} onClick={() => switchTo(COUNTER)}>
             {t('posQuick.counter')}
@@ -832,8 +833,12 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
               <em>{fmtYen(cartTotal(orders[id].cart))}</em>
             </button>
           ))}
+        </div>
+        {/* Outside the scrolling tab list so New tab and Close are always on screen. */}
+        <div className="pq-tabs-actions">
           <button type="button" className="pq-tab is-add" onClick={() => setTabSheet(true)}><Icon name="plus" size={14} /> {t('posQuick.newTab')}</button>
           <button type="button" className="pq-close-sheet" onClick={() => setOrderOpen(false)} aria-label={t('posQuick.backToMenu')}><Icon name="close" size={18} /></button>
+        </div>
         </div>
 
         {srvTab && (
@@ -1023,6 +1028,9 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
       <button type="button" className="pq-cartbar" onClick={() => setOrderOpen(true)}>
         <span><Icon name="comandas" size={16} /> {active === COUNTER ? t('posQuick.counter') : (srvTab?.nome || order.label)}{itemCount ? ` · ${t('posQuick.items', { n: itemCount })}` : ''}</span>
         <strong>{hasSomething ? fmtYen(due) : t('posQuick.viewOrder')}</strong>
+      </button>
+      <button type="button" className="pq-cartbar-new" onClick={() => setTabSheet(true)} aria-label={t('posQuick.newTab')}>
+        <Icon name="plus" size={20} /><span>{t('posQuick.newTab')}</span>
       </button>
 
       {tabSheet && (

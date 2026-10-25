@@ -4875,15 +4875,17 @@ button.pq-tile {
   box-shadow: var(--shadow-md);
   overflow: hidden;
 }
+.pq-tabs-row { display: flex; align-items: center; flex: 0 0 auto; min-width: 0; border-bottom: 1px solid var(--border); }
 .pq-tabs {
   display: flex;
   gap: 8px;
   padding: 12px;
   overflow-x: auto;
   scrollbar-width: none;
-  border-bottom: 1px solid var(--border);
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-width: 0;
 }
+.pq-tabs-actions { display: flex; gap: 8px; flex: 0 0 auto; padding: 12px 12px 12px 4px; }
 .pq-tabs::-webkit-scrollbar { display: none; }
 button.pq-tab {
   flex: 0 0 auto;
@@ -5811,4 +5813,18 @@ html[data-layout="desktop"] .app-shell.is-till-kiosk .app-main { padding: 12px 1
 @media (max-width: 900px) {
   .is-staff-app button.pq-cartbar { bottom: calc(84px + env(safe-area-inset-bottom)); }
   .is-staff-app .pq { padding-bottom: 84px; }
+}
+/* Phones: a "+ Tab" button beside the order bar opens a new tab straight away. */
+.pq-cartbar-new { display: none; }
+@media (max-width: 900px) {
+  button.pq-cartbar { right: 96px; }
+  button.pq-cartbar-new {
+    position: fixed; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 200;
+    display: grid; place-items: center; align-content: center; gap: 0;
+    width: 76px; min-height: 64px; border-radius: 18px; border: 2px solid var(--pq-accent);
+    background: var(--bg2); color: var(--pq-accent); font-size: 13px; font-weight: 800;
+    box-shadow: 0 10px 24px color-mix(in srgb, var(--c-text) 18%, transparent);
+  }
+  .is-staff-app button.pq-cartbar-new { bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .pq-tabs { padding-right: 4px; }
 }
