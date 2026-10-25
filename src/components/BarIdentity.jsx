@@ -33,18 +33,29 @@ export function BarMark({ brand, size = 36 }) {
   )
 }
 
-/** Logo + name block for the top of the bar's app (sidebar, phone top bar, till header). */
-export function BarIdentity({ bar, size = 40, sub, className = '' }) {
+/**
+ * Logo + name block for the top of the bar's app (sidebar, phone top bar, till header).
+ * With onClick it becomes a button (the owner app uses it to go back to the dashboard).
+ */
+export function BarIdentity({ bar, size = 40, sub, className = '', onClick, label }) {
   const brand = useMemo(() => ({ ...resolveBrand(bar), initials: initialsOf(bar?.nome) }), [bar])
-  return (
-    <div className={`bar-identity ${className}`.trim()}>
+  const body = (
+    <>
       <BarMark brand={brand} size={size} />
       <div className="bar-identity-text">
         <div className="bar-identity-name">{brand.name}</div>
         {sub ? <div className="bar-identity-sub">{sub}</div> : null}
       </div>
-    </div>
+    </>
   )
+  if (onClick) {
+    return (
+      <button type="button" className={`bar-identity is-link ${className}`.trim()} onClick={onClick} aria-label={label} title={label}>
+        {body}
+      </button>
+    )
+  }
+  return <div className={`bar-identity ${className}`.trim()}>{body}</div>
 }
 
 /**

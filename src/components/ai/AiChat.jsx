@@ -29,7 +29,6 @@ function Sources({ sources }) {
       <Icon name="info" size={14} />
       <span>
         {t('ai.sourcesLine', { from: sources.period?.from, to: sources.period?.to, scope: sources.scope })}
-        {sources.limitations?.length > 0 && <> · <em>{sources.limitations.join(' · ')}</em></>}
       </span>
     </div>
   )

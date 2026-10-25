@@ -16,7 +16,7 @@
     "test:pos": "node scripts/posFloor.test.mjs",
     "test:pos-visual": "node scripts/posVisual.test.mjs",
     "test:ledger": "node scripts/faturaLedger.test.mjs",
-    "test:ai": "node scripts/aiActions.test.mjs",
+    "test:ai": "node scripts/aiActions.test.mjs && node scripts/aiData.test.mjs",
     "test:pos:pg": "node scripts/posFloor.pg.test.mjs",
     "test:floor:pg": "node scripts/floorComandas.pg.test.mjs",
     "test:redesign": "node scripts/redesign.test.mjs",

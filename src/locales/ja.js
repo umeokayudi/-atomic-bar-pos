@@ -949,6 +949,7 @@ export default {
     deviceDesktop: 'デスクトップ',
     openMenu: 'メニューを開く',
     closeMenu: 'メニューを閉じる',
+    goHome: 'ダッシュボードに戻る',
   },
   fulfillment: {
     title: '配送',

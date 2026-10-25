@@ -153,6 +153,7 @@ const PAGES = [
   { who: OWNER, path: '/bar/inicio', name: 'bar-home-owner' },
   { who: OWNER, path: '/bar/conta', name: 'bar-account' },
   { who: OWNER, path: '/bar/conta', name: 'bar-account-password', taps: ['.my-account-line:nth-of-type(3) .ui-btn'] },
+  { who: OWNER, path: '/bar/conta', name: 'bar-logo-home', taps: ['button.bar-identity.is-link'] },
 ]
 let CURRENT = {}
 const ONLY = process.env.PAGES ? process.env.PAGES.split(',') : null
