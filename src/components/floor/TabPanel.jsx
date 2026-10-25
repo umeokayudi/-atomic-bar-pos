@@ -8,6 +8,8 @@ import { cardMethodLabel, cardSurcharge, isCardMethod, normalizeCardMachines, pi
 import { ON_ACCOUNT, methodDisplay, onAccountError, onAccountMethod, parseOnAccountMethod } from '../../lib/onAccount'
 import { loadCrmGuests } from '../../lib/onAccountStore'
 import Icon from '../ui/Icon'
+import { seatsOf } from '../../lib/floorEditor'
+import PeopleStepper from './PeopleStepper'
 import CustomerPicker from '../pos/CustomerPicker'
 
 const METHODS = [
@@ -33,6 +35,14 @@ export default function TabPanel({ tab, tabs = [], tables = [], settings = {}, o
   const money = useMemo(() => tabMoney(tab, tab.items, tab.payments, settings), [tab, settings])
   const others = tabs.filter(x => x.id !== tab.id && x.status === 'open')
   const locked = tab.status !== 'open'
+  // Rename: null = not editing. "Remove name" puts back the table's name (or Walk-in without a table).
+  const [naming, setNaming] = useState(null)
+  async function saveName(nome) {
+    const clean = String(nome || '').trim()
+    if (!clean) return
+    if (clean === tab.nome) { setNaming(null); return }
+    if (await act(() => tabsApi.update(supabase, tab.id, { nome: clean }))) setNaming(null)
+  }
 
   async function act(fn) {
     setBusy(true)
@@ -63,12 +73,29 @@ export default function TabPanel({ tab, tabs = [], tables = [], settings = {}, o
         <div className="ui-drawer-head">
           <span className="ui-kpi-icon"><Icon name="comandas" size={18} /></span>
           <div className="ui-drawer-title">
-            {tab.nome}
+            {naming == null ? (
+              <span className="tab-name-row">
+                {tab.nome}
+                {!locked && (
+                  <button type="button" className="ui-btn is-ghost is-sm is-icon" onClick={() => setNaming(tab.nome)} aria-label={t('tabs.rename')} title={t('tabs.rename')}>
+                    <Icon name="edit" size={14} />
+                  </button>
+                )}
+              </span>
+            ) : (
+              <form className="tab-name-edit" onSubmit={e => { e.preventDefault(); saveName(naming) }}>
+                <input autoFocus value={naming} onChange={e => setNaming(e.target.value)} placeholder={tab.mesa_nome || t('tabs.renameHint')} aria-label={t('tabs.renameHint')} maxLength={60} />
+                <button type="submit" className="ui-btn is-sm is-primary" disabled={busy || !naming.trim()}>{t('tabs.saveName')}</button>
+                <button type="button" className="ui-btn is-sm" disabled={busy} onClick={() => saveName(tab.mesa_nome || t('atomicPos.walkIn'))}>{t('tabs.removeName')}</button>
+                <button type="button" className="ui-btn is-ghost is-sm is-icon" onClick={() => setNaming(null)} aria-label={t('common.close')}><Icon name="close" size={14} /></button>
+              </form>
+            )}
             <div className="ui-card-sub">
               {tab.mesa_nome ? `${tab.mesa_nome} · ` : ''}{t('tabs.people', { n: tab.pessoas })}
               {tab.responsavel_nome ? ` · ${tab.responsavel_nome}` : ''}
             </div>
           </div>
+          {!locked && <PeopleStepper value={+tab.pessoas || 1} onSave={n => act(() => tabsApi.update(supabase, tab.id, { pessoas: n }))} />}
           <button type="button" className="ui-btn is-ghost is-icon" onClick={onClose} aria-label={t('common.close')}><Icon name="close" /></button>
         </div>
 
@@ -381,7 +408,7 @@ function DetailsSection({ tab, tables, tabs, busy, act, money, onClose }) {
       <div className="ui-row">
         <select value={table} onChange={e => setTable(e.target.value)} aria-label={t('tabs.moveTable')}>
           <option value="">{t('tabs.noTable')}</option>
-          {tables.filter(x => x.ativo !== false).map(x => <option key={x.id} value={x.id} disabled={busyTables.has(x.id)}>{x.nome}{busyTables.has(x.id) ? ` (${t('tabs.busy')})` : ''}</option>)}
+          {seatsOf(tables).map(x => <option key={x.id} value={x.id} disabled={busyTables.has(x.id)}>{x.nome}{busyTables.has(x.id) ? ` (${t('tabs.busy')})` : ''}</option>)}
         </select>
         <button type="button" className="ui-btn" disabled={busy || table === (tab.table_id || '')} onClick={() => act(() => tabsApi.moveTable(supabase, tab.id, table || null))}>
           <Icon name="move" size={16} /> {t('tabs.move')}

@@ -25,6 +25,8 @@ export const meUploadPhoto = image => post('meUploadPhoto', image)
 export const meRequests = () => post('meRequests')
 export const meSendRequest = req => post('meSendRequest', req)
 export const meEarnings = (from, to) => post('meEarnings', { from, to })
+export const meZangyo = (until, note) => post('meZangyo', { until, note })
+export const meAccount = ({ current, email, password }) => post('meAccount', { current, email, password })
 
 // Owner / manager
 export const listRequests = () => post('listRequests')
@@ -47,3 +49,4 @@ export const saveFineSettings = settings => post('saveFineSettings', settings)
 export const markSalaryPaid = payout => post('markSalaryPaid', payout)
 export const unmarkSalaryPaid = id => post('unmarkSalaryPaid', { id })
 export const listPayouts = month => post('listPayouts', month ? { month } : {})
+export const meName = nome => post('meName', { nome })

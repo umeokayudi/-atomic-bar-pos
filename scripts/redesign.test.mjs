@@ -8,6 +8,7 @@ import { buildSaleArgs, commitSaleAtomic } from '../src/lib/posCommit.js'
 import { planSaveRows, pendingToLines, splitEvenly, tableState, tabMoney, validateMoves } from '../src/lib/comandas.js'
 import { resolveItemPrice } from '../src/lib/atomicPos.js'
 import * as fe from '../src/lib/floorEditor.js'
+import { piecesFromAi } from '../src/lib/floorPhoto.js'
 import { moveItem, resolveLayout, serializeLayout } from '../src/lib/dashboardLayoutCore.js'
 import { deltaPct, niceMax, shortNum } from '../src/lib/chartMath.js'
 import { staffDayCsv, staffDayReport } from '../src/lib/staffDayReport.js'
@@ -264,6 +265,68 @@ test('floor editor: save payload keeps ids, new rows without id, new sectors by 
   assert.equal(p.sectors[1].id, undefined)
   assert.ok(fe.isDirty(base(), st))
   assert.ok(!fe.isDirty(base(), { ...base(), selected: 't1' }))
+})
+
+test('floor seats: only places a tab can be opened on, tables before VIP before chairs', () => {
+  const T = (nome, forma, capacidade, x = 0, y = 0, largura = 50, altura = 50) => ({ id: nome, nome, forma, capacidade, x, y, largura, altura })
+  const rows = [
+    T('Mesa 10', 'square', 4), T('Mesa 2', 'square', 4), T('Karaoke 1', 'stage', 6), T('Toilet W', 'stage', 4), T('Elevator', 'stage', 0),
+    T('Mesa 1', 'wall', 4), T('Door', 'door', 0), T('Fridge', 'stage', 2), T('Sofa D', 'sofa', 0), { ...T('Off', 'round', 4), ativo: false },
+  ]
+  assert.deepEqual(fe.seatsOf(rows).map(t => t.nome), ['Mesa 2', 'Mesa 10', 'Karaoke 1'])
+  assert.equal(fe.isSeat(T('Counter', 'bar', 0)), true)
+  assert.equal(fe.vipTag(T('Karaoke 1', 'stage', 6)), true)
+  assert.equal(fe.vipTag(T('Karaoke VIP 1', 'stage', 6)), false)
+  assert.equal(fe.isToilet(T('Toilet M', 'stage', 0)), true)
+})
+
+test('floor counter chairs: stools next to a counter, numbered along it; plants and far pieces left alone', () => {
+  const T = (nome, forma, x, y, largura = 30, altura = 30, capacidade = 0) => ({ id: nome, nome, forma, x, y, largura, altura, capacidade })
+  const tables = [
+    T('Counter', 'bar', 90, 180, 420, 50), T('b', 'plant', 250, 240), T('a', 'plant', 150, 240), T('Plant', 'plant', 300, 240),
+    T('far', 'plant', 150, 400), T('big', 'round', 200, 240, 100, 100, 4),
+  ]
+  assert.deepEqual(fe.counterChairs(tables).map(t => t.id), ['a', 'b'])
+  const s = fe.numberCounterChairs({ tables }, n => `Cadeira ${n}`)
+  assert.deepEqual(s.tables.filter(t => t.capacidade === 1).map(t => [t.id, t.nome]), [['b', 'Cadeira 2'], ['a', 'Cadeira 1']])
+  assert.deepEqual(fe.seatsOf(s.tables).map(t => t.nome), ['big', 'Counter', 'Cadeira 1', 'Cadeira 2'])
+  assert.equal(fe.numberCounterChairs({ tables: [T('x', 'plant', 0, 0)] }).tables.length, 1)
+})
+
+test('floor items: mirror, darts, chair... saved as tagged pieces, numbered, only the chair is a seat', () => {
+  let st = fe.addItem(base(), 'darts', 'Dardo')
+  st = fe.addItem(st, 'chair', 'Cadeira')
+  st = fe.addItem(st, 'chair', 'Cadeira')
+  const [, darts, c1, c2] = st.tables
+  assert.deepEqual([darts.forma, darts.nota, darts.nome], ['plant', 'item:darts', 'Dardo 1'])
+  assert.deepEqual([c1.nome, c2.nome], ['Cadeira 1', 'Cadeira 2'])
+  assert.equal(fe.itemOf(c1), 'chair')
+  assert.equal(fe.itemOf({ ...c1, forma: 'round' }), null)
+  assert.equal(fe.itemOf({ forma: 'plant', nota: 'item:nope' }), null)
+  assert.equal(fe.isSeat(c1), true)
+  assert.equal(fe.isSeat(darts), false)
+  const rows = fe.toSavePayload(st).tables
+  assert.equal(rows.find(r => r.nome === 'Dardo 1').nota, 'item:darts')
+  assert.equal('nota' in rows[0], false)
+  const counter = { id: 'c', nome: 'Counter', forma: 'bar', x: 0, y: 100, largura: 300, altura: 50, capacidade: 0 }
+  const near = { ...darts, id: 'd', x: 40, y: 160 }
+  assert.deepEqual(fe.counterChairs([counter, near, { ...c1, id: 'k', x: 120, y: 160 }]).map(t => t.id), ['k'])
+})
+
+test('floor photo: AI pieces scaled into the plan, bad ones skipped', () => {
+  const answer = { room: { w: 1000, d: 500 }, pieces: [
+    { name: 'Mesa 1', shape: 'square', x: 100, y: 100, w: 80, d: 80, seats: 4 },
+    { name: 'Toilet', shape: 'stage', x: 800, y: 0, w: 200, d: 150, seats: 0 },
+    { name: 'Chair', shape: 'chair', x: 0, y: 0, w: 40, d: 40 },
+    { name: 'Bad', shape: 'round', x: 'a', y: 0, w: 40, d: 40 },
+  ] }
+  const { tables, skipped } = piecesFromAi(answer, { largura: 2000, altura: 2000 })
+  assert.equal(skipped, 2)
+  assert.deepEqual(tables.map(t => [t.nome, t.forma, t.x, t.y, t.largura, t.altura, t.capacidade]), [
+    ['Mesa 1', 'square', 200, 200, 160, 160, 4], ['Toilet', 'stage', 1600, 0, 400, 300, 0],
+  ])
+  assert.ok(tables.every(t => fe.isTemp(t.id)))
+  assert.deepEqual(piecesFromAi({}, { largura: 900, altura: 500 }), { tables: [], skipped: 0 })
 })
 
 test('floor editor: undo/redo', () => {

@@ -5,7 +5,7 @@ import { useAuth } from '../Auth'
 import { useAiPageContext } from '../../lib/aiPanel'
 import { DEFAULT_POS_SETTINGS, settingsFromRow } from '../../lib/nightTicket'
 import { TABLE_STATES, floorApi, floorAvailable, floorPlanAvailable, loadOpenTabs, loadTabHistory, newKey, tableState, tabMoney, tabsApi } from '../../lib/comandas'
-import { fitZoom, isDecor } from '../../lib/floorEditor'
+import { fitZoom, isSeat, itemOf } from '../../lib/floorEditor'
 import { tablesInState } from '../../lib/floorStatus'
 import { contentBounds, guestSpots } from '../../lib/floor3d'
 import { fmtYen } from '../utils'
@@ -149,8 +149,8 @@ export default function FloorScreen({ bar, onOpenTill }) {
     }
   }, [avail, planOnly, bar.id, refresh])
 
-  const decor = useMemo(() => tables.filter(x => x.ativo !== false && isDecor(x.forma)), [tables])
-  const live = useMemo(() => tables.filter(x => x.ativo !== false && !isDecor(x.forma)).map(tb => {
+  const decor = useMemo(() => tables.filter(x => x.ativo !== false && !isSeat(x)), [tables])
+  const live = useMemo(() => tables.filter(isSeat).map(tb => {
     const open = tabs.filter(c => c.table_id === tb.id)
     const state = tableState(tb, tabs, now)
     const money = open.reduce((a, c) => {
@@ -201,6 +201,13 @@ export default function FloorScreen({ bar, onOpenTill }) {
     } catch (e2) { setErr(t('tabs.errGeneric', { error: e2.message })) }
   }
 
+  async function setPeople(tab, n) {
+    try {
+      await tabsApi.update(supabase, tab.id, { pessoas: n })
+      await refresh()
+    } catch (e) { setErr(t('tabs.errGeneric', { error: e.message })) }
+  }
+
   async function setManual(tb, state) {
     try {
       await floorApi.setState(supabase, tb.id, state)
@@ -210,7 +217,7 @@ export default function FloorScreen({ bar, onOpenTill }) {
   }
 
   function onTable(tb) {
-    if (isDecor(tb.forma)) return
+    if (!isSeat(tb)) return
     if (planOnly) { setOpening({ ...tb, planOnly: true }); return }
     if (tb.open.length === 1) { setPanel(tb.open[0].id); return }
     if (tb.open.length > 1) { setOpening({ ...tb, pick: true }); return }
@@ -306,7 +313,7 @@ export default function FloorScreen({ bar, onOpenTill }) {
               <div className="fe-canvas" style={{ width: planBox.w * zoom, height: planBox.h * zoom }}>
                 <div className="fe-plane floor-live" style={{ width: planBox.w, height: planBox.h, transform: `scale(${zoom})`, '--fz': zoom }}>
                   {decor.map(tb => (
-                    <div key={tb.id} className={`fe-table is-${tb.forma} is-decor`} aria-hidden="true"
+                    <div key={tb.id} className={`fe-table is-${tb.forma} is-decor${itemOf(tb) ? ` is-item is-item-${itemOf(tb)}` : ''}`} aria-hidden="true"
                       style={{ left: +tb.x - planBox.x, top: +tb.y - planBox.y, width: +tb.largura, height: +tb.altura, transform: tb.rotacao ? `rotate(${tb.rotacao}deg)` : undefined, '--fe-color': tb.cor || undefined }}>
                       <span className="fe-table-name">{tb.nome}</span>
                     </div>
@@ -321,7 +328,7 @@ export default function FloorScreen({ bar, onOpenTill }) {
                         ))}
                         <button
                           type="button"
-                          className={`fe-table is-${tb.forma} st-${tb.state}${compact ? ' is-compact' : ''}`}
+                          className={`fe-table is-${tb.forma}${itemOf(tb) ? ` is-item is-item-${itemOf(tb)}` : ''} st-${tb.state}${compact ? ' is-compact' : ''}`}
                           style={{ left: 0, top: 0, width: '100%', height: '100%' }}
                           onClick={() => onTable(tb)}
                           aria-label={label}
@@ -340,7 +347,7 @@ export default function FloorScreen({ bar, onOpenTill }) {
               </div>
             </div>
           ) : view === '3d' ? (
-            <Floor3D layout={layout} tables={[...decor, ...live]} onTable={onTable} live />
+            <Floor3D layout={layout} tables={[...decor, ...live]} onTable={onTable} onPeople={setPeople} live />
           ) : (
             <ul className="floor-list">
               {live.map(tb => (

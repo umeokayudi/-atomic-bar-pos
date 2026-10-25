@@ -1,8 +1,10 @@
 /** Fictional data for the visual checks only. Nothing here is read by the app in production. */
-export const BAR = { id: '00000000-0000-4000-8000-0000000000b1', nome: 'Bar Demo', cor: '#3F7F67', criado_em: '2026-01-01T00:00:00Z' }
+export const BAR = { id: '00000000-0000-4000-8000-0000000000b1', nome: process.env.BAR_NAME || 'Bar Demo', cor: '#3F7F67', criado_em: '2026-01-01T00:00:00Z' }
 export const BAR2 = { id: '00000000-0000-4000-8000-0000000000b2', nome: 'Lounge Demo', cor: '#C9A15B', criado_em: '2026-01-01T00:00:00Z' }
 export const ADMIN = { id: '00000000-0000-4000-8000-00000000a001', nome: 'Admin Demo', role: 'admin', bar_id: null, email: 'admin@example.com' }
 export const MANAGER = { id: '00000000-0000-4000-8000-00000000a002', nome: 'Gerente Demo', role: 'gerente', bar_id: BAR.id, email: 'gerente@example.com' }
+export const OWNER = { id: '00000000-0000-4000-8000-00000000a0d1', nome: 'Owner Demo', role: 'cliente', bar_id: BAR.id, email: 'owner@example.com' }
+export const CASHIER = { id: '00000000-0000-4000-8000-00000000a0c1', nome: 'Caixa Demo', role: 'caixa', bar_id: BAR.id, email: 'caixa@example.com' }
 export const STAFF = { id: 'st1', nome: 'Aiko Tanaka', role: 'bar_staff', bar_id: BAR.id, email: 'aiko@example.com' }
 
 const day = n => { const d = new Date(Date.now() - n * 86400000); return d.toISOString().slice(0, 10) }
@@ -12,7 +14,7 @@ const drinks = [
   ['Highball', 'Whisky', 800, 'HB'], ['Gin Tonic', 'Gin', 900, '12'], ['Mojito', 'Cocktail', 1000, '13'], ['Draft beer', 'Beer', 700, 'BR'],
   ['Lemon sour', 'Shochu', 650, '21'], ['Red wine', 'Wine', 900, 'RW'], ['Cola', 'Soft drink', 400, ''], ['Oolong tea', 'Soft drink', 400, ''],
   ['Margarita', 'Tequila', 1100, '31'], ['Moscow mule', 'Vodka', 950, '32'], ['Cuba libre', 'Rum', 900, '33'], ['Nachos', 'Food', 800, 'F1'],
-].map(([nome, categoria, preco_venda, codigo], i) => ({ id: `00000000-0000-4000-8000-0000000d00${String(i).padStart(2, '0')}`, bar_id: BAR.id, nome, categoria, preco_venda, codigo, preco_desconto: Math.round(preco_venda / 2), custo: Math.round(preco_venda * 0.3), margem: 0.7, ativo: true }))
+].map(([nome, categoria, preco_venda, codigo], i) => ({ id: `00000000-0000-4000-8000-0000000d00${String(i).padStart(2, '0')}`, bar_id: BAR.id, nome, categoria, preco_venda, codigo, preco_desconto: Math.round(preco_venda / 2), custo: Math.round(preco_venda * 0.3), margem: 0.7, ativo: true, receita: nome === 'Gin Tonic' ? 'Tanqueray Gin 45ml + Wilkinson Tonic 120ml + Lime (¥20)' : nome === 'Highball' ? 'jameson 30ml + soda 150ml' : '', custom: nome === 'Mojito' }))
 
 const tables = [
   ['1', 'square', 60, 60, 100, 100, 4], ['2', 'square', 220, 60, 100, 100, 4], ['3', 'round', 380, 60, 100, 100, 4],
@@ -72,7 +74,9 @@ vendas[2] = { ...vendas[2], vendas_itens: [{ id: 'vi3', qtd: 2, preco_unitario: 
 
 export const TABLES = {
   bars: [BAR, BAR2],
-  perfis: [ADMIN, MANAGER, { ...STAFF }],
+  // HQ → Bars look: BRAND_COLOR=#1C7ED6 paints the bar app in that colour (BAR_NAME=Atomic gives the red/black look).
+  bar_brand: process.env.BRAND_COLOR ? [{ id: BAR.id, bar_id: BAR.id, cor: process.env.BRAND_COLOR, logo: null }] : [],
+  perfis: [ADMIN, MANAGER, OWNER, { ...STAFF }, { ...CASHIER }],
   drink_menu: drinks,
   floor_layouts: [{ id: 'L1', bar_id: BAR.id, nome: 'Salão', ativo: true, largura: 900, altura: 420, versao: 3, criado_em: '2026-10-01T00:00:00Z' }],
   floor_sectors: [{ id: 'S1', bar_id: BAR.id, layout_id: 'L1', nome: 'VIP', cor: '#C9A15B', ordem: 0 }],
@@ -90,7 +94,16 @@ export const TABLES = {
     { id: 'p1', bar_id: BAR.id, status: 'entregue', data_pedido: day(3), criado_em: day(3), total_estimado: 26400, pedidos_itens: [{ id: 'pi1', produto_id: 'pr1', qtd: 4, preco_unitario: 3300, produtos: { nome: 'Tanqueray Gin' } }, { id: 'pi2', produto_id: 'pr4', qtd: 24, preco_unitario: 550, produtos: { nome: 'Asahi Super Dry' } }] },
     { id: 'p2', bar_id: BAR2.id, status: 'entregue', data_pedido: day(30) },
     { id: 'aaaa1111-p', bar_id: BAR.id, status: 'confirmado', data_pedido: day(1), criado_em: day(1), data_entrega_prevista: day(-2), total_estimado: 41800, pedidos_itens: [{ id: 'pi3', produto_id: 'pr2', qtd: 6, preco_unitario: 4200, produtos: { nome: 'Jameson' } }, { id: 'pi4', produto_id: 'pr5', qtd: 12, preco_unitario: 1383, produtos: { nome: 'Wilkinson Tonic' } }] },
-    { id: 'bbbb2222-p', bar_id: BAR.id, status: 'pendente', data_pedido: day(4), criado_em: day(4), data_entrega_prevista: day(1), total_estimado: 12600, obs: 'Deliver before 17:00 please', pedidos_itens: [{ id: 'pi5', produto_id: 'pr3', qtd: 3, preco_unitario: 4200, produtos: { nome: 'Moët Impérial' } }] },
+    { id: 'bbbb2222-p', bar_id: BAR.id, status: 'pendente', data_pedido: day(4), criado_em: day(4), data_entrega_prevista: day(1), total_estimado: 12600, obs: 'Costco run for this bar\nBar: Deliver before 17:00 please', pedidos_itens: [{ id: 'pi5', produto_id: 'pr3', qtd: 3, preco_unitario: 4200, produtos: { nome: 'Moët Impérial' } }] },
+  ],
+  bar_own_orders: [
+    { id: 'own1', bar_id: BAR.id, fornecedor: 'Sakaya Tanaka', data: day(2), status: 'ordered', total: 3600, obs: 'Pick up Friday', itens: [{ nome: 'Lemons', qtd: 30, preco: 60 }, { nome: 'Limes', qtd: 20, preco: 90 }], criado_em: day(2) },
+    { id: 'own2', bar_id: BAR.id, fornecedor: 'Gyomu Super', data: day(5), status: 'received', total: 2400, itens: [{ nome: 'Ice 3kg', qtd: 8, preco: 300 }], criado_em: day(5) },
+  ],
+  bar_pricing: [
+    { id: 'bp1', bar_id: BAR.id, produto_id: 'pr4', drinks_por_garrafa: 1, preco_drink: 1000 },
+    { id: 'bp2', bar_id: BAR.id, produto_id: 'pr1', drinks_por_garrafa: 16, preco_drink: 900 },
+    { id: 'bp3', bar_id: BAR.id, produto_id: 'pr7', drinks_por_garrafa: 23, preco_drink: 2400 },
   ],
   produtos_public: [
     { id: 'pr1', nome: 'Tanqueray Gin', categoria: 'Gin', volume_ml: 750, preco_venda: 3300, ativo: true },
@@ -148,6 +161,8 @@ export const TABLES = {
   ],
 }
 
+function dayOffset(n) { return new Date(Date.now() + 9 * 3600000 + n * 86400000).toISOString().slice(0, 10) }
+
 /** /api/bar-staff GET: team, registry (suppliers, rent, power...), goals, events, day sheets. */
 export const BAR_STAFF = {
   staff: [
@@ -166,8 +181,12 @@ export const BAR_STAFF = {
   registry: [
     { id: 'rg1', kind: 'aluguel', nome: 'Shibuya Realty', cargo: 'Mr. Ito', contato: '03-1234-5678', amount: 180000, vence_dia: 25, metodo: 'transfer' },
     { id: 'rg2', kind: 'energia', nome: 'Tokyo Power', amount: 32000, vence_dia: 10 },
-    { id: 'rg3', kind: 'fornecedor', nome: 'Sake Wholesale', detalhe: 'Sake, shochu', contato: '03-9999-0000' },
-    { id: 'rg4', kind: 'fixo', nome: 'Internet', amount: 6000, vence_dia: 5 },
+    { id: 'rg3', kind: 'fornecedor', nome: 'Sake Wholesale', cargo: 'bebidas', detalhe: 'Sake, shochu', contato: '03-9999-0000', dias: ['tue', 'fri'], amount: 0 },
+    { id: 'rg8', kind: 'fornecedor', nome: 'Clean Tokyo', cargo: 'limpeza', detalhe: 'Floor, toilets and VIP rooms after closing', contato: '090-1111-2222', ultimo_servico: dayOffset(-6), proximo_servico: dayOffset(1), amount: 25000, custo_por: 'visit' },
+    { id: 'rg9', kind: 'fornecedor', nome: 'Ikeda Koumuten', cargo: 'reforma', detalhe: 'New counter top and VIP 2 wallpaper', contato: 'LINE ikeda_k', email: 'office@ikeda.example', ultimo_servico: dayOffset(-120), proximo_servico: dayOffset(40), amount: 480000, custo_por: 'order' },
+    { id: 'rg10', kind: 'fornecedor', nome: 'Hoshizaki service', cargo: 'manutencao', detalhe: 'Ice machine check', contato: '0120-00-1234', proximo_servico: dayOffset(-2), amount: 8000, custo_por: 'visit' },
+    { id: 'rg4', kind: 'fixo', nome: 'NTT Hikari', detalhe: 'internet', amount: 6000, vence_dia: 5, metodo: 'debit' },
+    { id: 'rg11', kind: 'fixo', nome: 'Karaoke license', detalhe: 'Karaoke', amount: 12000, vence_dia: 1 },
     { id: 'rg5', kind: 'cartao', nome: 'Square', maquina: 'Square Terminal', local: 'Counter', pct: 3.25, prazo_dias: 1, vence_dia: 0, conta: 'MUFG Shibuya', bandeiras: ['visa', 'master', 'jcb', 'amex', 'ic'] },
     { id: 'rg6', kind: 'cartao', nome: 'AirPAY', maquina: 'AirPAY reader', local: 'VIP rooms', pct: 3.24, prazo_dias: 0, vence_dia: 25, amount: 0, conta: 'MUFG Shibuya', bandeiras: ['visa', 'master', 'qr'] },
     { id: 'rg7', kind: 'variavel', nome: 'Ice machine repair', amount: 18000, recorrente: false, month_key: new Date().toISOString().slice(0, 7), data_pagamento: new Date().toISOString().slice(0, 10), metodo: 'cash' },

@@ -9,6 +9,8 @@
 import { loadStaffWithExtras, runLiveOp, saveStaffExtras } from './_barLiveStore.js'
 import { listPunches } from './_punchStore.js'
 import { geminiGenerate } from './_gemini.js'
+import { drinksAuthClient } from './_supabaseAdmin.js'
+import { forgetBarActors } from './_barLaneAuth.js'
 import { earningsByDay, myGoalStatus, myNightSummary } from '../src/lib/staffNight.js'
 import { tokyoNightKey, tokyoWallToUtcMs } from '../src/lib/tokyo.js'
 import { nightWindow } from '../src/lib/nightClose.js'
@@ -28,7 +30,7 @@ export const REQUEST_STATUSES = ['open', 'seen', 'done']
 
 export const SELF_ACTIONS = new Set([
   'meDay', 'meProfile', 'meUploadPhoto', 'meRequests', 'meSendRequest', 'meEarnings',
-  'meAvailability', 'meSaveAvailability', 'mePayouts',
+  'meAvailability', 'meSaveAvailability', 'mePayouts', 'meZangyo', 'meAccount', 'meName',
 ])
 export const OWNER_ACTIONS = new Set([
   'listRequests', 'answerRequest', 'listDayReports',
@@ -150,13 +152,49 @@ export async function checkoutContext(db, { bar, staff, inAt }) {
   return { ...day, inAt: inAt || null }
 }
 
+const HM_RE = /^([01]\d|2[0-3]):[0-5]\d$/
+
+/** Clocking out away from the planned end: { kind: 'over'|'early', planned, actual, authorizedBy, note } or null. */
+export function cleanOffTime(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const kind = raw.kind === 'over' || raw.kind === 'early' ? raw.kind : ''
+  const planned = HM_RE.test(String(raw.planned || '')) ? String(raw.planned) : ''
+  const actual = HM_RE.test(String(raw.actual || '')) ? String(raw.actual) : ''
+  const authorizedBy = clip(raw.authorizedBy, 80)
+  if (!kind || !planned || !actual || authorizedBy.length < 2) return null
+  return { kind, planned, actual, authorizedBy, note: clip(raw.note, 300) }
+}
+
 export function cleanCheckout(raw = {}) {
   const sig = String(raw.signature || '')
   return {
     notes: clip(raw.notes, 1000),
     improve: clip(raw.improve, 1000),
     signature: /^data:image\/(png|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(sig) && sig.length <= SIGNATURE_MAX ? sig : '',
+    offTime: cleanOffTime(raw.offTime),
   }
+}
+
+/** One line for the owner: "Zangyo · planned 02:00 · left 03:10 · allowed by Ken · busy night". */
+export function offTimeText(off) {
+  return [off.kind === 'over' ? 'Zangyo' : 'Left early', `planned ${off.planned}`, `left ${off.actual}`, `allowed by ${off.authorizedBy}`, off.note].filter(Boolean).join(' · ')
+}
+
+/**
+ * Clock-out past the planned end or before it: a request in the owner's staff inbox (overtime → "Confirm overtime",
+ * early → "Confirm early leave"), with the signature on the day report. The owner decides; hours are not changed here.
+ */
+export async function recordOffTime(db, admin, { barId, staff, night, offTime }) {
+  const texto = offTimeText(offTime)
+  const row = {
+    id: newId(), bar_id: barId, staff_id: staff.id, staff_nome: staff.nome || '', tipo: offTime.kind === 'over' ? 'zangyo' : 'early',
+    texto, foto: '', night_key: night, until: offTime.actual,
+    status: 'open', answer: '', answered_by: '', answered_at: null, criado_em: new Date().toISOString(),
+  }
+  const saved = await runLiveOp(db, { table: 'staff_requests', mode: 'insert', insertRows: [row], wantSingle: true })
+  if (saved.error) return null
+  if (admin) await notifyManagers(admin, barId, { tipo: 'staff_request', titulo: `${staff.nome || 'Staff'} · ${offTime.kind === 'over' ? 'zangyo' : 'early leave'}`, mensagem: texto })
+  return row.id
 }
 
 function reportPrompt({ staffName, barName, ctx, checkout, hours }) {
@@ -201,7 +239,7 @@ export async function createDayReport(db, { bar, staff, punch, inPunchId, checko
     mission: ctx.mission || '',
     goal: ctx.goal,
     summary: ctx.summary,
-    notes: checkout.notes,
+    notes: [checkout.notes, checkout.offTime ? offTimeText(checkout.offTime) : ''].filter(Boolean).join('\n'),
     improve: checkout.improve,
     signature: checkout.signature,
     ai_report: '',
@@ -316,6 +354,29 @@ async function upsertRow(db, table, row) {
   })
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/**
+ * One e-mail for a staff login everywhere: the sign-in (auth user), the login row (perfis) and the staff profile
+ * (staff_extras.email). Used when staff change it in the app and when the owner edits the employee's e-mail.
+ * Returns { ok } or { error, status }.
+ */
+export async function setLoginEmail(admin, db, loginId, raw) {
+  const email = String(raw || '').trim().toLowerCase()
+  if (!EMAIL_RE.test(email) || email.length > 120) return { error: 'Enter a valid e-mail', status: 400 }
+  if (!admin) return { error: 'Changing the e-mail needs SUPABASE_SERVICE_ROLE_KEY', status: 503 }
+  const { data: taken } = await admin.from('perfis').select('id').eq('email', email).neq('id', loginId).limit(1)
+  if (taken?.length) return { error: 'This e-mail is already used by another login', status: 409 }
+  const { error: aErr } = await admin.auth.admin.updateUserById(loginId, { email, email_confirm: true })
+  if (aErr) return { error: aErr.message || 'Could not change the e-mail', status: 400 }
+  const { error: pErr } = await admin.from('perfis').update({ email }).eq('id', loginId)
+  if (pErr) return { error: pErr.message || 'Could not change the e-mail', status: 400 }
+  const extras = await saveStaffExtras(db, loginId, { email })
+  if (extras && extras.ok === false) return { error: extras.error || 'Could not save', status: 400 }
+  forgetBarActors()
+  return { ok: true, email }
+}
+
 /** Staff self-service. `me` comes from the session (requireBarAccount), never from the body. */
 export async function handleSelfAction(res, { admin, db, auth, body }) {
   const barId = auth.perfil.bar_id
@@ -338,6 +399,42 @@ export async function handleSelfAction(res, { admin, db, auth, body }) {
       telefone: extras.telefone || extras.contato || '',
       foto_url: await signedUrl(admin, foto, 3600),
     })
+  }
+
+  // My sign-in: change my e-mail (same on the login and on my staff profile) and/or my password.
+  // The current password is checked first. Shared till/clock lane logins cannot change here.
+  if (body.action === 'meAccount') {
+    if (auth.lane || !auth.user?.id) return res.status(400).json({ error: 'Ask the owner to change this login' })
+    if (!admin) return res.status(503).json({ error: 'Not available on this server' })
+    const current = String(body.current || '')
+    const check = await drinksAuthClient().auth.signInWithPassword({ email: auth.user.email, password: current })
+    if (check.error || check.data?.user?.id !== meId) return res.status(401).json({ error: 'Current password is wrong' })
+    const out = {}
+    if (body.password != null && String(body.password) !== '') {
+      const next = String(body.password)
+      if (next.length < 8) return res.status(400).json({ error: 'The new password needs at least 8 characters' })
+      const { error } = await admin.auth.admin.updateUserById(meId, { password: next })
+      if (error) return res.status(400).json({ error: error.message || 'Could not change the password' })
+      out.password = true
+    }
+    if (body.email != null && String(body.email).trim().toLowerCase() !== String(auth.user.email || '').toLowerCase()) {
+      const r = await setLoginEmail(admin, db, meId, body.email)
+      if (r.error) return res.status(r.status || 400).json({ error: r.error })
+      out.email = r.email
+    }
+    return res.status(200).json({ ok: true, ...out })
+  }
+
+  // My name on my own login (owner, manager or staff). Shared till/clock lane logins cannot change here.
+  if (body.action === 'meName') {
+    if (auth.lane || !auth.user?.id) return res.status(400).json({ error: 'Ask the owner to change this login' })
+    if (!admin) return res.status(503).json({ error: 'Not available on this server' })
+    const nome = String(body.nome || '').trim().replace(/\s+/g, ' ')
+    if (nome.length < 1 || nome.length > 80) return res.status(400).json({ error: 'Enter a name (up to 80 characters)' })
+    const { error } = await admin.from('perfis').update({ nome }).eq('id', meId)
+    if (error) return res.status(400).json({ error: error.message || 'Could not change the name' })
+    forgetBarActors()
+    return res.status(200).json({ ok: true, nome })
   }
 
   if (body.action === 'meUploadPhoto') {
@@ -377,6 +474,36 @@ export async function handleSelfAction(res, { admin, db, auth, body }) {
     const saved = await runLiveOp(db, { table: 'staff_requests', mode: 'insert', insertRows: [row], wantSingle: true })
     if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not send' })
     if (admin) await notifyManagers(admin, barId, { tipo: 'staff_request', titulo: `${me.nome || 'Staff'} · ${tipo}`, mensagem: texto.slice(0, 200) })
+    return res.status(200).json({ ok: true, request: row })
+  }
+
+  // Zangyo (overtime): on shift, the person says they stay longer, until about `until`. It lands in the owner's
+  // inbox as a request (tipo 'zangyo'); the owner confirms it there ("Done"). The clock-out stays the real end.
+  if (body.action === 'meZangyo') {
+    const until = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(body.until || '')) ? String(body.until) : ''
+    if (!until) return res.status(400).json({ error: 'Pick until what time' })
+    const night = tokyoNightKey()
+    const note = clip(body.note, 300)
+    const prev = await runLiveOp(db, {
+      table: 'staff_requests', mode: 'select', columns: '*',
+      filters: [{ op: 'eq', k: 'bar_id', v: barId }, { op: 'eq', k: 'staff_id', v: meId }],
+      orderBy: { k: 'criado_em', ascending: false }, limitN: 20,
+    })
+    const same = (prev.data || []).find(r => r.tipo === 'zangyo' && r.night_key === night && r.status !== 'done')
+    const texto = `Zangyo · until ${until}${note ? ` · ${note}` : ''}`
+    if (same) {
+      const patch = { texto, until, status: 'open' }
+      const saved = await runLiveOp(db, { table: 'staff_requests', mode: 'update', filters: [{ op: 'eq', k: 'id', v: same.id }], updatePatch: patch, wantSingle: true })
+      if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not send' })
+      return res.status(200).json({ ok: true, request: { ...same, ...patch } })
+    }
+    const row = {
+      id: newId(), bar_id: barId, staff_id: meId, staff_nome: me.nome, tipo: 'zangyo', texto, foto: '', night_key: night, until,
+      status: 'open', answer: '', answered_by: '', answered_at: null, criado_em: new Date().toISOString(),
+    }
+    const saved = await runLiveOp(db, { table: 'staff_requests', mode: 'insert', insertRows: [row], wantSingle: true })
+    if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not send' })
+    if (admin) await notifyManagers(admin, barId, { tipo: 'staff_request', titulo: `${me.nome || 'Staff'} · zangyo`, mensagem: texto })
     return res.status(200).json({ ok: true, request: row })
   }
 

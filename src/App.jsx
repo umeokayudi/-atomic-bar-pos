@@ -4,16 +4,17 @@ class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
   static getDerivedStateFromError(e) { return { error: errText(e, e?.message || 'Error') } }
   render() {
-    if (this.state.error) return <div style={{padding:20,color:'red',fontSize:14,background: 'var(--bg2)',minHeight:'100vh'}}><h2>Error</h2><p>{asReactText(this.state.error)}</p></div>
+    if (this.state.error) { hideBootSplash(); return <div style={{padding:20,color:'red',fontSize:14,background: 'var(--bg2)',minHeight:'100vh'}}><h2>Error</h2><p>{asReactText(this.state.error)}</p></div> }
     return this.props.children
   }
 }
 
-import { LogoSidebar } from './components/Logo'
+import { LogoSidebar, BootScreen } from './components/Logo'
+import { hideBootSplash } from './lib/bootSplash'
 import { MobileTopBar, ShellOverlay, WorkspaceChrome, TopbarUser, useMobileMenuLock } from './components/MobileShell'
 import GlobalSearch from './components/GlobalSearch'
 import { useNotifications, NotificationBell, useOverdueAlerts } from './components/Notifications'
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react'
 import { BrowserRouter, useLocation, useNavigate } from 'react-router-dom'
 import Icon from './components/ui/Icon'
 import { SidebarCollapseButton, useSidebarCollapse } from './lib/sidebarCollapse'
@@ -59,6 +60,7 @@ const AiCenter = lazy(() => import('./components/ai/AiCenter'))
 const ClientsCrm = lazy(() => import('./components/growth/ClientsCrm'))
 const MarketingHub = lazy(() => import('./components/growth/MarketingHub'))
 const ConsultingHub = lazy(() => import('./components/growth/ConsultingHub'))
+const BarFinanceHq = lazy(() => import('./components/growth/BarFinanceHq'))
 
 // ── TABS por role ─────────────────────────────────────────────────────────────
 const ADMIN_TABS = [
@@ -104,6 +106,7 @@ const STAFF_TABS = [
 
 const GROWTH_TABS = [
   { id:'crm', labelKey:'nav.crm', icon:'crm' },
+  { id:'barFinance', labelKey:'nav.barFinance', icon:'bars' },
   { id:'marketing', labelKey:'nav.marketing', icon:'marketing' },
   { id:'consultoria', labelKey:'nav.consultoria', icon:'consultoria' },
   { id:'ai', labelKey:'nav.ai', icon:'ai' },
@@ -350,14 +353,17 @@ function Dashboard({ onNav }) {
         },
         {
           id: 'kpis', title: t('dash.w.kpis'), icon: 'dashboard', size: 'full',
-          render: () => (
+          // No purchase logged yet: a margin would read 100%, which is not a real number.
+          render: () => { const noCost = !m.comprasEstimadas && !(+m.compras > 0); return (
             <div className="portal-hero-grid">
               <PortalHero
                 label={t('dashboard.projectedProfit', { month: monthLabel(selMonth) })}
                 value={fmtYen(m.lucroProjetado ?? m.lucro)}
                 sub={m.comprasEstimadas
                   ? t('dashboard.marginSubEst', { margin: m.margem, revenue: fmtYen(m.faturamento), cost: fmtYen(m.compras) })
-                  : t('dashboard.marginSub', { margin: m.margem, revenue: fmtYen(m.faturamento ?? m.receita), purchases: fmtYen(m.compras) })}
+                  : noCost
+                    ? t('dashboard.noPurchasesLogged')
+                    : t('dashboard.marginSub', { margin: m.margem, revenue: fmtYen(m.faturamento ?? m.receita), purchases: fmtYen(m.compras) })}
                 onClick={() => goToReport(onNav, selMonth)}
               />
               <PortalKpi
@@ -386,18 +392,20 @@ function Dashboard({ onNav }) {
               />
               <PortalKpi
                 icon="percent"
-                tone={m.margem >= 20 ? 'success' : m.margem > 0 ? 'warning' : 'danger'}
+                tone={noCost ? 'warning' : m.margem >= 20 ? 'success' : m.margem > 0 ? 'warning' : 'danger'}
                 label={t('dashboard.projectedMargin')}
-                value={`${m.margem}%`}
+                value={noCost ? '—' : `${m.margem}%`}
                 sub={m.comprasEstimadas
                   ? t('dashboard.marginDetailEst', { amount: fmtYen(m.compras) })
-                  : t('dashboard.marginDetail', { amount: fmtYen(m.compras), count: m.comprasCount })}
-                color={m.margem >= 20 ? 'var(--green)' : m.margem > 0 ? 'var(--amber)' : 'var(--red)'}
+                  : noCost
+                    ? t('dashboard.noPurchasesLogged')
+                    : t('dashboard.marginDetail', { amount: fmtYen(m.compras), count: m.comprasCount })}
+                color={noCost ? 'var(--amber)' : m.margem >= 20 ? 'var(--green)' : m.margem > 0 ? 'var(--amber)' : 'var(--red)'}
                 onClick={() => goToReport(onNav, selMonth)}
                 hint={t('dashboard.reportDetail')}
               />
             </div>
-          ),
+          ) },
         },
         {
           id: 'trend', title: t('dash.w.trend'), icon: 'cashflow', size: 'half',
@@ -511,6 +519,8 @@ function Shell() {
   const location = useLocation()
   const navigate = useNavigate()
   const [bar, setBar] = useState(null)
+  const [marca, setMarca] = useState(null)
+  const barShown = useMemo(() => (bar && marca ? { ...bar, marca } : bar), [bar, marca])
   const [menuOpen, setMenuOpen] = useState(false)
   const [pedidosPendentes, setPedidosPendentes] = useState(0)
   const { notifs, unread, markRead, markAllRead, deleteNotif, deleteAll } = useNotifications()
@@ -547,6 +557,11 @@ function Shell() {
         .catch(() => {
           if (!cancelled) setBar({ id: perfil.bar_id, nome: 'Atomic Bar' })
         })
+      // The bar's colour and logo (HQ → Bars) come from the live store; the app draws its default look until they arrive.
+      supabase.from('bar_brand').select('*').eq('bar_id', perfil.bar_id).maybeSingle()
+        .then(({ data }) => {
+          if (!cancelled && data) setMarca(data)
+        }, () => {})
     }
     if (perfil?.role === 'admin') {
       supabase.from('pedidos').select('id', { count:'exact' }).eq('status','pendente')
@@ -554,12 +569,11 @@ function Shell() {
     }
   }, [perfil])
 
-  if (loading || (user && !perfil)) return (
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16,background:'var(--navy)'}}>
-      <LogoSidebar />
-      <span className="spinner"/>
-    </div>
-  )
+  const booting = loading || (user && !perfil) || (isBarRole(perfil?.role) && perfil?.bar_id && !bar)
+  // Fade out the opening animation once there is a real screen (login, bar portal or HQ) to show.
+  useEffect(() => { if (!booting) hideBootSplash() }, [booting])
+
+  if (loading || (user && !perfil)) return <BootScreen />
 
   if (!user && !perfil) return <LoginPage />
 
@@ -567,20 +581,19 @@ function Shell() {
   if (isBarRole(perfil?.role)) {
     if (!perfil.bar_id) {
       return (
-        <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'var(--navy)', color:'white', flexDirection:'column', gap:16, padding:24, textAlign:'center' }}>
-          <LogoSidebar />
+        <BootScreen>
           <div style={{ fontSize:16, fontWeight:700 }}>{t('auth.accountNotLinked')}</div>
           <div style={{ fontSize:13, color:'rgba(255,255,255,0.55)', maxWidth:360, lineHeight:1.6 }}>
             {t('auth.accountNotLinkedHint')}
           </div>
           <button onClick={signOut} style={{ marginTop:8, padding:'10px 20px', borderRadius:8, border:'1px solid rgba(255,255,255,0.2)', background:'transparent', color:'white', cursor:'pointer' }}>{t('common.signOut')}</button>
-        </div>
+        </BootScreen>
       )
     }
-    if (!bar) return <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--navy)',color:'white',flexDirection:'column',gap:16}}><LogoSidebar /><div style={{color:'rgba(255,255,255,0.5)',fontSize:13}}>{t('auth.loadingPortal')}</div></div>
+    if (!bar) return <BootScreen />
     return (
-      <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--navy)', color: 'white' }}>{t('auth.loadingPortal')}</div>}>
-        <PortalCliente bar={bar} signOut={signOut} notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} />
+      <Suspense fallback={<BootScreen />}>
+        <PortalCliente bar={barShown} signOut={signOut} notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} />
       </Suspense>
     )
   }
@@ -696,6 +709,7 @@ function Shell() {
           {activeTab==='suppliers' && <Fornecedores />}
           {activeTab==='ai' && <AiCenter />}
           {activeTab==='crm' && <ClientsCrm onNav={selectTab} />}
+          {activeTab==='barFinance' && <BarFinanceHq />}
           {activeTab==='marketing' && <MarketingHub />}
           {activeTab==='consultoria' && <ConsultingHub />}
         </div>

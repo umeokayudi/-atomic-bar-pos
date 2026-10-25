@@ -7,7 +7,7 @@ import { haversineMeters } from '../src/lib/timeClock.js'
 import { CLAIM_MAX_MS, STALE_OPEN_MS, punchAllowed } from '../src/lib/clockRule.js'
 import {
   STAFF_APP_SELF, barBrand, bottomTabFor, elapsedLabel, initialsOf, myClockState, staffAppTabFor, staffAppTabsFor, staffMoreItemsFor, staffMoreSections, staffBackFor,
-  isStaffNotif, usesStaffApp,
+  isStaffNotif, usesStaffApp, hoursByNight, monthHoursStats,
 } from '../src/lib/staffApp.js'
 import { STAFF_SELF_TABS, canOpenTab, presetAreas, staffActionAreas } from '../src/lib/barAccess.js'
 import { daysBetween, earningsByDay, earningsRange, myGoalStatus, myNightSummary, statementInRange } from '../src/lib/staffNight.js'
@@ -184,10 +184,33 @@ test('staff app: live timer, my clock state, initials, bar brand', () => {
   assert.equal(initialsOf('Atomic Bar'), 'AB')
   assert.equal(initialsOf('Ponette'), 'PO')
   assert.equal(initialsOf(''), '?')
-  assert.deepEqual(barBrand({ nome: 'Atomic Bar', cor: '#3F7F67' }), { name: 'Atomic Bar', initials: 'AB', color: '#3F7F67', logo: '' })
+  // Atomic's old bars.cor (a blue from the import) does not change its look: red and black until HQ picks a colour.
+  assert.deepEqual(barBrand({ nome: 'Atomic Bar', cor: '#3F7F67' }), { atomic: true, theme: 'atomic', name: 'Atomic Bar', initials: 'AB', color: '#d7191f', logo: '' })
+  assert.equal(barBrand({ nome: 'Atomic Bar', marca: { cor: '#3F7F67' } }).color, '#3f7f67')
+  assert.equal(barBrand({ nome: 'Kuri Bar' }).atomic, false)
+  assert.equal(barBrand({ id: 'b23a5f97-ad4c-4c2a-baa6-72a0d3ba85b9', nome: 'X' }).atomic, true)
   assert.equal(barBrand({ nome: 'X', cor: 'red; background:url(x)' }).color, '', 'only a hex colour')
   assert.equal(barBrand({ nome: 'X', logo_url: 'javascript:alert(1)' }).logo, '')
   assert.equal(barBrand({ nome: 'X', logo_url: 'https://cdn.example.com/l.png' }).logo, 'https://cdn.example.com/l.png')
+})
+
+test('my hours: per night from in/out pairs, month total and averages', () => {
+  const p = [
+    { staff_id: 'me', tipo: 'in', punched_at: '2026-10-13T11:00:00Z' },
+    { staff_id: 'me', tipo: 'out', punched_at: '2026-10-13T17:30:00Z' },
+    { staff_id: 'x', tipo: 'in', punched_at: '2026-10-14T11:00:00Z' },
+    { staff_id: 'me', tipo: 'in', punched_at: '2026-10-15T10:00:00Z' },
+    { staff_id: 'me', tipo: 'out', punched_at: '2026-10-15T15:00:00Z' },
+  ]
+  const by = hoursByNight(p, 'me', Date.parse('2026-10-18T03:00:00Z'))
+  assert.deepEqual(by, { '2026-10-13': 6.5, '2026-10-15': 5 })
+  const st = monthHoursStats(by, '2026-10', '2026-10-14')
+  assert.equal(st.days.length, 31)
+  assert.deepEqual([st.total, st.worked, st.perDay, st.longest], [6.5, 1, 6.5, 6.5], 'nights after today are not counted')
+  assert.equal(st.perWeek, 3.25)
+  // An open shift counts up to now; one older than 20h is a forgotten clock-out.
+  assert.deepEqual(hoursByNight([{ staff_id: 'me', tipo: 'in', punched_at: '2026-10-15T11:00:00Z' }], 'me', Date.parse('2026-10-15T13:00:00Z')), { '2026-10-15': 2 })
+  assert.deepEqual(hoursByNight([{ staff_id: 'me', tipo: 'in', punched_at: '2026-10-15T11:00:00Z' }], 'me', Date.parse('2026-10-17T13:00:00Z')), {})
 })
 
 test('owner inbox and day reports need the team or clock area', () => {
@@ -257,6 +280,8 @@ test('earnings: ranges, per-day hours pay with late-night premium, commission an
   const d13 = e.days.find(d => d.day === '2026-10-13')
   assert.deepEqual([d13.sales, d13.hours], [2000, 0], 'refund is taken off')
   assert.equal(e.totals.earned, d14.hoursPay + 1200)
+  // The whole bar's sales while I was clocked in (everyone's tickets), not only mine.
+  assert.deepEqual([d14.barSales, d13.barSales, e.totals.barSales], [26000, 0, 26000])
   const noNight = earningsByDay({ punches, sales: [], me: ME, rate: 1200, nightPremium: false, from: '2026-10-14', to: '2026-10-14' })
   assert.equal(noNight.totals.hoursPay, 6 * 1200)
 })

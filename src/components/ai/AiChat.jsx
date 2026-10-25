@@ -29,7 +29,6 @@ function Sources({ sources }) {
       <Icon name="info" size={14} />
       <span>
         {t('ai.sourcesLine', { from: sources.period?.from, to: sources.period?.to, scope: sources.scope })}
-        {sources.limitations?.length > 0 && <> · <em>{sources.limitations.join(' · ')}</em></>}
       </span>
     </div>
   )
@@ -157,7 +156,9 @@ export default function AiChat({ ctx = {}, thread, onThreadSaved, seed = '', see
     }
   }
 
-  const suggestions = t(`ai.suggest.${AI_SUGGEST_MODULES.includes(module) ? module : 'overview'}`)
+  const suggestKey = AI_SUGGEST_MODULES.includes(module) ? module : 'overview'
+  // Inside one bar, "compare all bars" prompts make no sense.
+  const suggestions = t(`ai.suggest.${suggestKey === 'overview' && ctx.barId ? 'overviewBar' : suggestKey}`)
 
   return (
     <div className={`ai-chat${compact ? ' is-compact' : ''}`}>

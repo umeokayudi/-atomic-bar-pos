@@ -252,13 +252,10 @@ function ScheduleRulesCard({ t, rules, onSaved }) {
   )
 }
 
-/** Who sent next week (start and end on every night), who did not, and a reminder for the late ones. */
-function SubmissionsCard({ t, roster, availability, rules, nextWeek }) {
-  const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState('')
-  if (!nextWeek) return null
+/** Per person: did they send next week (start and end on every night), and which nights. */
+function submissionRows(roster, availability, rules, nextWeek) {
   const byId = new Map((availability || []).map(r => [String(r.staff_id), r]))
-  const rows = roster.map(p => {
+  return roster.map(p => {
     const r = byId.get(String(p.id))
     const check = weekCheck(r?.days || {}, { ...nextWeek, rules })
     const sent = !!r?.weeks?.[nextWeek.from]?.submitted_at && check.ok
@@ -266,6 +263,14 @@ function SubmissionsCard({ t, roster, availability, rules, nextWeek }) {
     for (let d = nextWeek.from; d <= nextWeek.to; d = addDays(d, 1)) if (r?.days?.[d]) nights.push({ day: d, ...r.days[d] })
     return { ...p, sent, sentAt: sent ? r.weeks[nextWeek.from].submitted_at : null, nights }
   }).sort((a, b) => (a.sent - b.sent) || a.nome.localeCompare(b.nome))
+}
+
+/** Who sent next week (start and end on every night), who did not, and a reminder for the late ones. */
+function SubmissionsCard({ t, roster, availability, rules, nextWeek }) {
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  if (!nextWeek) return null
+  const rows = submissionRows(roster, availability, rules, nextWeek)
   const pending = rows.filter(r => !r.sent)
   const deadline = deadlineMs(nextWeek.from, rules)
   const left = deadline - Date.now()
@@ -393,8 +398,10 @@ function FinesList({ t, fines, canEdit, onChanged }) {
 /**
  * Owner/manager schedule board (on the time clock page): per night who marked they will come, the confirmed
  * list, attendance against the clock (late / absent) with a one-tap fine, this month's fines and fine settings.
+ * `view` shows one part only (schedule, nextWeek, fines, settings; 'home' shows none, the data still loads),
+ * `onSummary` gets the numbers for the clock overview, and a new `fineSignal` opens a blank fine.
  */
-export default function OwnerSchedule() {
+export default function OwnerSchedule({ view = 'all', onSummary, fineSignal = 0 }) {
   const { t } = useI18n()
   const { perfil } = useAuth()
   const canFine = canAccess(perfil, 'payroll')
@@ -422,6 +429,29 @@ export default function OwnerSchedule() {
   const weekFines = board.data?.fines || []
   const finedKey = new Set(weekFines.filter(f => f.status !== 'cancelled').map(f => `${f.staff_id}|${f.day}|${f.type}`))
 
+  useEffect(() => { if (fineSignal && canFine) setFine({ day: today, type: 'other', amount: '', note: '' }) }, [fineSignal]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Overview numbers. Tonight and the week's late/absent only come from the current week (the owner can page away).
+  const ruleSet = rules || DEFAULT_RULES
+  useEffect(() => {
+    if (!onSummary) return
+    const live = fines.filter(f => f.status !== 'cancelled')
+    const out = { fines: { count: live.length, total: finesTotal(fines) } }
+    if (board.data && weekStart === win.from) {
+      const tonight = board.rows.find(r => r.day === today)
+      out.tonight = tonight ? { day: today, count: tonight.count, confirmed: !!tonight.confirmed, marked: tonight.marked.length, attendance: tonight.attendance } : { day: today, count: 0, confirmed: false, marked: 0, attendance: [] }
+      out.flagged = board.rows.filter(r => r.day <= today).reduce((n, r) => n + r.attendance.filter(a => a.status === 'late' || a.status === 'absent').length, 0)
+    }
+    const nw = board.data?.nextWeek
+    if (nw) {
+      const subs = submissionRows(roster, board.data.availability, ruleSet, nw)
+      out.nextWeek = { sent: subs.filter(r => r.sent).length, total: subs.length, deadline: deadlineMs(nw.from, ruleSet) }
+    }
+    onSummary(out)
+  }, [board.data, board.rows, fines, weekStart, team, rules]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const show = part => view === 'all' || view === part
+
   function openFine(a) {
     const suggested = suggestFine(a, cfg)
     setFine({
@@ -433,7 +463,7 @@ export default function OwnerSchedule() {
 
   return (
     <div className="osb">
-      <section className="desk-card osb-board" aria-label={t('ownerSchedule.title')}>
+      {show('schedule') && <section className="desk-card osb-board" aria-label={t('ownerSchedule.title')}>
         <div className="osb-head">
           <h3><Icon name="calendar" size={17} /> {t('ownerSchedule.title')}</h3>
           <div className="osb-nav">
@@ -489,11 +519,16 @@ export default function OwnerSchedule() {
             <Icon name="plus" size={16} /> {t('fines.newFine')}
           </button>
         )}
-      </section>
-      <SubmissionsCard t={t} roster={roster} availability={board.data?.availability} rules={rules || DEFAULT_RULES} nextWeek={board.data?.nextWeek} />
-      <ScheduleRulesCard t={t} rules={rules || DEFAULT_RULES} onSaved={r => setRules(r)} />
-      <FinesList t={t} fines={fines} canEdit={canFine} onChanged={() => { loadFines(); board.reload() }} />
-      <FineSettingsCard t={t} settings={cfg} canEdit={canFine} onSaved={s => setSettings(s)} />
+      </section>}
+      {show('nextWeek') && <SubmissionsCard t={t} roster={roster} availability={board.data?.availability} rules={ruleSet} nextWeek={board.data?.nextWeek} />}
+      {show('fines') && <FinesList t={t} fines={fines} canEdit={canFine} onChanged={() => { loadFines(); board.reload() }} />}
+      {show('fines') && view !== 'all' && canFine && (
+        <button type="button" className="ui-btn osb-free-fine" onClick={() => setFine({ day: today, type: 'other', amount: '', note: '' })}>
+          <Icon name="plus" size={16} /> {t('fines.newFine')}
+        </button>
+      )}
+      {show('settings') && <ScheduleRulesCard t={t} rules={ruleSet} onSaved={r => setRules(r)} />}
+      {show('settings') && <FineSettingsCard t={t} settings={cfg} canEdit={canFine} onSaved={s => setSettings(s)} />}
       {fine && <FineSheet initial={fine} roster={roster} onClose={() => setFine(null)} onSaved={() => { loadFines(); board.reload() }} />}
     </div>
   )

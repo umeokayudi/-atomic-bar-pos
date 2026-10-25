@@ -7,7 +7,7 @@
  */
 
 import { calcPayWithLateNight, pairPunches, lateNightHoursBetween } from './timeClock.js'
-import { nightKeyOfSale } from './nightClose.js'
+import { nightKeyOfSale, saleNet, saleStamp } from './nightClose.js'
 import { creditFor, staffAliases } from './saleCredit.js'
 import { tokyoDateKey } from './tokyo.js'
 
@@ -113,14 +113,18 @@ export function earningsRange(kind, today = tokyoDateKey(), custom = {}) {
 export function earningsByDay({ punches = [], sales = [], me, rate = 0, nightPremium = true, from, to, now = new Date(), agents = [] }) {
   const aliases = staffAliases(agents)
   const days = daysBetween(from, to)
-  const byDay = Object.fromEntries(days.map(k => [k, { day: k, hours: 0, lateHours: 0, hoursPay: 0, sales: 0, commission: 0, tickets: 0, open: false }]))
+  const byDay = Object.fromEntries(days.map(k => [k, { day: k, hours: 0, lateHours: 0, hoursPay: 0, sales: 0, commission: 0, tickets: 0, barSales: 0, open: false }]))
   const mine = (punches || []).filter(p => p && p.staff_id === me?.id)
+  // My time at the bar: clock-in to clock-out (an open shift up to now), to count the whole bar's sales in it.
+  const windows = []
   for (const sh of pairPunches(mine)) {
     const inAt = sh.clockIn?.punched_at
     if (!inAt) continue
     const key = nightKeyOfSale({ criado_em: inAt })
     const row = byDay[key]
     if (!row) continue
+    const outAt = sh.clockOut?.punched_at || (sh.open ? (now instanceof Date ? now : new Date(now)).toISOString() : null)
+    if (outAt) windows.push({ from: Date.parse(inAt), to: Date.parse(outAt), row })
     let hours = sh.hours || 0
     let late = sh.lateHours || 0
     if (sh.open) {
@@ -134,6 +138,9 @@ export function earningsByDay({ punches = [], sales = [], me, rate = 0, nightPre
     row.hoursPay += calcPayWithLateNight(hours, late, rate, nightPremium)
   }
   for (const s of sales || []) {
+    const at = saleStamp(s)?.getTime()
+    const w = at != null && nightKeyOfSale(s) ? windows.find(x => at >= x.from && at <= x.to) : null
+    if (w) w.row.barSales += saleNet(s)
     const row = byDay[nightKeyOfSale(s)]
     if (!row) continue
     const hit = myCredit(s, me, aliases)
@@ -149,7 +156,8 @@ export function earningsByDay({ punches = [], sales = [], me, rate = 0, nightPre
     sales: a.sales + r.sales,
     commission: a.commission + r.commission,
     tickets: a.tickets + r.tickets,
-  }), { hours: 0, hoursPay: 0, sales: 0, commission: 0, tickets: 0 })
+    barSales: a.barSales + r.barSales,
+  }), { hours: 0, hoursPay: 0, sales: 0, commission: 0, tickets: 0, barSales: 0 })
   return { days: list, totals: { ...totals, earned: totals.hoursPay + totals.commission } }
 }
 

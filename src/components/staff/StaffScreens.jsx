@@ -1,20 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../Auth'
-import { supabase } from '../../lib/supabase'
+import { drinksAuth, supabase } from '../../lib/supabase'
 import { staffFetch } from '../../lib/apiAuth'
 import { comparePlan } from '../../lib/payrollCore'
 import { monthRange, pairPunches } from '../../lib/timeClock'
 import { punchGeoFlag } from '../../lib/clockGeo'
 import { earningsRange } from '../../lib/staffNight'
 import { shiftMonthKey, tokyoDateKey, tokyoMonthKey } from '../../lib/tokyo'
-import { meEarnings, meRequests, meSendRequest, meUploadPhoto } from '../../lib/staffSelfApi'
+import { meAccount, meEarnings, meRequests, meSendRequest, meUploadPhoto } from '../../lib/staffSelfApi'
 import { fileToSquareJpeg } from '../../lib/imageSquare'
 import { listMyOrders } from '../../lib/staffOrders'
 import { errText } from '../../lib/errText'
 import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
 import { LanguageToggle, ThemeToggle } from '../UiPrefsPanel'
-import { Avatar, Card, Empty, Note, PageHead, Row, Stat, fmtDay, fmtHours, fmtTime } from './staffUi'
+import { Avatar, Card, Empty, Note, PageHead, Row, Seg, Stat, fmtDay, fmtHours, fmtTime } from './staffUi'
+import { MonthCalendar } from './PayHub'
 
 const byNewest = (rows, key = 'created_at') => [...(rows || [])].sort((a, b) => String(b[key] || '').localeCompare(String(a[key] || '')))
 const sumPoints = rows => (rows || []).reduce((s, p) => s + (+p.points || 0), 0)
@@ -63,60 +64,83 @@ function useEarnings(from, to) {
 }
 
 // ── Performance: goals, sales, points, rewards ───────────────────────────────
-export function PerformanceScreen({ t, pack, missing, day, onBack }) {
-  const range = earningsRange('month', tokyoDateKey())
+/** One day of Results: my drink back and the bar's sales while I was in. */
+function ResultDaySheet({ t, day, row, onClose }) {
+  useEffect(() => {
+    const onKey = e => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  const title = fmtDay(`${day}T12:00:00+09:00`, { weekday: 'long', month: 'long', day: 'numeric' })
+  const r = row || { commission: 0, tickets: 0, barSales: 0, hours: 0 }
+  return (
+    <div className="sa-sheet-wrap" role="dialog" aria-modal="true" aria-label={title} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="sa-sheet">
+        <div className="sa-sheet-grip" />
+        <div className="sa-sheet-head">
+          <span className="sa-sheet-icon"><Icon name="result" size={22} /></span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2>{title}</h2>
+            <p>{r.hours > 0 ? t('staffApp.perf.atBarFor', { hours: fmtHours(r.hours) }) : t('staffApp.perf.notIn')}</p>
+          </div>
+        </div>
+        <div className="sa-sheet-body">
+          <Row title={t('staffApp.perf.drinkBack')} meta={r.tickets ? t('staffApp.out.tickets', { n: r.tickets }) : ''} value={fmtYen(r.commission || 0)} tone={r.commission > 0 ? 'good' : undefined} />
+          <Row title={t('staffApp.perf.barSales')} value={fmtYen(r.barSales || 0)} />
+        </div>
+        <div className="sa-sheet-actions">
+          <button type="button" className="sa-btn is-ghost" onClick={onClose}>{t('common.close')}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Results: two numbers only. My drink back (what I earned on drinks credited to me) or the bar's sales while I
+ * was clocked in, for a month, with the same day calendar as My pay.
+ */
+export function PerformanceScreen({ t, onBack }) {
+  const today = tokyoDateKey()
+  const [monthKey, setMonthKey] = useState(tokyoMonthKey())
+  const [view, setView] = useState('drinkBack')
+  const [picked, setPicked] = useState(null)
+  const range = earningsRange('month', `${monthKey}-01`)
   const month = useEarnings(range.from, range.to)
-  const goals = pack?.goals || []
-  const points = byNewest(pack?.points)
-  const rewards = byNewest(pack?.rewards)
-  const approved = rewards.filter(r => r.status === 'approved' || r.status === 'posted').reduce((s, r) => s + (+r.amount || 0), 0)
-  const g = day?.goal || {}
+  const byDay = useMemo(() => Object.fromEntries((month.data?.days || []).map(d => [d.day, d])), [month.data])
+  const tot = month.data?.totals || {}
+  const valueOf = d => (view === 'drinkBack' ? +d?.commission || 0 : +d?.barSales || 0)
+  const cellFor = key => {
+    const d = byDay[key]
+    const v = valueOf(d)
+    return { amount: v, marks: d && d.hours > 0 ? ['worked'] : [], label: fmtYen(v) }
+  }
+  const total = view === 'drinkBack' ? tot.commission : tot.barSales
   return (
     <div className="sa-screen">
       <PageHead t={t} title={t('staffApp.tabPerformance')} onBack={onBack} />
+      <MonthNav t={t} value={monthKey} onChange={setMonthKey} />
+      <Seg
+        className="sa-shiftseg"
+        label={t('staffApp.tabPerformance')}
+        value={view}
+        onChange={setView}
+        options={[{ id: 'drinkBack', label: t('staffApp.perf.drinkBack') }, { id: 'bar', label: t('staffApp.perf.barSales') }]}
+      />
       <section className="sa-earn" aria-live="polite">
-        <span className="sa-earn-label">{t('staffApp.perf.salesMonth')}</span>
-        <strong className="sa-earn-total">{month.data ? fmtYen(month.data.totals.sales) : month.loading ? '…' : '—'}</strong>
-        {month.data && <span className="sa-earn-tag">{t('staffApp.out.tickets', { n: month.data.totals.tickets })}</span>}
-        <div className="sa-earn-split">
-          <span><small>{t('staffApp.perf.commission')}</small><b>{month.data ? fmtYen(month.data.totals.commission) : '—'}</b></span>
-          <span><small>{t('employee.statPoints')}</small><b>{missing ? '—' : `${sumPoints(points)} pt`}</b></span>
-          <span><small>{t('employee.rewards')}</small><b>{missing ? '—' : fmtYen(approved)}</b></span>
-        </div>
+        <span className="sa-earn-label">{t(view === 'drinkBack' ? 'staffApp.perf.drinkBackMonth' : 'staffApp.perf.barSalesMonth')}</span>
+        <strong className="sa-earn-total">{month.data ? fmtYen(total || 0) : month.loading ? '…' : '—'}</strong>
+        <span className="sa-earn-tag">
+          {view === 'drinkBack'
+            ? t('staffApp.out.tickets', { n: tot.tickets || 0 })
+            : t('staffApp.perf.atBarFor', { hours: fmtHours(tot.hours || 0) })}
+        </span>
       </section>
-      <Card title={t('staffApp.home.tonight')}>
-        {g.target > 0 ? (
-          <div className="sa-goal">
-            <div className="sa-goal-head"><span>{t('staffApp.brief.myGoal')}</span><b>{fmtYen(day?.summary?.sales || 0)} / {fmtYen(g.target)}</b></div>
-            <div className="sa-bar" role="progressbar" aria-valuenow={g.pct || 0} aria-valuemin={0} aria-valuemax={100}><div style={{ width: `${g.pct || 0}%` }} className={g.reached ? 'is-done' : ''} /></div>
-            {g.week > 0 && <p className="sa-muted sa-gap">{t('staffApp.perf.weekGoal', { amount: fmtYen(g.week) })}</p>}
-          </div>
-        ) : <Empty icon="goals" title={t('staffApp.home.noPersonalGoal')} hint={t('staffApp.perf.tonightEmpty')} />}
-        {day?.summary?.drinkBackCount > 0 && <Row title={t('staffApp.out.drank')} value={String(day.summary.drinkBackCount)} />}
+      <Card className="sa-card-cal" title={t('staffApp.perf.calendar')} right={<span className="sa-cal-legend"><i className="is-worked" />{t('staffApp.pay.mark_worked')}</span>}>
+        <MonthCalendar t={t} month={monthKey} today={today} label={t('staffApp.perf.calendar')} cellFor={cellFor} onPick={setPicked} />
       </Card>
-      <div className="sa-wide">
-        <Card title={t('employee.goals')}>
-          {missing ? <Note>{t('staffApp.payrollSoon')}</Note> : goals.length === 0 ? <Empty icon="goals" title={t('employee.noGoals')} /> : goals.map(goal => {
-            const pct = +goal.target ? Math.max(0, Math.min(100, Math.round(((+goal.actual || 0) / +goal.target) * 100))) : null
-            return (
-              <div key={goal.id} className="sa-goal">
-                <div className="sa-goal-head"><span>{goal.title}</span><b>{goal.actual ?? '—'} / {goal.target ?? '—'}</b></div>
-                {pct !== null && <div className="sa-bar"><div style={{ width: `${pct}%` }} className={pct >= 100 ? 'is-done' : ''} /></div>}
-              </div>
-            )
-          })}
-        </Card>
-        <Card title={t('employee.points')} right={missing ? null : <b className="sa-pill">{sumPoints(points)} pt</b>}>
-          {missing ? <Note>{t('staffApp.payrollSoon')}</Note> : points.length === 0 ? <Empty icon="points" title={t('employee.none')} /> : points.slice(0, 20).map(p => (
-            <Row key={p.id} title={p.reason} meta={fmtDay(p.created_at)} value={`${+p.points > 0 ? '+' : ''}${p.points} pt`} tone={+p.points >= 0 ? 'good' : 'bad'} />
-          ))}
-        </Card>
-        <Card title={t('employee.rewards')} right={missing ? null : <b className="sa-pill">{fmtYen(approved)}</b>}>
-          {missing ? <Note>{t('staffApp.payrollSoon')}</Note> : rewards.length === 0 ? <Empty icon="rewards" title={t('employee.none')} /> : rewards.slice(0, 20).map(r => (
-            <Row key={r.id} title={r.title} meta={`${fmtDay(r.created_at)} · ${t(`employee.reward_${r.status}`)}`} value={fmtYen(r.amount)} tone={r.status === 'cancelled' ? 'muted' : 'good'} />
-          ))}
-        </Card>
-      </div>
+      {month.err && <Note icon="warning">{t('staffApp.pay.unavailable')}</Note>}
+      {picked && <ResultDaySheet t={t} day={picked} row={byDay[picked]} onClose={() => setPicked(null)} />}
     </div>
   )
 }
@@ -276,6 +300,93 @@ export function ReportsScreen({ t, onBack }) {
   )
 }
 
+/**
+ * My sign-in: the e-mail I log in with (the same one on my staff profile) and my password.
+ * Both need the current password. Shared till/clock logins cannot change here.
+ */
+function AccountCard({ t, perfil, profile, onProfile }) {
+  const email = profile?.email || perfil?.email || ''
+  const [open, setOpen] = useState('')
+  const [form, setForm] = useState({ email: '', password: '', confirm: '', current: '' })
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const [msg, setMsg] = useState('')
+  const set = patch => { setErr(''); setMsg(''); setForm(f => ({ ...f, ...patch })) }
+  const start = what => { setOpen(o => (o === what ? '' : what)); setErr(''); setMsg(''); setForm({ email: what === 'email' ? email : '', password: '', confirm: '', current: '' }) }
+  const okEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()) && form.email.trim().toLowerCase() !== email.toLowerCase()
+  const okPass = form.password.length >= 8 && form.password === form.confirm
+  const ready = !!form.current && (open === 'email' ? okEmail : okPass)
+  async function save() {
+    setBusy(true); setErr(''); setMsg('')
+    try {
+      const j = await meAccount(open === 'email' ? { current: form.current, email: form.email.trim() } : { current: form.current, password: form.password })
+      if (j.email) {
+        onProfile?.({ ...(profile || {}), email: j.email })
+        await drinksAuth.auth.refreshSession().catch(() => {})
+      }
+      setMsg(open === 'email' ? t('staffApp.me.emailSaved') : t('staffApp.me.passwordSaved'))
+      setOpen('')
+    } catch (x) {
+      setErr(errText(x))
+    } finally {
+      setBusy(false)
+    }
+  }
+  if (perfil?.lane) {
+    return (
+      <Card title={t('staffApp.me.signIn')}>
+        <Row title={email || '—'} meta={t('staffApp.me.email')} />
+        <Note>{t('staffApp.me.laneNote')}</Note>
+      </Card>
+    )
+  }
+  return (
+    <Card title={t('staffApp.me.signIn')}>
+      <div className="sa-line">
+        <span className="sa-line-icon"><Icon name="profile" size={18} /></span>
+        <span className="sa-line-main"><small>{t('staffApp.me.email')}</small><strong>{email || '—'}</strong></span>
+        <button type="button" className="sa-link" onClick={() => start('email')}>{open === 'email' ? t('common.cancel') : t('staffApp.me.change')}</button>
+      </div>
+      <div className="sa-line">
+        <span className="sa-line-icon"><Icon name="lock" size={18} /></span>
+        <span className="sa-line-main"><small>{t('staffApp.me.password')}</small><strong>••••••••</strong></span>
+        <button type="button" className="sa-link" onClick={() => start('password')}>{open === 'password' ? t('common.cancel') : t('staffApp.me.change')}</button>
+      </div>
+      {open && (
+        <form className="sa-account-form" onSubmit={e => { e.preventDefault(); if (ready && !busy) save() }}>
+          {open === 'email' ? (
+            <label className="sa-field">
+              <span>{t('staffApp.me.newEmail')}</span>
+              <input type="email" autoComplete="email" autoCapitalize="none" value={form.email} onChange={e => set({ email: e.target.value })} />
+              <small>{t('staffApp.me.emailHint')}</small>
+            </label>
+          ) : (<>
+            <label className="sa-field">
+              <span>{t('staffApp.me.newPassword')}</span>
+              <input type="password" autoComplete="new-password" value={form.password} onChange={e => set({ password: e.target.value })} />
+              <small>{t('staffApp.me.passwordHint')}</small>
+            </label>
+            <label className="sa-field">
+              <span>{t('staffApp.me.confirmPassword')}</span>
+              <input type="password" autoComplete="new-password" value={form.confirm} onChange={e => set({ confirm: e.target.value })} />
+            </label>
+          </>)}
+          <label className="sa-field">
+            <span>{t('staffApp.me.currentPassword')}</span>
+            <input type="password" autoComplete="current-password" value={form.current} onChange={e => set({ current: e.target.value })} />
+          </label>
+          {open === 'password' && form.confirm && form.password !== form.confirm && <p className="sa-error">{t('staffApp.me.noMatch')}</p>}
+          <button type="submit" className="sa-btn is-primary sa-btn-block" disabled={!ready || busy}>
+            <Icon name="check" size={18} /> {busy ? t('common.wait') : t('common.save')}
+          </button>
+        </form>
+      )}
+      {msg && <p className="sa-ok" role="status">{msg}</p>}
+      {err && <div className="sa-error" role="alert">{err}</div>}
+    </Card>
+  )
+}
+
 // ── Profile, occurrences, settings ───────────────────────────────────────────
 export function ProfileScreen({ t, perfil, profile, bar, onProfile, signOut, onTab, onBack }) {
   const file = useRef(null)
@@ -318,8 +429,8 @@ export function ProfileScreen({ t, perfil, profile, bar, onProfile, signOut, onT
         <button type="button" className="sa-link" onClick={pickPhoto} disabled={busy}>{busy ? t('common.wait') : t('staffApp.me.editPhoto')}</button>
         {err && <div className="sa-error" role="alert">{err}</div>}
       </section>
+      <AccountCard t={t} perfil={perfil} profile={profile} onProfile={onProfile} />
       <Card title={t('staffApp.me.details')}>
-        {detail('profile', t('staffApp.me.email'), profile?.email || perfil?.email || '—')}
         {profile?.telefone && detail('phone', t('staffApp.me.phone'), profile.telefone)}
         {detail('bars', t('employee.homeBar'), bar?.nome || '—')}
       </Card>

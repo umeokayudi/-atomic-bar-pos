@@ -365,7 +365,6 @@ body.sa-lock { overflow: hidden; }
 .day-board-roles { display: grid; gap: 8px; }
 .day-board-roles label { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 8px; align-items: center; font-size: 13px; }
 .day-board-roles input { min-height: 40px; }
-.login-staff-brand { display: flex; align-items: center; gap: 10px; justify-content: center; margin-top: 14px; font-weight: 800; color: #fff; --sa-brand: var(--gold, #0f766e); }
 .day-board-mission { display: grid; gap: 4px; margin: 10px 0; font-size: 13px; font-weight: 700; }
 .day-board-mission input { min-height: 40px; }
 .day-board-roles { border: 0; padding: 0; margin: 0 0 10px; }
@@ -484,6 +483,55 @@ i.is-fine { background: #d97706; }
 
 /* ── Owner: schedule board, fines, salary paid ────────────────────────────── */
 .osb { display: grid; gap: 16px; }
+.osb:empty, .clock-part:has(> .osb:empty) { display: none; }
+.clock-part { margin-top: 16px; }
+
+/* Owner clock page: buttons that open one part, and the at-a-glance overview. */
+.clock-hub { margin-top: 4px; scroll-margin-top: 80px; }
+.clock-hub.is-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+@media (min-width: 900px) { .clock-hub.is-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
+.clock-hub.is-strip {
+  display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0 4px;
+  position: sticky; top: 0; z-index: 5; background: var(--c-bg, var(--bg)); margin-bottom: 4px;
+}
+.clock-hub.is-strip::-webkit-scrollbar { display: none; }
+.clock-hub-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  min-height: 66px; padding: 8px 4px; border: 1px solid var(--c-border); border-radius: var(--radius-lg);
+  background: var(--c-surface); color: var(--c-text); font: inherit; font-size: 12px; font-weight: 700;
+  line-height: 1.15; text-align: center; cursor: pointer; min-width: 0;
+}
+.clock-hub-btn span { overflow-wrap: anywhere; }
+.clock-hub-btn svg { color: var(--c-accent); }
+.clock-hub-btn:hover { background: var(--c-surface-2); }
+.clock-hub-btn.is-danger svg { color: var(--c-danger); }
+.clock-hub.is-strip .clock-hub-btn {
+  flex: 0 0 auto; flex-direction: row; min-height: 40px; padding: 0 12px; border-radius: 999px; font-size: 13px; white-space: nowrap;
+}
+.clock-hub-btn.is-on, .clock-hub-btn.is-on:hover { background: var(--c-accent); border-color: var(--c-accent); color: #fff; }
+.clock-hub-btn.is-on svg { color: #fff; }
+
+.clock-overview { display: grid; gap: 12px; margin-top: 12px; }
+@media (min-width: 900px) { .clock-overview { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: start; } }
+.clock-tonight { display: grid; gap: 8px; }
+.clock-tonight-count { margin: 0; font-size: 22px; font-weight: 800; }
+.clock-tonight-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.clock-tonight-list li { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 10px; border-radius: 10px; background: var(--c-surface-2); }
+.clock-tonight-more { color: var(--c-text-2); font-size: 13px; }
+.clock-tonight > button { min-height: 44px; justify-self: start; }
+.clock-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.clock-tile {
+  display: grid; gap: 2px; align-content: start; text-align: left; padding: 10px; min-height: 72px; min-width: 0;
+  border: 1px solid var(--c-border); border-radius: var(--radius-lg); background: var(--c-surface); color: var(--c-text);
+  font: inherit; cursor: pointer;
+}
+.clock-tile:hover { background: var(--c-surface-2); }
+.clock-tile-label { font-size: 11px; line-height: 1.2; font-weight: 700; color: var(--c-text-2); }
+.clock-tile-value { font-size: clamp(17px, 4.6vw, 22px); font-weight: 800; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.clock-tile-sub { font-size: 11px; color: var(--c-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clock-tile.is-ok .clock-tile-value { color: var(--c-success); }
+.clock-tile.is-warn .clock-tile-value { color: var(--c-warning); }
+.clock-tile.is-bad .clock-tile-value { color: var(--c-danger); }
 .osb-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .osb-head h3 { display: flex; align-items: center; gap: 8px; margin: 0; }
 .osb-nav { display: flex; align-items: center; gap: 10px; }
@@ -1029,3 +1077,173 @@ button.sa-bell-item:hover { background: var(--c-surface-2); }
 .sa-settings .theme-pill button, .sa-settings .ui-seg button { min-height: 44px; min-width: 0; justify-content: center; border-radius: 10px; font-size: 14px; font-weight: 700; }
 .sa-settings .theme-pill button, .sa-settings .theme-pill span { padding: 0 10px; color: var(--c-text-2); display: inline-flex; align-items: center; }
 .sa-settings .theme-pill button.on, .sa-settings .theme-pill span.on, .sa-settings .ui-seg button[aria-checked="true"] { background: var(--c-surface); color: var(--c-text); box-shadow: var(--shadow-sm); }
+
+/* ══ Atomic look: red and black, atom mark in white lines on red ═════════════════════════════════════ */
+.sa-app.is-atomic, body.sa-atomic {
+  --at-red: #D7191F;
+  --at-red-2: #B3121A;
+  --at-black: #0E0E0F;
+  --sa-brand: var(--at-red);
+  --c-accent: var(--at-red);
+  --c-accent-2: var(--at-red-2);
+  --c-accent-soft: #FBE6E7;
+  --c-on-accent: #FFFFFF;
+  --c-focus: var(--at-red);
+  --c-chrome: var(--at-black);
+  --c-chrome-2: #18181A;
+  --c-chrome-3: #222225;
+  --c-on-chrome: #F5F5F5;
+  --c-bg: #F5F3F3;
+  --c-surface: #FFFFFF;
+  --c-surface-2: #EFEBEB;
+  --c-surface-3: #E4DEDE;
+  --c-text: #141414;
+  --c-text-2: #545050;
+  --c-text-3: #7A7474;
+  --c-border: #E2DCDC;
+  --c-border-2: #CFC7C7;
+}
+[data-theme="classic"] .sa-app.is-atomic, [data-theme="classic"] body.sa-atomic {
+  --c-accent: #F0373D;
+  --c-accent-2: #FF5A5F;
+  --c-accent-soft: rgba(240,55,61,.16);
+  --c-focus: #FF5A5F;
+  --c-bg: #0B0B0C;
+  --c-surface: #161618;
+  --c-surface-2: #1F1F22;
+  --c-surface-3: #29292D;
+  --c-text: #F5F5F5;
+  --c-text-2: #BDB8B8;
+  --c-text-3: #8E8888;
+  --c-border: rgba(255,255,255,.09);
+  --c-border-2: rgba(255,255,255,.16);
+}
+.app-shell.is-staff-app:has(.sa-app.is-atomic) { background: var(--c-bg); }
+.sa-barmark.is-atom { background: var(--at-red, #D7191F); border-radius: 12px; }
+.sa-barmark.is-atom svg { display: block; }
+
+/* Black header bar across the whole width, bell and avatar on it */
+.sa-app.is-atomic .sa-top {
+  background: var(--at-black); color: #F5F5F5;
+  box-shadow: 0 0 0 100vmax var(--at-black); clip-path: inset(0 -100vmax);
+  margin-bottom: 10px;
+}
+.sa-app.is-atomic .sa-top-name small { color: rgba(255,255,255,.62); }
+.sa-app.is-atomic .sa-top .sa-bell { background: #1C1C1F; border-color: #2E2E33; color: #F5F5F5; box-shadow: none; }
+.sa-app.is-atomic .sa-top .sa-bell:hover, .sa-app.is-atomic .sa-top .sa-bell.is-open { border-color: var(--at-red); color: #fff; background: #26262B; }
+@media (hover: none) { .sa-app.is-atomic .sa-top .sa-bell:hover:not(.is-open) { border-color: #2E2E33; background: #1C1C1F; } }
+.sa-app.is-atomic .sa-top .sa-bell-badge { border-color: var(--at-black); }
+.sa-app.is-atomic .sa-top .sa-avatar { border-color: var(--at-black); box-shadow: 0 0 0 1px #2E2E33; }
+
+/* Clock card: black with a red edge; the main button red */
+.sa-app.is-atomic .sa-clock { background: linear-gradient(160deg, #1A1A1C 0%, var(--at-black) 70%); border-top-color: var(--at-red); }
+.sa-app.is-atomic .sa-clock-cta { background: var(--at-red); color: #fff; }
+.sa-app.is-atomic .sa-clock.is-on .sa-clock-cta { background: #fff; color: var(--at-red-2); }
+
+/* Bottom tabs: black bar, red for the open tab */
+.sa-app.is-atomic .sa-tabs { background: var(--at-black); border-top-color: #222; box-shadow: 0 -4px 16px rgba(0,0,0,.25); }
+.sa-app.is-atomic .sa-tabs button { color: rgba(255,255,255,.66); }
+.sa-app.is-atomic .sa-tabs button.is-on { color: #fff; background: var(--at-red); }
+
+/* Clock: my hours (month total, averages, one bar per day) */
+.sa-seg.sa-seg-sm { grid-template-columns: repeat(2, auto); padding: 3px; border-radius: 12px; }
+.sa-seg.sa-seg-sm button { min-height: 36px; padding: 0 10px; font-size: 12.5px; }
+.sa-hours-total { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 2px 0 10px; }
+.sa-hours-total strong { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 34px; font-weight: 800; line-height: 1; }
+.sa-hours-total span { font-size: 13px; color: var(--c-text-2); }
+.sa-hchart { display: grid; grid-template-columns: 28px 1fr; grid-template-rows: 132px auto; column-gap: 6px; margin-top: 14px; }
+.sa-hchart-grid { display: flex; flex-direction: column; justify-content: space-between; font-size: 10.5px; color: var(--c-text-3); text-align: right; font-variant-numeric: tabular-nums; }
+.sa-hchart-bars {
+  display: flex; align-items: flex-end; gap: 2px; height: 100%; min-width: 0;
+  border-bottom: 1px solid var(--c-border-2);
+  background: linear-gradient(to bottom, var(--c-border) 1px, transparent 1px) 0 0 / 100% 50%;
+}
+.sa-hchart-bars button { flex: 1 1 0; min-width: 0; height: 100%; padding: 0; border: 0; background: none; display: flex; align-items: flex-end; cursor: pointer; }
+.sa-hchart-bars i { display: block; width: 100%; border-radius: 4px 4px 0 0; background: var(--c-accent); opacity: .78; }
+.sa-hchart-bars button.is-today i, .sa-hchart-bars button.is-pick i { opacity: 1; }
+.sa-hchart-bars button.is-pick { background: var(--c-accent-soft); border-radius: 4px 4px 0 0; }
+.sa-hchart-bars button.is-future { cursor: default; }
+.sa-hchart-x { grid-column: 2; display: flex; justify-content: space-between; font-size: 10.5px; color: var(--c-text-3); padding-top: 4px; }
+.sa-hchart-tip { margin: 8px 0 0; font-size: 13px; color: var(--c-text-2); min-height: 18px; }
+.sa-hchart-tip b { color: var(--c-text); }
+
+/* Schedule sheet: day shift / night shift */
+.sa-seg.sa-shiftseg { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 12px; }
+.sa-seg.sa-shiftseg button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.sa-night-time { display: inline-flex; align-items: center; gap: 4px; }
+
+/* Profile: sign-in e-mail and password */
+.sa-account-form { display: grid; gap: 4px; padding-top: 6px; border-top: 1px solid var(--c-border); margin-top: 6px; }
+.sa-field input {
+  width: 100%; min-height: 44px; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid var(--c-border-2); background: var(--c-surface); color: var(--c-text); font: inherit; font-size: 16px;
+}
+.sa-account-form .sa-btn-block { margin-top: 10px; }
+.sa-line .sa-link { flex: 0 0 auto; }
+
+/* Clock out past the planned end or before it: real end time, who allowed it */
+.sa-offtime { display: grid; gap: 8px; padding: 12px; border-radius: 14px; background: var(--c-warning-bg); border: 1px solid color-mix(in srgb, var(--c-warning) 35%, transparent); }
+.sa-offtime h3 { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 14px; font-weight: 800; color: var(--c-warning); }
+.sa-offtime .sa-offtime-seg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.sa-offtime .sa-offtime-seg button { white-space: normal; line-height: 1.2; }
+.sa-offtime .sa-muted { margin: 0; }
+
+/* Header: bell and avatar the same 44px box, centred on one line */
+.sa-top { align-items: center; }
+.sa-top .sa-bell, .sa-top .sa-me { align-self: center; }
+.sa-top .sa-me .sa-avatar { width: 44px; height: 44px; }
+
+/* Home: the two column groups are invisible on the phone (same order as one list) */
+.sa-home-main, .sa-home-side { display: contents; }
+
+/*
+ * Laptop and desktop (1024px and up): the tabs move into the header line (brand left, tabs centre,
+ * bell and avatar right), so nothing covers the content at the bottom. Home uses two columns.
+ */
+@media (min-width: 1024px) {
+  .sa-app { padding-bottom: 40px; }
+  .sa-top { max-width: 1120px; padding-left: 24px; padding-right: 24px; }
+  .sa-top-bar { flex: 0 1 auto; max-width: calc(50% - 300px); }
+  .sa-top .sa-bell { margin-left: auto; }
+
+  .sa-app .sa-tabs {
+    top: 0; bottom: auto; left: 50%; right: auto; transform: translateX(-50%); z-index: 31;
+    gap: 4px; padding: calc(10px + var(--safe-top)) 0 10px;
+    background: transparent; border: 0; box-shadow: none;
+  }
+  .sa-app.is-atomic .sa-tabs { background: transparent; box-shadow: none; }
+  .sa-app .sa-tabs button {
+    flex: 0 0 auto; max-width: none; min-height: 44px; padding: 0 14px;
+    flex-direction: row; gap: 8px; font-size: 14px; border-radius: 12px;
+  }
+  .sa-app .sa-tabs button:not(.is-on):hover { background: var(--c-surface-2); color: var(--c-text); }
+  .sa-app.is-atomic .sa-tabs button:not(.is-on):hover { background: #1C1C1F; color: #fff; }
+
+  .sa-toast { bottom: 24px; }
+  .sa-fab { bottom: 24px; right: max(24px, var(--safe-right)); }
+  .sa-savebar { bottom: 0; }
+  .sa-more { padding-bottom: 32px; }
+  .sa-sheet { max-width: 560px; }
+  .sa-bell-col { max-width: 1120px; padding-right: 24px; }
+
+  .sa-app.is-home { --sa-col: 1120px; }
+  .sa-app.is-home .sa-main, .sa-app.is-home .sa-alerts { padding-left: 24px; padding-right: 24px; }
+  .sa-home { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: start; gap: 20px; }
+  .sa-home-main, .sa-home-side { display: grid; gap: 16px; min-width: 0; align-content: start; }
+  .sa-home-side .sa-quick { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sa-home-side .sa-quick.is-3 > :first-child { grid-column: 1 / -1; }
+  .sa-home-side .sa-quick-btn { min-height: 96px; }
+}
+@media (min-width: 1024px) and (max-width: 1199px) {
+  .sa-app .sa-tabs button { padding: 0 10px; font-size: 13px; gap: 6px; }
+  .sa-top-bar { max-width: calc(50% - 270px); }
+}
+
+/* The old global `button:hover` grey sticks after a tap on phones: the brand button in the header keeps
+   no background (white text stays readable on the black bar), and cards keep their own colour. */
+.sa-top-bar:hover, .sa-top-bar:active, .sa-top-bar:focus { background: none; }
+.sa-top-bar:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 4px; border-radius: 12px; }
+.sa-quick-btn:not(.is-primary):hover { background: var(--c-surface); }
+.sa-quick-btn.is-primary:hover { background: var(--c-accent); }
+/* Atomic: the money cards (Results, My pay) black with a red glow, like the clock card */
+.sa-app.is-atomic .sa-earn { background: radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--at-red) 45%, transparent) 0%, transparent 55%), linear-gradient(160deg, #1A1A1C 0%, var(--at-black) 70%); }

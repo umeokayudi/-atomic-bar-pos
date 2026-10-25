@@ -1,5 +1,12 @@
 {
   "buildCommand": "npm run build",
+  "regions": ["icn1"],
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    }
+  ],
   "rewrites": [
     { "source": "/api/time-clock", "destination": "/api/bar/time-clock" },
     { "source": "/api/bar-staff", "destination": "/api/bar/bar-staff" },
@@ -10,7 +17,7 @@
     { "source": "/api/holding-audit", "destination": "/api/holding/holding-audit" },
     { "source": "/api/cashflow-export", "destination": "/api/holding/cashflow-export" },
     {
-      "source": "/((?!api/|holding/|assets/|logo|favicon\\.svg|favicon\\.ico).*)",
+      "source": "/((?!api/|holding/|assets/|icons/|logo|favicon\\.svg|favicon\\.ico|manifest\\.webmanifest).*)",
       "destination": "/index.html"
     }
   ]

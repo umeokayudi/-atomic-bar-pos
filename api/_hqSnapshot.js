@@ -23,7 +23,7 @@ function source(ok, extra = {}) {
   return { ok: !!ok, at: new Date().toISOString(), ...extra }
 }
 
-async function pgOrLive(admin, table, filters, columns = '*') {
+export async function pgOrLive(admin, table, filters, columns = '*') {
   const selectCols = columns
   let q = admin.from(table).select(selectCols)
   for (const f of filters || []) {

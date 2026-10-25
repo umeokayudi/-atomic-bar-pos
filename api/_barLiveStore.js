@@ -1,4 +1,3 @@
-import { hashSecret } from './_hash.js'
 import { importLegacyOnce } from './_liveImport.js'
 
 export const ATOMIC_BAR_ID = 'b23a5f97-ad4c-4c2a-baa6-72a0d3ba85b9'
@@ -36,6 +35,8 @@ export const LIVE_TABLES = [
   'floor_sectors',
   'floor_tables',
   'bar_guest_ledger',
+  // Each bar's colour and logo in its app (HQ → Bars). Everyone at the bar reads it; only HQ writes it.
+  'bar_brand',
   // Staff app: requests to the owner and the check-out day reports. Server routes only (secret in /api/bar/live-db).
   'staff_requests',
   'staff_day_reports',
@@ -462,40 +463,6 @@ async function seedAtomic(admin) {
   // (when bar_spaces merely failed to load) wiped real punches, logins and staff files.
 }
 
-const POS_LOGIN_ID = '11111111-1111-4111-8111-111111111111'
-const STAFF_LOGIN_ID = '22222222-2222-4222-8222-222222222222'
-
-export async function seedLaneLogins(admin) {
-  const existing = await loadTable(admin, 'bar_logins')
-  const lanes = [
-    {
-      id: POS_LOGIN_ID,
-      bar_id: ATOMIC_BAR_ID,
-      email: 'pos@atomic.bar',
-      password_hash: hashSecret('PosOnly#2026'),
-      role: 'caixa',
-      nome: 'Atomic POS',
-      ativo: true,
-    },
-    {
-      id: STAFF_LOGIN_ID,
-      bar_id: ATOMIC_BAR_ID,
-      email: 'funcionario@atomic.bar',
-      password_hash: hashSecret('Funcionario#2026'),
-      role: 'bar_staff',
-      nome: 'Funcionário Atomic',
-      cargo: 'Floor',
-      salario_hora: 1500,
-      pin_hash: hashSecret('2468'),
-      ativo: true,
-    },
-  ]
-  const byId = new Map(existing.map(r => [r.id, r]))
-  for (const lane of lanes) byId.set(lane.id, { ...(byId.get(lane.id) || {}), ...lane })
-  await saveTable(admin, 'bar_logins', [...byId.values()])
-  return { seeded: true }
-}
-
 const DEMO_TILL_OBS = 'Demo POS (not JBM)'
 
 async function dropDemoTill(admin) {
@@ -525,10 +492,8 @@ export async function ensureBarLiveReady(admin) {
     const spaces = await loadTable(admin, 'bar_spaces')
     if (!spaces.length) await seedAtomic(admin)
     await dropDemoTill(admin)
-    const existing = await loadTable(admin, 'bar_logins')
-    const hasLanes = existing.some(r => r.id === POS_LOGIN_ID) && existing.some(r => r.id === STAFF_LOGIN_ID)
-    const lanes = hasLanes ? { seeded: false } : await seedLaneLogins(admin)
-    return { seeded: !spaces.length || !!lanes.seeded, via: 'live-store', lanes }
+    // Demo till/staff logins with fixed passwords are no longer created: real logins come from "Users & access".
+    return { seeded: !spaces.length, via: 'live-store' }
   })
   liveReadyMemo = true
   return result

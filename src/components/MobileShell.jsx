@@ -2,7 +2,6 @@ import { useEffect } from 'react'
 import { LogoMobileHeader } from './Logo'
 import { useAuth } from './Auth'
 import { useI18n } from '../lib/i18n'
-import { useUiPrefs } from '../lib/uiPrefs'
 import { roleLabel } from './utils'
 
 export function useMobileMenuLock(open) {
@@ -14,11 +13,9 @@ export function useMobileMenuLock(open) {
 
 export function MobileTopBar({ open, onToggle, title, children }) {
   const { perfil, user } = useAuth()
-  const { device } = useUiPrefs()
   const { t } = useI18n()
   const name = perfil?.nome || user?.email || ''
   const role = perfil?.role ? roleLabel(perfil.role) : ''
-  const deviceLabel = t(device === 'phone' ? 'shell.devicePhone' : device === 'tablet' ? 'shell.deviceTablet' : 'shell.deviceDesktop')
   return (
     <header className="mobile-topbar">
       <button
@@ -35,7 +32,6 @@ export function MobileTopBar({ open, onToggle, title, children }) {
         {name && (
           <div className="mobile-who-meta">
             <span className="mobile-who-name">{name}{role ? ` · ${role}` : ''}</span>
-            <span className="mobile-device-pill">{deviceLabel}</span>
           </div>
         )}
       </div>

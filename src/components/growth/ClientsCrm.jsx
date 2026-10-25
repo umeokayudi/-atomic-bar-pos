@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useI18n } from '../../lib/i18n'
 import { useAiPageContext } from '../../lib/aiPanel'
@@ -11,6 +12,7 @@ const WINDOWS = [30, 90]
 /** HQ view of client bars: what they buy, what they owe, who went quiet. All numbers come from vendas/faturas/pedidos. */
 export default function ClientsCrm({ onNav }) {
   const { t } = useI18n()
+  const navigate = useNavigate()
   const [days, setDays] = useState(90)
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
@@ -129,7 +131,11 @@ export default function ClientsCrm({ onNav }) {
                 const signals = clientSignals(r)
                 return (
                   <tr key={r.id}>
-                    <td data-label={t('common.bar')}><span className="growth-dot" style={{ background: r.cor || 'var(--c-accent)' }} />{r.nome}</td>
+                    <td data-label={t('common.bar')}>
+                      <button type="button" className="bar-fin-name" title={t('nav.barFinance')} onClick={() => navigate(`/hq/barFinance?bar=${encodeURIComponent(r.id)}`)}>
+                        <span className="growth-dot" style={{ background: r.cor || 'var(--c-accent)' }} />{r.nome}
+                      </button>
+                    </td>
                     <td data-label={t('growth.colRevenue', { n: days })} className="num">{fmtYen(r.revenue)}<div className="ui-muted">{t('growth.salesCount', { n: r.salesCount })}</div></td>
                     <td data-label={t('growth.colGrowth')} className="num">
                       {r.growthPct == null ? <span className="ui-muted">{t('growth.noBase')}</span>

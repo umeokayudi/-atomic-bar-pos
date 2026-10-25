@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import {
   ACCESS_PRESETS, BAR_AREAS, LIVE_TABLE_AREA, SENSITIVE_AREAS, TAB_AREA, canAccess, canAccessAny, canEditAccessOf, canManageLogin,
   canOpenTab, cleanAcessos, filterNavGroups, firstOpenTab, loginEmailFor, missingArea, presetAreas, presetFor, registryArea,
-  STAFF_SELF_TABS, staffActionAreas,
+  OPEN_MENU_TABS, STAFF_SELF_TABS, staffActionAreas,
 } from '../src/lib/barAccess.js'
 import { dockForLogin, groupedNavForRole, primaryDockForRole } from '../src/lib/access.js'
 import {
@@ -58,7 +58,7 @@ test('presets: manager leaves out money, payroll and logins; full clears the lis
 test('every owner/manager menu tab and dock button maps to an area', () => {
   for (const role of ['cliente', 'gerente', 'caixa']) {
     const ids = [...groupedNavForRole(role).flatMap(g => g.items.map(i => i.id)), ...primaryDockForRole(role).map(d => d.id)]
-    for (const id of ids) assert.ok(TAB_AREA[id], `${role}: ${id} has no area`)
+    for (const id of ids) assert.ok(TAB_AREA[id] || OPEN_MENU_TABS.includes(id), `${role}: ${id} has no area`)
   }
   for (const area of Object.values(TAB_AREA)) assert.ok(BAR_AREAS.includes(area))
   assert.ok(groupedNavForRole('gerente').find(g => g.id === 'team').items.some(i => i.id === 'usuarios'))
@@ -243,3 +243,9 @@ test('employee search and login-id suggestion', () => {
 })
 
 console.log(`\n${n} tests passed`)
+
+test('My account is in the owner and manager menu and opens for every login, whatever its areas', () => {
+  for (const role of ['cliente', 'gerente']) assert.ok(groupedNavForRole(role).flatMap(g => g.items).some(i => i.id === 'conta'))
+  assert.equal(canOpenTab({ role: 'gerente', acessos: [] }, 'conta'), true)
+  assert.equal(canOpenTab({ role: 'gerente', acessos: ['till'] }, 'conta'), true)
+})

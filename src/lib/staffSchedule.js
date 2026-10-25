@@ -25,13 +25,17 @@ const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/
 export const isDayKey = v => DAY_RE.test(String(v || ''))
 export const cleanStart = v => (TIME_RE.test(String(v || '').trim()) ? String(v).trim() : '')
 
-/** One night's mark: { start } plus `end` only when set (older rows have no end). */
+export const SHIFTS = ['day', 'night']
+
+/** One night's mark: { start } plus `end` only when set (older rows have no end), plus `shift: 'day'` for a day shift. */
 export function dayMark(v) {
   const start = cleanStart(v?.start)
   const end = cleanStart(v?.end)
-  return end ? { start, end } : { start }
+  const out = end ? { start, end } : { start }
+  if (v?.shift === 'day') out.shift = 'day'
+  return out
 }
-const sameMark = (a, b) => cleanStart(a?.start) === cleanStart(b?.start) && cleanStart(a?.end) === cleanStart(b?.end)
+const sameMark = (a, b) => cleanStart(a?.start) === cleanStart(b?.start) && cleanStart(a?.end) === cleanStart(b?.end) && (a?.shift === 'day') === (b?.shift === 'day')
 
 export function addDays(key, n) {
   const [y, m, d] = String(key).split('-').map(Number)
@@ -212,12 +216,15 @@ export function attendanceFor({ day, expected = [], punches = [], toleranceMin =
   })
 }
 
-/** Attendance for one person over many nights: { day: { status, lateMinutes } } (only nights they were expected). */
-export function myAttendance({ meId, from, to, availability = [], schedules = [], punches = [], toleranceMin, now = new Date() }) {
+/**
+ * Attendance for one person over many nights: { day: { status, lateMinutes } }, only nights the owner put them on
+ * the confirmed list. A night they only marked as available is not work until the owner confirms it.
+ */
+export function myAttendance({ meId, from, to, schedules = [], punches = [], toleranceMin, now = new Date() }) {
   const out = {}
   const mine = (punches || []).filter(p => p && p.staff_id === meId)
   for (let day = from; day <= to; day = addDays(day, 1)) {
-    const exp = expectedFor(day, { availability, schedules }).people.filter(p => p.id === String(meId))
+    const exp = expectedFor(day, { availability: [], schedules }).people.filter(p => p.id === String(meId))
     if (!exp.length) continue
     const [row] = attendanceFor({ day, expected: exp, punches: mine, toleranceMin, now })
     out[day] = { status: row.status, lateMinutes: row.lateMinutes, start: row.start }
@@ -374,8 +381,20 @@ export function spanLabel(ms) {
 
 const pad2 = n => String(n).padStart(2, '0')
 
+/** One-tap hour presets for a day shift. */
+export const DAY_PRESETS = Object.freeze([
+  { start: '10:00', end: '18:00' },
+  { start: '12:00', end: '20:00' },
+  { start: '14:00', end: '22:00' },
+  { start: '16:00', end: '23:00' },
+])
+
+/** Which shift a mark is: 'day' when marked so, else 'night' (every older mark is a night). */
+export const shiftOf = mark => (mark?.shift === 'day' ? 'day' : 'night')
+
 /** One-tap hour presets for a night, from the bar's opening hour (20 → 20–01, 20–03, 20–05, 21–03). */
-export function timePresets(openHour = DEFAULT_OPEN_HOUR) {
+export function timePresets(openHour = DEFAULT_OPEN_HOUR, shift = 'night') {
+  if (shift === 'day') return DAY_PRESETS.map(p => ({ ...p }))
   const h = Math.max(16, Math.min(23, Number(openHour) || DEFAULT_OPEN_HOUR))
   const s = `${pad2(h)}:00`
   const s1 = `${pad2((h + 1) % 24)}:00`
@@ -401,4 +420,17 @@ export function copyWeekMarks(days = {}, prevWeek = [], week = [], editable = ne
   const out = {}
   week.forEach((d, i) => { if (editable.has(d)) out[d] = days[prevWeek[i]] || null })
   return out
+}
+
+/**
+ * Clocking out away from the planned end: 'over' (stayed longer) or 'early' (left before), when the gap is more
+ * than `graceMin`. { kind, planned: 'HH:MM', minutes } or null (no planned end, or close enough).
+ */
+export function offTimeFor({ day, start, end, now = new Date(), graceMin = 10 }) {
+  const finish = endMs(day, start, end)
+  if (finish == null) return null
+  const nowMs = (now instanceof Date ? now : new Date(now)).getTime()
+  const minutes = Math.round((nowMs - finish) / 60000)
+  if (Math.abs(minutes) <= graceMin) return null
+  return { kind: minutes > 0 ? 'over' : 'early', planned: cleanStart(end), minutes: Math.abs(minutes) }
 }

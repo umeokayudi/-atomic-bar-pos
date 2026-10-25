@@ -8,8 +8,9 @@ import assert from 'node:assert/strict'
 import {
   addDays, attendanceFor, canEditDay, cleanDays, cleanScheduleRules, deadlineMs, endMs, expectedFor, mergeAvailability, myAttendance,
   nextWeekOf, openHourOf, scheduleBoard, scheduleRules, scheduleWeeks, scheduleWindow, shiftCountdown, spanLabel, startMs,
-  submissionStatus, validWeeks, weekCheck, timePresets, nightHours, copyWeekMarks,
+  submissionStatus, validWeeks, weekCheck, timePresets, nightHours, copyWeekMarks, dayMark, shiftOf, offTimeFor,
 } from '../src/lib/staffSchedule.js'
+import { cleanOffTime, offTimeText } from '../api/_staffSelf.js'
 import {
   canWriteFines, cleanFine, cleanPayout, fineSettings, finesByStaff, finesTotal, finesVisibleTo, payNet, paymentHistory, suggestFine,
 } from '../src/lib/staffFines.js'
@@ -101,7 +102,10 @@ await test('attendance: late after start + tolerance, absent when the night is o
   assert.equal(startMs('2026-10-14', '01:00'), tokyoWallToUtcMs(2026, 10, 15, 1, 0))
   // Tolerance 30: Ken is on time.
   assert.equal(attendanceFor({ day: '2026-10-14', expected, punches, toleranceMin: 30, now: at(2026, 10, 15, 15) }).find(r => r.id === 'k').status, 'ok')
-  const mine = myAttendance({ meId: 'k', from: '2026-10-13', to: '2026-10-15', availability: AV, punches, now: at(2026, 10, 15, 15) })
+  // My attendance counts only nights the owner confirmed: a night I only marked is not work.
+  assert.deepEqual(myAttendance({ meId: 'k', from: '2026-10-13', to: '2026-10-15', availability: AV, punches, now: at(2026, 10, 15, 15) }), {})
+  const schedules = [{ day: '2026-10-14', people: [{ id: 'k', nome: 'Ken', start: '21:00' }] }]
+  const mine = myAttendance({ meId: 'k', from: '2026-10-13', to: '2026-10-15', schedules, punches, now: at(2026, 10, 15, 15) })
   assert.deepEqual(Object.keys(mine), ['2026-10-14'])
   assert.equal(mine['2026-10-14'].status, 'late')
 })
@@ -428,5 +432,33 @@ await test('schedule screen helpers: hour presets from the opening hour, night l
   assert.equal(out['2026-10-21'], null, 'a night off last week clears this week')
   assert.ok(!('2026-10-19' in out), 'locked nights are left alone')
 })
+
+
+await test('day shift / night shift: the mark keeps the shift, day presets, older marks are nights', () => {
+  assert.deepEqual(dayMark({ start: '10:00', end: '18:00', shift: 'day' }), { start: '10:00', end: '18:00', shift: 'day' })
+  assert.deepEqual(dayMark({ start: '20:00', end: '03:00', shift: 'night' }), { start: '20:00', end: '03:00' })
+  assert.deepEqual(dayMark({ start: '20:00', shift: 'evil' }), { start: '20:00' })
+  assert.equal(shiftOf({ start: '20:00' }), 'night')
+  assert.equal(shiftOf({ start: '10:00', shift: 'day' }), 'day')
+  assert.deepEqual(timePresets(20, 'day')[0], { start: '10:00', end: '18:00' })
+  assert.deepEqual(timePresets(20)[0], { start: '20:00', end: '01:00' })
+  assert.equal(nightHours('10:00', '18:00'), 8)
+  // A day shift that ends at midnight ends on the next calendar day.
+  assert.equal(endMs('2026-10-14', '16:00', '00:00') - startMs('2026-10-14', '16:00'), 8 * 3600e3)
+})
+
+await test('clock-out away from the planned end: overtime, early, close enough; the server keeps only a full answer', () => {
+  // Night of Oct 24, 20:00–02:00 (02:00 is Oct 25 in Tokyo = Oct 24 17:00 UTC).
+  assert.deepEqual(offTimeFor({ day: '2026-10-24', start: '20:00', end: '02:00', now: new Date('2026-10-24T18:10:00Z') }), { kind: 'over', planned: '02:00', minutes: 70 })
+  assert.deepEqual(offTimeFor({ day: '2026-10-24', start: '20:00', end: '02:00', now: new Date('2026-10-24T15:30:00Z') }), { kind: 'early', planned: '02:00', minutes: 90 })
+  assert.equal(offTimeFor({ day: '2026-10-24', start: '20:00', end: '02:00', now: new Date('2026-10-24T17:05:00Z') }), null)
+  assert.equal(offTimeFor({ day: '2026-10-24', start: '20:00', end: '', now: new Date() }), null)
+  assert.equal(cleanOffTime({ kind: 'over', planned: '02:00', actual: '03:10', authorizedBy: '' }), null, 'who allowed it is required')
+  assert.equal(cleanOffTime({ kind: 'later', planned: '02:00', actual: '03:10', authorizedBy: 'Ken' }), null)
+  const ok = cleanOffTime({ kind: 'over', planned: '02:00', actual: '03:10', authorizedBy: ' Ken ', note: 'VIP' })
+  assert.deepEqual(ok, { kind: 'over', planned: '02:00', actual: '03:10', authorizedBy: 'Ken', note: 'VIP' })
+  assert.equal(offTimeText(ok), 'Zangyo · planned 02:00 · left 03:10 · allowed by Ken · VIP')
+})
+
 
 console.log(`\n${n} tests passed`)

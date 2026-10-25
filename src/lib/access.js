@@ -42,6 +42,7 @@ export function defaultBarTab(role) {
 const GERENTE_NAV = [
   { id: 'inicio', labelKey: 'nav.portalHome', icon: '🏠' },
   { id: 'senha', labelKey: 'nav.vault', icon: '🔒' },
+  { id: 'conta', labelKey: 'nav.myAccount', icon: '👤' },
   { id: 'pos', labelKey: 'nav.portalPos', icon: '🧾' },
   { id: 'mesas', labelKey: 'nav.mesas', icon: '🗺' },
   { id: 'pedidos', labelKey: 'nav.supply', icon: '🛒' },
@@ -59,7 +60,7 @@ const GERENTE_NAV = [
   { id: 'ia', labelKey: 'nav.portalAi', icon: '✨' },
   { id: 'staff', labelKey: 'house.staffTitle', icon: '👤' },
   { id: 'usuarios', labelKey: 'barUsers.nav', icon: '🔑' },
-  { id: 'fornecedor', labelKey: 'house.suppliers', icon: '🚚' },
+  { id: 'fornecedor', labelKey: 'house.suppliers', icon: '🏢' },
   { id: 'parceiro', labelKey: 'house.partners', icon: '🤝' },
   { id: 'drinkback', labelKey: 'house.drinkBackNav', icon: '🥂' },
   { id: 'cartao', labelKey: 'nav.cardMachines', icon: '💳' },
@@ -77,7 +78,7 @@ const GERENTE_NAV = [
 
 // Bar owner/manager menu in the order a night runs: tonight, drinks, money, team, clients.
 const NAV_GROUPS = [
-  { id: 'overview', labelKey: 'barArea.overview', ids: ['inicio', 'ia', 'senha'] },
+  { id: 'overview', labelKey: 'barArea.overview', ids: ['inicio', 'ia', 'senha', 'conta'] },
   { id: 'tonight', labelKey: 'barArea.tonight', ids: ['pos', 'mesas', 'espacos', 'vip', 'ponto', 'fechamento'] },
   { id: 'drinks', labelKey: 'barArea.drinks', ids: ['pedidos', 'estoque', 'precos', 'fornecedor'] },
   { id: 'money', labelKey: 'barArea.money', ids: ['pagamentos', 'custos', 'fixo', 'variavel', 'cartao', 'faturas', 'contador', 'imposto', 'recibos'] },

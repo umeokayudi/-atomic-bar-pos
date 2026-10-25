@@ -959,18 +959,6 @@ html[data-layout="tablet"] .workspace-chrome {
   color: rgba(255,255,255,0.72);
 }
 
-.mobile-device-pill {
-  flex-shrink: 0;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--c-on-accent);
-  background: var(--gold);
-  border-radius: 99px;
-  padding: 1px 6px;
-}
-
 .shell-overlay {
   display: none;
 }
@@ -1811,10 +1799,14 @@ html[data-layout="mobile"] .metric-card-hover:hover {
   }
 }
 
+/* Phones: two small tiles a row instead of one tall card per number. */
 @media (max-width: 520px) {
   .admin-kpi-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
+  html .admin-kpi-grid .portal-kpi-card { padding: 12px; }
+  html .admin-kpi-grid .portal-kpi-value { font-size: 19px; }
 }
 
 .billing-hub-links {
@@ -1919,8 +1911,9 @@ html[data-layout="mobile"] .metric-card-hover:hover {
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--gold) 25%, transparent);
-  background: rgba(255,255,255,0.08);
+  border: 1px solid color-mix(in srgb, var(--c-on-chrome, #fff) 16%, transparent);
+  background: transparent;
+  color: var(--c-on-chrome, #fff);
   font-size: 18px;
   cursor: pointer;
   display: flex;
@@ -3182,10 +3175,16 @@ html[data-device="phone"] .clock-kiosk { max-width: none; }
   position: sticky;
   bottom: 8px;
 }
-.ord-send-kicker { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.72); }
-.ord-send-end { display: flex; align-items: center; gap: 14px; margin-left: auto; }
-.ord-send-total { font-size: 22px; font-weight: 800; color: var(--gold); letter-spacing: -0.3px; }
+.ord-send-sum { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ord-send-kicker { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.72); white-space: nowrap; }
+.ord-send-total { font-size: 22px; font-weight: 800; color: var(--gold); letter-spacing: -0.3px; white-space: nowrap; }
 .ord-send-btn { min-height: 48px; font-size: 15px; padding: 12px 18px; background: var(--gold); color: var(--c-on-accent); border: none; white-space: nowrap; flex-shrink: 0; }
+.ord-sendbar .ord-send-total { overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 360px) {
+  .ord-sendbar { padding: 10px 12px; gap: 10px; }
+  .ord-sendbar .ord-send-total { font-size: 19px; }
+  .ord-send-btn { padding: 12px 14px; }
+}
 .ord-card {
   background: var(--bg2);
   border: 1px solid var(--border);
@@ -4882,15 +4881,17 @@ button.pq-tile {
   box-shadow: var(--shadow-md);
   overflow: hidden;
 }
+.pq-tabs-row { display: flex; align-items: center; flex: 0 0 auto; min-width: 0; border-bottom: 1px solid var(--border); }
 .pq-tabs {
   display: flex;
   gap: 8px;
   padding: 12px;
   overflow-x: auto;
   scrollbar-width: none;
-  border-bottom: 1px solid var(--border);
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-width: 0;
 }
+.pq-tabs-actions { display: flex; gap: 8px; flex: 0 0 auto; padding: 12px 12px 12px 4px; }
 .pq-tabs::-webkit-scrollbar { display: none; }
 button.pq-tab {
   flex: 0 0 auto;
@@ -5679,23 +5680,19 @@ button.pq-charge {
 .staff-seg button.is-on { background: var(--c-accent); color: var(--c-on-accent); }
 @media (max-width: 800px) { .staff-seg { min-height: 44px; } .staff-seg button { min-height: 38px; } }
 
-/* Phone order sheet: the drinks keep most of the room; payment details fold under one row until opened. */
-.pq-pay-toggle { display: none; }
+/* Order panel: the tab's drinks keep the room; payment method, cash, customer and cast open only after "Pay". */
+.pq-lines { min-height: 180px; }
+.pq-pay-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 4px; border-top: 1px dashed var(--border2); }
+.pq-pay-head strong { font-size: 15px; }
+.pq-pay-head button { display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--border2); background: var(--bg); color: var(--text2); font-size: 14px; font-weight: 700; }
+.pq-pay-more { display: grid; gap: 10px; max-height: min(52vh, 460px); overflow-y: auto; overscroll-behavior: contain; }
+.pq-pay.is-paying .pq-total strong { font-size: 30px; }
 @media (max-width: 900px) {
   .pq-lines { min-height: 30dvh; }
   .pq-pay { gap: 8px; padding: 10px 12px; }
   .pq-total strong { font-size: 28px; }
-  button.pq-pay-toggle {
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    min-height: 46px; padding: 0 14px; border-radius: 14px;
-    border: 1px solid var(--border2); background: var(--bg); color: var(--text);
-    font-size: 15px; font-weight: 700; text-align: left;
-  }
-  .pq-pay-toggle > span:first-child { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .pq-pay-toggle-more { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; color: var(--text2); font-size: 13px; }
-  .pq-pay.is-more .pq-pay-toggle-more svg { transform: rotate(180deg); }
-  .pq-pay:not(.is-more) .pq-pay-more { display: none; }
-  .pq-pay-more { display: grid; gap: 8px; max-height: 40dvh; overflow-y: auto; }
+  .pq-pay-more { gap: 8px; max-height: 40dvh; }
+  .pq-order:has(.pq-pay.is-paying) .pq-lines { min-height: 16dvh; }
   .pq-pays { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pq-pays button { min-height: 48px; display: flex; justify-content: center; gap: 8px; }
   .pq-cash { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -5704,4 +5701,231 @@ button.pq-charge {
   .pq-options select, .pq-options button { width: 100%; min-width: 0; }
   .pq-charge { min-height: 60px; }
 }
-@media (min-width: 901px) { .pq-pay-more { display: contents; } }
+
+/* Till dashboard: numbers on one row, chart and tickets on the left, night close and stock on the right. */
+.pos-dash-stats { display: grid; grid-template-columns: 1.4fr repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.pos-dash-stat { display: grid; gap: 6px; align-content: start; padding: 16px 18px; background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; min-width: 0; }
+.pos-dash-stat span { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text2); }
+.pos-dash-stat strong { font-size: 24px; font-weight: 800; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pos-dash-stat.is-main strong { font-size: 32px; color: var(--green); letter-spacing: -0.02em; }
+.pos-dash-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); gap: 16px; align-items: start; }
+.pos-dash-main, .pos-dash-side { display: grid; gap: 12px; min-width: 0; }
+.pos-dash-main > .card, .pos-dash-side > * { margin: 0 !important; }
+.hourly-empty { padding: 28px 12px; text-align: center; font-size: 13px; color: var(--text3); border: 1px dashed var(--border2); border-radius: 12px; }
+@media (max-width: 1000px) {
+  .pos-dash-grid { grid-template-columns: minmax(0, 1fr); }
+  .pos-dash-side { order: -1; }
+}
+@media (max-width: 640px) {
+  .pos-dash-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .pos-dash-stat.is-main { grid-column: 1 / -1; }
+  .pos-dash-stat { padding: 12px 14px; }
+  .pos-dash-stat strong { font-size: 17px; }
+  .pos-dash-stat span { font-size: 10px; letter-spacing: 0.04em; }
+  .pos-dash-stat.is-main strong { font-size: 28px; }
+}
+
+/* Night close card: total, the three ways people paid, and the books folded away. */
+.pos-close-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pos-close-total { display: grid; gap: 2px; margin-top: 8px; }
+.pos-close-total strong { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+.pos-close-total span { font-size: 12px; color: var(--text2); }
+.pos-close-methods { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+.pos-close-methods div { display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--bg); border: 1px solid var(--border); min-width: 0; }
+.pos-close-methods span { font-size: 11px; color: var(--text2); font-weight: 700; }
+.pos-close-methods strong { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pos-close-books { margin-top: 10px; font-size: 13px; }
+.pos-close-books summary { cursor: pointer; color: var(--text2); font-weight: 700; font-size: 12px; }
+.pos-close-books dl { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 8px 0 0; }
+.pos-close-books dt { color: var(--text2); }
+.pos-close-books dd { margin: 0; font-weight: 700; text-align: right; }
+.pos-close-bar .pos-close-last { display: grid; gap: 2px; margin-top: 10px; font-weight: 600; }
+.pos-close-bar .pos-close-last span { font-size: 11px; font-weight: 600; color: var(--text3); }
+.pos-close-bar .pos-close-actions input { flex: 1; min-width: 0; }
+
+/* Paying: the order list shrinks to a short strip so methods, cast, cash and Charge always fit; Charge never scrolls away. */
+.pq-order:has(.pq-pay.is-paying) .pq-lines { flex: 0 1 auto; min-height: 64px; max-height: 24%; }
+.pq-pay.is-paying { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.pq-pay.is-paying > * { flex-shrink: 0; }
+.pq-pay.is-paying > .pq-pay-more { flex: 1 1 auto; min-height: 0; max-height: none; }
+@media (max-width: 900px) {
+  .pq-order:has(.pq-pay.is-paying) .pq-lines { min-height: 56px; max-height: 18dvh; }
+}
+
+/* Cast: one tap per person, right in the payment step, for every payment method. */
+.pq-castrow { display: grid; gap: 6px; }
+.pq-castrow-label { font-size: 12px; font-weight: 700; color: var(--text2); }
+.pq-castrow-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pq-castrow-chips button {
+  display: inline-flex; align-items: center; gap: 4px;
+  min-height: 44px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--border2); background: var(--bg); color: var(--text);
+  font-size: 15px; font-weight: 700;
+}
+.pq-castrow-chips button.is-on { background: var(--pq-accent); border-color: var(--pq-accent); color: white; }
+.pq-castrow-chips button:first-child.is-on { background: var(--bg3); border-color: var(--border2); color: var(--text2); }
+
+/* Night goal: a small cell with a thin bar, next to tonight's sales. */
+.pq-goal { display: flex; align-items: center; gap: 6px; margin-top: 3px; text-transform: none; letter-spacing: 0; }
+.pq-goal .pq-goal-bar { flex: 1 1 auto; min-width: 24px; margin-top: 0; }
+.pq-goal-pct { font-size: 11px; font-weight: 700; color: var(--text2); white-space: nowrap; }
+.pq-goal-pct.is-hit { color: var(--pq-accent); }
+.pq-goal-bar { display: block; height: 4px; border-radius: 4px; background: var(--bg3); overflow: hidden; margin-top: 3px; }
+.pq-goal-bar b { display: block; height: 100%; border-radius: 4px; background: var(--pq-accent); }
+
+.pq-done-thanks { font-size: 20px; font-weight: 800; color: var(--pq-accent); }
+.pq-sheet-crm { display: grid; gap: 6px; }
+.pq-sheet-crm h3 { margin: 4px 0 0; font-size: 13px; color: var(--text2); }
+.pq-sheet-crm .cust-list { max-height: 180px; overflow-y: auto; }
+
+/* Till tablet header: logo, the bar's name big, one Sign out. */
+.till-kiosk-bar { padding: 10px 18px; border-bottom: 2px solid color-mix(in srgb, var(--gold) 55%, transparent); }
+.till-kiosk-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.till-kiosk-brand > div { min-width: 0; }
+.till-kiosk-bar .till-kiosk-name { font-size: 22px; font-weight: 900; letter-spacing: -0.01em; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.till-kiosk-bar .till-kiosk-lane { font-size: 12px; color: color-mix(in srgb, var(--gold) 80%, white); margin-top: 2px; letter-spacing: 0.02em; }
+.till-kiosk-actions button.till-kiosk-out { display: inline-flex; align-items: center; gap: 8px; border-color: rgba(255,255,255,0.25); }
+.till-kiosk-actions button.till-kiosk-hq { background: transparent; border-color: transparent; color: rgba(255,255,255,0.7); }
+@media (max-width: 600px) {
+  .till-kiosk-bar .till-kiosk-name { font-size: 18px; }
+  .till-kiosk-actions button.till-kiosk-hq { display: none; }
+}
+/* The till kiosk has its own bar on top, so it skips the phone shell's room for the fixed HQ header. */
+html[data-layout="mobile"] .app-shell.is-till-kiosk .app-main,
+html[data-layout="desktop"] .app-shell.is-till-kiosk .app-main { padding: 12px 14px calc(12px + env(safe-area-inset-bottom)) !important; }
+
+/* Service charge: one line of chips (None, the bar's default and common %, Other) before Pay; scrolls sideways when narrow. */
+.pq-svcrow { display: flex; align-items: center; gap: 8px; flex-shrink: 0; min-width: 0; }
+.pq-svcrow-label { font-size: 12px; font-weight: 700; color: var(--text2); white-space: nowrap; }
+.pq-svcrow-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; min-width: 0; flex: 1; }
+.pq-svcrow-chips::-webkit-scrollbar { display: none; }
+.pq-svcrow-chips > button, .pq-svcrow-other button {
+  flex-shrink: 0; min-height: 38px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--border2);
+  background: var(--bg2); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.pq-svcrow-chips > button.is-on { background: var(--pq-accent); border-color: var(--pq-accent); color: #fff; }
+.pq-svcrow-other { display: flex; gap: 6px; flex-shrink: 0; }
+.pq-svcrow-other input { width: 68px; min-height: 38px; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--pq-accent); background: var(--bg); text-align: center; }
+
+/* Phones: shorter drink tiles so about three rows fit, and the starter hint on one line. */
+@media (max-width: 520px) {
+  .pq-tile-img { aspect-ratio: 16 / 7; font-size: 30px; }
+  .pq-tile-name { padding: 8px 10px 0; font-size: 15px; }
+  .pq-tile-price { padding: 2px 10px 10px; font-size: 17px; }
+  .pq-tile-qty { top: 6px; right: 6px; min-width: 30px; height: 30px; font-size: 15px; }
+  .pq-menu > .pq-hint { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+/* Staff app: the order bar sits above the bottom tabs instead of covering them. */
+@media (max-width: 900px) {
+  .is-staff-app button.pq-cartbar { bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .is-staff-app .pq { padding-bottom: 84px; }
+}
+/* Phones: a "+ Tab" button beside the order bar opens a new tab straight away. */
+.pq-cartbar-new { display: none; }
+@media (max-width: 900px) {
+  button.pq-cartbar { right: 96px; }
+  button.pq-cartbar-new {
+    position: fixed; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 200;
+    display: grid; place-items: center; align-content: center; gap: 0;
+    width: 76px; min-height: 64px; border-radius: 18px; border: 2px solid var(--pq-accent);
+    background: var(--bg2); color: var(--pq-accent); font-size: 13px; font-weight: 800;
+    box-shadow: 0 10px 24px color-mix(in srgb, var(--c-text) 18%, transparent);
+  }
+  .is-staff-app button.pq-cartbar-new { bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .pq-tabs { padding-right: 4px; }
+}
+
+/* Stock: what needs attention first, then settings per product */
+.stock-attention {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.stock-attention-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+.stock-attention-head h2 { margin: 0 0 4px; font-size: 18px; }
+.stock-attention-head p { margin: 0; color: var(--text2); font-size: 13px; line-height: 1.45; }
+.stock-all-title { font-size: 15px; font-weight: 800; margin: 18px 0 10px; }
+.reorder-label { font-size: 12px; font-weight: 700; color: var(--text2); margin: 14px 0 8px; }
+.reorder-per { margin: 12px 0; padding-top: 12px; border-top: 1px solid var(--border); }
+.reorder-per summary { cursor: pointer; font-weight: 800; font-size: 15px; padding: 6px 0; }
+.reorder-per[open] summary { margin-bottom: 6px; }
+.reorder-find { width: 100%; padding: 10px 12px; border-radius: 10px; font-size: 14px; margin-bottom: 8px; }
+.reorder-grid { display: flex; flex-direction: column; }
+.reorder-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) 48px 64px 64px; gap: 8px; align-items: center;
+  padding: 8px 0; border-top: 1px solid var(--border); font-size: 14px;
+}
+.reorder-row.is-head { border-top: none; font-size: 11px; font-weight: 700; color: var(--text2); text-transform: uppercase; padding: 4px 0; }
+.reorder-row.is-head span { text-align: center; }
+.reorder-row.is-alert .reorder-name { color: var(--red); font-weight: 700; }
+.reorder-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reorder-stock { text-align: center; font-weight: 700; }
+.reorder-row input { width: 100%; padding: 8px 4px; text-align: center; border-radius: 8px; font-size: 15px; }
+/* Upcoming payments: money on hand vs what is due */
+.pay-plan-hero {
+  background: var(--bg2); border: 1px solid var(--border); border-left: 6px solid var(--border);
+  border-radius: 16px; padding: 16px; margin: 0 0 12px;
+}
+.pay-plan-hero.is-ok { border-left-color: var(--green); }
+.pay-plan-hero.is-tight { border-left-color: var(--amber); }
+.pay-plan-hero.is-short { border-left-color: var(--red); }
+.pay-plan-kicker { font-size: 12px; font-weight: 800; color: var(--text2); text-transform: uppercase; letter-spacing: .04em; }
+.pay-plan-value {
+  display: flex; align-items: baseline; gap: 10px; background: none; border: 0; padding: 4px 0; cursor: pointer;
+  font-size: 30px; font-weight: 800; color: var(--text);
+}
+.pay-plan-value span { font-size: 13px; font-weight: 700; color: var(--text2); text-decoration: underline; }
+.pay-plan-balance { display: flex; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
+.pay-plan-balance input { flex: 1 1 140px; min-width: 0; font-size: 22px; font-weight: 800; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+.pay-plan-balance button { border-radius: 12px; border: 0; padding: 0 16px; min-height: 44px; font-weight: 800; background: var(--text); color: var(--bg); cursor: pointer; }
+.pay-plan-balance button.is-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+.pay-plan-hint { margin: 2px 0 10px; font-size: 12px; color: var(--text2); }
+.pay-plan-verdict { display: block; font-size: 15px; line-height: 1.4; }
+.pay-plan-hero.is-ok .pay-plan-verdict { color: var(--green); }
+.pay-plan-hero.is-tight .pay-plan-verdict { color: var(--amber); }
+.pay-plan-hero.is-short .pay-plan-verdict { color: var(--red); }
+.pay-plan-sums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.pay-plan-sums div { background: var(--bg); border-radius: 12px; padding: 8px 10px; min-width: 0; }
+.pay-plan-sums span { display: block; font-size: 11px; font-weight: 700; color: var(--text2); }
+.pay-plan-sums b { font-size: 15px; overflow-wrap: anywhere; }
+.pay-plan-sums b.is-neg { color: var(--red); }
+.pay-plan-legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 8px; font-size: 12px; color: var(--text2); }
+.pay-plan-legend span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.pay-plan-legend .is-ok::before { background: var(--green); }
+.pay-plan-legend .is-tight::before { background: var(--amber); }
+.pay-plan-legend .is-short::before { background: var(--red); }
+.pay-timeline { display: flex; flex-direction: column; gap: 14px; }
+.pay-group header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 0 4px; }
+.pay-group h3 { margin: 0; font-size: 15px; }
+.pay-group header b { font-size: 14px; color: var(--text2); }
+.pay-group.is-late h3, .pay-group.is-late header b { color: var(--red); }
+.pay-row {
+  width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; color: var(--text);
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-top: 6px; cursor: pointer;
+}
+.pay-dot { flex: 0 0 10px; width: 10px; height: 10px; border-radius: 50%; background: var(--border); }
+.pay-row.is-ok .pay-dot, .pay-row.is-in .pay-dot { background: var(--green); }
+.pay-row.is-tight .pay-dot { background: var(--amber); }
+.pay-row.is-short .pay-dot, .pay-row.is-late .pay-dot { background: var(--red); }
+.pay-row.is-tight { background: var(--amber-bg); border-color: color-mix(in srgb, var(--amber) 40%, transparent); }
+.pay-row.is-short { background: var(--red-bg); border-color: color-mix(in srgb, var(--red) 40%, transparent); }
+.pay-row-main { flex: 1; min-width: 0; }
+.pay-row-main strong { display: block; font-size: 14px; overflow-wrap: anywhere; }
+.pay-row-main em { display: block; font-style: normal; font-size: 12px; color: var(--text2); margin-top: 2px; }
+.pay-row-money { text-align: right; flex: 0 0 auto; }
+.pay-row-money b { display: block; font-size: 15px; }
+.pay-row-money small { display: block; font-size: 11px; font-weight: 700; color: var(--text2); }
+.pay-row.is-short .pay-row-money small { color: var(--red); }
+.pay-row.is-tight .pay-row-money small { color: var(--amber); }
+.pay-row.is-in .pay-row-money b { color: var(--green); }
+.pay-days { margin-top: 16px; background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; padding: 12px 16px; }
+.pay-days summary { cursor: pointer; font-weight: 800; font-size: 14px; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.pay-days summary span { font-weight: 600; color: var(--text2); font-size: 13px; }
+.pay-days[open] summary { margin-bottom: 10px; }
+/* New tab sheet: the people stepper on its own labelled line. Tab bar: people count, tap to change. */
+.pq-sheet-people { display: flex; align-items: center; }
+.pq-sheet-people .f3-people .ui-btn { min-width: 44px; min-height: 44px; }
+.pq-sheet-people .f3-people input { width: 56px; height: 44px; font-size: 17px; }
+button.pq-tabbar-people { border: 0; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }

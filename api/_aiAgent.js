@@ -72,11 +72,12 @@ function toContents(messages, image, attachments = []) {
 }
 
 async function plan(res, actor, body) {
-  const ctx = await loadActionContext(actor.db, { scope: actor.scope, barId: actor.perfil.bar_id, userId: actor.user.id })
   const attached = attachmentParts(body.attachments)
   if (attached.error) return res.status(400).json({ error: attached.error })
   const contents = toContents(body.messages, body.image, attached.parts)
   if (!contents.length) return res.status(400).json({ error: 'messages is required' })
+  // The action data and the page facts are independent reads: load them at the same time.
+  const ctxP = loadActionContext(actor.db, { scope: actor.scope, barId: actor.perfil.bar_id, userId: actor.user.id })
 
   // Page context ("Ask AI" panel / AI Center): load the facts for that module with the user's own rights.
   // Bar managers are always pinned to their own bar; HQ may narrow to one bar.
@@ -87,10 +88,11 @@ async function plan(res, actor, body) {
     const barId = actor.scope === 'hq'
       ? (/^[0-9a-f-]{36}$/i.test(body.analysis.barId || '') ? body.analysis.barId : null)
       : actor.perfil.bar_id
-    const pack = await loadAnalysisPack(actor.db, { module, days: body.analysis.days, barId })
+    const [pack] = await Promise.all([loadAnalysisPack(actor.db, { module, days: body.analysis.days, barId }), ctxP.catch(() => null)])
     analysis = analysisPrompt(pack)
     sources = { period: pack.period, scope: pack.scope, modules: Object.keys(pack.facts), limitations: pack.limitations }
   }
+  const ctx = await ctxP
   const screen = [String(body.screen || '').slice(0, 4000), analysis].filter(Boolean).join('\n\n')
 
   const data = await geminiGenerate({

@@ -15,6 +15,7 @@ import {
   Download, Hand, UserX, Timer, Box as Cube, Crown, Siren, BellRing, CircleHelp, Sofa, BrickWall, DoorOpen, Music, Sprout, Palette,
   MapPin, Inbox, CalendarCheck, Gavel, CalendarX, CircleMinus, Gift, ChartColumn,
   Crop, List, PersonStanding, Rotate3d, Hand as Grab, ChevronUp, LogIn, Camera,
+  Gamepad2, Tv, RectangleVertical,
 } from 'lucide-react'
 
 /** One name → one vector icon. Screens ask for a semantic name, never an emoji. */
@@ -23,7 +24,7 @@ const ICONS = {
   pedidos: ClipboardList, orders: ClipboardList, fulfillment: Truck, procurement: PackageSearch,
   relatorio: LineChart, report: LineChart, ryoshusho: Receipt, seikyusho: FileText, products: Wine,
   bars: Store, usuarios: Users, users: Users, faturas: FileText, invoices: FileText, suppliers: Factory,
-  cashflow: ArrowLeftRight, payroll: BadgeJapaneseYen, profile: User, shifts: CalendarDays, clock: Clock,
+  cashflow: ArrowLeftRight, payroll: BadgeJapaneseYen, profile: User, conta: User, shifts: CalendarDays, clock: Clock,
   goals: Target, result: TrendingUp, points: Star, occurrences: NotebookPen, rewards: Award, salary: Wallet,
   tasks: ListChecks, inicio: Home, home: Home, pos: ReceiptText, entregas: Truck, espacos: Armchair,
   mesas: LayoutGrid, floor: LayoutGrid, comandas: ClipboardList, clientes: Contact, ponto: Clock,
@@ -59,6 +60,8 @@ const ICONS = {
   catBeer: Beer, catWine: WineGlass, catCocktail: Martini, catSoft: CupSoda, catShot: Flame, catFood: UtensilsCrossed,
   catSpirit: GlassWater, catSake: Grape,
   payCash: Banknote, payCard: CreditCard, payPhone: Smartphone,
+  // floor items
+  itemMirror: RectangleVertical, itemDarts: Target, itemChair: Armchair, itemPool: Circle, itemArcade: Gamepad2, itemTv: Tv,
 }
 
 export default function Icon({ name, size = 18, strokeWidth = 1.8, className = '', label, ...rest }) {

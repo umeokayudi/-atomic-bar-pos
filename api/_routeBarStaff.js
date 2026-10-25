@@ -11,7 +11,7 @@ import { isMissingSchemaError, loadBarWithGeo, listStaffWithExtras, runLiveOp, s
 import { forgetBarActors } from './_barLaneAuth.js'
 import { canAccess, canEditAccessOf, canManageLogin, cleanAcessos, isRestricted, staffActionAreas } from '../src/lib/barAccess.js'
 import { denyMissingArea } from './_barAccess.js'
-import { OWNER_ACTIONS, PAY_WRITE_ACTIONS, SELF_ACTIONS, handleOwnerAction, handleSelfAction } from './_staffSelf.js'
+import { OWNER_ACTIONS, PAY_WRITE_ACTIONS, SELF_ACTIONS, handleOwnerAction, handleSelfAction, setLoginEmail } from './_staffSelf.js'
 import { canLinkLogin, carryFromPerson, personLinkPatch, remapIds, remapSheet } from '../src/lib/staffLink.js'
 import { castRoster } from '../src/lib/staffPos.js'
 
@@ -84,6 +84,15 @@ function costExtras(body) {
   if (body.local != null) extra.local = String(body.local || '').trim().slice(0, 80)
   if (body.conta != null) extra.conta = String(body.conta || '').trim().slice(0, 120)
   if (body.bandeiras != null) extra.bandeiras = asList(body.bandeiras).slice(0, 12)
+  return extra
+}
+
+/** Business partners (kind fornecedor): last and next service day, and what the cost is per. */
+function partnerExtras(body) {
+  const extra = {}
+  if (body.ultimo_servico != null) extra.ultimo_servico = isoDay(body.ultimo_servico)
+  if (body.proximo_servico != null) extra.proximo_servico = isoDay(body.proximo_servico)
+  if (body.custo_por != null) extra.custo_por = ['visit', 'month', 'order'].includes(body.custo_por) ? body.custo_por : ''
   return extra
 }
 
@@ -231,9 +240,15 @@ async function remapPersonRefs(db, barId, fromId, toId) {
  * points back), name the login after the employee, mark the bar_people row merged (kept, never deleted)
  * and move goal / day-sheet / drink-back references to the login id.
  */
-async function linkPersonToLogin(db, barId, person, loginId, { rename = true } = {}) {
+async function linkPersonToLogin(db, barId, person, loginId, { rename = true, admin = null } = {}) {
   const extras = await saveStaffExtras(db, loginId, carryFromPerson(person))
   if (!extras.ok) return { ok: false, error: extras.error || 'Could not save' }
+  // The employee file's e-mail becomes the sign-in e-mail too (one e-mail per person).
+  let email = ''
+  if (admin && String(person.email || '').includes('@')) {
+    const r = await setLoginEmail(admin, db, loginId, person.email)
+    if (r.ok) email = r.email
+  }
   if (rename && String(person.nome || '').trim()) {
     await db.from('perfis').update({ nome: String(person.nome).trim().slice(0, 80) }).eq('id', loginId)
   }
@@ -249,7 +264,7 @@ async function linkPersonToLogin(db, barId, person, loginId, { rename = true } =
   if (marked.data && marked.data.merged_into !== loginId) return { ok: false, error: 'Could not mark the employee file as linked' }
   await retagDrinkBackAgent(db, barId, person.id, loginId).catch(() => {})
   await remapPersonRefs(db, barId, person.id, loginId).catch(() => {})
-  return { ok: true }
+  return { ok: true, email }
 }
 
 /** Undo a link: the employee file shows on its own again; the login keeps the fields it already has. */
@@ -736,6 +751,12 @@ export default async function handler(req, res) {
       if (body.dia_salario != null) row.dia_salario = Math.max(1, Math.min(28, Math.round(+body.dia_salario || 25)))
       if (body.dia_drink != null) row.dia_drink = Math.max(1, Math.min(28, Math.round(+body.dia_drink || 10)))
       if (body.dia_mes != null) row.dia_mes = Math.max(1, Math.min(28, Math.round(+body.dia_mes || 1)))
+      if (body.caixa_saldo !== undefined) {
+        // Money the bar has now (cash + bank), typed by the owner; null clears it.
+        const v = body.caixa_saldo === null || body.caixa_saldo === '' ? null : Math.round(+body.caixa_saldo)
+        row.caixa_saldo = Number.isFinite(v) ? Math.max(-1e11, Math.min(1e11, v)) : null
+        row.caixa_saldo_em = /^\d{4}-\d{2}-\d{2}$/.test(String(body.caixa_saldo_em || '')) ? String(body.caixa_saldo_em) : null
+      }
       if (body.pedido_modo != null) {
         const modo = String(body.pedido_modo)
         row.pedido_modo = ['queda', 'volume', 'segunda'].includes(modo) ? modo : 'queda'
@@ -744,6 +765,20 @@ export default async function handler(req, res) {
       if (body.pedido_min != null) row.pedido_min = Math.max(0, Math.min(999, Math.round(+body.pedido_min || 0)))
       if (body.pedido_em != null) row.pedido_em = String(body.pedido_em || '').slice(0, 10)
       if (body.pedido_feito != null) row.pedido_feito = String(body.pedido_feito || '').slice(0, 10)
+      if (body.pedido_entrega !== undefined) {
+        const day = Math.round(+body.pedido_entrega)
+        row.pedido_entrega = body.pedido_entrega !== null && body.pedido_entrega !== '' && day >= 0 && day <= 6 ? day : null
+      }
+      if (body.pedido_qtds && typeof body.pedido_qtds === 'object') {
+        const qtys = { ...(row.pedido_qtds || {}) }
+        for (const [id, n] of Object.entries(body.pedido_qtds).slice(0, 500)) {
+          const key = String(id).slice(0, 64)
+          const qty = Math.max(0, Math.min(99, Math.round(+n || 0)))
+          if (qty > 0) qtys[key] = qty
+          else delete qtys[key]
+        }
+        row.pedido_qtds = qtys
+      }
       const hourOf = (name, fallback) => ((Math.round(body[name] == null ? fallback : +body[name]) % 24) + 24) % 24
       if (body.abre != null) row.abre = hourOf('abre', 20)
       if (body.corta != null) row.corta = hourOf('corta', 0)
@@ -791,6 +826,7 @@ export default async function handler(req, res) {
         month_key: body.recorrente === false ? String(body.month_key || '') : '',
         ...profileExtras(body),
         ...costExtras(body),
+        ...(kind === 'fornecedor' ? partnerExtras(body) : {}),
       }
       const existing = await runLiveOp(db, {
         table: 'bar_registry',
@@ -895,7 +931,7 @@ export default async function handler(req, res) {
         if (!undone.ok) return res.status(400).json({ error: undone.error || 'Could not save' })
       }
       if (person) {
-        const linked = await linkPersonToLogin(db, barId, person, login.id)
+        const linked = await linkPersonToLogin(db, barId, person, login.id, { admin })
         if (!linked.ok) return res.status(400).json({ error: linked.error })
       }
       forgetBarActors()
@@ -953,10 +989,10 @@ export default async function handler(req, res) {
       }
       if (person) {
         // The employee file brings its own pay, contract, photo, phone, sex and drink-back agent.
-        const linked = await linkPersonToLogin(db, barId, person, uid, { rename: false })
+        const linked = await linkPersonToLogin(db, barId, person, uid, { rename: false, admin })
         if (!linked.ok) return res.status(400).json({ error: linked.error, id: uid })
         forgetBarActors()
-        return res.status(200).json({ ok: true, id: uid, email: String(email).trim().toLowerCase(), password, nome: loginName, person_id: person.id })
+        return res.status(200).json({ ok: true, id: uid, email: linked.email || String(email).trim().toLowerCase(), password, nome: loginName, person_id: person.id })
       }
       const drink = await syncDrinkBackAgent(db, barId, uid, {
         nome,
@@ -970,7 +1006,7 @@ export default async function handler(req, res) {
     if (req.method === 'PATCH') {
       const { id } = body
       if (!id) return res.status(400).json({ error: 'id required' })
-      const { data: existing } = await db.from('perfis').select('id,bar_id,role,nome').eq('id', id).single()
+      const { data: existing } = await db.from('perfis').select('id,bar_id,role,nome,email').eq('id', id).single()
       // Lane logins (bar_logins) have no perfis row: "Users & access" can switch them on/off, rename, set role and areas.
       if (!existing) return patchLaneLogin(req, res, db, auth, barId, body)
       if (existing.bar_id !== barId) return res.status(404).json({ error: 'Staff not found' })
@@ -992,6 +1028,15 @@ export default async function handler(req, res) {
       const extraPatch = {}
       if (body.nome != null) patch.nome = body.nome
       Object.assign(extraPatch, profileExtras(body), employeeExtras(body, barId), payExtras(body))
+      // A staff login's e-mail is its sign-in: change it on the login, the profile and the sign-in together.
+      if (body.email != null && ['bar_staff', 'caixa', 'gerente'].includes(existing.role) && String(body.email).trim()) {
+        delete extraPatch.email
+        if (String(body.email).trim().toLowerCase() !== String(existing.email || '').toLowerCase()) {
+          if (!canManageLogin(auth.perfil, existing)) return res.status(403).json({ error: 'You cannot change this login' })
+          const r = await setLoginEmail(admin, db, id, body.email)
+          if (r.error) return res.status(r.status || 400).json({ error: r.error })
+        }
+      }
       if (body.ativo != null) extraPatch.ativo = !!body.ativo
       if (body.pin) extraPatch.clock_pin_hash = hashSecret(String(body.pin))
       if (body.role === 'caixa' || body.role === 'bar_staff') patch.role = body.role

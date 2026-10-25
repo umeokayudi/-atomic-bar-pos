@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from './Auth'
 import { fmtYen, Spinner } from './utils'
 import { staffFetch } from '../lib/apiAuth'
@@ -17,6 +17,7 @@ import { meDay } from '../lib/staffSelfApi'
 import { useClockPunch } from './staff/ClockPunch'
 import { OwnerDayReports, OwnerLocation } from './staff/OwnerStaffTools'
 import OwnerSchedule from './staff/OwnerSchedule'
+import ClockHub, { ClockOverview, useClockView } from './staff/ClockHub'
 
 const SALE_COLS = 'id,total,refunded,criado_em,data,obs,metodo_pagamento,drink_back_agent_id,criado_por'
 const SALE_COLS_SLIM = 'id,total,criado_em,data,obs,metodo_pagamento,drink_back_agent_id,criado_por'
@@ -125,9 +126,24 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
     onDone: () => load(),
   })
 
+  const teamRows = manager ? payrollFromPunches(punches, staff, range, { nightPremium }) : []
+  const { view, open } = useClockView(manager)
+  const [summary, setSummary] = useState({})
+  const [fineSignal, setFineSignal] = useState(0)
+  const top = useRef(null)
+  function go(next) {
+    open(next)
+    // Start the opened part right under the buttons; back to the overview starts at the page top.
+    requestAnimationFrame(() => {
+      const el = next === 'home' ? top.current : top.current?.querySelector('.clock-hub')
+      el?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    })
+  }
+  const part = name => !manager || view === name
+
   return (
-    <div className="fade-in">
-      <PageHeader title={t('clock.title')} subtitle={t('clock.selfHint')} />
+    <div className="fade-in" ref={top}>
+      <PageHeader title={t('clock.title')} subtitle={manager ? t('clockHub.lead') : t('clock.selfHint')} />
       {(err || punch.err) && <div className="pos-sale-err" style={{ marginBottom: 12 }}>{asReactText(err || punch.err)}</div>}
       {punch.sheet}
       {loading ? <Spinner /> : clockStaff([perfil]).length > 0 && (
@@ -151,18 +167,29 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
           </button>
         </div>
       )}
-      {manager && !loading && (
-        <div style={{ marginTop: 16 }}>
-          <OwnerSchedule />
-        </div>
-      )}
       {manager && (
-        <div style={{ marginTop: 16 }}>
-          <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 8 }}>{t('clock.teamTitle')}</div>
-          <StaffPayCards rows={payrollFromPunches(punches, staff, range, { nightPremium })} nightPremium={nightPremium} />
+        <ClockHub
+          view={view}
+          onOpen={go}
+          onNewFine={canAccess(perfil, 'payroll') ? () => setFineSignal(n => n + 1) : null}
+          onOpenStaff={onOpenStaff}
+        />
+      )}
+      {manager && view === 'home' && (
+        <ClockOverview summary={summary} teamRows={teamRows} loading={loading} onOpen={go} />
+      )}
+      {manager && !loading && (
+        <div className="clock-part">
+          <OwnerSchedule view={view} onSummary={setSummary} fineSignal={fineSignal} />
         </div>
       )}
-      {!loading && (
+      {manager && view === 'hours' && (
+        <div className="clock-part">
+          <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 8 }}>{t('clock.teamTitle')}</div>
+          <StaffPayCards rows={teamRows} nightPremium={nightPremium} />
+        </div>
+      )}
+      {!loading && part('hours') && (
         <div style={{ marginTop: 16 }}>
           <StaffDayReport
             onlyId={manager ? undefined : meId}
@@ -174,13 +201,17 @@ export default function TimeClockPanel({ bar, onOpenStaff }) {
           />
         </div>
       )}
-      {manager && !loading && (
+      {manager && !loading && view === 'reports' && (
         <div className="own-tools">
-          <OwnerLocation bar={teamBar || venue && { lat: venue.lat, lng: venue.lng, geofence_m: venue.radius_m }} canEdit={canAccess(perfil, 'users')} onSaved={load} />
           <OwnerDayReports />
         </div>
       )}
-      {manager && onOpenStaff && (
+      {manager && !loading && view === 'settings' && (
+        <div className="own-tools">
+          <OwnerLocation bar={teamBar || venue && { lat: venue.lat, lng: venue.lng, geofence_m: venue.radius_m }} canEdit={canAccess(perfil, 'users')} onSaved={load} />
+        </div>
+      )}
+      {manager && view === 'settings' && onOpenStaff && (
         <button type="button" className="people-add-link" onClick={() => onOpenStaff()}>
           {t('clock.openStaffLogins')}
         </button>

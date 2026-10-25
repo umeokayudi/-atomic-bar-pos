@@ -144,7 +144,7 @@ export function StaffInbox() {
             <input value={drafts[r.id] || ''} onChange={e => setDrafts(d => ({ ...d, [r.id]: e.target.value }))} placeholder={t('staffInbox.replyPh')} aria-label={t('staffInbox.reply')} />
             <button type="button" className="ui-btn" disabled={busy === r.id || !(drafts[r.id] || '').trim()} onClick={() => act(r, { answer: drafts[r.id].trim(), status: r.status === 'open' ? 'seen' : r.status })}>{t('staffInbox.send')}</button>
             {r.status === 'open' && <button type="button" className="ui-btn" disabled={busy === r.id} onClick={() => act(r, { status: 'seen' })}>{t('staffInbox.seen')}</button>}
-            {r.status !== 'done' && <button type="button" className="btn-primary" disabled={busy === r.id} onClick={() => act(r, { status: 'done' })}>{t('staffInbox.done')}</button>}
+            {r.status !== 'done' && <button type="button" className="btn-primary" disabled={busy === r.id} onClick={() => act(r, { status: 'done' })}>{r.tipo === 'zangyo' ? t('staffInbox.confirmZangyo') : r.tipo === 'early' ? t('staffInbox.confirmEarly') : t('staffInbox.done')}</button>}
           </div>
         </article>
       ))}

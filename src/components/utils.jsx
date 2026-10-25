@@ -268,32 +268,15 @@ export function PedidoItemChip({ nome, qtd, precoUnitario, custoUnitario, hideCo
 }
 
 // ── AI receipt analysis ───────────────────────────────────────────────────────
+// Runs on the server (/api/chat, signed-in staff only). No AI key ever reaches the browser.
 export async function analyzeReceipt(base64, mediaType) {
-  const key = import.meta.env.VITE_ANTHROPIC_KEY
-  if (!key || key === 'dummy') return null
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': key,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-calls': 'true'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      system: 'Read beverage receipts (Japanese or Portuguese). Reply ONLY valid JSON no markdown: {"fornecedor":"","data":"","pagamento":"","pontos_ganhos":0,"desconto_pontos":0,"subtotal":0,"total_pago":0,"itens":[{"nome":"","qtd":1,"custo_unitario":0}]}',
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-          { type: 'text', text: 'Read this receipt.' }
-        ]
-      }]
-    })
+  const { callGeminiChat, parseJsonFromAI } = await import('../lib/ai')
+  const text = await callGeminiChat({
+    system: 'Read beverage receipts (Japanese or Portuguese). Reply ONLY valid JSON no markdown: {"fornecedor":"","data":"","pagamento":"","pontos_ganhos":0,"desconto_pontos":0,"subtotal":0,"total_pago":0,"itens":[{"nome":"","qtd":1,"custo_unitario":0}]}',
+    messages: [{ role: 'user', content: 'Read this receipt.' }],
+    image: { mimeType: mediaType || 'image/jpeg', data: base64 },
+    temperature: 0.1,
   })
-  const data = await resp.json()
-  const text = (data.content || []).map(c => c.text || '').join('')
-  try { return JSON.parse(text.replace(/```json|```/g, '').trim()) }
+  try { return parseJsonFromAI(text) }
   catch { return null }
 }

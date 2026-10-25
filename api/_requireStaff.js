@@ -89,13 +89,12 @@ export async function requireBarAccount(req, _admin, opts = {}) {
   return actor
 }
 
-/** Staff JWT, service secret, ou origem permitida (jbm-master / bebidas SPA). */
+/**
+ * Staff JWT or the internal service secret. The Origin/Referer header is never trusted on its own: any script
+ * outside a browser can send it, which left /api/chat (and its Gemini key) open. Servers such as jbm-master must
+ * call with `Authorization: Bearer <INTERNAL_API_SECRET>`.
+ */
 export async function requireStaffOrTrustedOrigin(req, admin, opts = {}) {
   if (isInternalService(req)) return { user: null, perfil: { role: 'service' }, service: true, token: null }
-  if (isAllowedOrigin(req)) {
-    const auth = await requireStaff(req, admin, opts)
-    if (!auth.error) return auth
-    return { user: null, perfil: { role: 'origin' }, originTrusted: true, token: null }
-  }
   return requireStaff(req, admin, opts)
 }

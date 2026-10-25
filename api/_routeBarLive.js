@@ -7,7 +7,7 @@ import { areaOpen, loadLock } from './_barVault.js'
 import { resolveBarActor } from './_barLaneAuth.js'
 import { errText } from '../src/lib/errText.js'
 import { LIVE_TABLE_AREA, canAccessAny } from '../src/lib/barAccess.js'
-import { guardSalePatch, stampSaleRows } from './_posSaleStamp.js'
+import { frontDeleteError, frontSaleWriteError, guardSalePatch, isFrontLogin, stampSaleRows } from './_posSaleStamp.js'
 
 function sendResult(res, result) {
   if (result?.error) {
@@ -31,6 +31,8 @@ const PG_MENU_TABLES = new Set(['drink_menu', 'bar_pricing', 'bars'])
 const GERENTE_WRITE = new Set(['bar_overhead', 'bar_hq_meta'])
 // The floor plan is drawn by the owner/manager; everyone at the bar can read it.
 const FLOOR_WRITE = new Set(['floor_layouts', 'floor_sectors', 'floor_tables'])
+// The bar's colour and logo are set in HQ → Bars; the bar itself only reads them.
+const HQ_WRITE = new Set(['bar_brand'])
 
 function bodyOf(req) {
   return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
@@ -150,6 +152,9 @@ export default async function handler(req, res) {
         return res.status(403).json({ error: 'Only the manager can write HQ books' })
       }
     }
+    if (HQ_WRITE.has(table) && (body.mode || 'select') !== 'select' && !['admin', 'jbm'].includes(auth.perfil?.role)) {
+      return res.status(403).json({ error: 'Only HQ can change the bar look' })
+    }
     if (FLOOR_WRITE.has(table) && (body.mode || 'select') !== 'select') {
       const role = auth.perfil?.role
       if (!['cliente', 'gerente', 'admin', 'jbm'].includes(role)) {
@@ -183,6 +188,25 @@ export default async function handler(req, res) {
       const scoped = scopedFilters(auth, table, spec.filters, null)
       if (scoped.error) return res.status(403).json({ error: scoped.error })
       spec.filters = scoped.filters
+    }
+
+    const frontErr = frontSaleWriteError(table, spec, auth)
+    if (frontErr) return res.status(403).json({ error: frontErr })
+    if (spec.mode === 'delete' && isFrontLogin(auth) && (table === 'pos_vendas' || table === 'pos_vendas_itens')) {
+      const sel = q => (admin ? runLiveOp(admin, { mode: 'select', ...q }) : runPgSelect(db, q))
+      let saleRows = []
+      if (table === 'pos_vendas') {
+        saleRows = (await sel({ table, columns: 'id,criado_por,criado_em', filters: spec.filters })).data || []
+      } else {
+        const items = (await sel({ table, columns: 'pos_venda_id', filters: spec.filters })).data || []
+        const ids = [...new Set(items.map(r => r.pos_venda_id).filter(Boolean))]
+        if (ids.length) {
+          saleRows = (await sel({ table: 'pos_vendas', columns: 'id,criado_por,criado_em,bar_id', filters: [{ op: 'in', k: 'id', v: ids }, { op: 'eq', k: 'bar_id', v: auth.perfil.bar_id }] })).data || []
+          if (saleRows.length !== ids.length) return res.status(403).json({ error: 'Only the owner or a manager can delete a sale' })
+        }
+      }
+      const delErr = frontDeleteError(saleRows, auth)
+      if (delErr) return res.status(403).json({ error: delErr })
     }
 
     if (PG_MENU_TABLES.has(table)) {
