@@ -8,6 +8,8 @@ import { tokyoMonthKey } from '../lib/tokyo'
 import EmployeeFile from './staff/EmployeeFile'
 import { contractState, initials, isSystemLogin } from '../lib/employeeFile'
 import { staffFileUrls } from '../lib/employeeFileApi'
+import CostEditor from './house/CostEditor'
+import { costCategoryOf, costEmoji, isKnownCostCategory } from '../lib/costCategories'
 
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 const LANG_KEYS = ['ja', 'pt', 'en', 'zh', 'ko', 'es']
@@ -184,7 +186,8 @@ function Tags({ row }) {
     row.estilo && { key: 'estilo', text: named(t, 'estilo', row.estilo), strong: true },
     ...asList(row.dias).map(d => ({ key: `d-${d}`, text: named(t, 'day', d) })),
     ...asList(row.idiomas).map(d => ({ key: `l-${d}`, text: named(t, 'lang', d) })),
-    row.detalhe && { key: 'detalhe', text: row.detalhe },
+    // On fixed / variable costs `detalhe` holds the category, already shown next to the name.
+    row.detalhe && !['fixo', 'variavel', 'outro'].includes(row.kind) && { key: 'detalhe', text: row.detalhe },
     row.contato && { key: 'contato', text: row.contato },
     row.aniversario && { key: 'aniversario', text: String(row.aniversario).slice(0, 10) },
     row.email && { key: 'email', text: row.email },
@@ -319,7 +322,11 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
         <div key={row.id} className="house-card">
           <div>
             <strong>{row.nome}</strong>
-            {(spec.types || []).length > 1 && <span className="house-tag is-strong house-type">{t(`house.type.${row.kind === 'outro' ? spec.kind : row.kind}`)}</span>}
+            {(spec.types || []).length > 1 && (() => {
+              const cat = costCategoryOf(row)
+              const name = cat ? (isKnownCostCategory(cat) ? t(`costForm.cat.${cat}`) : cat) : t(`house.type.${row.kind === 'outro' ? spec.kind : row.kind}`)
+              return <span className="house-tag is-strong house-type">{costEmoji(cat)} {name}</span>
+            })()}
             <div className="house-meta">
               {+row.pct ? `${row.pct}%` : ''}
               {row.kind === 'cartao' && +row.prazo_dias ? `${+row.pct ? ' · ' : ''}${t('house.settlesIn', { days: row.prazo_dias })}` : ''}
@@ -371,7 +378,9 @@ function RegisterBlock({ spec, rows, busy, onSave, onDelete }) {
           </div>
         </div>
       ))}
-      {form ? (
+      {form && spec.types ? (
+        <CostEditor spec={spec} form={form} setForm={setForm} busy={busy} onSave={row => onSave(row).then(() => setForm(null)).catch(() => {})} onCancel={() => setForm(null)} />
+      ) : form ? (
         <div className="house-editor">
           {(spec.types || []).length > 1 && (
             <div className="house-pick house-span">

@@ -94,6 +94,7 @@ const PAGES = [
   { who: MANAGER, path: '/bar/senha', name: 'bar-vault-settings', vault: 'owner' },
   { who: MANAGER, path: '/bar/senha', name: 'bar-vault-settings-off', vault: null },
   { who: MANAGER, path: '/bar/fixo', name: 'bar-fixed-costs' },
+  { who: MANAGER, path: '/bar/fixo', name: 'bar-fixed-costs-add', click: /^Add$/ },
   { who: MANAGER, path: '/bar/variavel', name: 'bar-variable-costs', click: /^Add$/ },
   { who: MANAGER, path: '/bar/cartao', name: 'bar-card-machines' },
   { who: MANAGER, path: '/bar/energia', name: 'bar-power-old-link' },

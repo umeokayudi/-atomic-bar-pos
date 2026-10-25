@@ -28,6 +28,7 @@
     "test:staff-app": "node scripts/staffApp.test.mjs",
     "test:bar-brand": "node scripts/barBrand.test.mjs",
     "test:own-orders": "node scripts/ownOrders.test.mjs",
+    "test:cost-overview": "node scripts/costOverview.test.mjs",
     "test:time-clock": "node scripts/timeClockRoute.test.mjs",
     "test:bar-finance": "node scripts/barFinanceHq.test.mjs",
     "test:sale-credit": "node scripts/saleCredit.test.mjs",
