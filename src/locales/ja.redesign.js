@@ -143,6 +143,7 @@ export default {
     notSetUp: '自社発注はまだ準備中です。JBM側での有効化が必要です。',
     count: '自社発注 {n}件', empty: 'この期間の自社発注はありません。',
     markReceived: '到着済みにする', delete: '削除', deleteConfirm: 'この自社発注を削除しますか？',
+    partners: '取引先',
     status: { ordered: '発注済み', received: '到着済み', cancelled: 'キャンセル' },
   },
   barArea: { overview: '概要', tonight: '今夜の営業', drinks: 'ドリンク', money: 'お金', team: 'チーム', clients: 'お客様' },

@@ -143,6 +143,7 @@ export default {
     notSetUp: 'Own orders are not set up yet. JBM still needs to switch this on.',
     count: '{n} own orders', empty: 'No own orders in this period.',
     markReceived: 'Mark as received', delete: 'Delete', deleteConfirm: 'Delete this own order?',
+    partners: 'Your business partners',
     status: { ordered: 'Ordered', received: 'Received', cancelled: 'Cancelled' },
   },
   barArea: { overview: 'Overview', tonight: 'Tonight', drinks: 'Drinks', money: 'Money', team: 'Team', clients: 'Clients' },
