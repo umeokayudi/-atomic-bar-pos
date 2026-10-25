@@ -14,6 +14,7 @@ export default function PeopleStepper({ value, onSave }) {
   }
   return (
     <div className="f3-people" role="group" aria-label={t('tabs.peopleLabel')}>
+      <span className="f3-people-label"><Icon name="users" size={14} /> {t('tabs.peopleLabel')}</span>
       <button type="button" className="ui-btn is-sm is-icon" onClick={() => save(value - 1)} disabled={value <= 1} aria-label={t('floor.peopleLess')}><Icon name="minus" size={14} /></button>
       <input
         type="number" inputMode="numeric" min="1" max="99" value={text} aria-label={t('tabs.peopleLabel')}

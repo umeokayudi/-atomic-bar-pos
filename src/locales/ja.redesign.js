@@ -377,7 +377,7 @@ export default {
     keys: '/ 検索 · Enter 最初の候補を追加 · Esc クリア · Ctrl+Enter / F12 会計',
   },
   tabs: {
-    total: '合計', paid: '支払済', due: '残り', paidShort: '支払済 {amount}', people: '{n}名', peopleLabel: '人数',
+    total: '合計', paid: '支払済', due: '残り', paidShort: '支払済 {amount}', people: '{n}名', rename: '名前を変更', renameHint: '伝票の名前', removeName: '名前を外す', saveName: '保存', peopleLabel: '人数',
     manage: '伝票を管理', onTab: '伝票に記録済', notSent: '未送信', send: '{n}点を伝票に送る', table: 'テーブル', noTable: 'テーブルなし',
     busy: '使用中', deviceOnly: 'sql/floor_comandas.sql を適用するまで、伝票はこの端末にだけ保存されます。適用後は全端末で共有されます。',
     lockedHint: '一部支払い済みのため残額待ちです。明細を変更するには再オープンしてください。', reopen: '再オープン',

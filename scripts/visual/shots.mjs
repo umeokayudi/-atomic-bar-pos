@@ -92,6 +92,8 @@ const PAGES = [
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-order', click: /Counter/, taps: ['.pq-tile-hit', '.pq-tile-hit', '.pq-cartbar'], tapsBelow: 901 },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-lines', click: /Counter/, taps: ['.pq-tile-hit', '.pq-grid .pq-tile:nth-child(2) .pq-tile-hit', '.pq-grid .pq-tile:nth-child(3) .pq-tile-hit', '.pq-grid .pq-tile:nth-child(4) .pq-tile-hit', '.pq-cartbar'] },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-pay', click: /Counter/, taps: ['.pq-tile-hit', '.pq-grid .pq-tile:nth-child(2) .pq-tile-hit', '.pq-cartbar', '.pq-charge'] },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-manage', click: /Counter/, taps: ['.pq-cartbar', '.pq-tabs .pq-tab:nth-child(2)', '.pq-tabbar-people'] },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-rename', click: /Counter/, taps: ['.pq-cartbar', '.pq-tabs .pq-tab:nth-child(2)', '.pq-tabbar-people', '.tab-name-row button'] },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-tab-crm', click: /Counter/, taps: ['.pq-cartbar', '.pq-tab.is-add'] },
   { who: CASHIER, path: '/bar/pos', name: 'till-kiosk' },
   { who: CASHIER, path: '/bar/pos', name: 'till-kiosk-pay', taps: ['.pq-tile-hit', '.pq-grid .pq-tile:nth-child(2) .pq-tile-hit', '.pq-grid .pq-tile:nth-child(3) .pq-tile-hit', '.pq-cartbar', '.pq-charge'] },
