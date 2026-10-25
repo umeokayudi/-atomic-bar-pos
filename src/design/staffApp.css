@@ -483,6 +483,55 @@ i.is-fine { background: #d97706; }
 
 /* ── Owner: schedule board, fines, salary paid ────────────────────────────── */
 .osb { display: grid; gap: 16px; }
+.osb:empty, .clock-part:has(> .osb:empty) { display: none; }
+.clock-part { margin-top: 16px; }
+
+/* Owner clock page: buttons that open one part, and the at-a-glance overview. */
+.clock-hub { margin-top: 4px; scroll-margin-top: 80px; }
+.clock-hub.is-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+@media (min-width: 900px) { .clock-hub.is-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
+.clock-hub.is-strip {
+  display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0 4px;
+  position: sticky; top: 0; z-index: 5; background: var(--c-bg, var(--bg)); margin-bottom: 4px;
+}
+.clock-hub.is-strip::-webkit-scrollbar { display: none; }
+.clock-hub-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  min-height: 66px; padding: 8px 4px; border: 1px solid var(--c-border); border-radius: var(--radius-lg);
+  background: var(--c-surface); color: var(--c-text); font: inherit; font-size: 12px; font-weight: 700;
+  line-height: 1.15; text-align: center; cursor: pointer; min-width: 0;
+}
+.clock-hub-btn span { overflow-wrap: anywhere; }
+.clock-hub-btn svg { color: var(--c-accent); }
+.clock-hub-btn:hover { background: var(--c-surface-2); }
+.clock-hub-btn.is-danger svg { color: var(--c-danger); }
+.clock-hub.is-strip .clock-hub-btn {
+  flex: 0 0 auto; flex-direction: row; min-height: 40px; padding: 0 12px; border-radius: 999px; font-size: 13px; white-space: nowrap;
+}
+.clock-hub-btn.is-on, .clock-hub-btn.is-on:hover { background: var(--c-accent); border-color: var(--c-accent); color: #fff; }
+.clock-hub-btn.is-on svg { color: #fff; }
+
+.clock-overview { display: grid; gap: 12px; margin-top: 12px; }
+@media (min-width: 900px) { .clock-overview { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: start; } }
+.clock-tonight { display: grid; gap: 8px; }
+.clock-tonight-count { margin: 0; font-size: 22px; font-weight: 800; }
+.clock-tonight-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.clock-tonight-list li { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 10px; border-radius: 10px; background: var(--c-surface-2); }
+.clock-tonight-more { color: var(--c-text-2); font-size: 13px; }
+.clock-tonight > button { min-height: 44px; justify-self: start; }
+.clock-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.clock-tile {
+  display: grid; gap: 2px; align-content: start; text-align: left; padding: 10px; min-height: 72px; min-width: 0;
+  border: 1px solid var(--c-border); border-radius: var(--radius-lg); background: var(--c-surface); color: var(--c-text);
+  font: inherit; cursor: pointer;
+}
+.clock-tile:hover { background: var(--c-surface-2); }
+.clock-tile-label { font-size: 11px; line-height: 1.2; font-weight: 700; color: var(--c-text-2); }
+.clock-tile-value { font-size: clamp(17px, 4.6vw, 22px); font-weight: 800; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.clock-tile-sub { font-size: 11px; color: var(--c-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clock-tile.is-ok .clock-tile-value { color: var(--c-success); }
+.clock-tile.is-warn .clock-tile-value { color: var(--c-warning); }
+.clock-tile.is-bad .clock-tile-value { color: var(--c-danger); }
 .osb-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .osb-head h3 { display: flex; align-items: center; gap: 8px; margin: 0; }
 .osb-nav { display: flex; align-items: center; gap: 10px; }
