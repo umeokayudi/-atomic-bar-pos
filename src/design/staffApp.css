@@ -1130,7 +1130,8 @@ button.sa-bell-item:hover { background: var(--c-surface-2); }
 }
 .sa-app.is-atomic .sa-top-name small { color: rgba(255,255,255,.62); }
 .sa-app.is-atomic .sa-top .sa-bell { background: #1C1C1F; border-color: #2E2E33; color: #F5F5F5; box-shadow: none; }
-.sa-app.is-atomic .sa-top .sa-bell:hover, .sa-app.is-atomic .sa-top .sa-bell.is-open { border-color: var(--at-red); color: #fff; background: var(--at-red-2); }
+.sa-app.is-atomic .sa-top .sa-bell:hover, .sa-app.is-atomic .sa-top .sa-bell.is-open { border-color: var(--at-red); color: #fff; background: #26262B; }
+@media (hover: none) { .sa-app.is-atomic .sa-top .sa-bell:hover:not(.is-open) { border-color: #2E2E33; background: #1C1C1F; } }
 .sa-app.is-atomic .sa-top .sa-bell-badge { border-color: var(--at-black); }
 .sa-app.is-atomic .sa-top .sa-avatar { border-color: var(--at-black); box-shadow: 0 0 0 1px #2E2E33; }
 
