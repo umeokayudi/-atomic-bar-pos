@@ -60,6 +60,9 @@ const posSales = [
   // Staff POS: one sale rung by Aiko herself, one shared by Aiko and Ken (equal split).
   { id: 'ps5', bar_id: BAR.id, total: 2400, space_id: null, visit_id: null, criado_em: ago(20), data: day(0), obs: '', criado_por: 'st1' },
   { id: 'ps6', bar_id: BAR.id, total: 12001, space_id: null, visit_id: null, criado_em: ago(12), data: day(0), obs: 'Cast: Aiko Tanaka|st1; Ken Mori|st2', criado_por: 'st2' },
+  // Drink back page: earlier nights this month for the drink back women.
+  { id: 'ps7', bar_id: BAR.id, total: 24800, space_id: null, visit_id: null, criado_em: ago(60 * 24 * 3), data: day(3), obs: 'Cast: Aiko Tanaka|st1\nComm: 1800', criado_por: 'st1' },
+  { id: 'ps8', bar_id: BAR.id, total: 16500, space_id: null, visit_id: null, criado_em: ago(60 * 24 * 4), data: day(4), obs: 'Cast: Mika|dba4\nComm: 1200' },
 ]
 const staffOrders = [
   { id: 'so1', bar_id: BAR.id, staff_id: 'st1', staff_nome: 'Aiko Tanaka', from_id: MANAGER.id, from_nome: 'Gerente Demo', mensagem: 'VIP 1 needs ice and two clean glasses now', prioridade: 'urgent', status: 'sent', criado_em: ago(3) },
@@ -147,6 +150,8 @@ export const TABLES = {
     { id: 'dba1', bar_id: BAR.id, nome: 'Yuki Promotions', regiao: 'Shibuya', comissao_pct: 10, ativo: true },
     { id: 'dba2', bar_id: BAR.id, nome: 'Marco Street Team', regiao: 'Roppongi · Azabu', comissao_pct: 15, ativo: true },
     { id: 'dba3', bar_id: BAR.id, nome: 'Old partner', regiao: null, comissao_pct: 8, ativo: false },
+    { id: 'dba4', bar_id: BAR.id, nome: 'Mika', regiao: 'Roppongi', comissao_pct: 50, ativo: true },
+    { id: 'dba5', bar_id: BAR.id, nome: 'Aiko Tanaka', regiao: null, comissao_pct: 30, notas: 'staff:st1', ativo: true },
   ],
   discount_codes: [
     { id: 'dc1', bar_id: BAR.id, codigo: 'AUTUMN10', descricao: 'Autumn menu', tipo: 'percent', valor: 10, usos_atual: 4, max_usos: 50, ativo: true, criado_em: ago(3000) },

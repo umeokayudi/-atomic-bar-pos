@@ -12,7 +12,7 @@ function addDays(key, days) {
   return `${yy}-${mm}-${dd}`
 }
 
-export default function RangeCalendar({ from = '', to = '', onChange }) {
+export default function RangeCalendar({ from = '', to = '', onChange, presets = true }) {
   const { t, monthLabel } = useI18n()
   const today = tokyoDateKey()
   const thisMonth = tokyoMonthKey()
@@ -65,14 +65,14 @@ export default function RangeCalendar({ from = '', to = '', onChange }) {
 
   return (
     <div className="range-cal">
-      <div className="date-filter">
+      {presets && <div className="date-filter">
         {chips.map(([id, label, on]) => (
           <button key={id} type="button" className={`date-filter-chip${on ? ' is-on' : ''}`} onClick={() => preset(id)}>{label}</button>
         ))}
         {(from || to) && (
           <button type="button" className="date-filter-chip" onClick={() => preset('all')}>{t('portal.invoices.clear')}</button>
         )}
-      </div>
+      </div>}
       <div className="range-cal-card">
         <div className="range-cal-nav">
           <button type="button" onClick={() => setYm(shiftMonth(ym, -1))} aria-label="Previous month">←</button>
