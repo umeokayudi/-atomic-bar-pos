@@ -421,3 +421,16 @@ export function copyWeekMarks(days = {}, prevWeek = [], week = [], editable = ne
   week.forEach((d, i) => { if (editable.has(d)) out[d] = days[prevWeek[i]] || null })
   return out
 }
+
+/**
+ * Clocking out away from the planned end: 'over' (stayed longer) or 'early' (left before), when the gap is more
+ * than `graceMin`. { kind, planned: 'HH:MM', minutes } or null (no planned end, or close enough).
+ */
+export function offTimeFor({ day, start, end, now = new Date(), graceMin = 10 }) {
+  const finish = endMs(day, start, end)
+  if (finish == null) return null
+  const nowMs = (now instanceof Date ? now : new Date(now)).getTime()
+  const minutes = Math.round((nowMs - finish) / 60000)
+  if (Math.abs(minutes) <= graceMin) return null
+  return { kind: minutes > 0 ? 'over' : 'early', planned: cleanStart(end), minutes: Math.abs(minutes) }
+}

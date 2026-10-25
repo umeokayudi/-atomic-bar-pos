@@ -91,9 +91,9 @@ export function Stat({ label, value, sub, tone, onClick }) {
     : <div className="sa-stat">{body}</div>
 }
 
-export function Seg({ value, options, onChange, label }) {
+export function Seg({ value, options, onChange, label, className = '' }) {
   return (
-    <div className="sa-seg" role="radiogroup" aria-label={label}>
+    <div className={`sa-seg ${className}`.trim()} role="radiogroup" aria-label={label}>
       {options.map(o => (
         <button key={o.id} type="button" role="radio" aria-checked={value === o.id} className={value === o.id ? 'is-on' : ''} onClick={() => onChange(o.id)}>
           {o.label}

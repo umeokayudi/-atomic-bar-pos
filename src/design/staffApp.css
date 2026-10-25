@@ -1180,14 +1180,12 @@ button.sa-bell-item:hover { background: var(--c-surface-2); }
 .sa-account-form .sa-btn-block { margin-top: 10px; }
 .sa-line .sa-link { flex: 0 0 auto; }
 
-/* Clock card: zangyo (overtime) */
-.sa-zangyo {
-  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; padding: 8px 12px;
-  border: 1px dashed rgba(255,255,255,.35); border-radius: 14px; background: transparent; color: inherit;
-  font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
-}
-.sa-zangyo.is-sent { border-style: solid; background: rgba(255,255,255,.08); flex-wrap: wrap; }
-.sa-zangyo em { font-style: normal; font-weight: 600; font-size: 12px; opacity: .75; }
+/* Clock out past the planned end or before it: real end time, who allowed it */
+.sa-offtime { display: grid; gap: 8px; padding: 12px; border-radius: 14px; background: var(--c-warning-bg); border: 1px solid color-mix(in srgb, var(--c-warning) 35%, transparent); }
+.sa-offtime h3 { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 14px; font-weight: 800; color: var(--c-warning); }
+.sa-offtime .sa-offtime-seg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.sa-offtime .sa-offtime-seg button { white-space: normal; line-height: 1.2; }
+.sa-offtime .sa-muted { margin: 0; }
 
 /* Header: bell and avatar the same 44px box, centred on one line */
 .sa-top { align-items: center; }

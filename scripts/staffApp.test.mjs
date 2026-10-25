@@ -280,6 +280,8 @@ test('earnings: ranges, per-day hours pay with late-night premium, commission an
   const d13 = e.days.find(d => d.day === '2026-10-13')
   assert.deepEqual([d13.sales, d13.hours], [2000, 0], 'refund is taken off')
   assert.equal(e.totals.earned, d14.hoursPay + 1200)
+  // The whole bar's sales while I was clocked in (everyone's tickets), not only mine.
+  assert.deepEqual([d14.barSales, d13.barSales, e.totals.barSales], [26000, 0, 26000])
   const noNight = earningsByDay({ punches, sales: [], me: ME, rate: 1200, nightPremium: false, from: '2026-10-14', to: '2026-10-14' })
   assert.equal(noNight.totals.hoursPay, 6 * 1200)
 })

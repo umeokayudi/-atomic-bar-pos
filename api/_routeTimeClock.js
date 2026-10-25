@@ -7,7 +7,7 @@ import { canAccess, canAccessAny } from '../src/lib/barAccess.js'
 import { isMissingSchemaError, isRlsError, loadBarWithGeo, loadStaffWithExtras, listStaffWithExtras, runLiveOp } from './_barLiveStore.js'
 import { listPunches } from './_punchStore.js'
 import { punchAllowed } from '../src/lib/clockRule.js'
-import { checkoutContext, cleanCheckout, createDayReport } from './_staffSelf.js'
+import { checkoutContext, cleanCheckout, createDayReport, recordOffTime } from './_staffSelf.js'
 
 function bodyOf(req) {
   return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
@@ -245,6 +245,10 @@ export default async function handler(req, res) {
       try {
         reportId = await createDayReport(db, { bar, staff, punch: punch || punchRow, inPunchId: punchRow.in_punch_id, checkout, ctx: dayCtx })
       } catch { reportId = null }
+      // Past the planned end or before it: the owner gets it in the staff inbox to confirm.
+      if (checkout.offTime) {
+        try { await recordOffTime(db, admin, { barId: bar.id, staff, night: dayCtx.night, offTime: checkout.offTime }) } catch { /* the punch and report are saved */ }
+      }
     }
 
     return res.status(200).json({ ok: true, punch, staff: { id: staff.id, nome: staff.nome }, report_id: reportId })

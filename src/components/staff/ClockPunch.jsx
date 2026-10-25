@@ -7,17 +7,19 @@ import { errText } from '../../lib/errText'
 import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
 import SignaturePad from './SignaturePad'
+import { offTimeFor } from '../../lib/staffSchedule'
 
 /**
  * Clock in / out from the staff app.
  *   IN:  tap → GPS → (outside / no GPS: reason) → "Read and agree" (mission, goals, my role) → saved with ack.
  *   OUT: tap → GPS → (reason) → day summary (sold, drank, notes, how it went, signature) → saved; the server
+ *        (past the planned end or before it: real end time, who authorized it; the owner confirms it later)
  *        writes the owner's day report (AI text included when it works).
  * The server checks the same GPS rule, so nothing here can be skipped by calling the API directly.
  *   const punch = useClockPunch({ barId, meId, venue, day, openIn, onDone })
  *   <button onClick={() => punch.start('in')}>…</button>  {punch.sheet}
  */
-export function useClockPunch({ barId, meId, venue, day, openIn, onDone }) {
+export function useClockPunch({ barId, meId, venue, day, openIn, shift, onDone }) {
   const { t } = useI18n()
   const [phase, setPhase] = useState('') // '' | 'locating' | 'sending'
   const [err, setErr] = useState('')
@@ -96,7 +98,7 @@ export function useClockPunch({ barId, meId, venue, day, openIn, onDone }) {
   } else if (flow?.step === 'ack') {
     sheet = <AckSheet day={day} phase={phase} err={err} t={t} onAgree={() => send({ ack: true, ack_role: day?.role || '', ack_mission: day?.mission || '' })} onCancel={close} />
   } else if (flow?.step === 'checkout') {
-    sheet = <CheckoutSheet day={day} phase={phase} err={err} t={t} onSend={checkout => send({ checkout })} onCancel={close} />
+    sheet = <CheckoutSheet day={day} shift={shift} phase={phase} err={err} t={t} onSend={checkout => send({ checkout })} onCancel={close} />
   }
 
   return { start, phase, busy: !!phase, err: flow ? '' : err, sheet, clearErr: () => setErr('') }
@@ -197,20 +199,64 @@ function AckSheet({ day, phase, err, t, onAgree, onCancel }) {
   )
 }
 
-function CheckoutSheet({ day, phase, err, t, onSend, onCancel }) {
+/** Tokyo wall clock "HH:MM" of a date. */
+const tokyoHm = d => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', hour12: false }).format(d)
+
+/** Leaving past the planned end or before it: confirm the real end time (or adjust it) and who allowed it. */
+function OffTimeBlock({ t, off, value, onChange }) {
+  const nowHm = value.nowHm
+  return (
+    <section className={`sa-offtime is-${off.kind}`} aria-labelledby="sa-offtime-title">
+      <h3 id="sa-offtime-title"><Icon name="timer" size={16} /> {t(off.kind === 'over' ? 'staffApp.out.overTitle' : 'staffApp.out.earlyTitle', { planned: off.planned })}</h3>
+      <div className="sa-seg sa-offtime-seg" role="radiogroup" aria-label={t('staffApp.out.endTime')}>
+        <button type="button" role="radio" aria-checked={!value.adjust} className={!value.adjust ? 'is-on' : ''} onClick={() => onChange({ adjust: false, actual: nowHm })}>
+          {t('staffApp.out.leavingNow', { time: nowHm })}
+        </button>
+        <button type="button" role="radio" aria-checked={value.adjust} className={value.adjust ? 'is-on' : ''} onClick={() => onChange({ adjust: true })}>
+          {t('staffApp.out.adjust')}
+        </button>
+      </div>
+      {value.adjust && (
+        <label className="sa-field">
+          <span>{t('staffApp.out.realEnd')}</span>
+          <input type="time" step={300} value={value.actual} onChange={e => onChange({ actual: e.target.value })} />
+        </label>
+      )}
+      <label className="sa-field">
+        <span>{t('staffApp.out.authorizedBy')}</span>
+        <input type="text" maxLength={80} value={value.authorizedBy} onChange={e => onChange({ authorizedBy: e.target.value })} placeholder={t('staffApp.out.authorizedByPh')} />
+      </label>
+      <label className="sa-field">
+        <span>{t('staffApp.out.offNote')}</span>
+        <input type="text" maxLength={300} value={value.note} onChange={e => onChange({ note: e.target.value })} placeholder={t(off.kind === 'over' ? 'staffApp.out.overNotePh' : 'staffApp.out.earlyNotePh')} />
+      </label>
+      <p className="sa-muted">{t('staffApp.out.offOwner')}</p>
+    </section>
+  )
+}
+
+function CheckoutSheet({ day, shift, phase, err, t, onSend, onCancel }) {
   const [notes, setNotes] = useState('')
   const [improve, setImprove] = useState('')
   const [signature, setSignature] = useState('')
+  // Planned end from the owner's confirmed schedule, checked once when the sheet opens.
+  const [off] = useState(() => (shift?.end ? offTimeFor({ day: shift.day, start: shift.start, end: shift.end }) : null))
+  const [offVal, setOffVal] = useState(() => {
+    const nowHm = tokyoHm(new Date())
+    return { nowHm, adjust: false, actual: nowHm, authorizedBy: '', note: '' }
+  })
   const busy = !!phase
   const s = day?.summary || { tickets: 0, sales: 0, commission: 0, sold: [], drinkBacks: [], drinkBackCount: 0 }
   const missed = !!day?.goal?.missed
   const improveOk = !missed || improve.trim().length >= 5
-  const ready = improveOk && !!signature
+  const offOk = !off || (offVal.authorizedBy.trim().length >= 2 && /^\d{2}:\d{2}$/.test(offVal.actual))
+  const ready = improveOk && offOk && !!signature
+  const offTime = off ? { kind: off.kind, planned: off.planned, actual: offVal.actual, authorizedBy: offVal.authorizedBy.trim(), note: offVal.note.trim() } : undefined
   return (
     <Sheet
       title={t('staffApp.out.title')} lead={t('staffApp.out.lead')} icon="clock" onCancel={onCancel} busy={busy} labelId="sa-out-title"
       footer={(
-        <button type="button" className="sa-btn is-primary is-danger" disabled={!ready || busy} onClick={() => onSend({ notes: notes.trim(), improve: improve.trim(), signature })}>
+        <button type="button" className="sa-btn is-primary is-danger" disabled={!ready || busy} onClick={() => onSend({ notes: notes.trim(), improve: improve.trim(), signature, ...(offTime ? { offTime } : {}) })}>
           <Icon name="signOut" size={18} /> {phase === 'sending' ? t('staffApp.out.saving') : t('staffApp.out.confirm')}
         </button>
       )}
@@ -236,6 +282,7 @@ function CheckoutSheet({ day, phase, err, t, onSend, onCancel }) {
         </div>
       )}
       {!day && <p className="sa-muted">{t('staffApp.out.noSummary')}</p>}
+      {off && <OffTimeBlock t={t} off={off} value={offVal} onChange={patch => setOffVal(v => ({ ...v, ...patch }))} />}
       <label className="sa-field">
         <span>{t('staffApp.out.notes')}</span>
         <textarea rows={2} maxLength={1000} value={notes} onChange={e => setNotes(e.target.value)} placeholder={t('staffApp.out.notesPh')} />

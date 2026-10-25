@@ -9,7 +9,7 @@ import { punchGeoFlag } from '../../lib/clockGeo'
 import {
   barBrand, bottomTabFor, hoursByNight, monthHoursStats, elapsedLabel, myClockState, staffAppTabFor, staffAppTabsFor, staffBackFor, staffMoreItemsFor, staffMoreSections,
 } from '../../lib/staffApp'
-import { meDay, meProfile, meRequests, meZangyo } from '../../lib/staffSelfApi'
+import { meDay, meProfile } from '../../lib/staffSelfApi'
 import { errText } from '../../lib/errText'
 import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
@@ -18,7 +18,7 @@ import { Avatar, Card, Empty, Note, PageHead, Stat, fmtDay, fmtHours, fmtTime, u
 import { OccurrencesScreen, PerformanceScreen, ProfileScreen, ReportsScreen, SettingsScreen, ShiftsScreen } from './StaffScreens'
 
 import { PayHubScreen } from './PayHub'
-import { END_TIMES, ScheduleCta, ScheduleHomeCard, ScheduleScreen, rangeLabel, useMySchedule } from './ScheduleScreen'
+import { ScheduleCta, ScheduleHomeCard, ScheduleScreen, rangeLabel, useMySchedule } from './ScheduleScreen'
 import StaffBell from './StaffBell'
 import { BarMark } from '../BarIdentity'
 import { tokyoNightKey } from '../../lib/tokyo'
@@ -98,62 +98,7 @@ function shiftLine(t, shift, tolerance, now) {
 }
 
 /** The one big card: status pill, tonight's confirmed hours + countdown, live timer and the clock-in / out button. */
-/** Zangyo (overtime): on shift, say until about what time you stay. The owner confirms it later; clock out when you leave. */
-function ZangyoSheet({ t, current, shift, onSent, onClose }) {
-  const [until, setUntil] = useState(current?.until || '')
-  const [note, setNote] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState('')
-  useEffect(() => {
-    const onKey = e => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    document.body.classList.add('sa-lock')
-    return () => { window.removeEventListener('keydown', onKey); document.body.classList.remove('sa-lock') }
-  }, [onClose])
-  async function send() {
-    setBusy(true); setErr('')
-    try {
-      const j = await meZangyo(until, note.trim())
-      onSent(j.request)
-    } catch (e) {
-      setErr(errText(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-  return (
-    <div className="sa-sheet-wrap" role="presentation" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="sa-sheet" role="dialog" aria-modal="true" aria-labelledby="sa-zangyo-title">
-        <div className="sa-sheet-grip" />
-        <div className="sa-sheet-head">
-          <span className="sa-sheet-icon"><Icon name="timer" size={24} /></span>
-          <div>
-            <h2 id="sa-zangyo-title">{t('zangyo.title')}</h2>
-            <p>{shift?.end ? t('zangyo.leadEnd', { end: shift.end }) : t('zangyo.lead')}</p>
-          </div>
-        </div>
-        <label className="sa-field">
-          <span>{t('zangyo.until')}</span>
-          <select className="sa-time" value={until} onChange={e => setUntil(e.target.value)}>
-            <option value="">{t('schedule.pick')}</option>
-            {END_TIMES.map(tm => <option key={tm} value={tm}>{tm}</option>)}
-          </select>
-        </label>
-        <label className="sa-field">
-          <span>{t('zangyo.why')} <small>{t('schedule.optional')}</small></span>
-          <input value={note} maxLength={300} onChange={e => setNote(e.target.value)} placeholder={t('zangyo.whyPh')} />
-        </label>
-        {err && <div className="sa-error" role="alert">{err}</div>}
-        <div className="sa-sheet-actions">
-          <button type="button" className="sa-btn is-primary" disabled={!until || busy} onClick={send}><Icon name="send" size={18} /> {busy ? t('common.wait') : t('zangyo.send')}</button>
-          <button type="button" className="sa-btn is-ghost" onClick={onClose}>{t('common.cancel')}</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ClockCard({ t, clock, punch, canClock, compact, shift, tolerance, today, zangyo, onZangyo }) {
+function ClockCard({ t, clock, punch, canClock, compact, shift, tolerance, today }) {
   const now = useNow(clock.onShift || !!shift, 1000)
   const ms = clock.onShift ? now - Date.parse(clock.since) : 0
   const line = shiftLine(t, shift, tolerance, now)
@@ -186,17 +131,6 @@ function ClockCard({ t, clock, punch, canClock, compact, shift, tolerance, today
         </button>
       ) : (
         <Note>{t('staffApp.noClockArea')}</Note>
-      )}
-      {canClock && clock.onShift && onZangyo && (
-        zangyo
-          ? (
-            <button type="button" className="sa-zangyo is-sent" onClick={onZangyo}>
-              <Icon name="timer" size={16} />
-              <span>{t('zangyo.declared', { until: zangyo.until || '—' })}</span>
-              <em>{zangyo.status === 'done' ? t('zangyo.confirmed') : t('zangyo.waiting')}</em>
-            </button>
-          )
-          : <button type="button" className="sa-zangyo" onClick={onZangyo}><Icon name="timer" size={16} /> {t('zangyo.cta')}</button>
       )}
       {!compact && <p className="sa-clock-hint"><Icon name="location" size={13} /> {t('staffApp.gpsHint')}</p>}
       {punch.err && <div className="sa-error" role="alert">{punch.err}</div>}
@@ -233,7 +167,6 @@ function TonightCard({ t, day, onTab }) {
 /** Big shortcuts: till, results, pay, reports. */
 function QuickActions({ t, canPos, onTab }) {
   const items = [
-    canPos && { id: 'pos', icon: 'pos', label: t('staffApp.home.newOrder'), sub: t('staffApp.home.qaPosSub'), primary: true },
     // Results and My pay are plain doors: the numbers live on their own screens.
     { id: 'performance', icon: 'result', label: t('staffApp.tabPerformance') },
     { id: 'salary', icon: 'salary', label: t('staffApp.more.earnings') },
@@ -284,7 +217,7 @@ function ScheduleGateSheet({ t, schedule, onSend, onHome }) {
   )
 }
 
-function HomeScreen({ t, lang, perfil, profile, clock, punch, canClock, day, onTab, schedule, canPos, meId, punches, zangyo, onZangyo }) {
+function HomeScreen({ t, lang, perfil, profile, clock, punch, canClock, day, onTab, schedule, canPos, meId, punches }) {
   const firstName = String(profile?.nome || perfil?.nome || '').trim().split(/\s+/)[0] || ''
   const today = tokyoNightKey()
   const shift = confirmedShift(schedule, punches, meId, today)
@@ -294,7 +227,7 @@ function HomeScreen({ t, lang, perfil, profile, clock, punch, canClock, day, onT
       <div className="sa-home-main">
         <HomeHello firstName={firstName} lang={lang} />
         <ScheduleCta t={t} schedule={schedule} onOpen={() => onTab('schedule')} />
-        <ClockCard t={t} clock={clock} punch={punch} canClock={canClock} compact shift={shift} tolerance={schedule?.data?.tolerance} today={today} zangyo={zangyo} onZangyo={onZangyo} />
+        <ClockCard t={t} clock={clock} punch={punch} canClock={canClock} compact shift={shift} tolerance={schedule?.data?.tolerance} today={today} />
       </div>
       <div className="sa-home-side">
         <QuickActions t={t} canPos={canPos} onTab={onTab} />
@@ -365,7 +298,7 @@ function HoursCard({ t, punches, meId }) {
   )
 }
 
-function ClockScreen({ t, clock, punch, canClock, venue, punches, schedule, meId, onBack, zangyo, onZangyo }) {
+function ClockScreen({ t, clock, punch, canClock, venue, punches, schedule, meId, onBack }) {
   const recent = clock.mine.slice(0, 12)
   const today = tokyoNightKey()
   const shift = confirmedShift(schedule, punches, meId, today)
@@ -373,7 +306,7 @@ function ClockScreen({ t, clock, punch, canClock, venue, punches, schedule, meId
   return (
     <div className="sa-screen">
       <PageHead t={t} title={t('staffApp.tabClock')} onBack={onBack} />
-      <ClockCard t={t} clock={clock} punch={punch} canClock={canClock} shift={shift} tolerance={schedule?.data?.tolerance} today={today} zangyo={zangyo} onZangyo={onZangyo} />
+      <ClockCard t={t} clock={clock} punch={punch} canClock={canClock} shift={shift} tolerance={schedule?.data?.tolerance} today={today} />
       <div className={`sa-geo-row${on ? ' is-on' : ''}`}>
         <span className="sa-line-icon"><Icon name="location" size={18} /></span>
         <span className="sa-line-main">
@@ -490,13 +423,6 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
   }, [])
 
   const loadDay = useCallback(() => meDay().then(setDay).catch(() => setDay(null)), [])
-  const [zangyo, setZangyo] = useState(null)
-  const [zangyoOpen, setZangyoOpen] = useState(false)
-  // Tonight's zangyo, if I already said I stay longer.
-  useEffect(() => {
-    const night = tokyoNightKey()
-    meRequests().then(j => setZangyo((j.requests || []).find(r => r.tipo === 'zangyo' && r.night_key === night) || null)).catch(() => {})
-  }, [])
 
   useEffect(() => {
     loadPunches()
@@ -526,6 +452,8 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
     venue,
     day,
     openIn: clock.onShift ? { id: clock.openInId, at: clock.since } : null,
+    // Tonight's confirmed hours: clocking out past the end or before it asks for the real time and who allowed it.
+    shift: confirmedShift(schedule, punches, meId),
     onDone: (j, tipo) => {
       const at = j?.punch?.punched_at || new Date().toISOString()
       setToast(t(tipo === 'out' ? 'staffApp.toastOut' : 'staffApp.toastIn', { time: fmtTime(at) }))
@@ -548,8 +476,6 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
   const lit = moreOpen ? 'more' : bottomTabFor(shown)
   const work = ['pos', 'mesas', 'pedidos'].includes(shown) && canOpen(shown)
   const shared = { t, lang, perfil, profile, bar, pack, missing, competence, onTab: go, onBack: back, punches, nightPremium, meId }
-  // Quick "Order" button only where the screen has no main action of its own (clock, send, photo…).
-  const fab = canPos && !mustSend && !work && ['performance', 'salary', 'shifts'].includes(shown)
   const today = tokyoNightKey()
 
   // Sheets and the bell panel render outside the app (portals): the body carries the bar's look for them too.
@@ -560,7 +486,7 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
   }, [brand.theme])
 
   return (
-    <div className={`sa-app${brand.theme === 'atomic' ? ' is-atomic' : ''}${shown === 'hoje' ? ' is-home' : ''}${work ? ' is-work' : ''}${fab ? ' has-fab' : ''}`} style={brand.theme === 'custom' ? { '--sa-brand': brand.color } : undefined}>
+    <div className={`sa-app${brand.theme === 'atomic' ? ' is-atomic' : ''}${shown === 'hoje' ? ' is-home' : ''}${work ? ' is-work' : ''}`} style={brand.theme === 'custom' ? { '--sa-brand': brand.color } : undefined}>
       <header className="sa-top">
         <button type="button" className="sa-top-bar" onClick={() => go('hoje')} aria-label={t('staffApp.tabHome')}>
           <BarMark brand={brand} size={40} />
@@ -578,8 +504,8 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
       <Suspense fallback={null}><div className="sa-alerts"><StaffAlerts /></div></Suspense>
 
       <main className="sa-main">
-        {shown === 'hoje' && <HomeScreen {...shared} clock={clock} punch={punch} canClock={canClock} day={day} schedule={schedule} canPos={canPos} zangyo={zangyo} onZangyo={() => setZangyoOpen(true)} />}
-        {shown === 'ponto' && <ClockScreen t={t} clock={clock} punch={punch} canClock={canClock} venue={venue} punches={punches} schedule={schedule} meId={meId} onBack={back} zangyo={zangyo} onZangyo={() => setZangyoOpen(true)} />}
+        {shown === 'hoje' && <HomeScreen {...shared} clock={clock} punch={punch} canClock={canClock} day={day} schedule={schedule} canPos={canPos} />}
+        {shown === 'ponto' && <ClockScreen t={t} clock={clock} punch={punch} canClock={canClock} venue={venue} punches={punches} schedule={schedule} meId={meId} onBack={back} />}
         {shown === 'performance' && <PerformanceScreen {...shared} day={day} />}
         {shown === 'shifts' && <ShiftsScreen {...shared} />}
         {shown === 'salary' && <PayHubScreen {...shared} />}
@@ -599,21 +525,7 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
       </main>
 
       {blocked && <ScheduleGateSheet t={t} schedule={schedule} onSend={() => go('schedule')} onHome={() => go('hoje')} />}
-      {fab && (
-        <button type="button" className="sa-fab" onClick={() => go('pos')} aria-label={t('staffApp.home.newOrder')}>
-          <Icon name="plus" size={22} /> <span>{t('staffApp.fab')}</span>
-        </button>
-      )}
 
-      {zangyoOpen && (
-        <ZangyoSheet
-          t={t}
-          current={zangyo}
-          shift={confirmedShift(schedule, punches, meId, today)}
-          onClose={() => setZangyoOpen(false)}
-          onSent={r => { setZangyo(r); setZangyoOpen(false); setToast(t('zangyo.sent', { until: r?.until || '' })) }}
-        />
-      )}
       {toast && <div className="sa-toast" role="status">{toast}</div>}
       {punch.sheet}
 

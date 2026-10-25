@@ -14,7 +14,7 @@ import { errText } from '../../lib/errText'
 import { fmtYen } from '../utils'
 import Icon from '../ui/Icon'
 import { LanguageToggle, ThemeToggle } from '../UiPrefsPanel'
-import { Avatar, Card, Empty, Note, PageHead, Row, Stat, fmtDay, fmtHours, fmtTime } from './staffUi'
+import { Avatar, Card, Empty, Note, PageHead, Row, Seg, Stat, fmtDay, fmtHours, fmtTime } from './staffUi'
 import { MonthCalendar } from './PayHub'
 
 const byNewest = (rows, key = 'created_at') => [...(rows || [])].sort((a, b) => String(b[key] || '').localeCompare(String(a[key] || '')))
@@ -64,7 +64,7 @@ function useEarnings(from, to) {
 }
 
 // ── Performance: goals, sales, points, rewards ───────────────────────────────
-/** One day of Results: sales, tickets, commission and hours. */
+/** One day of Results: my drink back and the bar's sales while I was in. */
 function ResultDaySheet({ t, day, row, onClose }) {
   useEffect(() => {
     const onKey = e => { if (e.key === 'Escape') onClose() }
@@ -72,7 +72,7 @@ function ResultDaySheet({ t, day, row, onClose }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
   const title = fmtDay(`${day}T12:00:00+09:00`, { weekday: 'long', month: 'long', day: 'numeric' })
-  const r = row || { sales: 0, tickets: 0, commission: 0, hours: 0 }
+  const r = row || { commission: 0, tickets: 0, barSales: 0, hours: 0 }
   return (
     <div className="sa-sheet-wrap" role="dialog" aria-modal="true" aria-label={title} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="sa-sheet">
@@ -81,13 +81,12 @@ function ResultDaySheet({ t, day, row, onClose }) {
           <span className="sa-sheet-icon"><Icon name="result" size={22} /></span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <h2>{title}</h2>
-            <p>{r.sales > 0 ? t('staffApp.out.tickets', { n: r.tickets || 0 }) : t('staffApp.perf.noSales')}</p>
+            <p>{r.hours > 0 ? t('staffApp.perf.atBarFor', { hours: fmtHours(r.hours) }) : t('staffApp.perf.notIn')}</p>
           </div>
         </div>
         <div className="sa-sheet-body">
-          <Row title={t('staffApp.perf.sales')} value={fmtYen(r.sales || 0)} />
-          <Row title={t('staffApp.perf.commission')} value={fmtYen(r.commission || 0)} tone={r.commission > 0 ? 'good' : undefined} />
-          <Row title={t('employee.workedHours')} value={fmtHours(r.hours || 0)} />
+          <Row title={t('staffApp.perf.drinkBack')} meta={r.tickets ? t('staffApp.out.tickets', { n: r.tickets }) : ''} value={fmtYen(r.commission || 0)} tone={r.commission > 0 ? 'good' : undefined} />
+          <Row title={t('staffApp.perf.barSales')} value={fmtYen(r.barSales || 0)} />
         </div>
         <div className="sa-sheet-actions">
           <button type="button" className="sa-btn is-ghost" onClick={onClose}>{t('common.close')}</button>
@@ -97,75 +96,51 @@ function ResultDaySheet({ t, day, row, onClose }) {
   )
 }
 
-export function PerformanceScreen({ t, pack, missing, day, onBack }) {
+/**
+ * Results: two numbers only. My drink back (what I earned on drinks credited to me) or the bar's sales while I
+ * was clocked in, for a month, with the same day calendar as My pay.
+ */
+export function PerformanceScreen({ t, onBack }) {
   const today = tokyoDateKey()
   const [monthKey, setMonthKey] = useState(tokyoMonthKey())
+  const [view, setView] = useState('drinkBack')
   const [picked, setPicked] = useState(null)
   const range = earningsRange('month', `${monthKey}-01`)
   const month = useEarnings(range.from, range.to)
   const byDay = useMemo(() => Object.fromEntries((month.data?.days || []).map(d => [d.day, d])), [month.data])
+  const tot = month.data?.totals || {}
+  const valueOf = d => (view === 'drinkBack' ? +d?.commission || 0 : +d?.barSales || 0)
   const cellFor = key => {
     const d = byDay[key]
-    const sales = +d?.sales || 0
-    return { amount: sales, marks: d && d.hours > 0 ? ['worked'] : [], label: fmtYen(sales) }
+    const v = valueOf(d)
+    return { amount: v, marks: d && d.hours > 0 ? ['worked'] : [], label: fmtYen(v) }
   }
-  const thisMonth = monthKey === tokyoMonthKey()
-  const goals = pack?.goals || []
-  const points = byNewest(pack?.points)
-  const rewards = byNewest(pack?.rewards)
-  const approved = rewards.filter(r => r.status === 'approved' || r.status === 'posted').reduce((s, r) => s + (+r.amount || 0), 0)
-  const g = day?.goal || {}
+  const total = view === 'drinkBack' ? tot.commission : tot.barSales
   return (
     <div className="sa-screen">
       <PageHead t={t} title={t('staffApp.tabPerformance')} onBack={onBack} />
       <MonthNav t={t} value={monthKey} onChange={setMonthKey} />
+      <Seg
+        className="sa-shiftseg"
+        label={t('staffApp.tabPerformance')}
+        value={view}
+        onChange={setView}
+        options={[{ id: 'drinkBack', label: t('staffApp.perf.drinkBack') }, { id: 'bar', label: t('staffApp.perf.barSales') }]}
+      />
       <section className="sa-earn" aria-live="polite">
-        <span className="sa-earn-label">{t(thisMonth ? 'staffApp.perf.salesMonth' : 'staffApp.perf.salesOfMonth')}</span>
-        <strong className="sa-earn-total">{month.data ? fmtYen(month.data.totals.sales) : month.loading ? '…' : '—'}</strong>
-        {month.data && <span className="sa-earn-tag">{t('staffApp.out.tickets', { n: month.data.totals.tickets })}</span>}
-        <div className="sa-earn-split">
-          <span><small>{t('staffApp.perf.commission')}</small><b>{month.data ? fmtYen(month.data.totals.commission) : '—'}</b></span>
-          <span><small>{t('employee.statPoints')}</small><b>{missing ? '—' : `${sumPoints(points)} pt`}</b></span>
-          <span><small>{t('employee.rewards')}</small><b>{missing ? '—' : fmtYen(approved)}</b></span>
-        </div>
+        <span className="sa-earn-label">{t(view === 'drinkBack' ? 'staffApp.perf.drinkBackMonth' : 'staffApp.perf.barSalesMonth')}</span>
+        <strong className="sa-earn-total">{month.data ? fmtYen(total || 0) : month.loading ? '…' : '—'}</strong>
+        <span className="sa-earn-tag">
+          {view === 'drinkBack'
+            ? t('staffApp.out.tickets', { n: tot.tickets || 0 })
+            : t('staffApp.perf.atBarFor', { hours: fmtHours(tot.hours || 0) })}
+        </span>
       </section>
       <Card className="sa-card-cal" title={t('staffApp.perf.calendar')} right={<span className="sa-cal-legend"><i className="is-worked" />{t('staffApp.pay.mark_worked')}</span>}>
         <MonthCalendar t={t} month={monthKey} today={today} label={t('staffApp.perf.calendar')} cellFor={cellFor} onPick={setPicked} />
       </Card>
+      {month.err && <Note icon="warning">{t('staffApp.pay.unavailable')}</Note>}
       {picked && <ResultDaySheet t={t} day={picked} row={byDay[picked]} onClose={() => setPicked(null)} />}
-      <Card title={t('staffApp.home.tonight')}>
-        {g.target > 0 ? (
-          <div className="sa-goal">
-            <div className="sa-goal-head"><span>{t('staffApp.brief.myGoal')}</span><b>{fmtYen(day?.summary?.sales || 0)} / {fmtYen(g.target)}</b></div>
-            <div className="sa-bar" role="progressbar" aria-valuenow={g.pct || 0} aria-valuemin={0} aria-valuemax={100}><div style={{ width: `${g.pct || 0}%` }} className={g.reached ? 'is-done' : ''} /></div>
-            {g.week > 0 && <p className="sa-muted sa-gap">{t('staffApp.perf.weekGoal', { amount: fmtYen(g.week) })}</p>}
-          </div>
-        ) : <Empty icon="goals" title={t('staffApp.home.noPersonalGoal')} hint={t('staffApp.perf.tonightEmpty')} />}
-        {day?.summary?.drinkBackCount > 0 && <Row title={t('staffApp.out.drank')} value={String(day.summary.drinkBackCount)} />}
-      </Card>
-      <div className="sa-wide">
-        <Card title={t('employee.goals')}>
-          {missing ? <Note>{t('staffApp.payrollSoon')}</Note> : goals.length === 0 ? <Empty icon="goals" title={t('employee.noGoals')} /> : goals.map(goal => {
-            const pct = +goal.target ? Math.max(0, Math.min(100, Math.round(((+goal.actual || 0) / +goal.target) * 100))) : null
-            return (
-              <div key={goal.id} className="sa-goal">
-                <div className="sa-goal-head"><span>{goal.title}</span><b>{goal.actual ?? '—'} / {goal.target ?? '—'}</b></div>
-                {pct !== null && <div className="sa-bar"><div style={{ width: `${pct}%` }} className={pct >= 100 ? 'is-done' : ''} /></div>}
-              </div>
-            )
-          })}
-        </Card>
-        <Card title={t('employee.points')} right={missing ? null : <b className="sa-pill">{sumPoints(points)} pt</b>}>
-          {missing ? <Note>{t('staffApp.payrollSoon')}</Note> : points.length === 0 ? <Empty icon="points" title={t('employee.none')} /> : points.slice(0, 20).map(p => (
-            <Row key={p.id} title={p.reason} meta={fmtDay(p.created_at)} value={`${+p.points > 0 ? '+' : ''}${p.points} pt`} tone={+p.points >= 0 ? 'good' : 'bad'} />
-          ))}
-        </Card>
-        <Card title={t('employee.rewards')} right={missing ? null : <b className="sa-pill">{fmtYen(approved)}</b>}>
-          {missing ? <Note>{t('staffApp.payrollSoon')}</Note> : rewards.length === 0 ? <Empty icon="rewards" title={t('employee.none')} /> : rewards.slice(0, 20).map(r => (
-            <Row key={r.id} title={r.title} meta={`${fmtDay(r.created_at)} · ${t(`employee.reward_${r.status}`)}`} value={fmtYen(r.amount)} tone={r.status === 'cancelled' ? 'muted' : 'good'} />
-          ))}
-        </Card>
-      </div>
     </div>
   )
 }
