@@ -91,6 +91,56 @@ const VaultSettings = lazy(() => import('./VaultSettings'))
 const MyAccount = lazy(() => import('./MyAccount'))
 const DashboardCalendar = lazy(() => import('./DashboardCalendar'))
 
+/**
+ * Screen code to fetch in the background once the app is idle, most used first, so the first tap on a menu
+ * item only waits for its data, not for its code. Same paths as the lazy() imports above (the browser shares them).
+ */
+const SCREEN_CHUNKS = [
+  [['pos'], () => import('./AtomicPos')],
+  [['mesas'], () => import('./floor/FloorScreen')],
+  [['pedidos', 'entregas'], () => import('./BarOrdersTab')],
+  [['fechamento', 'pagamentos', 'salarios'], () => import('./BarFinance')],
+  [['staff', 'fornecedor', 'parceiro', 'cartao', 'energia', 'aluguel', 'fixo', 'variavel', 'contador', 'imposto'], () => import('./BarHouse')],
+  [['ponto'], () => import('./TimeClock')],
+  [['ia'], () => import('./ai/AiCenter')],
+  [['clientes'], () => import('./BarGuestsTab')],
+  [['espacos'], () => import('./BarSpacesTab')],
+  [['vip'], () => import('./BarVipTab')],
+  [['usuarios'], () => import('./BarUsersTab')],
+  [['metas'], () => import('./BarGoals')],
+  [['eventos'], () => import('./BarEvents')],
+  [['equipe'], () => import('./BarTeamTab')],
+  [['ordens'], () => import('./StaffOrdersTab')],
+  [['drinkback'], () => import('./DrinkBackTab')],
+  [['recibos'], () => import('./PortalRecibosTab')],
+  [['conta'], () => import('./MyAccount')],
+]
+
+function usePrefetchScreens(allowed) {
+  const key = allowed.join(',')
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    if (navigator.connection?.saveData) return undefined
+    const queue = SCREEN_CHUNKS.filter(([ids]) => ids.some(id => allowed.includes(id))).map(([, load]) => load)
+    const idle = window.requestIdleCallback || (fn => setTimeout(fn, 200))
+    const cancelIdle = window.cancelIdleCallback || clearTimeout
+    let handle = null
+    let stopped = false
+    const next = () => {
+      const load = queue.shift()
+      if (!load || stopped) return
+      load().catch(() => {}).finally(() => { if (!stopped) handle = idle(next) })
+    }
+    // Let the first screen paint and load its data before fetching anything else.
+    const start = setTimeout(() => { handle = idle(next) }, 2500)
+    return () => {
+      stopped = true
+      clearTimeout(start)
+      if (handle != null) cancelIdle(handle)
+    }
+  }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 function TabHold({ children }) {
   return <Suspense fallback={<div style={{ padding: 28, color: 'var(--text2)' }}>…</div>}>{children}</Suspense>
 }
@@ -177,8 +227,8 @@ function HomeTab({ bar, onTab }) {
         birthdays: birthdayThisMonth(guR.data || []).length,
       })
     }).catch(() => {})
-    await Promise.all([snapP, floorP])
-    Promise.all([
+    // Started together with the snapshot and the floor (not after them) so the home fills in one round trip.
+    const restP = Promise.all([
       supabase.from('vendas').select('id,bar_id,data,total,obs').eq('bar_id', bar.id).gte('data', since).order('data', { ascending: false }).limit(240),
       supabase.from('pedidos').select('id,status,total_estimado,criado_em').eq('bar_id', bar.id).order('criado_em', { ascending: false }).limit(40),
       supabase.from('faturas').select('*').eq('bar_id', bar.id).order('data_vencimento', { ascending: false }).limit(24),
@@ -187,6 +237,7 @@ function HomeTab({ bar, onTab }) {
       setPedidos(pR.data || [])
       setFaturas(filterJbmDrinksFaturas(fR.data || []))
     }).catch(() => {})
+    await Promise.all([snapP, floorP, restP])
   }
 
   useEffect(() => {
@@ -1914,6 +1965,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   const homeTab = firstOpenTab(access, [defaultBarTab(perfil?.role), ...allowedTabs], defaultBarTab(perfil?.role))
   const tab = tabFromPath(location.pathname, 'bar', allowedTabs, homeTab)
   const tabOk = canOpenHere(tab)
+  usePrefetchScreens(allowedTabs)
   const [opened, setOpened] = useState(() => new Set([tab]))
   const [menuOpen, setMenuOpen] = useState(false)
   const [door, setDoor] = useState(() => loginDoorFromHash())
@@ -1953,6 +2005,12 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
     // The hash keeps the login door (pos / clock / gerente); the path carries the screen.
     if (next !== tab) navigate({ pathname: pathForTab('bar', next), hash: location.hash })
     setMenuOpen(false)
+  }
+
+  // Tapping the bar's logo: back to the dashboard (or to its top when already there).
+  function goHome() {
+    if (tab === homeTab) window.scrollTo({ top: 0, behavior: 'smooth' })
+    selectTab(homeTab)
   }
 
   const posAccess = posAccessForRole(perfil?.role)
@@ -2063,7 +2121,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
       <MobileTopBar
         open={menuOpen}
         onToggle={() => setMenuOpen(o => !o)}
-        title={<BarIdentity bar={bar} size={30} className="is-topbar" />}
+        title={<BarIdentity bar={bar} size={30} className="is-topbar" onClick={goHome} label={t('shell.goHome')} />}
       >
         {aiOn && <AskAiButton />}
         <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
@@ -2071,7 +2129,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
 
       <aside className={`sidebar${menuOpen ? ' open' : ''}${rail.collapsed ? ' is-collapsed' : ''}`}>
         <div className="sidebar-brand">
-          <BarIdentity bar={bar} size={40} className="is-sidebar" sub={perfil?.role ? roleLabel(perfil.role) : null} />
+          <BarIdentity bar={bar} size={40} className="is-sidebar" sub={perfil?.role ? roleLabel(perfil.role) : null} onClick={goHome} label={t('shell.goHome')} />
           {rail.allowed && <SidebarCollapseButton collapsed={rail.collapsed} onToggle={rail.toggle} />}
         </div>
         <nav className="sidebar-nav">
