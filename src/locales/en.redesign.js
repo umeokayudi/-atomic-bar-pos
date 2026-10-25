@@ -150,6 +150,15 @@ export default {
     metodo: { transfer: 'Bank transfer', debit: 'Direct debit', card: 'Credit card', cash: 'Cash', konbini: 'Convenience store', other: 'Other' },
     paidOn: 'paid on {date}', dueEvery: 'due every day {day}', payMissing: 'Set when and how it is paid',
   },
+  myAccount: {
+    title: 'My account', lead: 'The name, e-mail and password you sign in with.',
+    name: 'Name', email: 'E-mail', password: 'Password', change: 'Change', save: 'Save',
+    newEmail: 'New e-mail', emailHint: 'You sign in with this e-mail from now on.',
+    newPassword: 'New password', passwordHint: 'At least 8 characters.', confirm: 'Repeat the new password',
+    current: 'Current password', currentHint: 'To change the e-mail or the password, type the password you use today.',
+    noMatch: 'The two passwords are not the same.', nameSaved: 'Name saved.', emailSaved: 'E-mail changed. Use it next time you sign in.',
+    passwordSaved: 'Password changed.', laneOnly: 'This is a shared till or clock login. Ask the owner to change it.',
+  },
   vault: {
     title: { money: 'Money is locked', payroll: 'Payroll is locked' },
     lead: 'Enter the owner PIN to open this area.',
@@ -177,7 +186,7 @@ export default {
   dock: { inicio: 'Home', pos: 'POS', mesas: 'Floor', pedidos: 'Supply', ponto: 'Clock', hoje: 'Today', shifts: 'Shifts', salary: 'Pay', profile: 'Me', more: 'More' },
   nav: {
     barFinance: 'Bar finances', 
-    vault: 'Passwords', seating: 'Seating & bookings', jbmInvoices: 'JBM invoices', billsToPay: 'Bills to pay', cardMachines: 'Card machines', costsOverview: 'Costs overview', supply: 'Drink supply', vip: 'VIP rooms', ordens: 'Orders to staff',
+    myAccount: 'My account', vault: 'Passwords', seating: 'Seating & bookings', jbmInvoices: 'JBM invoices', billsToPay: 'Bills to pay', cardMachines: 'Card machines', costsOverview: 'Costs overview', supply: 'Drink supply', vip: 'VIP rooms', ordens: 'Orders to staff',
     crm: 'Clients & CRM', marketing: 'Marketing', consultoria: 'Consulting', ai: 'AI Center', mesas: 'Floor & tables',
     comandas: 'Tabs',
   },

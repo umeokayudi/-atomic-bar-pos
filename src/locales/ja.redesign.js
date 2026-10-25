@@ -150,6 +150,15 @@ export default {
     metodo: { transfer: '銀行振込', debit: '口座振替', card: 'クレジットカード', cash: '現金', konbini: 'コンビニ払い', other: 'その他' },
     paidOn: '{date} 支払', dueEvery: '毎月{day}日支払', payMissing: '支払日と支払方法を設定してください',
   },
+  myAccount: {
+    title: 'マイアカウント', lead: 'ログインに使う名前・メール・パスワード。',
+    name: '名前', email: 'メール', password: 'パスワード', change: '変更', save: '保存',
+    newEmail: '新しいメール', emailHint: '次回からこのメールでログインします。',
+    newPassword: '新しいパスワード', passwordHint: '8文字以上。', confirm: '新しいパスワード（確認）',
+    current: '現在のパスワード', currentHint: 'メールやパスワードを変えるには、今のパスワードを入力してください。',
+    noMatch: 'パスワードが一致しません。', nameSaved: '名前を保存しました。', emailSaved: 'メールを変更しました。次回のログインから使えます。',
+    passwordSaved: 'パスワードを変更しました。', laneOnly: '共有のレジ／打刻ログインです。オーナーに変更を依頼してください。',
+  },
   vault: {
     title: { money: 'お金のページはロック中', payroll: '給与のページはロック中' },
     lead: 'オーナーのPINを入力して開きます。',
@@ -177,7 +186,7 @@ export default {
   dock: { inicio: 'ホーム', pos: 'POS', mesas: 'フロア', pedidos: '仕入れ', ponto: '打刻', hoje: '今日', shifts: 'シフト', salary: '給与', profile: 'マイページ', more: 'その他' },
   nav: {
     barFinance: 'バーの財務', 
-    vault: 'パスワード', seating: '席と予約', jbmInvoices: 'JBM請求書', billsToPay: '支払予定', cardMachines: 'カード端末', costsOverview: 'コスト概要', supply: 'ドリンク仕入れ', vip: 'VIPルーム', ordens: 'スタッフ指示',
+    myAccount: 'マイアカウント', vault: 'パスワード', seating: '席と予約', jbmInvoices: 'JBM請求書', billsToPay: '支払予定', cardMachines: 'カード端末', costsOverview: 'コスト概要', supply: 'ドリンク仕入れ', vip: 'VIPルーム', ordens: 'スタッフ指示',
     crm: '顧客・CRM', marketing: 'マーケティング', consultoria: 'コンサルティング', ai: 'AIセンター', mesas: 'フロア・テーブル',
     comandas: '伝票',
   },

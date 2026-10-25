@@ -1144,3 +1144,58 @@ button.sa-bell-item:hover { background: var(--c-surface-2); }
 .sa-top { align-items: center; }
 .sa-top .sa-bell, .sa-top .sa-me { align-self: center; }
 .sa-top .sa-me .sa-avatar { width: 44px; height: 44px; }
+
+/* Home: the two column groups are invisible on the phone (same order as one list) */
+.sa-home-main, .sa-home-side { display: contents; }
+
+/*
+ * Laptop and desktop (1024px and up): the tabs move into the header line (brand left, tabs centre,
+ * bell and avatar right), so nothing covers the content at the bottom. Home uses two columns.
+ */
+@media (min-width: 1024px) {
+  .sa-app { padding-bottom: 40px; }
+  .sa-top { max-width: 1120px; padding-left: 24px; padding-right: 24px; }
+  .sa-top-bar { flex: 0 1 auto; max-width: calc(50% - 300px); }
+  .sa-top .sa-bell { margin-left: auto; }
+
+  .sa-app .sa-tabs {
+    top: 0; bottom: auto; left: 50%; right: auto; transform: translateX(-50%); z-index: 31;
+    gap: 4px; padding: calc(10px + var(--safe-top)) 0 10px;
+    background: transparent; border: 0; box-shadow: none;
+  }
+  .sa-app.is-atomic .sa-tabs { background: transparent; box-shadow: none; }
+  .sa-app .sa-tabs button {
+    flex: 0 0 auto; max-width: none; min-height: 44px; padding: 0 14px;
+    flex-direction: row; gap: 8px; font-size: 14px; border-radius: 12px;
+  }
+  .sa-app .sa-tabs button:not(.is-on):hover { background: var(--c-surface-2); color: var(--c-text); }
+  .sa-app.is-atomic .sa-tabs button:not(.is-on):hover { background: #1C1C1F; color: #fff; }
+
+  .sa-toast { bottom: 24px; }
+  .sa-fab { bottom: 24px; right: max(24px, var(--safe-right)); }
+  .sa-savebar { bottom: 0; }
+  .sa-more { padding-bottom: 32px; }
+  .sa-sheet { max-width: 560px; }
+  .sa-bell-col { max-width: 1120px; padding-right: 24px; }
+
+  .sa-app.is-home { --sa-col: 1120px; }
+  .sa-app.is-home .sa-main, .sa-app.is-home .sa-alerts { padding-left: 24px; padding-right: 24px; }
+  .sa-home { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: start; gap: 20px; }
+  .sa-home-main, .sa-home-side { display: grid; gap: 16px; min-width: 0; align-content: start; }
+  .sa-home-side .sa-quick { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sa-home-side .sa-quick.is-3 > :first-child { grid-column: 1 / -1; }
+  .sa-home-side .sa-quick-btn { min-height: 96px; }
+}
+@media (min-width: 1024px) and (max-width: 1199px) {
+  .sa-app .sa-tabs button { padding: 0 10px; font-size: 13px; gap: 6px; }
+  .sa-top-bar { max-width: calc(50% - 270px); }
+}
+
+/* The old global `button:hover` grey sticks after a tap on phones: the brand button in the header keeps
+   no background (white text stays readable on the black bar), and cards keep their own colour. */
+.sa-top-bar:hover, .sa-top-bar:active, .sa-top-bar:focus { background: none; }
+.sa-top-bar:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 4px; border-radius: 12px; }
+.sa-quick-btn:not(.is-primary):hover { background: var(--c-surface); }
+.sa-quick-btn.is-primary:hover { background: var(--c-accent); }
+/* Atomic: the money cards (Results, My pay) black with a red glow, like the clock card */
+.sa-app.is-atomic .sa-earn { background: radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--at-red) 45%, transparent) 0%, transparent 55%), linear-gradient(160deg, #1A1A1C 0%, var(--at-black) 70%); }

@@ -7,7 +7,7 @@
 import { chromium } from '@playwright/test'
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { ADMIN, MANAGER, CASHIER, STAFF, TABLES, BAR_STAFF, PUNCHES } from './fixtures.mjs'
+import { ADMIN, MANAGER, OWNER, CASHIER, STAFF, TABLES, BAR_STAFF, PUNCHES } from './fixtures.mjs'
 import { castRoster } from '../../src/lib/staffPos.js'
 import { earningsByDay, earningsRange, myGoalStatus, myNightSummary } from '../../src/lib/staffNight.js'
 import { tokyoNightKey, tokyoMonthKey } from '../../src/lib/tokyo.js'
@@ -105,11 +105,17 @@ const PAGES = [
   { who: STAFF, path: '/bar/hoje', name: 'staff-today-only', acessos: ['clock'] },
   { who: STAFF, path: '/bar/goals', name: 'staff-goals' },
   { who: STAFF, path: '/bar/pos', name: 'staff-pos' },
+  { who: STAFF, path: '/bar/pos', name: 'staff-pos-only', acessos: ['clock'] },
+  { who: STAFF, path: '/bar/hoje', name: 'staff-logo-tap', acessos: ['clock'], taps: ['.sa-top-bar'] },
+  { who: STAFF, path: '/bar/ponto', name: 'staff-logo-tap-clock', acessos: ['clock'], taps: ['.sa-top-bar'] },
+  { who: STAFF, path: '/bar/hoje', name: 'staff-bell-only', acessos: ['clock'], gate: true, taps: ['.sa-bell'] },
+  { who: STAFF, path: '/bar/pos', name: 'staff-pos-gate', gate: true, acessos: ['clock'] },
   { who: STAFF, path: '/bar/pos', name: 'staff-pos-order', taps: ['.pq-tile-hit', '.pq-tile-hit', '.pq-cartbar', '.pq-charge'], tapsBelow: 901 },
   { who: STAFF, path: '/bar/pos', name: 'staff-pos-cast', phoneOnly: true, taps: ['.pq-tile-hit', '.pq-cartbar', '.pq-charge', '.pq-castrow-chips button:nth-child(2)'] },
   { who: STAFF, path: '/bar/pos', name: 'staff-pos-cast-wide', wideOnly: true, taps: ['.pq-tile-hit', '.pq-charge', '.pq-castrow-chips button:nth-child(2)'] },
   { who: STAFF, path: '/bar/pos', name: 'staff-pos-mine', taps: ['.pq-glance.is-mine .is-btn'] },
   { who: STAFF, path: '/bar/performance', name: 'staff-app-performance' },
+  { who: STAFF, path: '/bar/performance', name: 'staff-results-day', taps: ['.sa-cal-cell.has-pay'] },
   { who: STAFF, path: '/bar/ponto', name: 'staff-app-clock' },
   { who: STAFF, path: '/bar/ponto', name: 'staff-app-clock-out', taps: ['.sa-clock-cta'], geo: true },
   { who: STAFF, path: '/bar/ponto', name: 'staff-app-clock-nogps', taps: ['.sa-clock-cta'] },
@@ -140,6 +146,9 @@ const PAGES = [
   { who: STAFF, path: '/bar/schedule', name: 'staff-schedule-dayshift', taps: ['.sa-night:not(.is-locked)', '.sa-shiftseg button'] },
   { who: MANAGER, path: '/bar/inicio', name: 'bar-home' },
   { who: MANAGER, path: '/bar/inicio', name: 'bar-home-rail', rail: true },
+  { who: OWNER, path: '/bar/inicio', name: 'bar-home-owner' },
+  { who: OWNER, path: '/bar/conta', name: 'bar-account' },
+  { who: OWNER, path: '/bar/conta', name: 'bar-account-password', taps: ['.my-account-line:nth-of-type(3) .ui-btn'] },
 ]
 let CURRENT = {}
 const ONLY = process.env.PAGES ? process.env.PAGES.split(',') : null

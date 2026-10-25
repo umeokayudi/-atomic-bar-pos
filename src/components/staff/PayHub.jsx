@@ -71,7 +71,7 @@ function usePaymentHistory(current) {
   return state
 }
 
-function MonthNav({ t, value, onChange }) {
+export function MonthNav({ t, value, onChange }) {
   const now = tokyoMonthKey()
   return (
     <div className="sa-monthnav">
@@ -97,9 +97,12 @@ function dayNet(d, finesByDay) {
   return (d.hoursPay || 0) + (d.commission || 0) - (finesByDay[d.day] || 0)
 }
 
-function Calendar({ t, month, days, finesByDay, attendance, today, onPick }) {
+/**
+ * A month grid, Monday first: day number, a short amount and coloured dots per day. Shared by My pay and Results.
+ * `cellFor(key)` → { amount, marks: string[], label } for that day.
+ */
+export function MonthCalendar({ t, month, today, label, cellFor, onPick }) {
   const first = `${month}-01`
-  const byDay = Object.fromEntries((days || []).map(d => [d.day, d]))
   const [y, m] = month.split('-').map(Number)
   const last = new Date(Date.UTC(y, m, 0)).getUTCDate()
   const cells = []
@@ -107,21 +110,12 @@ function Calendar({ t, month, days, finesByDay, attendance, today, onPick }) {
   for (let d = 1; d <= last; d++) cells.push(`${month}-${String(d).padStart(2, '0')}`)
   const heads = Array.from({ length: 7 }, (_, i) => fmtDay(noon(addDays('2024-01-01', i)), { weekday: 'narrow' }))
   return (
-    <div className="sa-cal" role="grid" aria-label={t('staffApp.pay.calendar')}>
+    <div className="sa-cal" role="grid" aria-label={label}>
       {heads.map((h, i) => <span key={`h${i}`} className="sa-cal-head" role="columnheader">{h}</span>)}
       {cells.map((key, i) => {
         if (!key) return <span key={`e${i}`} className="sa-cal-cell is-empty" aria-hidden="true" />
-        const d = byDay[key]
-        const att = attendance?.[key]
-        const fine = finesByDay[key] || 0
-        const worked = d && d.hours > 0
-        const amount = d ? dayNet(d, finesByDay) : -fine
+        const { amount = 0, marks = [], label: dayLabel = '' } = cellFor(key) || {}
         const future = key > today
-        const marks = []
-        if (worked) marks.push('worked')
-        if (att?.status === 'absent') marks.push('absent')
-        if (att?.status === 'late') marks.push('late')
-        if (fine) marks.push('fine')
         return (
           <button
             key={key}
@@ -129,7 +123,7 @@ function Calendar({ t, month, days, finesByDay, attendance, today, onPick }) {
             role="gridcell"
             className={`sa-cal-cell${key === today ? ' is-today' : ''}${future ? ' is-future' : ''}${amount > 0 ? ' has-pay' : ''}`}
             onClick={() => onPick(key)}
-            aria-label={`${fmtDay(noon(key), { month: 'short', day: 'numeric' })} ${signedYen(amount)}${marks.length ? ` · ${marks.map(k => t(`staffApp.pay.mark_${k}`)).join(', ')}` : ''}`}
+            aria-label={`${fmtDay(noon(key), { month: 'short', day: 'numeric' })} ${dayLabel}${marks.length ? ` · ${marks.map(k => t(`staffApp.pay.mark_${k}`)).join(', ')}` : ''}`}
           >
             <span className="sa-cal-num">{Number(key.slice(8))}</span>
             <span className="sa-cal-amt">{amount ? `${amount < 0 ? '−' : ''}${shortNum(Math.abs(amount))}` : ''}</span>
@@ -139,6 +133,23 @@ function Calendar({ t, month, days, finesByDay, attendance, today, onPick }) {
       })}
     </div>
   )
+}
+
+function Calendar({ t, month, days, finesByDay, attendance, today, onPick }) {
+  const byDay = Object.fromEntries((days || []).map(d => [d.day, d]))
+  const cellFor = key => {
+    const d = byDay[key]
+    const att = attendance?.[key]
+    const fine = finesByDay[key] || 0
+    const amount = d ? dayNet(d, finesByDay) : -fine
+    const marks = []
+    if (d && d.hours > 0) marks.push('worked')
+    if (att?.status === 'absent') marks.push('absent')
+    if (att?.status === 'late') marks.push('late')
+    if (fine) marks.push('fine')
+    return { amount, marks, label: signedYen(amount) }
+  }
+  return <MonthCalendar t={t} month={month} today={today} label={t('staffApp.pay.calendar')} cellFor={cellFor} onPick={onPick} />
 }
 
 function DaySheet({ t, day, row, fines, att, rate, onClose }) {
