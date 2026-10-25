@@ -5834,3 +5834,65 @@ html[data-layout="desktop"] .app-shell.is-till-kiosk .app-main { padding: 12px 1
   .is-staff-app button.pq-cartbar-new { bottom: calc(84px + env(safe-area-inset-bottom)); }
   .pq-tabs { padding-right: 4px; }
 }
+
+/* Upcoming payments: money on hand vs what is due */
+.pay-plan-hero {
+  background: var(--bg2); border: 1px solid var(--border); border-left: 6px solid var(--border);
+  border-radius: 16px; padding: 16px; margin: 0 0 12px;
+}
+.pay-plan-hero.is-ok { border-left-color: var(--green); }
+.pay-plan-hero.is-tight { border-left-color: var(--amber); }
+.pay-plan-hero.is-short { border-left-color: var(--red); }
+.pay-plan-kicker { font-size: 12px; font-weight: 800; color: var(--text2); text-transform: uppercase; letter-spacing: .04em; }
+.pay-plan-value {
+  display: flex; align-items: baseline; gap: 10px; background: none; border: 0; padding: 4px 0; cursor: pointer;
+  font-size: 30px; font-weight: 800; color: var(--text);
+}
+.pay-plan-value span { font-size: 13px; font-weight: 700; color: var(--text2); text-decoration: underline; }
+.pay-plan-balance { display: flex; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
+.pay-plan-balance input { flex: 1 1 140px; min-width: 0; font-size: 22px; font-weight: 800; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+.pay-plan-balance button { border-radius: 12px; border: 0; padding: 0 16px; min-height: 44px; font-weight: 800; background: var(--text); color: var(--bg); cursor: pointer; }
+.pay-plan-balance button.is-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+.pay-plan-hint { margin: 2px 0 10px; font-size: 12px; color: var(--text2); }
+.pay-plan-verdict { display: block; font-size: 15px; line-height: 1.4; }
+.pay-plan-hero.is-ok .pay-plan-verdict { color: var(--green); }
+.pay-plan-hero.is-tight .pay-plan-verdict { color: var(--amber); }
+.pay-plan-hero.is-short .pay-plan-verdict { color: var(--red); }
+.pay-plan-sums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.pay-plan-sums div { background: var(--bg); border-radius: 12px; padding: 8px 10px; min-width: 0; }
+.pay-plan-sums span { display: block; font-size: 11px; font-weight: 700; color: var(--text2); }
+.pay-plan-sums b { font-size: 15px; overflow-wrap: anywhere; }
+.pay-plan-sums b.is-neg { color: var(--red); }
+.pay-plan-legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 8px; font-size: 12px; color: var(--text2); }
+.pay-plan-legend span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.pay-plan-legend .is-ok::before { background: var(--green); }
+.pay-plan-legend .is-tight::before { background: var(--amber); }
+.pay-plan-legend .is-short::before { background: var(--red); }
+.pay-timeline { display: flex; flex-direction: column; gap: 14px; }
+.pay-group header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 0 4px; }
+.pay-group h3 { margin: 0; font-size: 15px; }
+.pay-group header b { font-size: 14px; color: var(--text2); }
+.pay-group.is-late h3, .pay-group.is-late header b { color: var(--red); }
+.pay-row {
+  width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; color: var(--text);
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-top: 6px; cursor: pointer;
+}
+.pay-dot { flex: 0 0 10px; width: 10px; height: 10px; border-radius: 50%; background: var(--border); }
+.pay-row.is-ok .pay-dot, .pay-row.is-in .pay-dot { background: var(--green); }
+.pay-row.is-tight .pay-dot { background: var(--amber); }
+.pay-row.is-short .pay-dot, .pay-row.is-late .pay-dot { background: var(--red); }
+.pay-row.is-tight { background: var(--amber-bg); border-color: color-mix(in srgb, var(--amber) 40%, transparent); }
+.pay-row.is-short { background: var(--red-bg); border-color: color-mix(in srgb, var(--red) 40%, transparent); }
+.pay-row-main { flex: 1; min-width: 0; }
+.pay-row-main strong { display: block; font-size: 14px; overflow-wrap: anywhere; }
+.pay-row-main em { display: block; font-style: normal; font-size: 12px; color: var(--text2); margin-top: 2px; }
+.pay-row-money { text-align: right; flex: 0 0 auto; }
+.pay-row-money b { display: block; font-size: 15px; }
+.pay-row-money small { display: block; font-size: 11px; font-weight: 700; color: var(--text2); }
+.pay-row.is-short .pay-row-money small { color: var(--red); }
+.pay-row.is-tight .pay-row-money small { color: var(--amber); }
+.pay-row.is-in .pay-row-money b { color: var(--green); }
+.pay-days { margin-top: 16px; background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; padding: 12px 16px; }
+.pay-days summary { cursor: pointer; font-weight: 800; font-size: 14px; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.pay-days summary span { font-weight: 600; color: var(--text2); font-size: 13px; }
+.pay-days[open] summary { margin-bottom: 10px; }

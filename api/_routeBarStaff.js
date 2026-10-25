@@ -742,6 +742,12 @@ export default async function handler(req, res) {
       if (body.dia_salario != null) row.dia_salario = Math.max(1, Math.min(28, Math.round(+body.dia_salario || 25)))
       if (body.dia_drink != null) row.dia_drink = Math.max(1, Math.min(28, Math.round(+body.dia_drink || 10)))
       if (body.dia_mes != null) row.dia_mes = Math.max(1, Math.min(28, Math.round(+body.dia_mes || 1)))
+      if (body.caixa_saldo !== undefined) {
+        // Money the bar has now (cash + bank), typed by the owner; null clears it.
+        const v = body.caixa_saldo === null || body.caixa_saldo === '' ? null : Math.round(+body.caixa_saldo)
+        row.caixa_saldo = Number.isFinite(v) ? Math.max(-1e11, Math.min(1e11, v)) : null
+        row.caixa_saldo_em = /^\d{4}-\d{2}-\d{2}$/.test(String(body.caixa_saldo_em || '')) ? String(body.caixa_saldo_em) : null
+      }
       if (body.pedido_modo != null) {
         const modo = String(body.pedido_modo)
         row.pedido_modo = ['queda', 'volume', 'segunda'].includes(modo) ? modo : 'queda'
