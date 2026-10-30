@@ -39,7 +39,9 @@
     "test:pay-coverage": "node scripts/payCoverage.test.mjs",
     "test:money": "node scripts/money.test.mjs",
     "test:receipts": "node scripts/receipts.test.mjs",
-    "test:catalog": "node scripts/catalog.test.mjs"
+    "test:catalog": "node scripts/catalog.test.mjs",
+    "test:notif-groups": "node scripts/notifGroups.test.mjs",
+    "test:audit": "node scripts/audit.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

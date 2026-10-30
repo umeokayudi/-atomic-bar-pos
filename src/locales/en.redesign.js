@@ -271,6 +271,7 @@ export default {
     errRole: 'Your account cannot use the AI assistant.',
     errGeneric: 'The AI could not answer: {error}',
     sourcesLine: 'Data {from} → {to} · {scope}',
+    sourcesMissing: 'Not in the data: {list}',
     seesTitle: 'What the AI sees', lastDays: 'Last {n} days', daysShort: '{n}d', period: 'Period',
     analyses: 'Analyses', manage: 'Activity', history: 'History', actions: 'Actions & runs',
     actionsHint: 'Changes the AI proposed and someone confirmed, with their result.',

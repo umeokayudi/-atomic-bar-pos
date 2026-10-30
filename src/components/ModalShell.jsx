@@ -1,3 +1,4 @@
+import { t } from '../lib/i18n'
 export default function ModalShell({ open, onClose, title, subtitle, children, wide }) {
   if (!open) return null
 
@@ -35,7 +36,7 @@ export default function ModalShell({ open, onClose, title, subtitle, children, w
             onClick={onClose}
             style={{ padding: '10px 20px', borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', fontWeight: 600 }}
           >
-            Fechar
+            {t('common.close')}
           </button>
         </div>
       </div>

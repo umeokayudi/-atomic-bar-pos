@@ -269,6 +269,7 @@ export default {
     errRole: 'このアカウントはAIアシスタントを使えません。',
     errGeneric: 'AIが回答できませんでした：{error}',
     sourcesLine: 'データ {from} → {to} · {scope}',
+    sourcesMissing: 'データにないもの: {list}',
     seesTitle: 'AIが見ている情報', lastDays: '過去{n}日', daysShort: '{n}日', period: '期間',
     analyses: '分析', manage: '履歴', history: '会話履歴', actions: '実行した操作',
     actionsHint: 'AIが提案し、ユーザーが確認して実行した変更と結果。',

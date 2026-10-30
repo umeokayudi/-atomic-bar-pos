@@ -4,7 +4,8 @@ import { fmtYen, fmtDate, Spinner, Empty, filterSupplierVendas } from './utils'
 import { PageHeader, PortalKpi, PortalSurface, PortalPills, PortalAlert } from './ui/PageLayout'
 import { pagamentoStatus, pagamentosPendentes, totalPagamentosPendentes } from '../lib/faturaPagamentos'
 import { confirmFaturaPayment } from '../lib/faturaLedger'
-import { useI18n } from '../lib/i18n'
+import { useI18n, getGlobalLang } from '../lib/i18n'
+import { dateLocale } from '../lib/tokyo'
 import MarkPaidPopup from './MarkPaidPopup'
 import Icon from './ui/Icon'
 import { ColumnChart } from './ui/Charts'
@@ -79,7 +80,7 @@ function Overview() {
     const startStr = start.toISOString().slice(0,10)
     const endStr = end.toISOString().slice(0,10)
     const total = vendas.filter(v=>v.data>=startStr&&v.data<=endStr).reduce((a,v)=>a+(+v.total||0),0)
-    weeks.push({ label: start.toLocaleDateString('pt-BR',{month:'short',day:'numeric'}), total })
+    weeks.push({ label: start.toLocaleDateString(dateLocale(getGlobalLang()),{month:'short',day:'numeric'}), total })
   }
   // No week with sales → no average (was ¥1 because of `|| 1`).
   const avgWeek = averageOfActive(weeks.map(w => w.total))

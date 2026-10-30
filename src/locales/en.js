@@ -2470,6 +2470,16 @@ export default {
     remindersSent: 'Collection reminders sent',
     cooldownHint: 'Automatic reminders skip invoices emailed in the last 7 days.',
   },
+  audit: {
+    title: 'Activity log',
+    subtitle: 'Who created, changed or deleted invoices, payments, receipts, products and purchases.',
+    all: 'Everything',
+    empty: 'Nothing recorded yet.',
+    notReady: 'The activity log is not switched on yet. Contact JBM support.',
+    system: 'System',
+    action: { insert: 'created', update: 'changed', delete: 'deleted' },
+    table: { faturas: 'invoice', fatura_pagamentos: 'payment', ryoshusho: 'receipt', produtos: 'product', compras: 'purchase' },
+  },
   notifications: {
     title: 'Notifications',
     markAllRead: 'Mark all read',
@@ -2488,6 +2498,9 @@ export default {
     expiredOn: 'expired {date}',
     badgeCount: '{count} notifications',
     delete: 'Delete',
+    showArchived: 'Older events ({count})',
+    hideArchived: 'Hide older events ({count})',
+    group: { pedido_novo: 'New orders', pedido_confirmado: 'Confirmed orders', pedido_entregue: 'Delivered orders', pedido_cancelado: 'Cancelled orders', other: 'Other' },
   },
   clock: {
     title: 'Time clock',

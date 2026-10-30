@@ -216,14 +216,14 @@ export function SectionTitle({ children, sub }) {
 }
 
 // ── Del Button ────────────────────────────────────────────────────────────────
-export function DelBtn({ onClick, title = 'Excluir' }) {
+export function DelBtn({ onClick, title = translate('common.delete') }) {
   return (
     <button className="btn-danger" onClick={onClick} title={title}
       style={{ padding:'4px 10px', fontSize:11, borderRadius:6 }}><Icon name="trash" size={14} /></button>
   )
 }
 
-export function EditBtn({ onClick, title = 'Editar' }) {
+export function EditBtn({ onClick, title = translate('common.edit') }) {
   return (
     <button onClick={onClick} title={title}
       style={{ padding:'4px 10px', fontSize:11, borderRadius:6, border:'1px solid var(--border)', background:'var(--bg2)', cursor:'pointer' }}><Icon name="edit" size={14} /></button>

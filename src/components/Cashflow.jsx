@@ -10,7 +10,8 @@ import PaySupplierPopup from './PaySupplierPopup'
 import DocViewer from './DocViewer'
 import OpenInvoicesList from './OpenInvoicesList'
 import { AdminPage, PortalKpi, PortalSurface, PortalPills } from './ui/PageLayout'
-import { useI18n } from '../lib/i18n'
+import { useI18n, getGlobalLang } from '../lib/i18n'
+import { dateLocale } from '../lib/tokyo'
 import Icon from './ui/Icon'
 import { HBarList, InOutChart } from './ui/Charts'
 import { ledgerTotals, purchaseAmount, purchasePaidByBar, purchasesPaidOut, reconciledCash, receivedPayments } from '../lib/money'
@@ -635,7 +636,7 @@ function Calendario() {
 
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
         <button onClick={()=>setCurrentMonth(new Date(year,month-1,1))} style={{ padding:'8px 16px', borderRadius:8, border:'1px solid var(--border)', background:'transparent', cursor:'pointer', fontSize:16 }}>←</button>
-        <div style={{ fontSize:16, fontWeight:700 }}>{currentMonth.toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}</div>
+        <div style={{ fontSize:16, fontWeight:700 }}>{currentMonth.toLocaleDateString(dateLocale(getGlobalLang()),{month:'long',year:'numeric'})}</div>
         <button onClick={()=>{ setCurrentMonth(new Date(year,month+1,1)); setSelectedDay(null); setPopup(null) }} style={{ padding:'8px 16px', borderRadius:8, border:'1px solid var(--border)', background:'transparent', cursor:'pointer', fontSize:16 }}>→</button>
       </div>
 
@@ -695,7 +696,7 @@ function Calendario() {
           <div style={{ background:'var(--bg2)', borderRadius:20, padding:'24px', width:'100%', maxWidth:420, boxShadow:'0 24px 60px rgba(0,0,0,0.3)' }}
             onClick={e=>e.stopPropagation()}>
             <div style={{ fontSize:16, fontWeight:700, marginBottom:16 }}>
-              {currentMonth.toLocaleDateString('pt-BR',{month:'long'})} {selectedDay}, {year}
+              {currentMonth.toLocaleDateString(dateLocale(getGlobalLang()),{month:'long'})} {selectedDay}, {year}
             </div>
             {popup.map((ev,i)=>(
               <div

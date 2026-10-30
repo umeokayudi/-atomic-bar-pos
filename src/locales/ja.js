@@ -2470,6 +2470,16 @@ export default {
     remindersSent: '回収リマインダー送信完了',
     cooldownHint: '7日以内に送信済の請求は自動リマインダーをスキップします。',
   },
+  audit: {
+    title: '操作履歴',
+    subtitle: '請求書・入金・領収書・商品・仕入を誰が作成・変更・削除したか。',
+    all: 'すべて',
+    empty: 'まだ記録はありません。',
+    notReady: '操作履歴はまだ有効になっていません。JBMサポートにご連絡ください。',
+    system: 'システム',
+    action: { insert: 'が作成', update: 'が変更', delete: 'が削除' },
+    table: { faturas: '請求書', fatura_pagamentos: '入金', ryoshusho: '領収書', produtos: '商品', compras: '仕入' },
+  },
   notifications: {
     title: '通知',
     markAllRead: 'すべて既読',
@@ -2488,6 +2498,9 @@ export default {
     expiredOn: '期限 {date}',
     badgeCount: '通知 {count}件',
     delete: '削除',
+    showArchived: '過去の通知（{count}件）',
+    hideArchived: '過去の通知を隠す（{count}件）',
+    group: { pedido_novo: '新しい注文', pedido_confirmado: '確認済みの注文', pedido_entregue: '配達済みの注文', pedido_cancelado: 'キャンセルされた注文', other: 'その他' },
   },
   clock: {
     title: 'タイムカード',

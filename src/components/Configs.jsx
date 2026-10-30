@@ -18,6 +18,7 @@ import { initialsOf } from '../lib/staffApp'
 import { runChange } from '../lib/safeDelete'
 import { costPending, findDuplicates, isMenuItem, nameTaken, productMargin } from '../lib/catalog'
 import { askConfirm, notify } from './ui/ConfirmDialog'
+import AuditLogPanel from './AuditLogPanel'
 
 // Category values saved in Portuguese by older screens → the one list the form uses.
 const LEGACY_CATEGORY = { Cerveja: 'Beer', cerveja: 'Beer', vinho: 'Wine', Vinho: 'Wine', suco: 'Juice', Suco: 'Juice' }
@@ -650,6 +651,8 @@ export function UsuariosTab() {
         </table>
         {users.length===0 && <div style={{padding:32,textAlign:'center',color:'var(--text3)',fontSize:13}}>{t('configs.noUsers')}</div>}
       </PortalSurface>
+
+      <AuditLogPanel />
 
     </AdminPage>
   )
