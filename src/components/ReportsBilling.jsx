@@ -85,7 +85,9 @@ export default function ReportsBilling({ onNav }) {
           options={[
             ['summary', t('billingHub.tabSummary')],
             ['overdue', t('billingHub.tabOverdue')],
-            ['email', t('billingHub.tabEmail')],
+            // E-mail automation only shows once Resend is set up on the server: no promise of reports
+            // or reminders that cannot be sent.
+            ...(hub?.email?.configured ? [['email', t('billingHub.tabEmail')]] : []),
           ]}
           value={tab}
           onChange={setTab}
@@ -164,7 +166,7 @@ export default function ReportsBilling({ onNav }) {
         </PortalSurface>
       )}
 
-      {tab === 'email' && (
+      {tab === 'email' && hub?.email?.configured && (
         <>
           <PortalSurface title={t('billingHub.emailAutomation')} sub={t('billingHub.emailSub')}>
             <div className="billing-hub-status">
@@ -179,11 +181,6 @@ export default function ReportsBilling({ onNav }) {
               <div>{t('billingHub.scheduleReport')}: {hub?.email?.schedules?.report || '06:00 UTC'}</div>
               <div>{t('billingHub.scheduleBilling')}: {hub?.email?.schedules?.billing || 'Mon/Wed/Fri 09:00 UTC'}</div>
             </div>
-            {!hub?.email?.configured && (
-              <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text2)' }}>
-                {t('billingHub.envHint')}
-              </div>
-            )}
           </PortalSurface>
 
           {isAdmin && (
