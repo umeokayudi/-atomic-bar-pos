@@ -38,7 +38,8 @@
     "test:partners": "node scripts/partners.test.mjs",
     "test:pay-coverage": "node scripts/payCoverage.test.mjs",
     "test:money": "node scripts/money.test.mjs",
-    "test:receipts": "node scripts/receipts.test.mjs"
+    "test:receipts": "node scripts/receipts.test.mjs",
+    "test:catalog": "node scripts/catalog.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { ensureVendaFromPedido, findVendaForPedido, findVendaKeysForPedidos, pedidoSaleDate, mergeOrInsertPeriodFatura } from '../lib/pedidoVenda'
 import { addStockFromDelivery } from '../lib/posSupply'
 import { useAuth } from './Auth'
-import { fmtYen, Badge, Spinner, Empty, DelBtn, CATEGORIAS, filterSupplierVendas, PedidoItemChip } from './utils'
+import { fmtYen, Badge, Spinner, Empty, DelBtn, CATEGORIAS, filterSupplierVendas, PedidoItemChip, NON_SUPPLIER_CATEGORIES } from './utils'
 import { SupplierCostHint } from './SupplierPriceCheck'
 import { staffFetch } from '../lib/apiAuth'
 import { AdminPage, PortalSurface } from './ui/PageLayout'
@@ -16,7 +16,12 @@ import { BarIdentity, BarMark } from './BarIdentity'
 import { ATOMIC_RED, BRAND_COLORS, brandColorOf, brandRow, brandTokens, cleanHex, cleanLogo, fileToLogo, resolveBrand } from '../lib/barBrand'
 import { initialsOf } from '../lib/staffApp'
 import { runChange } from '../lib/safeDelete'
+import { costPending, findDuplicates, isMenuItem, nameTaken, productMargin } from '../lib/catalog'
 import { askConfirm, notify } from './ui/ConfirmDialog'
+
+// Category values saved in Portuguese by older screens → the one list the form uses.
+const LEGACY_CATEGORY = { Cerveja: 'Beer', cerveja: 'Beer', vinho: 'Wine', Vinho: 'Wine', suco: 'Juice', Suco: 'Juice' }
+const EMPTY_PRODUCT = { nome:'', categoria:'Beer', custo:0, preco_venda:0, estoque_atual:'', unidade:'', ativo:true }
 
 // ── PRODUTOS ─────────────────────────────────────────────────────────────────
 export function ProductsTab() {
@@ -27,7 +32,9 @@ export function ProductsTab() {
   const [loading, setLoading]   = useState(true)
   const [saving,  setSaving]    = useState(false)
   const [editId,  setEditId]    = useState(null)
-  const [form, setForm] = useState({ nome:'', categoria:'Cerveja', custo:0, preco_venda:0 })
+  const [form, setForm] = useState(EMPTY_PRODUCT)
+  const [showMenu, setShowMenu] = useState(false)
+  const [formErr, setFormErr] = useState('')
 
   useEffect(() => { load() }, [perfil?.role])
   async function load() {
@@ -46,16 +53,29 @@ export function ProductsTab() {
 
   async function save() {
     if (!canReadProductCost(perfil?.role)) return
-    if (!form.nome) return
+    if (!form.nome.trim()) return
+    // One product per name: "Orange Juice (dup)", "Cramberry", "Chivas 12 (1L)" match an existing item.
+    const taken = nameTaken(produtos, form.nome, editId)
+    if (taken) { setFormErr(t('catalog.nameTaken', { name: taken.nome })); return }
+    setFormErr('')
     setSaving(true)
-    if (editId) {
-      await supabase.from('produtos').update(form).eq('id', editId)
-      setEditId(null)
-    } else {
-      await supabase.from('produtos').insert(form)
+    const row = {
+      nome: form.nome.trim(),
+      categoria: LEGACY_CATEGORY[form.categoria] || form.categoria,
+      custo: +form.custo || 0,
+      preco_venda: +form.preco_venda || 0,
+      ativo: form.ativo !== false,
     }
+    if (form.estoque_atual !== '' && form.estoque_atual != null) row.estoque_atual = Math.round(+form.estoque_atual || 0)
+    if (form.unidade) row.unidade = form.unidade
+    const res = editId
+      ? await supabase.from('produtos').update(row).eq('id', editId)
+      : await supabase.from('produtos').insert(row)
     setSaving(false)
-    setForm({ nome:'', categoria:'Cerveja', custo:0, preco_venda:0 })
+    if (res.error) { setFormErr(res.error.message); return }
+    setEditId(null)
+    notify(t('confirm.saved'))
+    setForm(EMPTY_PRODUCT)
     load()
   }
 
@@ -71,7 +91,7 @@ export function ProductsTab() {
 
   function startEdit(p) {
     setEditId(p.id)
-    setForm({ nome:p.nome, categoria:p.categoria, custo:p.custo, preco_venda:p.preco_venda })
+    setForm({ nome:p.nome, categoria:LEGACY_CATEGORY[p.categoria] || p.categoria, custo:p.custo, preco_venda:p.preco_venda, estoque_atual:p.estoque_atual ?? '', unidade:p.unidade || '', ativo:p.ativo !== false })
   }
 
   if (!catalogCost) {
@@ -93,6 +113,7 @@ export function ProductsTab() {
           <div>
             <label className="form-label">{t('configs.category')}</label>
             <select value={form.categoria} onChange={e=>setF('categoria',e.target.value)}>
+              {!CATEGORIAS.includes(form.categoria) && form.categoria && <option value={form.categoria}>{t('catalog.unknownCategory', { cat: form.categoria })}</option>}
               {CATEGORIAS.map(c=><option key={c}>{c}</option>)}
             </select>
           </div>
@@ -105,30 +126,60 @@ export function ProductsTab() {
             <input type="number" value={form.preco_venda} onChange={e=>setF('preco_venda',+e.target.value)} />
           </div>
         </div>
+        <div className="grid4" style={{ marginBottom:12, alignItems:'end' }}>
+          <div><label className="form-label">{t('catalog.stock')}</label><input type="number" value={form.estoque_atual} onChange={e=>setF('estoque_atual',e.target.value)} /></div>
+          <div><label className="form-label">{t('catalog.unit')}</label><input value={form.unidade} onChange={e=>setF('unidade',e.target.value)} placeholder="bottle / case / kg" /></div>
+          <div><label className="form-label">{t('catalog.active')}</label>
+            <select value={form.ativo === false ? 'n' : 'y'} onChange={e=>setF('ativo', e.target.value === 'y')}><option value="y">✓</option><option value="n">—</option></select>
+          </div>
+        </div>
+        {formErr && <div style={{ color:'var(--red)', fontSize:12, marginBottom:8 }}>{formErr}</div>}
         <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
-          {editId && <button onClick={()=>{setEditId(null);setForm({nome:'',categoria:'Cerveja',custo:0,preco_venda:0})}}>{t('common.cancel')}</button>}
+          {editId && <button onClick={()=>{setEditId(null);setForm(EMPTY_PRODUCT);setFormErr('')}}>{t('common.cancel')}</button>}
           <button className="btn-primary" onClick={save} disabled={saving}>
             {saving ? <><span className="spinner"/>{t('common.saving')}</> : editId ? t('configs.saveEdit') : t('configs.addProduct')}
           </button>
         </div>
       </PortalSurface>
 
-      <PortalSurface>
+      {!loading && (() => {
+        const dups = findDuplicates(produtos)
+        const pending = produtos.filter(p => p.ativo !== false && costPending(p) && !isMenuItem(p, NON_SUPPLIER_CATEGORIES))
+        if (!dups.length && !pending.length) return null
+        return (
+          <PortalSurface style={{ marginBottom: 16 }}>
+            {pending.length > 0 && <div style={{ fontSize:13, color:'var(--amber)', fontWeight:600, marginBottom: dups.length ? 10 : 0 }}>{t('catalog.costPendingCount', { count: pending.length })}</div>}
+            {dups.length > 0 && (
+              <details>
+                <summary style={{ fontSize:13, fontWeight:700, cursor:'pointer' }}>{t('catalog.duplicates', { count: dups.length })}</summary>
+                <div style={{ fontSize:12, color:'var(--text2)', margin:'6px 0' }}>{t('catalog.duplicatesHint')}</div>
+                {dups.map(g => <div key={g[0].id} style={{ fontSize:12, padding:'3px 0' }}>{g.map(p => p.nome).join('  ·  ')}</div>)}
+              </details>
+            )}
+          </PortalSurface>
+        )
+      })()}
+
+      <PortalSurface headerRight={(() => {
+        const n = produtos.filter(p => p.ativo !== false && isMenuItem(p, NON_SUPPLIER_CATEGORIES)).length
+        return n ? <label style={{ fontSize:12, display:'flex', gap:6, alignItems:'center' }}><input type="checkbox" checked={showMenu} onChange={e=>setShowMenu(e.target.checked)} />{showMenu ? t('catalog.showMenu') : t('catalog.menuHidden', { count: n })}</label> : null
+      })()}>
         {loading ? <Spinner /> : produtos.length===0 ? <Empty text={t('configs.noProducts')} /> : (
           <table>
             <thead><tr><th>{t('configs.productCol')}</th><th>{t('configs.categoryCol')}</th><th>{t('configs.costCol')}</th><th>{t('configs.sellCol')}</th><th>{t('configs.margin')}</th><th></th></tr></thead>
             <tbody>
-              {produtos.filter(p=>p.ativo!==false).map(p=>{
-                const m = p.preco_venda>0 ? Math.round((p.preco_venda-p.custo)/p.preco_venda*100) : 0
+              {produtos.filter(p=>p.ativo!==false && (showMenu || !isMenuItem(p, NON_SUPPLIER_CATEGORIES))).map(p=>{
+                // Cost ¥0 is a pending item, not a 100% margin.
+                const m = productMargin(p)
                 return (
                   <tr key={p.id}>
                     <td style={{ fontWeight:500 }}>{p.nome}</td>
                     <td><Badge color="var(--amber)">{p.categoria}</Badge></td>
-                    <td>{fmtYen(p.custo)}</td>
+                    <td>{costPending(p) ? <Badge color="var(--amber)">{t('catalog.costPending')}</Badge> : fmtYen(p.custo)}</td>
                     <td>{fmtYen(p.preco_venda)}</td>
                     <td style={{ fontWeight:700,
-                      color:m>50?'var(--green)':m>30?'var(--amber)':'var(--red)'
-                    }}>{m}%</td>
+                      color:m==null?'var(--text3)':m>50?'var(--green)':m>30?'var(--amber)':'var(--red)'
+                    }}>{m==null ? '—' : `${m}%`}</td>
                     <td style={{ display:'flex', gap:4 }}>
                       <button style={{padding:'4px 8px',fontSize:12}} onClick={()=>startEdit(p)} aria-label={t('common.edit')}><Icon name="edit" size={14} /></button>
                       <DelBtn onClick={()=>del(p.id)} />
