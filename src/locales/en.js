@@ -1280,6 +1280,7 @@ export default {
     amount: 'Amount',
     reason: 'Reason',
     postAdjustment: 'Post adjustment',
+    boundary: "This payroll is the bar's staff cost: it is not part of JBM's result.",
   },
   posQuick: {
     thanks: 'Thank you!', congrats: 'Well done, {name}!', goalPct: '{pct}%', goal: 'Goal', goalHint: 'Tonight vs the night goal of {goal}', tabCustomer: 'Customer from the CRM (optional)',
@@ -3065,5 +3066,15 @@ export default {
     noInvoice: "No invoice covers this order yet",
     purchases: "Purchases →",
     rebuilt: "Rebuilt order (not placed by the bar)",
+  },
+  barProfile: {
+    endereco: "Address",
+    responsavel: "Person in charge",
+    email_cobranca: "Billing e-mail",
+    telefone: "Phone",
+    prazo_dias: "Payment terms (days)",
+    limite_credito: "Credit limit (¥)",
+    dados_fiscais: "Tax data (registration no., company name)",
+    badEmail: "The billing e-mail is not valid.",
   },
 }

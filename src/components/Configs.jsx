@@ -196,7 +196,10 @@ export function ProductsTab() {
 }
 
 // ── BARES ─────────────────────────────────────────────────────────────────────
-const EMPTY_BAR = { id: null, nome: '', cor: '#1C7ED6', logo: '' }
+// The bar's file lives in the live-store table bar_profile (one row per bar, id = bar id); HQ writes it.
+const PROFILE_FIELDS = ['endereco', 'responsavel', 'email_cobranca', 'telefone', 'prazo_dias', 'limite_credito', 'dados_fiscais']
+const EMPTY_PROFILE = Object.fromEntries(PROFILE_FIELDS.map(k => [k, '']))
+const EMPTY_BAR = { id: null, nome: '', cor: '#1C7ED6', logo: '', ...EMPTY_PROFILE }
 
 /** A small picture of the bar app's top with the chosen colour, logo and name. */
 function BrandPreview({ form }) {
@@ -228,6 +231,7 @@ export function BarsTab() {
   const { t } = useI18n()
   const [bars,    setBars]    = useState([])
   const [marcas,  setMarcas]  = useState({})
+  const [profiles, setProfiles] = useState({})
   const [vendas,  setSales]  = useState([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState(EMPTY_BAR)
@@ -239,11 +243,13 @@ export function BarsTab() {
   useEffect(() => { load() }, [])
   async function load() {
     setLoading(true)
-    const [{ data: b }, { data: v }, brandRes] = await Promise.all([
+    const [{ data: b }, { data: v }, brandRes, profRes] = await Promise.all([
       supabase.from('bars').select('*').order('nome'),
       supabase.from('vendas').select('bar_id, total'),
       supabase.from('bar_brand').select('*'),
+      supabase.from('bar_profile').select('*'),
     ])
+    setProfiles(Object.fromEntries((profRes?.data || []).map(r => [r.bar_id || r.id, r])))
     setBars(b||[]); setSales(filterSupplierVendas(v||[]))
     setMarcas(Object.fromEntries((brandRes?.data || []).map(r => [r.bar_id || r.id, r])))
     setLoading(false)
@@ -253,7 +259,8 @@ export function BarsTab() {
 
   function startEdit(b) {
     const full = withMarca(b)
-    setForm({ id: b.id, nome: b.nome || '', cor: brandColorOf(full) || EMPTY_BAR.cor, logo: cleanLogo(full.marca?.logo) })
+    const prof = profiles[b.id] || {}
+    setForm({ id: b.id, nome: b.nome || '', cor: brandColorOf(full) || EMPTY_BAR.cor, logo: cleanLogo(full.marca?.logo), ...Object.fromEntries(PROFILE_FIELDS.map(k => [k, prof[k] ?? ''])) })
     setMsg(''); setErr('')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -285,6 +292,16 @@ export function BarsTab() {
       }
       const { error: brandErr } = await supabase.from('bar_brand').upsert(brandRow(id, { cor, logo: form.logo }))
       if (brandErr) throw brandErr
+      const email = String(form.email_cobranca || '').trim()
+      if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error(t('barProfile.badEmail'))
+      const profile = {
+        id, bar_id: id, atualizado_em: new Date().toISOString(),
+        ...Object.fromEntries(PROFILE_FIELDS.map(k => [k, typeof form[k] === 'string' ? form[k].trim() : form[k]])),
+        prazo_dias: form.prazo_dias === '' ? null : Math.max(0, Math.round(+form.prazo_dias || 0)),
+        limite_credito: form.limite_credito === '' ? null : Math.max(0, Math.round(+form.limite_credito || 0)),
+      }
+      const { error: profErr } = await supabase.from('bar_profile').upsert(profile)
+      if (profErr) throw profErr
       setForm(EMPTY_BAR)
       setMsg(t('configs.barSaved'))
       load()
@@ -334,6 +351,15 @@ export function BarsTab() {
               <div className="brand-hint" style={{ marginTop: 6 }}>{t('configs.logoHint')}</div>
             </div>
             <div className="brand-hint">{t('configs.brandHint')}</div>
+            <div className="grid4" style={{ gap: 10 }}>
+              {PROFILE_FIELDS.map(k => (
+                <div key={k} style={k === 'endereco' || k === 'dados_fiscais' ? { gridColumn: 'span 2' } : undefined}>
+                  <label className="form-label">{t(`barProfile.${k}`)}</label>
+                  <input type={k === 'prazo_dias' || k === 'limite_credito' ? 'number' : k === 'email_cobranca' ? 'email' : 'text'}
+                    value={form[k] ?? ''} onChange={e => setForm({ ...form, [k]: e.target.value })} />
+                </div>
+              ))}
+            </div>
             {err && <div style={{background:'var(--red-bg)',color:'var(--red)',borderRadius:8,padding:'10px 16px',fontSize:13}}>{asReactText(err)}</div>}
             {msg && <div style={{background:'var(--green-bg)',color:'var(--green)',borderRadius:8,padding:'10px 16px',fontSize:13}}>{msg}</div>}
             <div className="brand-actions">

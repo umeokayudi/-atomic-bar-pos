@@ -1280,6 +1280,7 @@ export default {
     amount: '金額',
     reason: '理由',
     postAdjustment: '調整を記録',
+    boundary: "この給与はバーのスタッフ費用で、JBMの損益には含まれません。",
   },
   posQuick: {
     thanks: 'ありがとうございます！', congrats: '{name}さん、ナイス！', goalPct: '目標{pct}%', goal: '目標', goalHint: '今夜の目標 {goal} に対する売上', tabCustomer: 'CRMのお客様（任意）',
@@ -3065,5 +3066,15 @@ export default {
     noInvoice: "この注文を含む請求書はまだありません",
     purchases: "仕入 →",
     rebuilt: "再構成された注文（バーの発注ではない）",
+  },
+  barProfile: {
+    endereco: "住所",
+    responsavel: "担当者",
+    email_cobranca: "請求先メール",
+    telefone: "電話",
+    prazo_dias: "支払期日（日）",
+    limite_credito: "与信限度額（¥）",
+    dados_fiscais: "税務情報（登録番号・法人名）",
+    badEmail: "請求先メールが正しくありません。",
   },
 }

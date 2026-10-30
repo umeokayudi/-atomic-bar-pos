@@ -310,6 +310,8 @@ export default {
     },
   },
   barFin: {
+    timeout: 'The bar data did not answer in time. Tap refresh to try again.', noData: 'No data for this bar and month.',
+    boundary: 'This is each bar\'s own money (its till and costs), read-only here: it is not JBM income or cost.',
     listSub: 'Every client bar: till sales, costs, result and margin. Tap a bar to see everything.',
     month: 'Month', loading: 'Loading…', refresh: 'Refresh', allBars: 'All bars',
     kSales: 'Till sales, all bars', kResult: 'Result, all bars', kLoss: 'Bars losing money', kOwes: 'Bars owe JBM',
