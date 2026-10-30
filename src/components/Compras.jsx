@@ -14,6 +14,8 @@ import { AdminPage, PortalSurface, PortalKpi } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
 import Icon from './ui/Icon'
 import { askConfirm, notify } from './ui/ConfirmDialog'
+import { normalizeName } from '../lib/catalog'
+import { purchaseItemsError, realCost, realCostFormula } from '../lib/purchaseRules'
 import { runChange } from '../lib/safeDelete'
 
 export default function ComprasTab() {
@@ -112,8 +114,12 @@ export default function ComprasTab() {
   async function saveCompra() {
     if (!canReadCompanyPurchases(perfil?.role)) return
     if (!form.fornecedor) return notify(t('purchases.enterSupplier'), 'error')
+    // Itemized purchases only: no single lump line like "Mercadorias Costco (Atomic) — detalhar".
+    const itemErr = purchaseItemsError(form.itens, +form.subtotal || +form.total_pago || 0)
+    if (itemErr) return notify(t(`purchaseRules.${itemErr.code}`, itemErr), 'error')
+    if (form.status_pagamento === 'pago' && !(form.data_pagamento || form.data)) return notify(t('payMark.pickDate'), 'error')
     setSaving(true)
-    const total_real = (+form.total_pago || +form.subtotal) - (+form.desconto_pontos || 0)
+    const total_real = realCost(form)
     const { data: compra, error } = await supabase.from('compras').insert({
       data:            form.data,
       fornecedor:      form.fornecedor,
@@ -135,31 +141,18 @@ export default function ComprasTab() {
       await supabase.from('compras_itens').insert(
         form.itens.map(it => ({ compra_id: compra.id, ...it }))
       )
-      // Atualiza custo dos produtos correspondentes
+      // Updates the cost of the product with the same (normalized) name only. Matching on the first word
+      // used to overwrite the cost of an unrelated product ("Orange …").
+      const { data: prods } = await supabase.from('produtos').select('id, nome, ativo')
       for (const it of form.itens) {
-        const { data: prods } = await supabase
-          .from('produtos')
-          .select('id, nome')
-          .ilike('nome', `%${it.nome.split(' ')[0]}%`)
-        if (prods?.length) {
-          await supabase.from('produtos')
-            .update({ custo: it.custo_unitario })
-            .eq('id', prods[0].id)
+        const match = (prods || []).find(p => p.ativo !== false && normalizeName(p.nome) === normalizeName(it.nome))
+        if (match && +it.custo_unitario > 0) {
+          await supabase.from('produtos').update({ custo: it.custo_unitario }).eq('id', match.id)
         }
       }
     }
-    // Auto cashflow entry
-    // A purchase still "to pay" has not left the till yet: Cash flow counts it when it is marked paid.
-    const hoje = form.data_pagamento || form.data
-    if (!error && hoje && form.status_pagamento === 'pago') {
-      await supabase.from('caixa_movimentos').insert({
-        tipo: 'saida',
-        valor: total_real,
-        descricao: 'Compra: ' + form.fornecedor,
-        metodo: form.pagamento,
-        data: hoje
-      }).catch(()=>{})
-    }
+    // No copy into the old manual cash book: Cash flow reads paid purchases directly (src/lib/money.js).
+    if (error) notify(error.message, 'error')
     setSaving(false)
     setForm(defaultForm()); setImgSrc(null); setScanned(null)
     load()
@@ -365,7 +358,7 @@ export default function ComprasTab() {
               <tr>
                 <th>{t('common.date')}</th><th>{t('common.supplier')}</th><th>{t('common.payment')}</th>
                 <th>{t('common.subtotal')}</th><th>{t('purchases.descPontos')}</th><th>{t('purchases.custoReal')}</th>
-                <th>Pts</th><th>{t('common.items')}</th><th></th>
+                <th>Pts</th><th>{t('common.paymentDate')}</th><th></th><th>{t('common.items')}</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -378,11 +371,14 @@ export default function ComprasTab() {
                   <td style={{ color:'var(--green)' }}>
                     {+c.desconto_pontos > 0 ? `-${fmtYen(c.desconto_pontos)}` : '—'}
                   </td>
-                  <td style={{ fontWeight:700 }}>{fmtYen(c.total_real)}</td>
+                  <td style={{ fontWeight:700 }}>
+                    {fmtYen(c.total_real)}
+                    {(() => { const f = realCostFormula(c); return <div style={{ fontSize:10, fontWeight:400, color:'var(--text2)' }}>{t('purchaseRules.formula', { base: t(`purchaseRules.base_${f.base}`), baseAmount: fmtYen(f.baseAmount), points: fmtYen(f.points), real: fmtYen(f.real) })}</div> })()}
+                  </td>
                   <td>{+c.pontos_ganhos > 0 ? `+${c.pontos_ganhos}${c.tipo_ponto?' ('+c.tipo_ponto+')':''}` : '—'}</td>
-                  <td>{c.data_pagamento ? fmtDate(c.data_pagamento) : '—'}</td>
+                  <td style={{ color: c.status_pagamento === 'pago' && !c.data_pagamento ? 'var(--red)' : undefined }}>{c.data_pagamento ? fmtDate(c.data_pagamento) : c.status_pagamento === 'pago' ? t('payMark.pickDate') : '—'}</td>
                   <td>{c.foto_url ? <a href={c.foto_url} target="_blank" rel="noreferrer" aria-label="photo"><Icon name="image" size={15} /></a> : '—'}</td>
-                  <td>{(c.compras_itens || []).length}</td>
+                  <td>{(c.compras_itens || []).length ? t('purchaseRules.itemized', { count: c.compras_itens.length }) : <Badge color="var(--amber)">{t('purchaseRules.notItemized')}</Badge>}</td>
                   <td><DelBtn onClick={() => deleteCompra(c.id)} /></td>
                 </tr>
               ))}
