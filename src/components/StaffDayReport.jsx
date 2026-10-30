@@ -8,6 +8,7 @@ import { fmtYen } from './utils'
 import Icon from './ui/Icon'
 import { downloadHtmlAsPdf, elementToHtml } from '../lib/pdfFile'
 import { PunchGeoBadge } from './staff/ClockPunch'
+import { notify } from './ui/ConfirmDialog'
 
 const STATUS_ICON = { working: 'clock', done: 'ok', absent: 'userOff', off: 'hide' }
 
@@ -62,7 +63,7 @@ export default function StaffDayReport({ staff = [], tickets = [], agents = [], 
     const el = e.currentTarget.closest('.sdr')
     if (!el) return
     const res = await downloadHtmlAsPdf(elementToHtml(el, { hide: ['.sdr-tools'] }), `daily-report-${report.night}`)
-    if (!res.ok) alert('PDF error: ' + (res.error?.message || res.error))
+    if (!res.ok) notify('PDF error: ' + (res.error?.message || res.error), 'error')
   }
 
   const tot = report.totals

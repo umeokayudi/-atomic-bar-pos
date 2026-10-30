@@ -13,6 +13,8 @@ import PurchaseCashflowAdvisor from './PurchaseCashflowAdvisor'
 import { AdminPage, PortalSurface, PortalKpi } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
 import Icon from './ui/Icon'
+import { askConfirm, notify } from './ui/ConfirmDialog'
+import { runChange } from '../lib/safeDelete'
 
 export default function ComprasTab() {
   const { t } = useI18n()
@@ -109,7 +111,7 @@ export default function ComprasTab() {
 
   async function saveCompra() {
     if (!canReadCompanyPurchases(perfil?.role)) return
-    if (!form.fornecedor) return alert(t('purchases.enterSupplier'))
+    if (!form.fornecedor) return notify(t('purchases.enterSupplier'), 'error')
     setSaving(true)
     const total_real = (+form.total_pago || +form.subtotal) - (+form.desconto_pontos || 0)
     const { data: compra, error } = await supabase.from('compras').insert({
@@ -164,8 +166,8 @@ export default function ComprasTab() {
   }
 
   async function deleteCompra(id) {
-    if (!confirm(t('purchases.confirmDelete'))) return
-    await supabase.from('compras').delete().eq('id', id)
+    if (!(await askConfirm({ title: t('purchases.confirmDelete'), danger: true }))) return
+    await runChange(supabase.from('compras').delete().eq('id', id))
     load()
   }
 

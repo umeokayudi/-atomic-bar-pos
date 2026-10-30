@@ -14,6 +14,7 @@ import { useI18n } from '../lib/i18n'
 import Icon from './ui/Icon'
 import { HBarList, InOutChart } from './ui/Charts'
 import { ledgerTotals, purchaseAmount, purchasePaidByBar, purchasesPaidOut, reconciledCash, receivedPayments } from '../lib/money'
+import { notify } from './ui/ConfirmDialog'
 
 export default function Cashflow() {
   const { t } = useI18n()
@@ -314,7 +315,7 @@ function PurchasePayments() {
       await uploadCobrancaDoc(compra.id, file)
       load()
     } catch (e) {
-      alert(e.message || t('common.uploadError'))
+      notify(e.message || t('common.uploadError'), 'error')
     }
     setUploading(false)
   }

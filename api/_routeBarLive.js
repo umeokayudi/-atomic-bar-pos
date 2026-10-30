@@ -32,7 +32,7 @@ const GERENTE_WRITE = new Set(['bar_overhead', 'bar_hq_meta'])
 // The floor plan is drawn by the owner/manager; everyone at the bar can read it.
 const FLOOR_WRITE = new Set(['floor_layouts', 'floor_sectors', 'floor_tables'])
 // The bar's colour and logo are set in HQ → Bars; the bar itself only reads them.
-const HQ_WRITE = new Set(['bar_brand'])
+const HQ_WRITE = new Set(['bar_brand', 'jbm_company', 'bar_profile'])
 
 function bodyOf(req) {
   return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
@@ -65,6 +65,8 @@ function scopedFilters(auth, table, filters, row) {
   if (table === 'staff_extras') return { filters, row, error: null }
   if (table === 'pos_vendas_itens') return { filters, row, error: null }
   if (row && row.bar_id && row.bar_id !== barId) return { error: 'bar_id mismatch' }
+  // jbm_company is one row for the whole company (the receipt issuer), not a bar's row.
+  if (table === 'jbm_company') return { filters, row, error: null }
   if (row && !row.bar_id && table !== 'bar_geo') row.bar_id = barId
   const next = [...(filters || [])]
   if (!next.some(f => f.k === 'bar_id') && table !== 'bar_geo' && table !== 'staff_extras' && table !== 'pos_vendas_itens') {
@@ -153,7 +155,7 @@ export default async function handler(req, res) {
       }
     }
     if (HQ_WRITE.has(table) && (body.mode || 'select') !== 'select' && !['admin', 'jbm'].includes(auth.perfil?.role)) {
-      return res.status(403).json({ error: 'Only HQ can change the bar look' })
+      return res.status(403).json({ error: table === 'bar_brand' ? 'Only HQ can change the bar look' : 'Only HQ can change this' })
     }
     if (FLOOR_WRITE.has(table) && (body.mode || 'select') !== 'select') {
       const role = auth.perfil?.role

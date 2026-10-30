@@ -32,6 +32,9 @@ export const LIVE_TABLES = new Set([
   'bar_guest_ledger',
   // Each bar's colour and logo in its app (HQ → Bars). No Postgres table: kept in the live store.
   'bar_brand',
+  // JBM company data (receipt issuer) and each bar's file (address, billing e-mail, terms…). Live store, HQ writes.
+  'jbm_company',
+  'bar_profile',
 ])
 
 const selectCache = new Map()

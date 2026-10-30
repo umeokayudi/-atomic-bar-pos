@@ -7,6 +7,8 @@ import { asReactText } from '../lib/errText'
 import { AdminPage, PortalSurface, PortalPills } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
 import Icon from './ui/Icon'
+import { askConfirm, notify } from './ui/ConfirmDialog'
+import { runChange } from '../lib/safeDelete'
 
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
@@ -65,8 +67,8 @@ function SupplierList() {
     setSaving(false); setShowForm(false); setEditId(null); setForm(empty); load()
   }
   async function del(id) {
-    if (!confirm(t('suppliers.confirmDelete'))) return
-    await supabase.from('fornecedores').delete().eq('id', id); load()
+    if (!(await askConfirm({ title: t('suppliers.confirmDelete'), danger: true }))) return
+    await runChange(supabase.from('fornecedores').delete().eq('id', id)); load()
   }
   function edit(s) {
     setForm({ nome:s.nome, contato:s.contato||'', telefone:s.telefone||'', email:s.email||'',

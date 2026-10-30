@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { fmtYen, fmtDate, Empty, RowActions } from './utils'
 import { PortalSurface } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
+import { askConfirm, notify } from './ui/ConfirmDialog'
 
 function NotaBlock({ compra, onChanged }) {
   const { t } = useI18n()
@@ -41,7 +42,7 @@ function NotaBlock({ compra, onChanged }) {
   }
 
   async function remove() {
-    if (!confirm(t('comprasNotas.confirmDelete', { supplier: compra.fornecedor, amount: fmtYen(compra.total_real) }))) return
+    if (!(await askConfirm({ title: t('comprasNotas.confirmDelete', { supplier: compra.fornecedor, amount: fmtYen(compra.total_real) }), danger: true }))) return
     await supabase.from('compras').delete().eq('id', compra.id)
     onChanged?.()
   }

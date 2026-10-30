@@ -1,7 +1,8 @@
-import { downloadHtmlAsPdf } from './pdfFile'
+import { downloadHtmlAsPdf } from './pdfFile.js'
 const DEFAULT_EMITENTE = {
   nome: 'JBM Drinks',
-  registro: 'T1234567890123',
+  // Real registration number comes from HQ → Company (src/lib/receipts.js); no placeholder on receipts.
+  registro: '',
   endereco: '',
   tel: '',
 }

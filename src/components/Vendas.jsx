@@ -5,6 +5,8 @@ import { barBookScope, canReadProductCost } from '../lib/legacyScope'
 import { fmtYen, fmtDate, monthKey, monthLabel, Badge, Spinner, Empty, DelBtn, isSupplierProduct, filterSupplierVendas } from './utils'
 import { AdminPage, PortalSurface, PortalKpi } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
+import { askConfirm, notify } from './ui/ConfirmDialog'
+import { runChange } from '../lib/safeDelete'
 
 export default function VendasTab() {
   const { t } = useI18n()
@@ -64,9 +66,9 @@ export default function VendasTab() {
 
   async function saveVenda() {
     if (scope.kind === 'none') return
-    if (!form.itens.length) return alert(t('sales.addOneItem'))
+    if (!form.itens.length) return notify(t('sales.addOneItem'), 'error')
     const barId = scope.kind === 'bar' ? scope.barId : form.bar_id
-    if (!barId) return alert(t('sales.selectBar'))
+    if (!barId) return notify(t('sales.selectBar'), 'error')
     setSaving(true)
     const { data: venda, error } = await supabase.from('vendas').insert({
       data: form.data, bar_id: barId,
@@ -86,10 +88,13 @@ export default function VendasTab() {
   }
 
   async function deleteVenda(id) {
-    if (!confirm(t('sales.confirmDelete'))) return
+    const v = vendas.find(x => x.id === id)
+    // An automatic sale is the copy of a delivered order: deleting it here would come back on the next sync.
+    if (/auto:\s*order/i.test(v?.obs || '')) { notify(t('sales.autoBlocked'), 'error'); return }
+    if (!(await askConfirm({ title: t('sales.confirmDelete'), danger: true }))) return
     let del = supabase.from('vendas').delete().eq('id', id)
     if (scope.kind === 'bar') del = del.eq('bar_id', scope.barId)
-    await del
+    await runChange(del)
     loadAll()
   }
 

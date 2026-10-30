@@ -14,6 +14,7 @@ import { shiftMonth } from '../lib/barCalendar'
 import OwnOrders from './OwnOrders'
 import { PageHeader } from './ui/PageLayout'
 import Icon from './ui/Icon'
+import { askConfirm, notify } from './ui/ConfirmDialog'
 
 const STATUS_PEDIDO = {
   pendente:   { labelKey: 'orderStatus.pendente',   color: 'var(--amber)', bg: 'var(--amber-bg)' },
@@ -464,7 +465,7 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
                     <button type="button" className="ui-btn is-sm is-primary" onClick={() => openTracking(p)}><Icon name="check" size={14} /> {t('supply.trackOrReceive')}</button>
                     {p.status === 'pendente' && (
                       <button type="button" className="ord-ghost danger" onClick={async () => {
-                        if (!confirm(t('portal.orders.cancelConfirm'))) return
+                        if (!(await askConfirm({ title: t('portal.orders.cancelConfirm'), danger: true }))) return
                         await supabase.from('pedidos_itens').delete().eq('pedido_id', p.id)
                         await supabase.from('pedidos').delete().eq('id', p.id)
                         setPedidos(prev => prev.filter(x => x.id !== p.id))

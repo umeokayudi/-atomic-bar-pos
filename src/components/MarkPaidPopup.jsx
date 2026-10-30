@@ -4,6 +4,10 @@ import { savePaidMark } from '../lib/markPaid'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 import InvoicePaymentsModal from './InvoicePaymentsModal'
+import { askConfirm, notify } from './ui/ConfirmDialog'
+import { DIRECT_METHOD } from '../lib/money'
+
+const PAY_METHODS = ['Transfer', 'Cash', 'Card', DIRECT_METHOD]
 
 function todayStr() {
   const d = new Date()
@@ -21,6 +25,8 @@ function SupplierPaidPopup({ item, onClose, onSaved }) {
   // Opening a bill is almost always to mark it paid; an already paid bill stays paid unless "Not paid" is tapped.
   const [paid, setPaid] = useState(true)
   const [date, setDate] = useState(item?.paidDate || todayStr())
+  // No default: marking a supplier bill paid needs an explicit method (a one-tap "paid" is not allowed).
+  const [metodo, setMetodo] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
@@ -28,9 +34,25 @@ function SupplierPaidPopup({ item, onClose, onSaved }) {
 
   async function save() {
     setErr('')
+    if (paid) {
+      if (!metodo) { setErr(t('payMark.pickMethod')); return }
+      if (!date) { setErr(t('payMark.pickDate')); return }
+      const ok = await askConfirm({
+        title: t('payMark.confirmTitle'),
+        details: [
+          [t('confirm.who'), item.label || '—'],
+          [t('confirm.amount'), fmtYen(item.amount || 0)],
+          [t('confirm.method'), t(`payMark.m_${PAY_METHODS.indexOf(metodo)}`)],
+          [t('confirm.date'), fmtDate(date)],
+        ],
+        confirmLabel: t('payMark.confirmOk'),
+      })
+      if (!ok) return
+    }
     setBusy(true)
     try {
-      await savePaidMark(item, { paid, date: paid ? date : null })
+      await savePaidMark(item, { paid, date: paid ? date : null, metodo: paid ? metodo : null })
+      notify(t('confirm.saved'))
       onSaved?.()
       onClose?.()
     } catch (e) {
@@ -64,10 +86,19 @@ function SupplierPaidPopup({ item, onClose, onSaved }) {
         </div>
 
         {paid && (
-          <label className="pay-pop-date">
-            <span>{t('common.paymentDate')}</span>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)} />
-          </label>
+          <>
+            <label className="pay-pop-date">
+              <span>{t('common.paymentDate')}</span>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)} />
+            </label>
+            <label className="pay-pop-date">
+              <span>{t('payMark.method')}</span>
+              <select value={metodo} onChange={e => setMetodo(e.target.value)}>
+                <option value="">{t('payMark.pickMethod')}</option>
+                {PAY_METHODS.map((m, i) => <option key={m} value={m}>{t(`payMark.m_${i}`)}</option>)}
+              </select>
+            </label>
+          </>
         )}
 
         {err && <div className="pay-pop-err">{asReactText(err)}</div>}

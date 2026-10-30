@@ -12,6 +12,7 @@ import { barBookScope, canReadCompanyPurchases } from '../lib/legacyScope'
 import ComprasNotasSection from './ComprasNotasSection'
 import { AdminPage, PortalKpi, PortalSurface } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
+import { askConfirm, notify } from './ui/ConfirmDialog'
 
 export default function RelatorioTab() {
   const { t } = useI18n()
@@ -153,7 +154,7 @@ export default function RelatorioTab() {
   }
 
   async function deleteRyoshusho(r) {
-    if (!confirm(t('report.confirmDeleteRyoshusho', { num: r.numero }))) return
+    if (!(await askConfirm({ title: t('report.confirmDeleteRyoshusho', { num: r.numero }), danger: true }))) return
     let del = supabase.from('ryoshusho').delete().eq('id', r.id)
     if (scope.kind === 'bar') del = del.eq('bar_id', scope.barId)
     await del

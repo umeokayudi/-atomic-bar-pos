@@ -15,6 +15,8 @@ import OrderDetailPopup from './OrderDetailPopup'
 import { BarIdentity, BarMark } from './BarIdentity'
 import { ATOMIC_RED, BRAND_COLORS, brandColorOf, brandRow, brandTokens, cleanHex, cleanLogo, fileToLogo, resolveBrand } from '../lib/barBrand'
 import { initialsOf } from '../lib/staffApp'
+import { runChange } from '../lib/safeDelete'
+import { askConfirm, notify } from './ui/ConfirmDialog'
 
 // ── PRODUTOS ─────────────────────────────────────────────────────────────────
 export function ProductsTab() {
@@ -58,8 +60,12 @@ export function ProductsTab() {
   }
 
   async function del(id) {
-    if (!confirm(t('configs.confirmDeleteProduct'))) return
-    await supabase.from('produtos').update({ ativo: false }).eq('id', id)
+    const p = produtos.find(x => x.id === id)
+    if (!(await askConfirm({ title: t('configs.confirmDeleteProduct'), message: p?.nome, danger: true }))) return
+    // Soft delete (sales and orders still point at the product); the result is checked and shown.
+    if (await runChange(supabase.from('produtos').update({ ativo: false }).eq('id', id), { okText: t('configs.productRemoved', { name: p?.nome || '' }) })) {
+      setProducts(prev => prev.map(x => x.id === id ? { ...x, ativo: false } : x))
+    }
     load()
   }
 
@@ -238,8 +244,8 @@ export function BarsTab() {
   }
 
   async function del(id) {
-    if (!confirm(t('configs.confirmDeleteBar'))) return
-    await supabase.from('bars').delete().eq('id', id)
+    if (!(await askConfirm({ title: t('configs.confirmDeleteBar'), danger: true, typeToConfirm: t('configs.deleteWord') }))) return
+    await runChange(supabase.from('bars').delete().eq('id', id))
     load()
   }
 
@@ -326,6 +332,7 @@ export function BarsTab() {
 // ── USUÁRIOS (admin only) ─────────────────────────────────────────────────────
 export function UsuariosTab() {
   const { t } = useI18n()
+  const { user: me } = useAuth()
   const [users, setUsers] = useState([])
   const [bars, setBars] = useState([])
   const [loading, setLoading] = useState(true)
@@ -403,9 +410,14 @@ export function UsuariosTab() {
     setSaving(false)
   }
 
+  // The Administrator account and your own login cannot be deleted from here (no way back in otherwise).
+  const isProtected = u => u?.role === 'admin' || u?.id === me?.id
+
   async function deleteUser(id) {
-    if (!confirm(t('configs.confirmDeleteUser'))) return
-    await supabase.from('perfis').delete().eq('id', id)
+    const u = users.find(x => x.id === id)
+    if (isProtected(u)) { notify(t('configs.adminProtected'), 'error'); return }
+    if (!(await askConfirm({ title: t('configs.confirmDeleteUser'), message: u ? `${u.nome || ''} ${u.email ? `· ${u.email}` : ''}` : '', danger: true }))) return
+    await runChange(supabase.from('perfis').delete().eq('id', id))
     load()
   }
 
@@ -548,7 +560,9 @@ export function UsuariosTab() {
                     <td style={{padding:'10px 14px'}}>
                       <div style={{display:'flex',gap:6}}>
                         <button onClick={()=>startEdit(u)} style={{fontSize:11,padding:'4px 10px',background:'var(--navy)',color:'white',border:'none',borderRadius:6,cursor:'pointer'}}>{t('common.edit')}</button>
-                        <button onClick={()=>deleteUser(u.id)} style={{fontSize:11,padding:'4px 10px',background:'var(--red)',color:'white',border:'none',borderRadius:6,cursor:'pointer'}}>{t('common.delete')}</button>
+                        {isProtected(u)
+                          ? <span title={t('configs.adminProtected')} style={{fontSize:11,padding:'4px 10px',color:'var(--text2)'}}>{t('configs.protected')}</span>
+                          : <button onClick={()=>deleteUser(u.id)} style={{fontSize:11,padding:'4px 10px',background:'var(--red)',color:'white',border:'none',borderRadius:6,cursor:'pointer'}}>{t('common.delete')}</button>}
                       </div>
                     </td>
                   </>
@@ -560,9 +574,6 @@ export function UsuariosTab() {
         {users.length===0 && <div style={{padding:32,textAlign:'center',color:'var(--text3)',fontSize:13}}>{t('configs.noUsers')}</div>}
       </PortalSurface>
 
-      <div style={{marginTop:16,fontSize:12,color:'var(--text2)',lineHeight:1.6}}>
-        {t('configs.configHint')}
-      </div>
     </AdminPage>
   )
 }
@@ -649,10 +660,10 @@ export function PedidosAdminTab() {
     setRepairing(pedido.id)
     try {
       const venda = await registerVendaForPedido(pedido)
-      alert(`Venda registrada: ¥${Math.round(venda.total || 0).toLocaleString()} em ${venda.data}`)
+      notify(t('configs.deliveryOk', { amount: fmtYen(venda.total || 0), date: venda.data }))
       await load()
     } catch (e) {
-      alert('Erro ao registrar venda: ' + e.message)
+      notify(t('configs.saleError', { message: e.message }), 'error')
     } finally {
       setRepairing(null)
     }
@@ -682,7 +693,7 @@ export function PedidosAdminTab() {
           })
         } catch (e) { console.error('auto-fatura error:', e) }
       } catch (e) {
-        alert('Erro ao registrar venda: ' + e.message)
+        notify(t('configs.saleError', { message: e.message }), 'error')
         return
       }
     } else {
@@ -708,7 +719,7 @@ export function PedidosAdminTab() {
 
   async function confirmDelivery(){
     if(!Object.values(checkedItems).every(v=>v)){
-      alert("Check all items first.")
+      notify(t('configs.checkItemsFirst'), 'error')
       return
     }
     const pedido=checklistPedido
@@ -730,9 +741,9 @@ export function PedidosAdminTab() {
           notas: t('configs.invoiceAutoNote'),
         })
       } catch (e) { console.error('Invoice auto-create failed:', e) }
-      alert(t('configs.deliveryOk', { amount: fmtYen(venda.total || 0), date: venda.data }))
+      notify(t('configs.deliveryOk', { amount: fmtYen(venda.total || 0), date: venda.data }))
     } catch (e) {
-      alert('Erro ao registrar venda: ' + e.message)
+      notify(t('configs.saleError', { message: e.message }), 'error')
     }
     load()
   }
@@ -755,7 +766,7 @@ export function PedidosAdminTab() {
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
           {missingCount>0&&(
             <button onClick={async()=>{
-              if(!confirm(t('configs.confirmSyncMissing', { count: missingCount }))) return
+              if(!(await askConfirm({ title: t('configs.confirmSyncMissing', { count: missingCount }), danger: false }))) return
               for(const p of pedidos.filter(x=>missingVenda[x.id])) await repairVenda(p)
             }} style={{padding:'8px 14px',fontSize:11,borderRadius:8,background:'var(--red)',color:'white',border:'none',fontWeight:700,cursor:'pointer'}}>
               {t('configs.syncMissingSales')}
@@ -826,7 +837,7 @@ export function PedidosAdminTab() {
                     <button onClick={()=>updateStatus(p.id,'confirmado')} style={{padding:'6px 14px',fontSize:11,borderRadius:8,background:'var(--navy)',color:'var(--gold)',border:'none',fontWeight:600}}>{t('configs.confirm')}</button>
                     <button onClick={()=>updateStatus(p.id,'cancelado')} className="btn-danger" style={{padding:'6px 14px',fontSize:11,borderRadius:8}}>{t('common.cancel')}</button>
                   </>}
-                  <button onClick={async()=>{ if(!confirm('Excluir este pedido?'))return; setPedidos(prev=>prev.filter(x=>x.id!==p.id)); await supabase.from('pedidos_itens').delete().eq('pedido_id',p.id); const {data:v}=await supabase.from('vendas').select('id').eq('obs','Auto: order '+p.id.slice(0,8)).maybeSingle(); if(v){await supabase.from('vendas_itens').delete().eq('venda_id',v.id); await supabase.from('vendas').delete().eq('id',v.id);} await supabase.from('pedidos').delete().eq('id',p.id); }} style={{padding:'6px 14px',fontSize:11,borderRadius:8,background:'var(--red)',color:'white',border:'none',fontWeight:600,cursor:'pointer'}}><Icon name="trash" size={14} /></button>
+                  <button onClick={async()=>{ if(!(await askConfirm({ title: t('configs.confirmDeleteOrder'), danger: true })))return; setPedidos(prev=>prev.filter(x=>x.id!==p.id)); await supabase.from('pedidos_itens').delete().eq('pedido_id',p.id); const {data:v}=await supabase.from('vendas').select('id').eq('obs','Auto: order '+p.id.slice(0,8)).maybeSingle(); if(v){await supabase.from('vendas_itens').delete().eq('venda_id',v.id); await supabase.from('vendas').delete().eq('id',v.id);} await supabase.from('pedidos').delete().eq('id',p.id); }} style={{padding:'6px 14px',fontSize:11,borderRadius:8,background:'var(--red)',color:'white',border:'none',fontWeight:600,cursor:'pointer'}}><Icon name="trash" size={14} /></button>
                   {p.status==='confirmado'&&(
                     <button onClick={()=>openChecklist(p)} style={{padding:'6px 14px',fontSize:11,borderRadius:8,background:'var(--green)',color:'white',border:'none',fontWeight:600}}>{t('configs.markDelivered')}</button>
                   )}

@@ -8,12 +8,8 @@ import {
   faturaPeriodoFim,
 } from '../lib/barPortal'
 import { receiptableItems } from '../lib/portalRecibos'
-import {
-  buildPaymentRyoshushoHtml,
-  buildRyoshushoNumero,
-  printRyoshushoHtml,
-  savePaymentRyoshusho,
-} from '../lib/ryoshushoPrint'
+import { issuePaymentReceipt, loadCompany } from '../lib/receipts'
+import { notify } from './ui/ConfirmDialog'
 
 export default function PortalRecibosTab({ bar }) {
   const { t } = useI18n()
@@ -21,7 +17,6 @@ export default function PortalRecibosTab({ bar }) {
   const [pagamentos, setPagamentos] = useState([])
   const [loading, setLoading] = useState(true)
   const [emittingReceipt, setEmittingReceipt] = useState(null)
-  const [ryoSeq, setRyoSeq] = useState(1)
   const [receiptDates, setReceiptDates] = useState({})
 
   useEffect(() => { load() }, [bar])
@@ -35,8 +30,6 @@ export default function PortalRecibosTab({ bar }) {
     const jbmFaturas = filterJbmDrinksFaturas(fR.data || [])
     setFaturas(jbmFaturas)
     setPagamentos(pR.data || [])
-    const { count } = await supabase.from('ryoshusho').select('id', { count: 'exact', head: true }).eq('bar_id', bar.id)
-    setRyoSeq((count || 0) + 1)
     setLoading(false)
   }
 
@@ -50,29 +43,11 @@ export default function PortalRecibosTab({ bar }) {
     if (!item?.valor) return
     setEmittingReceipt(item.key)
     try {
-      const numero = buildRyoshushoNumero(ryoSeq)
-      const dataEmissao = getReceiptDate(item)
-      const html = buildPaymentRyoshushoHtml({
-        numero,
-        dataEmissao,
-        barNome: bar.nome,
-        valor: item.valor,
-        metodo: item.metodo,
-        notas: item.notas,
-        periodoInicio: faturaEmissao(item.fatura),
-        periodoFim: faturaPeriodoFim(item.fatura),
-      })
-      printRyoshushoHtml(html, `ryoshusho-${numero}`)
-      await savePaymentRyoshusho(supabase, {
-        barId: bar.id,
-        numero,
-        dataEmissao,
-        valor: item.valor,
-        metodo: item.metodo,
-        periodoInicio: faturaEmissao(item.fatura),
-        periodoFim: faturaPeriodoFim(item.fatura),
-      })
-      setRyoSeq(s => s + 1)
+      // One receipt per payment, numbered in sequence; printing again reuses the same receipt.
+      const res = await issuePaymentReceipt(supabase, { bar, item, dataEmissao: getReceiptDate(item), company: await loadCompany(supabase) })
+      if (res.reused) notify(t('receipts.reused', { numero: res.numero }), 'info')
+    } catch (e) {
+      notify(e?.message || String(e), 'error')
     } finally {
       setEmittingReceipt(null)
     }

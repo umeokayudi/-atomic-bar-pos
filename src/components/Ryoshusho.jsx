@@ -6,6 +6,8 @@ import { useI18n } from '../lib/i18n'
 import { useAuth } from './Auth'
 import { barBookScope } from '../lib/legacyScope'
 import { downloadHtmlAsPdf } from '../lib/pdfFile'
+import { COMPANY_ROW_ID, companyEmitente, companyMissing, loadCompany, nextNumber } from '../lib/receipts'
+import { askConfirm, notify } from './ui/ConfirmDialog'
 
 const TAX_RATE = 0.10
 
@@ -27,7 +29,9 @@ export default function RyoshushoTab() {
   const [periodoIni,setPeriodoIni]= useState('')
   const [periodoFim,setPeriodoFim]= useState('')
   const [emitNome,  setEmitNome]  = useState('JBM')
-  const [emitReg,   setEmitReg]   = useState('T1234567890123')
+  const [emitReg,   setEmitReg]   = useState('')
+  const [allNumbers, setAllNumbers] = useState([])
+  const [companyMsg, setCompanyMsg] = useState('')
   const [emitEnd,   setEmitEnd]   = useState('')
   const [emitTel,   setEmitTel]   = useState('')
 
@@ -48,7 +52,14 @@ export default function RyoshushoTab() {
         vendasQ = vendasQ.eq('bar_id', scope.barId)
         histQ = histQ.eq('bar_id', scope.barId)
       }
-      const [bRes, vRes, hRes] = await Promise.all([barsQ, vendasQ, histQ])
+      const [bRes, vRes, hRes, numRes, company] = await Promise.all([
+        barsQ, vendasQ, histQ,
+        supabase.from('ryoshusho').select('numero'),
+        loadCompany(supabase),
+      ])
+      const em = companyEmitente(company)
+      setEmitNome(em.nome); setEmitReg(em.registro); setEmitEnd(em.endereco); setEmitTel(em.tel)
+      setAllNumbers((numRes.data || []).map(r => r.numero))
       const b = bRes.data || []
       const v = vRes.data || []
       const h = hRes.data || []
@@ -56,10 +67,8 @@ export default function RyoshushoTab() {
       setVendas(filterSupplierVendas(v))
       setHistory(h)
       if (b.length > 0 && !barId) setBarId(b[0].id)
-      const y = new Date().getFullYear()
-      const m = String(new Date().getMonth() + 1).padStart(2, '0')
-      const n = String(h.length + 1).padStart(3, '0')
-      setNumero('RY-' + y + m + '-' + n)
+      // Next number in sequence across every bar (was the count of the last 50 → gaps and repeats).
+      setNumero(nextNumber((numRes.data || []).map(r => r.numero), dataEmis))
     } catch(e) {
       console.error('loadAll error:', e)
     } finally {
@@ -96,12 +105,16 @@ export default function RyoshushoTab() {
   async function saveAndDownload() {
     const issueBar = scope.kind === 'bar' ? scope.barId : barId
     if (scope.kind === 'none') return
-    if (!issueBar || !periodoIni || !periodoFim) return alert(t('ryoshusho.selectBarPeriod'))
-    if (items.length === 0) return alert(t('ryoshusho.noSalesFound'))
+    if (!issueBar || !periodoIni || !periodoFim) return notify(t('ryoshusho.selectBarPeriod'), 'error')
+    if (items.length === 0) return notify(t('ryoshusho.noSalesFound'), 'error')
+    // Duplicate lock: one receipt per bar + period + amount, and every number used once.
+    const dup = history.find(r => r.bar_id === issueBar && r.periodo_inicio === periodoIni && r.periodo_fim === periodoFim && Math.round(+r.total || 0) === Math.round(total))
+    if (dup) { notify(t('receipts.duplicate', { numero: dup.numero }), 'error'); return }
+    if (allNumbers.includes(numero)) { notify(t('receipts.numberUsed', { numero }), 'error'); return }
     setGenerating(true)
 
-    try {
-      await supabase.from('ryoshusho').insert({
+    {
+      const { error: insErr } = await supabase.from('ryoshusho').insert({
         numero, bar_id: issueBar,
         data_emissao: dataEmis,
         periodo_inicio: periodoIni,
@@ -113,7 +126,8 @@ export default function RyoshushoTab() {
         emitente_registro: emitReg,
         itens: items
       })
-    } catch(e) {}
+      if (insErr) { setGenerating(false); notify(insErr.message, 'error'); return }
+    }
 
     const rows = items.map(it =>
       '<tr><td>' + it.nome + '</td><td style="text-align:center">' + it.qtd +
@@ -149,13 +163,22 @@ export default function RyoshushoTab() {
       '<tr><td><strong>&#21512;&#35336;</strong></td><td style="text-align:right"><strong>&#165;' + Number(total).toLocaleString('ja-JP') + '</strong></td></tr></table>' +
       '<div class="footer">&#19978;&#35352;&#12398;&#37329;&#39069;&#12434;&#27491;&#12395;&#9領;&#21463;&#12356;&#12383;&#12375;&#12414;&#12375;&#12383;<br><br>' +
       emitNome + (emitEnd ? '&#12288;' + emitEnd : '') + (emitTel ? '&#12288;TEL:' + emitTel : '') +
+      (emitReg ? '<br>&#30331;&#37682;&#30058;&#21495; ' + emitReg : '') +
       '</div></body></html>'
 
     const res = await downloadHtmlAsPdf(html, `ryoshusho-${numero}`)
-    if (!res.ok) alert('PDF error: ' + (res.error?.message || res.error))
+    if (!res.ok) notify('PDF error: ' + (res.error?.message || res.error), 'error')
 
     setGenerating(false)
     loadAll()
+  }
+
+  // HQ keeps one company record (live-store jbm_company); every receipt, here and in the bar portal, uses it.
+  async function saveCompany() {
+    setCompanyMsg('')
+    const row = { id: COMPANY_ROW_ID, nome: emitNome.trim(), endereco: emitEnd.trim(), tel: emitTel.trim(), registro: emitReg.trim(), atualizado_em: new Date().toISOString() }
+    const { error } = await supabase.from('jbm_company').upsert(row)
+    setCompanyMsg(error ? error.message : t('confirm.saved'))
   }
 
   async function saveEdit() {
@@ -233,6 +256,15 @@ export default function RyoshushoTab() {
             <input type="text" value={emitTel} onChange={e => setEmitTel(e.target.value)} />
           </div>
         </div>
+        {scope.kind !== 'bar' && (
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12, fontSize:12, flexWrap:'wrap' }}>
+            <button type="button" onClick={saveCompany} style={{ padding:'6px 12px', fontSize:12, borderRadius:8 }}>{t('receipts.saveCompany')}</button>
+            {companyMissing({ endereco: emitEnd, tel: emitTel, registro: emitReg }).length > 0 && (
+              <span style={{ color:'var(--amber)' }}>{t('receipts.companyMissing')}</span>
+            )}
+            {companyMsg && <span style={{ color:'var(--text2)' }}>{companyMsg}</span>}
+          </div>
+        )}
 
         {periodoIni && periodoFim && (
           <div style={{ background:'var(--bg3)', borderRadius:8, padding:'12px 14px', marginBottom:12, fontSize:13 }}>
@@ -286,7 +318,7 @@ export default function RyoshushoTab() {
                     <td>
                       <RowActions
                         onEdit={() => { setEditRyo(r); setRyoForm({ numero: r.numero, periodo_inicio: r.periodo_inicio, periodo_fim: r.periodo_fim, total: r.total, data_emissao: r.data_emissao }) }}
-                        onDelete={async()=>{ if(!confirm(t('ryoshusho.confirmDelete')))return; await supabase.from('ryoshusho').delete().eq('id',r.id).eq('bar_id', scope.kind === 'bar' ? scope.barId : r.bar_id); setHistory(prev=>prev.filter(x=>x.id!==r.id)) }}
+                        onDelete={async()=>{ if(!(await askConfirm({ title: t('ryoshusho.confirmDelete'), danger: true })))return; await supabase.from('ryoshusho').delete().eq('id',r.id).eq('bar_id', scope.kind === 'bar' ? scope.barId : r.bar_id); setHistory(prev=>prev.filter(x=>x.id!==r.id)) }}
                       />
                     </td>
                   </tr>

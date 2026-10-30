@@ -144,12 +144,8 @@ function usePrefetchScreens(allowed) {
 function TabHold({ children }) {
   return <Suspense fallback={<div style={{ padding: 28, color: 'var(--text2)' }}>…</div>}>{children}</Suspense>
 }
-import {
-  buildPaymentRyoshushoHtml,
-  buildRyoshushoNumero,
-  printRyoshushoHtml,
-  savePaymentRyoshusho,
-} from '../lib/ryoshushoPrint'
+import { issuePaymentReceipt, loadCompany } from '../lib/receipts'
+import { notify } from './ui/ConfirmDialog'
 
 // ── HOME ──────────────────────────────────────────────────────────────────────
 /** Bar home cards: id, default width, hidden by default. Titles and content live in HomeTab. */
@@ -910,7 +906,6 @@ function FaturasTab({ bar }) {
   const [saving, setSaving] = useState(false)
   const [scannedData, setScannedData] = useState(null)
   const [emittingReceipt, setEmittingReceipt] = useState(null)
-  const [ryoSeq, setRyoSeq] = useState(1)
 
   useEffect(() => { load() }, [bar])
 
@@ -926,8 +921,6 @@ function FaturasTab({ bar }) {
     setPedidos(pedR.data || [])
     setVendas(filterSupplierVendas(vR.data||[]))
     setPagamentos(pR.data||[])
-    const { count } = await supabase.from('ryoshusho').select('id', { count: 'exact', head: true }).eq('bar_id', bar.id)
-    setRyoSeq((count || 0) + 1)
     setLoading(false)
   }
 
@@ -935,29 +928,13 @@ function FaturasTab({ bar }) {
     if (!valor) return
     setEmittingReceipt(key)
     try {
-      const numero = buildRyoshushoNumero(ryoSeq)
+      // One receipt per payment, numbered in sequence; printing again reuses the same receipt.
+      const item = { key, valor, data, metodo, notas, fatura }
       const dataEmissao = (data || new Date().toISOString().slice(0, 10)).slice(0, 10)
-      const html = buildPaymentRyoshushoHtml({
-        numero,
-        dataEmissao,
-        barNome: bar.nome,
-        valor,
-        metodo,
-        notas,
-        periodoInicio: faturaEmissao(fatura),
-        periodoFim: faturaPeriodoFim(fatura),
-      })
-      printRyoshushoHtml(html, `ryoshusho-${numero}`)
-      await savePaymentRyoshusho(supabase, {
-        barId: bar.id,
-        numero,
-        dataEmissao,
-        valor,
-        metodo,
-        periodoInicio: faturaEmissao(fatura),
-        periodoFim: faturaPeriodoFim(fatura),
-      })
-      setRyoSeq(s => s + 1)
+      const res = await issuePaymentReceipt(supabase, { bar, item, dataEmissao, company: await loadCompany(supabase) })
+      if (res.reused) notify(t('receipts.reused', { numero: res.numero }), 'info')
+    } catch (e) {
+      notify(e?.message || String(e), 'error')
     } finally {
       setEmittingReceipt(null)
     }

@@ -6,6 +6,7 @@ import { asReactText, errText } from '../lib/errText'
 import './invoicePayments.css'
 import { faturaSummary, addFaturaPayment, confirmFaturaPayment, removeFaturaPayment } from '../lib/faturaLedger'
 import { DIRECT_METHOD, invoiceMoney, isDirectMethod } from '../lib/money'
+import { askConfirm, notify } from './ui/ConfirmDialog'
 
 const METHODS = ['Transfer', 'Cash', 'Card', 'Stripe', 'Direct']
 const methodValue = m => (m === 'Direct' ? DIRECT_METHOD : m)
@@ -59,6 +60,17 @@ export default function InvoicePaymentsModal({ faturaId, onClose, onSaved }) {
 
   async function save() {
     if (direct && !form.supplier.trim()) { setErr(t('ledger.directNeedsSupplier')); return }
+    const sure = await askConfirm({
+      title: t('ledger.confirmSaveTitle'),
+      details: [
+        [t('confirm.who'), fatura?.bars?.nome || '—'],
+        [t('confirm.amount'), fmtYen(Math.round(+form.valor || 0))],
+        [t('confirm.method'), t(`ledger.method${form.metodo}`) + (direct ? ` · ${form.supplier.trim()}` : '')],
+        [t('confirm.date'), fmtDate(form.data)],
+      ],
+      confirmLabel: t('ledger.save'),
+    })
+    if (!sure) return
     const ok = await run(() => addFaturaPayment(supabase, faturaId, {
       valor: form.valor,
       data: form.data,
@@ -188,12 +200,15 @@ export default function InvoicePaymentsModal({ faturaId, onClose, onSaved }) {
                     </div>
                     <div className="ledger-item-actions">
                       {!p.confirmado && (
-                        <button type="button" className="is-ok" disabled={busy} onClick={() => run(() => confirmFaturaPayment(supabase, p))}>
+                        <button type="button" className="is-ok" disabled={busy} onClick={async () => {
+                          if (!(await askConfirm({ title: t('ledger.confirmCreditTitle'), details: [[t('confirm.amount'), fmtYen(p.valor)], [t('confirm.method'), p.metodo || '—'], [t('confirm.date'), fmtDate(p.data)]], confirmLabel: t('ledger.confirm') }))) return
+                          run(() => confirmFaturaPayment(supabase, p))
+                        }}>
                           {t('ledger.confirm')}
                         </button>
                       )}
-                      <button type="button" disabled={busy} onClick={() => {
-                        if (!confirm(t('ledger.removeConfirm', { amount: fmtYen(p.valor) }))) return
+                      <button type="button" disabled={busy} onClick={async () => {
+                        if (!(await askConfirm({ title: t('ledger.removeConfirm', { amount: fmtYen(p.valor) }), danger: true }))) return
                         run(() => removeFaturaPayment(supabase, p))
                       }}>{t('ledger.remove')}</button>
                     </div>

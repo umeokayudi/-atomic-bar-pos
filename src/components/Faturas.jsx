@@ -9,6 +9,10 @@ import MarkPaidPopup from './MarkPaidPopup'
 import Icon from './ui/Icon'
 import { ColumnChart } from './ui/Charts'
 import { averageOfActive, invoiceCheck, invoiceDeliveries, invoiceLockError, invoiceMoney, invoicePeriod, paymentKind } from '../lib/money'
+import { askConfirm, notify } from './ui/ConfirmDialog'
+import { runChange } from '../lib/safeDelete'
+import { issuePaymentReceipt, loadCompany } from '../lib/receipts'
+import { receiptableItems } from '../lib/portalRecibos'
 
 // Local date key (toISOString shifts to UTC, which moved Tokyo dates one day back).
 const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -124,7 +128,10 @@ function Overview() {
               <div style={{ display:'flex', gap:8, alignItems:'center' }}>
                 {p.comprovante_url && <a href={p.comprovante_url} target="_blank" rel="noreferrer" style={{ fontSize:12, color:'var(--c-text)', fontWeight:600, padding:'5px 10px', borderRadius:8, border:'1px solid var(--border)', background: 'var(--bg2)', textDecoration:'none' }}>{t('invoices.receiptLink')}</a>}
                 <button onClick={async()=>{
-                  try { await confirmFaturaPayment(supabase, p) } catch (e) { alert(e.message) }
+                  // Crediting money is not a one-tap action: show amount, method and bar first.
+                  const ok = await askConfirm({ title: t('ledger.confirmCreditTitle'), details: [[t('confirm.who'), p.faturas?.bars?.nome || '—'], [t('confirm.amount'), fmtYen(p.valor)], [t('confirm.method'), p.metodo || '—'], [t('confirm.date'), fmtDate(p.data)]], confirmLabel: t('invoices.confirmCredit') })
+                  if (!ok) return
+                  try { await confirmFaturaPayment(supabase, p); notify(t('confirm.saved')) } catch (e) { notify(e.message, 'error') }
                   load()
                 }} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'none', background:'var(--green)', color:'white', cursor:'pointer', fontWeight:700 }}>{t('invoices.confirmCredit')}</button>
               </div>
@@ -245,10 +252,19 @@ function InvoiceList() {
     if (error) { setLockErr(adjustErrText(error, t)); return }
     setLockErr(''); setAdjust(null); load()
   }
+  // One receipt per confirmed payment of this invoice (the old button wrote columns the table does not have).
   async function generateRyoshusho(fatura) {
     setSaving(true)
-    const { data } = await supabase.from('ryoshusho').insert({ bar_id:fatura.bar_id, data:new Date().toISOString().slice(0,10), valor:fatura.total, descricao:'Payment '+fatura.periodo_inicio+' to '+fatura.periodo_fim, metodo:'Bank Transfer' }).select().single()
-    if (data) await supabase.from('faturas').update({ ryoshusho_id:data.id }).eq('id',fatura.id)
+    try {
+      const company = await loadCompany(supabase)
+      const bar = { id: fatura.bar_id, nome: fatura.bars?.nome || '' }
+      for (const item of receiptableItems([fatura], allPagamentos)) {
+        const res = await issuePaymentReceipt(supabase, { bar, item, dataEmissao: String(item.data || ymd(new Date())).slice(0, 10), company })
+        notify(res.reused ? t('receipts.reused', { numero: res.numero }) : t('confirm.saved'), res.reused ? 'info' : 'ok')
+      }
+    } catch (e) {
+      notify(e?.message || String(e), 'error')
+    }
     setSaving(false); load()
   }
 
@@ -377,12 +393,11 @@ function InvoiceList() {
                   )}
                   <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
                     <button onClick={()=>setPayItem({ type: 'fatura', id: f.id })} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'none', background:f.status==='pago'?'transparent':'var(--navy)', color:f.status==='pago'?'var(--navy)':'white', outline:f.status==='pago'?'1px solid var(--border)':'none', cursor:'pointer', fontWeight:600 }}>{f.status==='pago' ? t('ledger.open') : t('ledger.record')}</button>
-                    {f.status==='pago'&&!f.ryoshusho_id&&<button onClick={()=>generateRyoshusho(f)} disabled={saving} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'none', background:'var(--gold)', color:'white', cursor:'pointer', fontWeight:600 }}>{t('invoices.generateRyoshusho')}</button>}
-                    {f.ryoshusho_id&&<span style={{ fontSize:12, color:'var(--green)', fontWeight:600, padding:'6px 0' }}>{t('invoices.ryoshushoIssued')}</span>}
+                    {money.received>0&&<button onClick={()=>generateRyoshusho(f)} disabled={saving} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'none', background:'var(--gold)', color:'white', cursor:'pointer', fontWeight:600 }}>{t('invoices.generateRyoshusho')}</button>}
                     {periodVendas.length>0&&<button onClick={()=>setExpanded(expanded===f.id?null:f.id)} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'1px solid var(--border)', background:'transparent', cursor:'pointer' }}>
                       {expanded===f.id ? t('invoices.hideDeliveries') : t('invoices.showDeliveries')} {t('invoices.deliveriesCount', { count: periodVendas.length })}
                     </button>}
-                    <button onClick={async()=>{ if(!confirm(t('invoices.confirmDeleteInvoice')))return; await supabase.from('fatura_pagamentos').delete().eq('fatura_id',f.id); await supabase.from('faturas').delete().eq('id',f.id); setFaturas(prev=>prev.filter(x=>x.id!==f.id)) }} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'none', background:'var(--red)', color:'white', cursor:'pointer', fontWeight:600 }}><Icon name="trash" size={14} /></button>
+                    <button onClick={async()=>{ if(!(await askConfirm({ title: t('invoices.confirmDeleteInvoice'), details: [[t('confirm.who'), f.bars?.nome || '—'], [t('confirm.amount'), fmtYen(f.total||f.valor||0)]], danger: true, typeToConfirm: t('configs.deleteWord') })))return; await supabase.from('fatura_pagamentos').delete().eq('fatura_id',f.id); if (await runChange(supabase.from('faturas').delete().eq('id',f.id))) setFaturas(prev=>prev.filter(x=>x.id!==f.id)) }} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'none', background:'var(--red)', color:'white', cursor:'pointer', fontWeight:600 }}><Icon name="trash" size={14} /></button>
                   </div>
                 </div>
                 {expanded===f.id && (
