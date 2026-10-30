@@ -20,15 +20,14 @@ export const DEFAULT_HOLDING = {
       prioridade: 'media',
       notas: 'Atomic supplier, stock, deliveries',
     },
-    {
-      id: 'outro-negocio',
-      nome: 'Other business',
-      tipo: 'servicos',
-      custoOportunidadePct: 45,
-      prioridade: 'alta',
-      notas: 'E.g. hire people, expand the operation',
-    },
   ],
+}
+
+/** The old default carried a made-up "Other business" (45%/yr, High) that steered every pay-now advice: drop it. */
+export function cleanHolding(profile) {
+  const p = profile || {}
+  const negocios = (p.negocios || []).filter(n => !(n?.id === 'outro-negocio' && /other business/i.test(n?.nome || '')))
+  return { ...DEFAULT_HOLDING, ...p, negocios: negocios.length ? negocios : DEFAULT_HOLDING.negocios.map(n => ({ ...n })) }
 }
 
 export function resolveOpportunityCostPct(holding, { capitalTight = false } = {}) {
@@ -68,12 +67,7 @@ export function loadHoldingLocal() {
   try {
     const raw = localStorage.getItem(HOLDING_STORAGE_KEY)
     if (!raw) return { ...DEFAULT_HOLDING, negocios: DEFAULT_HOLDING.negocios.map(n => ({ ...n })) }
-    const parsed = JSON.parse(raw)
-    return {
-      ...DEFAULT_HOLDING,
-      ...parsed,
-      negocios: parsed.negocios?.length ? parsed.negocios : DEFAULT_HOLDING.negocios,
-    }
+    return cleanHolding(JSON.parse(raw))
   } catch {
     return { ...DEFAULT_HOLDING, negocios: DEFAULT_HOLDING.negocios.map(n => ({ ...n })) }
   }
@@ -90,8 +84,9 @@ export async function syncHoldingFromCloud() {
   if (!res.ok) return loadHoldingLocal()
   const data = await res.json()
   if (data.profile) {
-    saveHoldingLocal(data.profile)
-    return data.profile
+    const profile = cleanHolding(data.profile)
+    saveHoldingLocal(profile)
+    return profile
   }
   return loadHoldingLocal()
 }

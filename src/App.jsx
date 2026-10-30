@@ -354,13 +354,19 @@ function Dashboard({ onNav }) {
         {
           id: 'kpis', title: t('dash.w.kpis'), icon: 'dashboard', size: 'full',
           // No purchase logged yet: a margin would read 100%, which is not a real number.
-          render: () => { const noCost = !m.comprasEstimadas && !(+m.compras > 0); return (
+          render: () => {
+            const noCost = !m.comprasEstimadas && !(+m.compras > 0)
+            // Every number says its period and where it came from (invoices × sales × orders); estimates say so.
+            const srcOf = k => t(`dashboard.src_${m.fontes?.[k] || 'nenhuma'}`)
+            const srcLine = k => t('dashboard.source', { period: monthLabel(selMonth), source: srcOf(k) })
+            const estCost = m.comprasEstimativa ?? m.compras
+            return (
             <div className="portal-hero-grid">
               <PortalHero
-                label={t('dashboard.projectedProfit', { month: monthLabel(selMonth) })}
+                label={`${t('dashboard.projectedProfit', { month: monthLabel(selMonth) })}${m.lucroEstimado ? ` · ${t('dashboard.estimateTag')}` : ''}`}
                 value={fmtYen(m.lucroProjetado ?? m.lucro)}
                 sub={m.comprasEstimadas
-                  ? t('dashboard.marginSubEst', { margin: m.margem, revenue: fmtYen(m.faturamento), cost: fmtYen(m.compras) })
+                  ? t('dashboard.marginSubEst', { margin: m.margem, revenue: fmtYen(m.faturamento), cost: fmtYen(estCost) })
                   : noCost
                     ? t('dashboard.noPurchasesLogged')
                     : t('dashboard.marginSub', { margin: m.margem, revenue: fmtYen(m.faturamento ?? m.receita), purchases: fmtYen(m.compras) })}
@@ -377,6 +383,7 @@ function Dashboard({ onNav }) {
                   : m.receita > 0 && m.faturamento !== m.receita
                     ? t('dashboard.billingSubPaid', { paid: fmtYen(m.receita), count: entregasCount })
                     : t('dashboard.billingSub', { count: entregasCount })}
+                source={srcLine('faturamento')}
                 onClick={() => setDetailModal('receita')}
                 hint={t('dashboard.clickDeliveries')}
               />
@@ -385,22 +392,26 @@ function Dashboard({ onNav }) {
                 tone={(m.aReceber || 0) > 0 ? 'warning' : 'success'}
                 label={t('dashboard.receivable')}
                 value={fmtYen(m.aReceber || 0)}
-                sub={t('dashboard.receivableSub')}
+                sub={data.alertas?.faturasAtrasadasTotal > 0
+                  ? t('dashboard.overdueAllMonths', { amount: fmtYen(data.alertas.faturasAtrasadasTotal) })
+                  : t('dashboard.receivableSub')}
                 color={(m.aReceber || 0) > 0 ? 'var(--amber)' : 'var(--green)'}
+                source={t('dashboard.source', { period: monthLabel(selMonth), source: t('dashboard.src_faturas') })}
                 onClick={() => onNav('faturas')}
                 hint={t('dashboard.seeInvoicesHint')}
               />
               <PortalKpi
                 icon="percent"
                 tone={noCost ? 'warning' : m.margem >= 20 ? 'success' : m.margem > 0 ? 'warning' : 'danger'}
-                label={t('dashboard.projectedMargin')}
+                label={`${t('dashboard.projectedMargin')}${m.comprasEstimadas ? ` · ${t('dashboard.estimateTag')}` : ''}`}
                 value={noCost ? '—' : `${m.margem}%`}
                 sub={m.comprasEstimadas
-                  ? t('dashboard.marginDetailEst', { amount: fmtYen(m.compras) })
+                  ? t('dashboard.marginDetailEst', { amount: fmtYen(estCost) })
                   : noCost
                     ? t('dashboard.noPurchasesLogged')
                     : t('dashboard.marginDetail', { amount: fmtYen(m.compras), count: m.comprasCount })}
                 color={noCost ? 'var(--amber)' : m.margem >= 20 ? 'var(--green)' : m.margem > 0 ? 'var(--amber)' : 'var(--red)'}
+                source={srcLine('compras')}
                 onClick={() => goToReport(onNav, selMonth)}
                 hint={t('dashboard.reportDetail')}
               />

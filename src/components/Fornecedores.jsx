@@ -3,10 +3,13 @@ import { supabase } from '../lib/supabase'
 import { fmtYen, Spinner, Empty } from './utils'
 import PurchaseCashflowAdvisor from './PurchaseCashflowAdvisor'
 import { fromZeikomi, parseSupplierPriceNotas, formatPriceChange } from '../lib/consumptionTax'
+import { compareOffers, supplierTaxMode, withTaxTag, stripTaxTag } from '../lib/catalog'
 import { asReactText } from '../lib/errText'
 import { AdminPage, PortalSurface, PortalPills } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
 import Icon from './ui/Icon'
+import { askConfirm, notify } from './ui/ConfirmDialog'
+import { runChange } from '../lib/safeDelete'
 
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
@@ -50,7 +53,7 @@ function SupplierList() {
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState(null)
   const [saving, setSaving] = useState(false)
-  const empty = { nome:'', contato:'', telefone:'', email:'', website:'', prazo_entrega_dias:1, pagamento:'Cash', pontos_pct:0, notas:'' }
+  const empty = { nome:'', contato:'', telefone:'', email:'', website:'', prazo_entrega_dias:1, pagamento:'Cash', pontos_pct:0, notas:'', taxMode:'excluded' }
   const [form, setForm] = useState(empty)
   useEffect(() => { load() }, [])
   async function load() {
@@ -60,18 +63,21 @@ function SupplierList() {
   async function save() {
     if (!form.nome) return
     setSaving(true)
-    if (editId) await supabase.from('fornecedores').update(form).eq('id', editId)
-    else await supabase.from('fornecedores').insert(form)
+    // Whether the price sheet includes tax is kept as a tag in the notes ([tax:included|excluded]).
+    const { taxMode, ...rest } = form
+    const row = { ...rest, notas: withTaxTag(rest.notas, taxMode) }
+    if (editId) await supabase.from('fornecedores').update(row).eq('id', editId)
+    else await supabase.from('fornecedores').insert(row)
     setSaving(false); setShowForm(false); setEditId(null); setForm(empty); load()
   }
   async function del(id) {
-    if (!confirm(t('suppliers.confirmDelete'))) return
-    await supabase.from('fornecedores').delete().eq('id', id); load()
+    if (!(await askConfirm({ title: t('suppliers.confirmDelete'), danger: true }))) return
+    await runChange(supabase.from('fornecedores').delete().eq('id', id)); load()
   }
   function edit(s) {
     setForm({ nome:s.nome, contato:s.contato||'', telefone:s.telefone||'', email:s.email||'',
       website:s.website||'', prazo_entrega_dias:s.prazo_entrega_dias||1,
-      pagamento:s.pagamento||'Cash', pontos_pct:s.pontos_pct||0, notas:s.notas||'' })
+      pagamento:s.pagamento||'Cash', pontos_pct:s.pontos_pct||0, notas:stripTaxTag(s.notas), taxMode:supplierTaxMode(s) })
     setEditId(s.id); setShowForm(true)
   }
   if (loading) return <Spinner text={t('common.loading')} />
@@ -97,6 +103,12 @@ function SupplierList() {
             <div><label className="form-label">{t('suppliers.deliveryDays')}</label><input type="number" min="0" value={form.prazo_entrega_dias} onChange={e=>setForm({...form,prazo_entrega_dias:+e.target.value})} /></div>
             <div><label className="form-label">{t('suppliers.pointsPct')}</label><input type="number" min="0" step="0.1" value={form.pontos_pct} onChange={e=>setForm({...form,pontos_pct:+e.target.value})} /></div>
           </div>
+          <div style={{ marginBottom:12 }}><label className="form-label">{t('catalog.taxMode')}</label>
+            <select value={form.taxMode} onChange={e=>setForm({...form,taxMode:e.target.value})}>
+              <option value="excluded">{t('catalog.tax_excluded')}</option>
+              <option value="included">{t('catalog.tax_included')}</option>
+            </select>
+          </div>
           <div style={{ marginBottom:12 }}><label className="form-label">{t('common.notes')}</label><input value={form.notas} onChange={e=>setForm({...form,notas:e.target.value})} /></div>
           <div style={{ display:'flex', justifyContent:'flex-end', gap:8 }}>
             <button onClick={()=>{setShowForm(false);setEditId(null)}} style={{ padding:'8px 16px', borderRadius:8, border:'1px solid var(--border)', background:'transparent', cursor:'pointer' }}>{t('common.cancel')}</button>
@@ -118,7 +130,7 @@ function SupplierList() {
                   <span><Icon name="entregas" size={13} /> {s.prazo_entrega_dias}d</span>
                   {s.pontos_pct>0 && <span style={{ color:'var(--c-warning)', fontWeight:600 }}><Icon name="star" size={13} /> {s.pontos_pct}% points</span>}
                 </div>
-                {s.notas && <div style={{ fontSize:11, color:'var(--text2)', marginTop:4 }}>{s.notas}</div>}
+                <div style={{ fontSize:11, color:'var(--text2)', marginTop:4 }}>{t(`catalog.tax_${supplierTaxMode(s)}`)}{stripTaxTag(s.notas) ? ` · ${stripTaxTag(s.notas)}` : ''}</div>
               </div>
               <div style={{ display:'flex', gap:6 }}>
                 {s.website && <a href={s.website} target="_blank" rel="noreferrer" style={{ fontSize:11, padding:'5px 10px', borderRadius:8, background:'var(--bg3)', color:'var(--c-text)', textDecoration:'none', fontWeight:600 }}>{t('common.visit')}</a>}
@@ -242,12 +254,14 @@ function SmartPurchase() {
   async function load() {
     const [pR, prR] = await Promise.all([
       supabase.from('produtos').select('id,nome,categoria,custo,preco_venda,volume_ml').order('categoria').order('nome'),
-      supabase.from('fornecedor_precos').select('*, fornecedores(nome,prazo_entrega_dias,pagamento,pontos_pct,website)'),
+      supabase.from('fornecedor_precos').select('*, fornecedores(nome,prazo_entrega_dias,pagamento,pontos_pct,website,notas)'),
     ])
     setProdutos(pR.data||[]); setPrecos(prR.data||[]); setLoading(false)
   }
   const filtered = produtos.filter(p => !search || p.nome.toLowerCase().includes(search.toLowerCase()) || p.categoria.toLowerCase().includes(search.toLowerCase()))
-  const getPrices = id => precos.filter(p=>p.produto_id===id).sort((a,b)=>a.preco-b.preco)
+  // Only real prices are compared, all on the same basis (with tax, never +10% on a tax-included sheet).
+  const getCompare = id => compareOffers(precos.filter(p=>p.produto_id===id))
+  const getPrices = id => getCompare(id).offers
   if (loading) return <Spinner text={t('common.loading')} />
   return (
     <div>
@@ -260,7 +274,8 @@ function SmartPurchase() {
       </div>
       <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
         {filtered.map(p => {
-          const prices = getPrices(p.id)
+          const cmp = getCompare(p.id)
+          const prices = cmp.offers
           const best = prices[0]
           return (
             <div key={p.id} style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
@@ -270,7 +285,7 @@ function SmartPurchase() {
                   <div style={{ fontSize:11, color:'var(--text2)' }}>{p.categoria} · JBM: {fmtYen(p.custo)}</div>
                 </div>
                 {prices.length>0
-                  ? <div style={{ textAlign:'right' }}><div style={{ fontSize:14, fontWeight:800, color:'var(--green)' }}>{t('suppliers.fromPrice', { price: fmtYen(best.preco) })}</div><div style={{ fontSize:11, color:'var(--text2)' }}>{t('suppliers.supplierCountShort', { count: prices.length })}</div></div>
+                  ? <div style={{ textAlign:'right' }}><div style={{ fontSize:14, fontWeight:800, color:'var(--green)' }}>{t('suppliers.fromPrice', { price: fmtYen(best.gross) })}</div><div style={{ fontSize:11, color:'var(--text2)' }}>{t('catalog.coverage', { n: cmp.coverage.withPrice, total: cmp.coverage.linked })}</div></div>
                   : <div style={{ fontSize:12, color:'var(--text3)' }}>{t('suppliers.noPrices')}</div>}
                 <span style={{ color:'var(--text3)', fontSize:12 }}>{selected===p.id?'▲':'▼'}</span>
               </div>
@@ -291,9 +306,10 @@ function SmartPurchase() {
                         </div>
                       </div>
                       <div style={{ textAlign:'right' }}>
-                        <div style={{ fontSize:16, fontWeight:800, color:i===0?'var(--green)':'var(--navy)' }}>{fmtYen(pr.preco)}</div>
-                        {p.custo>0 && <div style={{ fontSize:10, color:pr.preco<p.custo?'var(--green)':pr.preco>p.custo?'var(--red)':'var(--text2)', fontWeight:600 }}>
-                          {pr.preco<p.custo ? t('suppliers.cheaper') : pr.preco>p.custo ? t('suppliers.moreExpensive') : t('suppliers.sameAsJbm')}
+                        <div style={{ fontSize:16, fontWeight:800, color:i===0?'var(--green)':'var(--navy)' }}>{fmtYen(pr.gross)}</div>
+                        <div style={{ fontSize:10, color:'var(--text2)' }}>{t('catalog.netGross', { net: fmtYen(pr.net), mode: t(`catalog.tax_${pr.taxMode}`) })}</div>
+                        {p.custo>0 && <div style={{ fontSize:10, color:pr.gross<p.custo?'var(--green)':pr.gross>p.custo?'var(--red)':'var(--text2)', fontWeight:600 }}>
+                          {pr.gross<p.custo ? t('suppliers.cheaper') : pr.gross>p.custo ? t('suppliers.moreExpensive') : t('suppliers.sameAsJbm')}
                         </div>}
                       </div>
                       <button type="button" onClick={()=>setAdvisorOffer({ product: p, offer: pr })}
@@ -308,7 +324,7 @@ function SmartPurchase() {
                     <div style={{ marginTop: 12 }}>
                       <PurchaseCashflowAdvisor
                         compact
-                        purchaseAmount={advisorOffer.offer.preco}
+                        purchaseAmount={advisorOffer.offer.gross}
                         supplierName={advisorOffer.offer.fornecedores?.nome}
                         supplierPayment={advisorOffer.offer.fornecedores?.pagamento || 'Cash'}
                         deliveryDays={advisorOffer.offer.fornecedores?.prazo_entrega_dias || 1}

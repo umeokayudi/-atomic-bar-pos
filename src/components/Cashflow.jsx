@@ -10,9 +10,12 @@ import PaySupplierPopup from './PaySupplierPopup'
 import DocViewer from './DocViewer'
 import OpenInvoicesList from './OpenInvoicesList'
 import { AdminPage, PortalKpi, PortalSurface, PortalPills } from './ui/PageLayout'
-import { useI18n } from '../lib/i18n'
+import { useI18n, getGlobalLang } from '../lib/i18n'
+import { dateLocale } from '../lib/tokyo'
 import Icon from './ui/Icon'
 import { HBarList, InOutChart } from './ui/Charts'
+import { ledgerTotals, purchaseAmount, purchasePaidByBar, purchasesPaidOut, reconciledCash, receivedPayments } from '../lib/money'
+import { notify } from './ui/ConfirmDialog'
 
 export default function Cashflow() {
   const { t } = useI18n()
@@ -30,7 +33,6 @@ export default function Cashflow() {
             ['agenda', t('cashflow.tabAgenda')],
             ['in', t('cashflow.tabIn')],
             ['out', t('cashflow.tabOut')],
-            ['caixa', t('cashflow.tabCaixa')],
             ['holding', t('cashflow.tabHolding')],
           ]}
           value={tab}
@@ -41,15 +43,9 @@ export default function Cashflow() {
       {tab==='overview'  && <CashflowOverview />}
       {tab==='agenda'    && <Calendario />}
       {tab==='in'        && <MoneyIn />}
-      {tab==='out'       && (
-        <>
-          <PurchasePayments />
-          <div style={{ height: 20 }} />
-          <MoneyOut />
-        </>
-      )}
+      {/* One list of purchases to pay (the second "money out" list repeated the same rows). */}
+      {tab==='out'       && <PurchasePayments />}
       {tab==='holding'   && <JbmHoldingPanel />}
-      {tab==='caixa'     && <Caixa />}
     </AdminPage>
   )
 }
@@ -85,17 +81,19 @@ function CashflowOverview() {
   const faturaSplit = splitPendingFaturas(faturas, today)
   const pagamentosPendentes = pagamentos.filter(p => !p.confirmado)
 
-  // Entradas = valor já recebido dos bars (parcial ou total), não só fatura "paga"
-  const paidIn = faturas.reduce((a, f) => a + (+f.pago || 0), 0)
-  const pendingIn = faturas.reduce((a, f) => a + Math.max(0, (+f.total || +f.valor || 0) - (+f.pago || 0)), 0)
-  const emAnalise = pagamentosPendentes.reduce((a, p) => a + (+p.valor || 0), 0)
+  // One cash definition (src/lib/money.js): in = confirmed payments only; payments in review and
+  // payments the bar made straight to a supplier are shown apart and never added to money in/out.
+  const cash = reconciledCash({ faturas, pagamentos, compras })
+  const paidIn = cash.received
+  const pendingIn = cash.remaining
+  const emAnalise = cash.review
+  void pagamentosPendentes
 
-  // Saídas = só compras marcadas como pagas (Le Vin pendente não entra no caixa)
-  const paidOut = compras.filter(c => c.status_pagamento === 'pago').reduce((a, c) => a + (+c.total_real || +c.total_pago || 0), 0)
+  const paidOut = cash.paidOut
   const pendingOut = pendingSplit.pendingTotal
   const overdueOut = pendingSplit.overdueTotal
 
-  const netCash = paidIn - paidOut
+  const netCash = cash.cash
   const openFaturas = faturas.filter(f => f.status !== 'pago' && Math.max(0, (+f.total || +f.valor || 0) - (+f.pago || 0)) > 0)
   const openCompras = [...pendingSplit.overdue, ...(pendingSplit.noDue || []), ...(pendingSplit.future || [])]
 
@@ -106,8 +104,8 @@ function CashflowOverview() {
     const start = new Date(end); start.setDate(start.getDate()-6)
     const s = start.toISOString().slice(0,10)
     const e = end.toISOString().slice(0,10)
-    const inAmt = pagamentos.filter(p=>p.confirmado&&p.data>=s&&p.data<=e).reduce((a,p)=>a+(+p.valor||0),0)
-    const outAmt = compras.filter(c=>c.status_pagamento==='pago'&&(c.data_pagamento||c.data)>=s&&(c.data_pagamento||c.data)<=e).reduce((a,c)=>a+(+c.total_real||+c.total_pago||0),0)
+    const inAmt = receivedPayments(pagamentos).filter(p=>p.data>=s&&p.data<=e).reduce((a,p)=>a+(+p.valor||0),0)
+    const outAmt = purchasesPaidOut(compras).filter(c=>(c.data_pagamento||c.data)>=s&&(c.data_pagamento||c.data)<=e).reduce((a,c)=>a+purchaseAmount(c),0)
     weeks.push({ label: start.toLocaleDateString('en-US',{month:'short',day:'numeric'}), in:inAmt, out:outAmt, net:inAmt-outAmt })
   }
   // Where the money went in the last 30 days, by supplier
@@ -115,7 +113,7 @@ function CashflowOverview() {
   const since30Key = since30.toISOString().slice(0, 10)
   const bySupplier = {}
   for (const c of compras) {
-    if (c.status_pagamento !== 'pago' || String(c.data_pagamento || c.data || '') < since30Key) continue
+    if (c.status_pagamento !== 'pago' || purchasePaidByBar(c) || String(c.data_pagamento || c.data || '') < since30Key) continue
     const k = c.fornecedor || t('common.supplier')
     bySupplier[k] = (bySupplier[k] || 0) + (+c.total_real || +c.total_pago || 0)
   }
@@ -162,7 +160,14 @@ function CashflowOverview() {
           ? t('cashflow.simpleExplainNeg', { paidOut: fmtYen(paidOut), paidIn: fmtYen(paidIn), pendingIn: fmtYen(pendingIn) })
           : t('cashflow.simpleExplainPos', { pendingIn: fmtYen(pendingIn), pendingOut: fmtYen(pendingOut) })}
         {emAnalise > 0 ? ' ' + t('cashflow.simpleExplainWaiting', { amount: fmtYen(emAnalise) }) : ''}
+        {cash.direct > 0 ? ' ' + t('cashflow.directExplain', { amount: fmtYen(cash.direct) }) : ''}
       </p>
+      {(emAnalise > 0 || cash.direct > 0) && (
+        <div className="cash-big" style={{ marginTop: -4 }}>
+          <PortalKpi icon="shifts" tone="warning" label={t('cashflow.inReview')} value={fmtYen(emAnalise)} sub={t('cashflow.inReviewSub')} />
+          <PortalKpi icon="purchases" tone="info" label={t('cashflow.directPaid')} value={fmtYen(cash.direct)} sub={t('cashflow.directPaidSub')} />
+        </div>
+      )}
 
       <div className="ui-grid cols-2 cash-charts">
         <PortalSurface title={t('cashflow.weeklyFlow')} sub={t('cashflow.weeklyFlowSub')}>
@@ -241,18 +246,26 @@ function MoneyIn() {
     setFaturas(fR.data||[]); setPagamentos(pR.data||[]); setLoading(false)
   }
   if (loading) return <Spinner text={t('common.loading')} />
-  const total = faturas.reduce((a,f)=>a+(+f.total||+f.valor||0),0)
-  const received = faturas.reduce((a,f)=>a+(+f.pago||0),0)
+  const totals = ledgerTotals(faturas, pagamentos)
+  const total = totals.billed
+  const received = totals.received
+  const left = totals.remaining
   const open = faturas.filter(f => f.status !== 'pago' && (+f.total||+f.valor||0) - (+f.pago||0) > 0)
   const paid = faturas.filter(f => !open.includes(f))
   return (
     <div>
       <div className="cash-big" style={{ marginBottom: 20 }}>
         <PortalKpi label={t('cashflow.totalInvoiced')} value={fmtYen(total)} color="var(--navy)" />
-        <PortalKpi label={t('ledger.received')} value={fmtYen(received)} color="var(--green)" />
-        <PortalKpi label={t('ledger.left')} value={fmtYen(Math.max(0, total - received))} color={total - received > 0 ? 'var(--red)' : 'var(--green)'} />
+        <PortalKpi label={t('ledger.cashReceived')} value={fmtYen(received)} color="var(--green)" />
+        <PortalKpi label={t('ledger.left')} value={fmtYen(left)} color={left > 0 ? 'var(--red)' : 'var(--green)'} />
       </div>
-      <PortalSurface title={t('cashflow.barsOweTitle', { amount: fmtYen(Math.max(0, total - received)) })} sub={t('cashflow.barsOweSub')} style={{ marginBottom: 16 }}>
+      {(totals.review > 0 || totals.direct > 0) && (
+        <p className="cash-explain">
+          {totals.review > 0 && <>{t('ledger.inReview')}: <b>{fmtYen(totals.review)}</b>. </>}
+          {totals.direct > 0 && <>{t('ledger.directPaid')}: <b>{fmtYen(totals.direct)}</b> ({t('cashflow.directPaidSub')}).</>}
+        </p>
+      )}
+      <PortalSurface title={t('cashflow.barsOweTitle', { amount: fmtYen(left) })} sub={t('cashflow.barsOweSub')} style={{ marginBottom: 16 }}>
         <OpenInvoicesList faturas={open} pagamentos={pagamentos} onOpen={f => setPayItem({ type: 'fatura', id: f.id })} emptyText={t('cashflow.barsOweNone')} />
       </PortalSurface>
       {paid.length > 0 && (
@@ -264,56 +277,6 @@ function MoneyIn() {
         </PortalSurface>
       )}
       {payItem && <MarkPaidPopup item={payItem} onClose={() => setPayItem(null)} onSaved={load} />}
-    </div>
-  )
-}
-
-function MoneyOut() {
-  const { t } = useI18n()
-  const [compras, setCompras] = useState([])
-  const [loading, setLoading] = useState(true)
-  useEffect(() => { load(); const iv=setInterval(load,30000); return ()=>clearInterval(iv) }, [])
-  async function load() {
-    const { data } = await supabase.from('compras').select('*').order('data',{ascending:false}).limit(100)
-    setCompras(data||[]); setLoading(false)
-  }
-  if (loading) return <Spinner text={t('common.loading')} />
-  const total = compras.reduce((a,c)=>a+(+c.total_pago||0),0)
-  const paid = compras.filter(c=>c.status_pagamento!=='pendente').reduce((a,c)=>a+(+c.total_pago||0),0)
-  const pending = compras.filter(c=>c.status_pagamento==='pendente').reduce((a,c)=>a+(+c.total_pago||0),0)
-  return (
-    <div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:20 }}>
-        {[
-          { label: t('cashflow.totalPurchased'), value: fmtYen(total), color: 'var(--c-text)' },
-          { label: t('status.pago'), value: fmtYen(paid), color: 'var(--red)' },
-          { label: t('cashflow.pendingPayment'), value: fmtYen(pending), color: pending > 0 ? 'var(--amber)' : 'var(--green)' },
-        ].map(k=>(
-          <div key={k.label} style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:14, padding:'14px' }}>
-            <div style={{ fontSize:22, fontWeight:800, color:k.color }}>{k.value}</div>
-            <div style={{ fontSize:11, color:'var(--text2)', textTransform:'uppercase', letterSpacing:'0.05em', marginTop:4 }}>{k.label}</div>
-          </div>
-        ))}
-      </div>
-      <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-        {compras.map(c=>(
-          <div key={c.id} style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, padding:'14px 16px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-            <div>
-              <div style={{ fontSize:13, fontWeight:700 }}>{c.fornecedor||t('common.supplier')}</div>
-              <div style={{ fontSize:11, color:'var(--text2)' }}>
-                {t('cashflow.purchaseLabel', { date: fmtDate(c.data) })}
-                {c.data_pagamento && <span> · {t('cashflow.paidOn', { date: fmtDate(c.data_pagamento) })}</span>}
-              </div>
-            </div>
-            <div style={{ textAlign:'right' }}>
-              <div style={{ fontSize:15, fontWeight:800, color:'var(--red)' }}>{fmtYen(c.total_pago||0)}</div>
-              <span style={{ fontSize:11, fontWeight:700, color:c.status_pagamento==='pendente'?'var(--amber)':'var(--green)' }}>
-                {c.status_pagamento==='pendente' ? t('status.pendente') : t('status.pago')}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   )
 }
@@ -353,7 +316,7 @@ function PurchasePayments() {
       await uploadCobrancaDoc(compra.id, file)
       load()
     } catch (e) {
-      alert(e.message || t('common.uploadError'))
+      notify(e.message || t('common.uploadError'), 'error')
     }
     setUploading(false)
   }
@@ -467,109 +430,6 @@ function PurchasePayments() {
         </div>
       )}
       {payItem && <MarkPaidPopup item={payItem} onClose={() => setPayItem(null)} onSaved={load} />}
-    </div>
-  )
-}
-
-function Caixa() {
-  const { t } = useI18n()
-  const [entries, setEntries] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [modal, setModal] = useState(false)
-  const [form, setForm] = useState({ tipo:'entrada', valor:'', descricao:'', metodo:'Cash', data:new Date().toISOString().slice(0,10) })
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => { load(); const iv=setInterval(load,30000); return ()=>clearInterval(iv) }, [])
-  async function load() {
-    const { data } = await supabase.from('caixa_movimentos').select('*').order('data',{ascending:false}).limit(100)
-    setEntries(data||[])
-    setLoading(false)
-  }
-  async function save() {
-    setSaving(true)
-    await supabase.from('caixa_movimentos').insert({ ...form, valor:+form.valor })
-    setSaving(false); setModal(false); setForm({ tipo:'entrada', valor:'', descricao:'', metodo:'Cash', data:new Date().toISOString().slice(0,10) }); load()
-  }
-
-  const totalIn = entries.filter(e=>e.tipo==='entrada').reduce((a,e)=>a+(+e.valor||0),0)
-  const totalOut = entries.filter(e=>e.tipo==='saida').reduce((a,e)=>a+(+e.valor||0),0)
-  const balance = totalIn - totalOut
-
-  if (loading) return <Spinner text={t('common.loading')} />
-  return (
-    <div>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:20 }}>
-        {[
-          { label: t('cashflow.totalIn'), value: fmtYen(totalIn), color: 'var(--green)', icon: 'trendUp' },
-          { label: t('cashflow.totalOut'), value: fmtYen(totalOut), color: 'var(--red)', icon: 'trendDown' },
-          { label: t('cashflow.balance'), value: fmtYen(balance), color: balance >= 0 ? 'var(--green)' : 'var(--red)', icon: 'coins' },
-        ].map(k=>(
-          <div key={k.label} style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:14, padding:'16px' }}>
-            <span className="ui-kpi-icon" style={{ marginBottom:8 }}><Icon name={k.icon} size={18} /></span>
-            <div style={{ fontSize:22, fontWeight:800, color:k.color }}>{k.value}</div>
-            <div style={{ fontSize:11, color:'var(--text2)', textTransform:'uppercase', marginTop:4 }}>{k.label}</div>
-          </div>
-        ))}
-      </div>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
-        <div style={{ fontSize:16, fontWeight:700 }}>{t('cashflow.cashMovements')}</div>
-        <button className="btn-primary" onClick={()=>setModal(true)} style={{ padding:'8px 16px', fontSize:12, borderRadius:10 }}>{t('cashflow.addMovement')}</button>
-      </div>
-      {entries.length===0?<Empty text={t('cashflow.noMovements')} icon="💵" />:(
-        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-          {entries.map(e=>(
-            <div key={e.id} style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:12, padding:'12px 16px', display:'flex', alignItems:'center', gap:12 }}>
-              <div style={{ width:36, height:36, borderRadius:10, background:e.tipo==='entrada'?'var(--green-bg)':'var(--red-bg)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>
-                {e.tipo==='entrada'?'↑':'↓'}
-              </div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:13, fontWeight:600 }}>{e.descricao}</div>
-                <div style={{ fontSize:11, color:'var(--text2)' }}>{fmtDate(e.data)} · {e.metodo}</div>
-              </div>
-              <button onClick={async()=>{ if(!confirm(t('common.confirmDelete')))return; await supabase.from('caixa_movimentos').delete().eq('id',e.id); setEntries(prev=>prev.filter(x=>x.id!==e.id)) }} style={{padding:'4px 8px',fontSize:11,borderRadius:6,background:'var(--red)',color:'white',border:'none',cursor:'pointer',marginRight:8}}><Icon name="trash" size={14} /></button>
-              <div style={{ fontSize:15, fontWeight:800, color:e.tipo==='entrada'?'var(--green)':'var(--red)' }}>
-                {e.tipo==='entrada'?'+':'-'}{fmtYen(e.valor)}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      {modal && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
-          <div style={{ background:'var(--bg2)', borderRadius:20, padding:'28px', width:'100%', maxWidth:380, boxShadow:'0 24px 60px rgba(0,0,0,0.3)' }}>
-            <div style={{ fontSize:16, fontWeight:700, marginBottom:20 }}>{t('cashflow.addCashMovement')}</div>
-            <div style={{ marginBottom:12 }}>
-              <label className="form-label">{t('cashflow.movementType')}</label>
-              <select value={form.tipo} onChange={e=>setForm({...form,tipo:e.target.value})}>
-                <option value="entrada">{t('cashflow.typeIn')}</option>
-                <option value="saida">{t('cashflow.typeOut')}</option>
-              </select>
-            </div>
-            <div style={{ marginBottom:12 }}>
-              <label className="form-label">{t('common.amount')} (¥)</label>
-              <input type="number" value={form.valor} onChange={e=>setForm({...form,valor:e.target.value})} autoFocus />
-            </div>
-            <div style={{ marginBottom:12 }}>
-              <label className="form-label">{t('cashflow.description')}</label>
-              <input value={form.descricao} onChange={e=>setForm({...form,descricao:e.target.value})} placeholder={t('cashflow.descPlaceholder')} />
-            </div>
-            <div style={{ marginBottom:12 }}>
-              <label className="form-label">{t('common.method')}</label>
-              <select value={form.metodo} onChange={e=>setForm({...form,metodo:e.target.value})}>
-                {['Cash','Bank Transfer','Card'].map(m=><option key={m}>{m}</option>)}
-              </select>
-            </div>
-            <div style={{ marginBottom:20 }}>
-              <label className="form-label">{t('common.date')}</label>
-              <input type="date" value={form.data} onChange={e=>setForm({...form,data:e.target.value})} />
-            </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:8 }}>
-              <button onClick={()=>setModal(false)} style={{ padding:'11px', borderRadius:12, border:'1px solid var(--border)', background:'transparent', cursor:'pointer' }}>{t('common.cancel')}</button>
-              <button className="btn-primary" onClick={save} disabled={saving||!form.valor||!form.descricao} style={{ padding:'11px', borderRadius:12 }}>{saving ? t('common.saving') : t('common.save')}</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -776,7 +636,7 @@ function Calendario() {
 
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
         <button onClick={()=>setCurrentMonth(new Date(year,month-1,1))} style={{ padding:'8px 16px', borderRadius:8, border:'1px solid var(--border)', background:'transparent', cursor:'pointer', fontSize:16 }}>←</button>
-        <div style={{ fontSize:16, fontWeight:700 }}>{currentMonth.toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}</div>
+        <div style={{ fontSize:16, fontWeight:700 }}>{currentMonth.toLocaleDateString(dateLocale(getGlobalLang()),{month:'long',year:'numeric'})}</div>
         <button onClick={()=>{ setCurrentMonth(new Date(year,month+1,1)); setSelectedDay(null); setPopup(null) }} style={{ padding:'8px 16px', borderRadius:8, border:'1px solid var(--border)', background:'transparent', cursor:'pointer', fontSize:16 }}>→</button>
       </div>
 
@@ -836,7 +696,7 @@ function Calendario() {
           <div style={{ background:'var(--bg2)', borderRadius:20, padding:'24px', width:'100%', maxWidth:420, boxShadow:'0 24px 60px rgba(0,0,0,0.3)' }}
             onClick={e=>e.stopPropagation()}>
             <div style={{ fontSize:16, fontWeight:700, marginBottom:16 }}>
-              {currentMonth.toLocaleDateString('pt-BR',{month:'long'})} {selectedDay}, {year}
+              {currentMonth.toLocaleDateString(dateLocale(getGlobalLang()),{month:'long'})} {selectedDay}, {year}
             </div>
             {popup.map((ev,i)=>(
               <div

@@ -9,6 +9,7 @@ import { shiftMonth } from '../lib/barCalendar'
 import { loadBarTeam } from '../lib/barTeam'
 import { supplierChoices } from '../lib/partners'
 import Icon from './ui/Icon'
+import { askConfirm, notify } from './ui/ConfirmDialog'
 
 const EMPTY_LINE = { nome: '', qtd: '1', preco: '' }
 
@@ -87,7 +88,7 @@ export default function OwnOrders({ bar }) {
   }
 
   async function remove(row) {
-    if (!confirm(t('ownOrders.deleteConfirm'))) return
+    if (!(await askConfirm({ title: t('ownOrders.deleteConfirm'), danger: true }))) return
     const { error } = await supabase.from('bar_own_orders').delete().eq('id', row.id)
     if (error) setErr(error.message)
     else setRows(prev => prev.filter(r => r.id !== row.id))

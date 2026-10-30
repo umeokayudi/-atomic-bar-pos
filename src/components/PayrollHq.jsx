@@ -70,7 +70,7 @@ export default function PayrollHq() {
   const statusText = periodStatus ? t(`employee.status_${periodStatus}`) : ''
 
   return (
-    <AdminPage title={t('payroll.title')} subtitle={t('payroll.subtitle')}>
+    <AdminPage title={t('payroll.title')} subtitle={`${t('payroll.subtitle')} ${t('payroll.boundary')}`}>
       {missing && <PortalSurface><Empty text={t('employee.schemaMissing')} /></PortalSurface>}
       {err && <div className="ui-error" role="alert">{err}</div>}
       <PortalSurface>

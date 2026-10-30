@@ -9,6 +9,9 @@ import {
 } from '../lib/jbmHolding'
 import JbmHoldingAI from './JbmHoldingAI'
 import { useI18n } from '../lib/i18n'
+import { supabase } from '../lib/supabase'
+import { fmtYen } from './utils'
+import { reconciledCash } from '../lib/money'
 
 export default function JbmHoldingPanel() {
   const { t } = useI18n()
@@ -17,12 +20,20 @@ export default function JbmHoldingPanel() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
+  const [cash, setCash] = useState(null)
 
   useEffect(() => {
     syncHoldingFromCloud()
       .then(setProfile)
       .catch(() => setProfile(loadHoldingLocal()))
       .finally(() => setLoading(false))
+    // Same cash as Cash flow → Overview (one definition, src/lib/money.js).
+    Promise.all([
+      supabase.from('faturas').select('id,bar_id,total,valor,pago,periodo_inicio,periodo_fim,data_emissao'),
+      supabase.from('fatura_pagamentos').select('fatura_id,valor,confirmado,metodo'),
+      supabase.from('compras').select('fornecedor,total_real,total_pago,status_pagamento,metodo_pagamento_real,pagamento,data,data_compra'),
+    ]).then(([f, p, c]) => setCash(reconciledCash({ faturas: f.data || [], pagamentos: p.data || [], compras: c.data || [] })))
+      .catch(() => setCash(null))
   }, [])
 
   function updateNegocio(i, patch) {
@@ -31,6 +42,10 @@ export default function JbmHoldingPanel() {
       negocios[i] = { ...negocios[i], ...patch }
       return { ...p, negocios }
     })
+  }
+
+  function removeNegocio(i) {
+    setProfile(p => ({ ...p, negocios: p.negocios.filter((_, j) => j !== i) }))
   }
 
   function addNegocio() {
@@ -73,6 +88,14 @@ export default function JbmHoldingPanel() {
           {t('holding.subtitle')}
         </div>
       </div>
+
+      {cash && (
+        <div className="card" style={{ marginBottom: 16, fontSize: 13, lineHeight: 1.6 }}>
+          <div><b>{t('holding.cashNow')}: {fmtYen(cash.cash)}</b> · {t('holding.cashNowSub', { in: fmtYen(cash.received), out: fmtYen(cash.paidOut) })}</div>
+          {!(+profile.capitalDisponivel > 0) && <div style={{ color: 'var(--amber)' }}>{t('holding.capitalMissing')}</div>}
+          {+profile.custoOportunidadeBasePct === 28 && <div style={{ color: 'var(--amber)' }}>{t('holding.baseDefault')}</div>}
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
         {[
@@ -167,12 +190,17 @@ export default function JbmHoldingPanel() {
                     </select>
                   </div>
                 </div>
-                <input
-                  value={n.notas || ''}
-                  onChange={e => updateNegocio(i, { notas: e.target.value })}
-                  placeholder={t('holding.notesPlaceholder')}
-                  style={{ width: '100%', fontSize: 12 }}
-                />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    value={n.notas || ''}
+                    onChange={e => updateNegocio(i, { notas: e.target.value })}
+                    placeholder={t('holding.notesPlaceholder')}
+                    style={{ width: '100%', fontSize: 12 }}
+                  />
+                  {n.tipo !== 'bebidas' && (
+                    <button type="button" onClick={() => removeNegocio(i)} style={{ padding: '4px 10px', fontSize: 12 }}>{t('holding.removeBusiness')}</button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

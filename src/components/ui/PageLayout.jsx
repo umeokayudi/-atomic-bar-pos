@@ -61,7 +61,7 @@ export function PortalHero({ label, value, sub, alert, onClick, style }) {
  * vs the previous period ("+12% vs last month"). delta is a whole percent or null.
  * deltaGood='down' flips the colours for costs, where going down is good.
  */
-export function PortalKpi({ label, value, sub, subColor, color = 'var(--c-text)', onClick, hint, icon, tone = 'accent', delta, deltaLabel, deltaGood = 'up' }) {
+export function PortalKpi({ label, value, sub, subColor, color = 'var(--c-text)', onClick, hint, icon, tone = 'accent', delta, deltaLabel, deltaGood = 'up', source }) {
   const clickable = typeof onClick === 'function'
   // --navy is the dark chrome colour: as text it vanishes on dark surfaces, so it reads as body text here.
   const valueColor = !color || color === 'var(--navy)' ? 'var(--c-text)' : color
@@ -87,6 +87,7 @@ export function PortalKpi({ label, value, sub, subColor, color = 'var(--c-text)'
         </div>
       )}
       {sub && <div className="portal-kpi-sub" style={subColor ? { color: subColor, fontWeight: 600 } : undefined}>{sub}</div>}
+      {source && <div className="portal-kpi-sub" style={{ opacity: 0.75 }}>{source}</div>}
       {hint && <div className="portal-kpi-hint">{hint}</div>}
     </div>
   )

@@ -8,6 +8,7 @@ import {
   lineCost, lineFromProduct, marginPct, marginTone, parseRecipe, recipeCost, serializeRecipe, suggestPrices,
 } from '../lib/recipe'
 import './BarRecipes.css'
+import { askConfirm, notify } from './ui/ConfirmDialog'
 
 const SPIRITS = /gin|vodka|rum|tequila|whisk|shochu|spirit|liqueur|brandy|cognac|sake/i
 const ML_CHIPS = [15, 30, 45, 60, 90]
@@ -474,7 +475,7 @@ export function MenuTab({ bar }) {
   }
 
   async function deleteDrink(id) {
-    if (!confirm(t('recipes.deleteConfirm'))) return
+    if (!(await askConfirm({ title: t('recipes.deleteConfirm'), danger: true }))) return
     await supabase.from('drink_menu').delete().eq('id', id)
     load()
   }

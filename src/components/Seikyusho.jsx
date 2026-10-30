@@ -6,6 +6,7 @@ import { fmtYen, fmtDate, Spinner, MetricCard } from './utils'
 import { PageHeader, PortalSurface } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
 import Icon from './ui/Icon'
+import { notify } from './ui/ConfirmDialog'
 
 export default function SeikyushoTab() {
   const { t } = useI18n()
@@ -84,7 +85,7 @@ export default function SeikyushoTab() {
       setStep('review')
       if (commentOverride) setCorrecao('')
     } catch (e) {
-      alert(e.message || t('seikyusho.analyzeError'))
+      notify(e.message || t('seikyusho.analyzeError'), 'error')
     } finally {
       setLoading(false)
     }
@@ -102,7 +103,7 @@ export default function SeikyushoTab() {
       setResult(data)
       setStep('done')
     } catch (e) {
-      alert(e.message || t('seikyusho.registerError'))
+      notify(e.message || t('seikyusho.registerError'), 'error')
     } finally {
       setSaving(false)
     }

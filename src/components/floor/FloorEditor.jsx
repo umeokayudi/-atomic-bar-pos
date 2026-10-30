@@ -11,6 +11,7 @@ import Floor3D from './Floor3D'
 import { staffFetch } from '../../lib/apiAuth'
 import { parseJsonFromAI } from '../../lib/ai'
 import { FLOOR_PHOTO_SYSTEM, floorPhotoPrompt, piecesFromAi, shrinkPhoto } from '../../lib/floorPhoto'
+import { askConfirm, notify } from '../ui/ConfirmDialog'
 
 const SHAPE_ICON = { round: 'circle', square: 'square', rect: 'rect', bar: 'move', sofa: 'sofa', wall: 'wall', door: 'door', stage: 'stage', plant: 'plant' }
 const TABLE_SHAPES = Object.keys(SHAPES).filter(f => !isDecor(f))
@@ -206,7 +207,7 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
   }
 
   async function duplicateLayout() {
-    if (dirty && !window.confirm(t('floor.confirmDiscard'))) return
+    if (dirty && !(await askConfirm({ title: t('floor.confirmDiscard'), danger: false }))) return
     const nome = window.prompt(t('floor.duplicateName'), `${state.layout.nome} (2)`)
     if (!nome) return
     setBusy(true)
@@ -226,7 +227,7 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
   }
 
   async function newLayout() {
-    if (dirty && !window.confirm(t('floor.confirmDiscard'))) return
+    if (dirty && !(await askConfirm({ title: t('floor.confirmDiscard'), danger: false }))) return
     const nome = window.prompt(t('floor.newLayoutName'), t('floor.newLayoutDefault'))
     if (!nome) return
     setBusy(true)
@@ -246,8 +247,8 @@ export default function FloorEditor({ layout: initialLayout, layouts = [], busyT
       <div className="fe-toolbar ui-card">
         <label className="ui-field fe-layout-pick">
           <span className="ui-sr">{t('floor.layout')}</span>
-          <select value={L.id} onChange={e => {
-            if (dirty && !window.confirm(t('floor.confirmDiscard'))) return
+          <select value={L.id} onChange={async e => {
+            if (dirty && !(await askConfirm({ title: t('floor.confirmDiscard'), danger: false }))) return
             onSwitchLayout?.(e.target.value)
           }}>
             {layouts.map(l => <option key={l.id} value={l.id}>{l.nome}{l.ativo ? ` · ${t('floor.active')}` : ''}</option>)}

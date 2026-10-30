@@ -12,6 +12,7 @@ import { barBookScope, canReadCompanyPurchases } from '../lib/legacyScope'
 import ComprasNotasSection from './ComprasNotasSection'
 import { AdminPage, PortalKpi, PortalSurface } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
+import { askConfirm, notify } from './ui/ConfirmDialog'
 
 export default function RelatorioTab() {
   const { t } = useI18n()
@@ -92,7 +93,9 @@ export default function RelatorioTab() {
   const vendasMes = vendas.filter(v => saleMonthKey(v) === selMonth)
   const ryoMes = ryoshushoForMonth(ryoshusho, selMonth)
 
+  // Real purchases only; an estimated cost (June 2026) is shown apart and labelled, never added in.
   const custoCompras = dash.compras ?? comprasMes.reduce((a, c) => a + (+c.total_real || 0), 0)
+  const custoEstimado = dash.comprasEstimadas ? (+dash.comprasEstimativa || 0) : 0
   const descontoTotal = comprasMes.reduce((a, c) => a + (+c.desconto_pontos || 0), 0)
   const creditoBar = barCreditsForMonth(selMonth)
   const creditosBar = barCreditsList(selMonth)
@@ -107,7 +110,10 @@ export default function RelatorioTab() {
 
   const porProdutoComprado = aggregateComprasItens(comprasMes)
 
-  const vendasDetalhe = vendasMes
+  // Deliveries of the month come from the same place as the Dashboard (delivered orders + manual sales);
+  // the sales table alone said "No sales this month" for June/July, when deliveries were orders.
+  const entregasDash = Array.isArray(dash.entregasDetalhe) ? dash.entregasDetalhe : null
+  const vendasDetalhe = entregasDash && entregasDash.length ? entregasDash.map((e, i) => ({ ...e, id: e.id || i })) : vendasMes
     .map(v => {
       const bar = bars.find(b => b.id === v.bar_id)
       return {
@@ -148,7 +154,7 @@ export default function RelatorioTab() {
   }
 
   async function deleteRyoshusho(r) {
-    if (!confirm(t('report.confirmDeleteRyoshusho', { num: r.numero }))) return
+    if (!(await askConfirm({ title: t('report.confirmDeleteRyoshusho', { num: r.numero }), danger: true }))) return
     let del = supabase.from('ryoshusho').delete().eq('id', r.id)
     if (scope.kind === 'bar') del = del.eq('bar_id', scope.barId)
     await del
@@ -171,13 +177,13 @@ export default function RelatorioTab() {
       <div className="admin-kpi-grid" style={{ marginBottom: 18 }}>
         {companyLedger && (
           <PortalKpi label={t('report.purchasesNotes')} value={fmtYen(custoCompras)} color={custoCompras > 0 ? 'var(--red)' : undefined}
-            sub={dash.comprasEstimadas ? t('report.purchasesSubEst', { count: comprasMes.length }) : t('report.purchasesSub', { count: comprasMes.length })} />
+            sub={custoEstimado > 0 ? t('report.purchasesEstimate', { count: comprasMes.length, amount: fmtYen(custoEstimado) }) : t('report.purchasesSub', { count: comprasMes.length })} />
         )}
         <PortalKpi label={t('report.billing')} value={fmtYen(faturamento)} color="var(--navy)"
-          sub={t('report.billingSub', { count: vendasMes.length, type: dash.comprasEstimadas ? t('report.billingTypeOrders') : t('report.billingTypeCharge') })} />
+          sub={t('report.billingSub', { count: vendasDetalhe.length, type: dash.comprasEstimadas ? t('report.billingTypeOrders') : t('report.billingTypeCharge') })} />
         {companyLedger && (
-          <PortalKpi label={t('report.projectedProfit')} value={fmtYen(lucroTotal)} color="var(--green)"
-            sub={custoCompras > 0 ? t('report.profitSub', { margin: margemGeral }) : t('dashboard.noPurchasesLogged')} />
+          <PortalKpi label={`${t('report.projectedProfit')}${dash.lucroEstimado ? ` · ${t('dashboard.estimateTag')}` : ''}`} value={fmtYen(lucroTotal)} color="var(--green)"
+            sub={custoCompras > 0 || custoEstimado > 0 ? t('report.profitSub', { margin: margemGeral }) : t('dashboard.noPurchasesLogged')} />
         )}
         <PortalKpi label={t('report.toReceive')} value={fmtYen(aReceber)} color={aReceber > 0 ? 'var(--amber)' : 'var(--green)'}
           sub={faturasMes.length ? t('report.openInvoices', { count: faturasMes.length }) : t('report.nothingPending')} />
@@ -225,7 +231,7 @@ export default function RelatorioTab() {
             <tfoot>
               <tr>
                 <td colSpan={3} style={{ fontWeight: 700 }}>{t('common.total')} ({vendasDetalhe.length})</td>
-                <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--c-text)' }}>{fmtYen(receitaTotal)}</td>
+                <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--c-text)' }}>{fmtYen(vendasDetalhe.reduce((a, v) => a + (+v.receita || 0), 0))}</td>
               </tr>
             </tfoot>
           </table>

@@ -1,5 +1,6 @@
 import { buildLiveSnapshot } from './_cashflowSnapshot.js'
 import { sendEmail } from './_email.js'
+import { readLiveJson } from './_barLiveStore.js'
 
 const BUCKET = 'system-private'
 const LOG_FILE = 'billing_email_log.json'
@@ -29,7 +30,15 @@ export async function buildOverdueBillingReport(sb) {
 
   const bars = Object.fromEntries((barsR.data || []).map(b => [b.id, b]))
   const emailsByBar = {}
+  // The billing e-mail belongs to the bar's file (HQ → Bars). The owner's login e-mail is only a fallback.
+  const profiles = await readLiveJson(sb, 'bar_profile').catch(() => [])
+  for (const pr of profiles || []) {
+    const email = String(pr?.email_cobranca || '').trim()
+    const barId = pr?.bar_id || pr?.id
+    if (barId && email) emailsByBar[barId] = [{ email, nome: pr.responsavel || email }]
+  }
   for (const p of perfisR.data || []) {
+    if (emailsByBar[p.bar_id]?.length && profiles.some(pr => (pr.bar_id || pr.id) === p.bar_id && pr.email_cobranca)) continue
     if (!p.bar_id || !p.email) continue
     if (!emailsByBar[p.bar_id]) emailsByBar[p.bar_id] = []
     emailsByBar[p.bar_id].push({ email: p.email, nome: p.nome || p.email })

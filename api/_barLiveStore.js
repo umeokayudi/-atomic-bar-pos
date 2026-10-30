@@ -37,6 +37,10 @@ export const LIVE_TABLES = [
   'bar_guest_ledger',
   // Each bar's colour and logo in its app (HQ → Bars). Everyone at the bar reads it; only HQ writes it.
   'bar_brand',
+  // JBM's own company data (receipt issuer: name, address, phone, registration number). HQ writes, everyone reads.
+  'jbm_company',
+  // Each bar's file: address, contact, billing e-mail, phone, terms, credit limit, tax data. HQ writes.
+  'bar_profile',
   // Staff app: requests to the owner and the check-out day reports. Server routes only (secret in /api/bar/live-db).
   'staff_requests',
   'staff_day_reports',

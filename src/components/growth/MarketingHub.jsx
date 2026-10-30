@@ -6,6 +6,7 @@ import { CAMPAIGN_CHANNELS, CAMPAIGN_STATUSES, addDays, campaignLift, campaignRo
 import { filterSupplierVendas, fmtYen } from '../utils'
 import Icon from '../ui/Icon'
 import { Kpi } from './ClientsCrm'
+import { askConfirm, notify } from '../ui/ConfirmDialog'
 
 const EMPTY = { nome: '', bar_id: '', canal: 'in_store', status: 'draft', inicio: '', fim: '', produtos: '', oferta: '', objetivo: '', orcamento: '', resultado_notas: '' }
 const STATUS_TONE = { draft: '', scheduled: 'is-info', running: 'is-accent', done: 'is-success', cancelled: 'is-danger' }
@@ -84,7 +85,7 @@ export default function MarketingHub({ barId: fixedBar = null }) {
   }
 
   async function remove(r) {
-    if (!window.confirm(t('growth.confirmDelete', { name: r.nome }))) return
+    if (!(await askConfirm({ title: t('growth.confirmDelete', { name: r.nome }), danger: true }))) return
     const { error } = await supabase.from('marketing_campaigns').delete().eq('id', r.id)
     if (error) setErr(t('growth.saveError', { error: error.message }))
     load()

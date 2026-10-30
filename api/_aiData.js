@@ -145,8 +145,12 @@ async function stock(db, barFilter) {
     .filter(r => r.estoque_minimo != null && r.estoque_atual != null && +r.estoque_atual <= +r.estoque_minimo)
     .slice(0, 20)
     .map(r => ({ name: r.nome, onHand: +r.estoque_atual, min: +r.estoque_minimo }))
+  // Stock control is real only when products carry an on-hand count; otherwise the AI must not state stock levels.
+  const counted = prods.rows.filter(r => r.estoque_atual != null && +r.estoque_atual !== 0).length
   return {
+    ...(counted === 0 ? { limitation: 'Stock control is not set up yet (no product has an on-hand count). Do not state stock levels or shortages; say stock control must be set up first.' } : {}),
     source: 'produtos (estoque_atual/estoque_minimo), estoque_regras',
+    countedProducts: counted,
     activeProducts: prods.rows.length,
     barRules: rules.rows.length,
     belowMinimum: low,

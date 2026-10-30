@@ -12,6 +12,7 @@ import { useI18n } from '../lib/i18n'
 import { asReactText } from '../lib/errText'
 import { canLoadOverdueAlerts } from '../lib/legacyScope'
 import { panelBoxStyle, placeNotifPanel } from '../lib/notifPanel'
+import { groupNotifs, sortOverdue, expiredIds } from '../lib/notifGroups'
 
 export function useNotifications() {
   const { user } = useAuth()
@@ -24,8 +25,12 @@ export function useNotifications() {
       .select('*')
       .eq('user_id', user.id)
       .order('criado_em', { ascending: false })
-      .limit(20)
-    setNotifs(data || [])
+      .limit(60)
+    const rows = data || []
+    // Read order events older than DELETE_DAYS are removed for good (they stay archived before that).
+    const old = expiredIds(rows)
+    if (old.length) await supabase.from('notificacoes').delete().in('id', old)
+    setNotifs(rows.filter(n => !old.includes(n.id)))
   }, [user])
 
   useEffect(() => {
@@ -232,6 +237,10 @@ export function NotificationBell({
   const { t } = useI18n()
   const list = Array.isArray(notifs) ? notifs : []
   const [open, setOpen] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
+  const { groups, archived } = useMemo(() => groupNotifs(list), [list])
+  const overdueFaturas = useMemo(() => sortOverdue(overdueAlerts?.faturas), [overdueAlerts])
+  const overdueCompras = useMemo(() => sortOverdue(overdueAlerts?.compras), [overdueAlerts])
   const btnRef = useRef(null)
   const panelRef = useRef(null)
   const [panelStyle, setPanelStyle] = useState(null)
@@ -305,6 +314,41 @@ export function NotificationBell({
     if (tab) onNavigate?.(tab)
   }
 
+  function renderRow(n) {
+    const tipo = TIPO_ICON[n.tipo] || { icon: 'bell', color: 'var(--text2)', bg: 'var(--bg3)' }
+    const tab = notifTab(n.link)
+    return (
+      <div
+        key={n.id}
+        className={`notif-row${n.lida ? '' : ' is-unread'}`}
+      >
+        <button
+          type="button"
+          className="notif-row-hit"
+          onClick={() => { markRead(n.id); go(tab) }}
+        >
+          <span className="notif-row-icon" style={{ background: tipo.bg, color: tipo.color }}><Icon name={tipo.icon} size={16} /></span>
+          <span className="notif-row-content">
+            <span className="notif-row-title">{asReactText(n.titulo)}</span>
+            {n.mensagem && <span className="notif-row-msg">{asReactText(n.mensagem)}</span>}
+            <span className="notif-row-time">{timeAgo(n.criado_em, t)}</span>
+          </span>
+          {!n.lida && <span className="notif-unread-dot" aria-hidden />}
+        </button>
+        {deleteNotif && (
+          <button
+            type="button"
+            className="notif-row-x"
+            aria-label={t('notifications.delete')}
+            onClick={e => { e.stopPropagation(); deleteNotif(n.id) }}
+          >
+            ×
+          </button>
+        )}
+      </div>
+    )
+  }
+
   const panel = open && panelStyle && createPortal(
     <div
       ref={panelRef}
@@ -330,6 +374,38 @@ export function NotificationBell({
         </div>
 
         <div className="notif-panel-body">
+          {overdueCount > 0 && (
+            <div className="notif-overdue-block">
+              <div className="notif-overdue-title">{t('notifications.overdueAlert')}</div>
+              {overdueFaturas.map(f => (
+                <button
+                  key={`f-${f.id}`}
+                  type="button"
+                  className="notif-overdue-row"
+                  onClick={() => go(f.tab || 'faturas')}
+                >
+                  <span className="notif-overdue-kind">{t('notifications.invoiceKind')}</span>
+                  <span className="notif-overdue-label">{asReactText(f.label)}</span>
+                  <span className="notif-overdue-amount">{fmtYen(f.amount)}</span>
+                  <span className="notif-overdue-date">{t('notifications.expiredOn', { date: fmtDate(f.date) })}</span>
+                </button>
+              ))}
+              {overdueCompras.map(c => (
+                <button
+                  key={`c-${c.id}`}
+                  type="button"
+                  className="notif-overdue-row"
+                  onClick={() => go(c.tab || 'cashflow')}
+                >
+                  <span className="notif-overdue-kind">{t('notifications.purchaseKind')}</span>
+                  <span className="notif-overdue-label">{asReactText(c.label)}</span>
+                  <span className="notif-overdue-amount">{fmtYen(c.amount)}</span>
+                  <span className="notif-overdue-date">{t('notifications.expiredOn', { date: fmtDate(c.date) })}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           {mismatches.length > 0 && (
             <div className="notif-overdue-block">
               <div className="notif-overdue-title">{mismatches.every(m => m.paidGap) ? t('notifications.paidGapTitle') : t('notifications.mismatchTitle')}</div>
@@ -353,74 +429,25 @@ export function NotificationBell({
               ))}
             </div>
           )}
-          {overdueCount > 0 && (
-            <div className="notif-overdue-block">
-              <div className="notif-overdue-title">{t('notifications.overdueAlert')}</div>
-              {overdueAlerts.faturas?.map(f => (
-                <button
-                  key={`f-${f.id}`}
-                  type="button"
-                  className="notif-overdue-row"
-                  onClick={() => go(f.tab || 'faturas')}
-                >
-                  <span className="notif-overdue-kind">{t('notifications.invoiceKind')}</span>
-                  <span className="notif-overdue-label">{asReactText(f.label)}</span>
-                  <span className="notif-overdue-amount">{fmtYen(f.amount)}</span>
-                  <span className="notif-overdue-date">{t('notifications.expiredOn', { date: fmtDate(f.date) })}</span>
-                </button>
-              ))}
-              {overdueAlerts.compras?.map(c => (
-                <button
-                  key={`c-${c.id}`}
-                  type="button"
-                  className="notif-overdue-row"
-                  onClick={() => go(c.tab || 'cashflow')}
-                >
-                  <span className="notif-overdue-kind">{t('notifications.purchaseKind')}</span>
-                  <span className="notif-overdue-label">{asReactText(c.label)}</span>
-                  <span className="notif-overdue-amount">{fmtYen(c.amount)}</span>
-                  <span className="notif-overdue-date">{t('notifications.expiredOn', { date: fmtDate(c.date) })}</span>
-                </button>
-              ))}
+          {list.length === 0 && overdueCount === 0 && mismatches.length === 0 && (
+            <div className="notif-empty">{t('notifications.none')}</div>
+          )}
+          {groups.map(g => (
+            <div key={g.tipo} className="notif-group">
+              {groups.length > 1 && (
+                <div className="notif-overdue-title">{t(`notifications.group.${TIPO_ICON[g.tipo] ? g.tipo : 'other'}`)} · {g.items.length}</div>
+              )}
+              {g.items.map(renderRow)}
+            </div>
+          ))}
+          {archived.length > 0 && (
+            <div className="notif-group">
+              <button type="button" className="notif-panel-link" onClick={() => setShowArchived(v => !v)}>
+                {t(showArchived ? 'notifications.hideArchived' : 'notifications.showArchived', { count: archived.length })}
+              </button>
+              {showArchived && archived.map(renderRow)}
             </div>
           )}
-
-          {list.length === 0 && overdueCount === 0 && mismatches.length === 0 ? (
-            <div className="notif-empty">{t('notifications.none')}</div>
-          ) : list.map(n => {
-            const tipo = TIPO_ICON[n.tipo] || { icon: 'bell', color: 'var(--text2)', bg: 'var(--bg3)' }
-            const tab = notifTab(n.link)
-            return (
-              <div
-                key={n.id}
-                className={`notif-row${n.lida ? '' : ' is-unread'}`}
-              >
-                <button
-                  type="button"
-                  className="notif-row-hit"
-                  onClick={() => { markRead(n.id); go(tab) }}
-                >
-                  <span className="notif-row-icon" style={{ background: tipo.bg, color: tipo.color }}><Icon name={tipo.icon} size={16} /></span>
-                  <span className="notif-row-content">
-                    <span className="notif-row-title">{asReactText(n.titulo)}</span>
-                    {n.mensagem && <span className="notif-row-msg">{asReactText(n.mensagem)}</span>}
-                    <span className="notif-row-time">{timeAgo(n.criado_em, t)}</span>
-                  </span>
-                  {!n.lida && <span className="notif-unread-dot" aria-hidden />}
-                </button>
-                {deleteNotif && (
-                  <button
-                    type="button"
-                    className="notif-row-x"
-                    aria-label={t('notifications.delete')}
-                    onClick={e => { e.stopPropagation(); deleteNotif(n.id) }}
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-            )
-          })}
         </div>
     </div>,
     document.body

@@ -44,20 +44,27 @@ function juneStats({ compras, faturas, faturamentoPedidos, aReceber, pedidos }) 
   const custo = faturamento > 0 && julyFat > 0 && julyCompras > 0
     ? Math.round(faturamento * (julyCompras / julyFat))
     : 0
+  // The estimated cost is never added as a real purchase: `compras` stays the purchases logged in June,
+  // the estimate travels apart (comprasEstimativa) and the screens label it "estimate".
+  const comprasMes = (compras || []).filter(c => compraMatchesMonth(c, JUNE_MONTH))
+  const comprasReais = comprasMes.reduce((a, c) => a + compraTotal(c), 0)
   const lucroProjetado = faturamento - custo
 
   return {
     receita: 0,
     faturamento,
-    compras: custo,
+    compras: comprasReais,
+    comprasEstimativa: custo,
     lucro: lucroProjetado,
     lucroProjetado,
+    lucroEstimado: true,
     margem: faturamento > 0 ? Math.round(lucroProjetado / faturamento * 100) : 0,
     vendasCount: (pedidos || []).filter(p => pedidoMonthKey(p) === JUNE_MONTH && ['entregue', 'confirmado'].includes(p.status)).length,
-    comprasCount: (compras || []).filter(c => compraMatchesMonth(c, JULY_MONTH)).length,
+    comprasCount: comprasMes.length,
     aReceber,
     precoBase: JULY_MONTH,
     comprasEstimadas: true,
+    fontes: { faturamento: 'pedidos', compras: 'estimativa' },
   }
 }
 
@@ -81,6 +88,8 @@ export function monthDashboardStats(m, { vendas, compras, faturas, pedidos, prod
   const comprasMes = (compras || []).filter(c => compraMatchesMonth(c, m))
   const comprasTotal = comprasMes.reduce((a, c) => a + compraTotal(c), 0)
   const faturamento = faturamentoFaturas || receita || faturamentoPedidos
+  // Say where the billed number came from instead of switching source silently.
+  const fonteFaturamento = faturamentoFaturas ? 'faturas' : receita ? 'vendas' : faturamentoPedidos ? 'pedidos' : 'nenhuma'
   const lucroProjetado = faturamento - comprasTotal
 
   return {
@@ -93,6 +102,7 @@ export function monthDashboardStats(m, { vendas, compras, faturas, pedidos, prod
     vendasCount: (vendas || []).filter(v => saleMonthKey(v) === m).length,
     comprasCount: comprasMes.length,
     aReceber,
+    fontes: { faturamento: fonteFaturamento, compras: comprasMes.length ? 'compras' : 'nenhuma' },
   }
 }
 

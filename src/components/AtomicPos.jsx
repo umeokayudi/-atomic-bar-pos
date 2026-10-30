@@ -25,6 +25,7 @@ import { forgetLiveSelects } from '../lib/barLiveClient'
 import PosPaySettings from './pos/PosPaySettings'
 import Icon from './ui/Icon'
 import { useUiPrefs } from '../lib/uiPrefs'
+import { notify } from './ui/ConfirmDialog'
 
 const SUB_TAB_IDS = [
   { id: 'dashboard', key: 'tabDashboard', icon: 'dashboard' },
@@ -324,7 +325,7 @@ function PosVipTab({ bar, drinks, onUpdate }) {
   }
 
   async function saveMember() {
-    if (!memberForm.nome) return alert(t('atomicPos.nameRequired'))
+    if (!memberForm.nome) return notify(t('atomicPos.nameRequired'), 'error')
     setSaving(true)
     await supabase.from('vip_members').insert({ bar_id: bar.id, ...memberForm, codigo: memberForm.codigo || null })
     setMemberForm({ nome: '', codigo: '', tier: 'standard', notas: '' })
@@ -334,7 +335,7 @@ function PosVipTab({ bar, drinks, onUpdate }) {
   }
 
   async function registerUsage() {
-    if (!usageForm.vip_member_id || !usageForm.drink_menu_id) return alert(t('atomicPos.selectMemberDrink'))
+    if (!usageForm.vip_member_id || !usageForm.drink_menu_id) return notify(t('atomicPos.selectMemberDrink'), 'error')
     const drink = drinks.find(d => d.id === usageForm.drink_menu_id)
     if (!drink) return
     setSaving(true)
@@ -525,7 +526,7 @@ function PosPricesTab({ bar, drinks, onRefresh }) {
       ? await supabase.from('drink_menu').update(payload).eq('id', id)
       : await supabase.from('drink_menu').insert(payload)
     setSaving(false)
-    if (error) { alert(error.message); return false }
+    if (error) { notify(error.message, 'error'); return false }
     onRefresh()
     return true
   }
@@ -1030,7 +1031,7 @@ function PosDrinkBackTab({ bar, onUpdate }) {
   }
 
   async function saveAgent() {
-    if (!form.nome) return alert(t('atomicPos.nameRequired'))
+    if (!form.nome) return notify(t('atomicPos.nameRequired'), 'error')
     setSaving(true)
     const { error } = await supabase.from('drink_back_agents').insert({
       bar_id: bar.id,
@@ -1040,7 +1041,7 @@ function PosDrinkBackTab({ bar, onUpdate }) {
       notas: form.notas || null,
       ativo: true,
     })
-    if (error) { alert(error.message); setSaving(false); return }
+    if (error) { notify(error.message, 'error'); setSaving(false); return }
     setForm({ nome: '', regiao: '', comissao_pct: '10', notas: '' })
     setSaving(false)
     load()

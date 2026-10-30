@@ -14,8 +14,11 @@ import Icon from '../ui/Icon'
 
 const MONTHS = 6
 
-async function getJson(url) {
-  const r = await staffFetch(url)
+async function getJson(url, ms = 25000) {
+  // A request that never answers left the page on "Loading…" forever: give up after `ms` and say so.
+  let timer
+  const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), ms) })
+  const r = await Promise.race([staffFetch(url), timeout]).finally(() => clearTimeout(timer))
   const j = await r.json().catch(() => ({ error: r.statusText }))
   if (!r.ok || j.error) throw new Error(errText(j.error || j, 'Load failed'))
   return j
@@ -95,7 +98,7 @@ function BarList({ month, setMonth, onOpen }) {
       <div className="ui-pagebar">
         <div>
           <div className="ui-pagebar-title">{t('nav.barFinance')}</div>
-          <div className="ui-card-sub">{t('barFin.listSub')}</div>
+          <div className="ui-card-sub">{t('barFin.listSub')} {t('barFin.boundary')}</div>
         </div>
         <MonthPicker value={month} onChange={setMonth} />
       </div>
@@ -179,12 +182,15 @@ function BarPage({ barId, month, setMonth, onBack }) {
     setError('')
     getJson(`/api/bar/bar-finance?bar_id=${encodeURIComponent(barId)}&month=${month}`)
       .then(j => { if (alive) setPack(j) })
-      .catch(e => { if (alive) setError(errText(e)) })
+      .catch(e => { if (alive) setError(e?.message === 'timeout' ? t('barFin.timeout') : errText(e)) })
     return () => { alive = false }
-  }, [barId, month, reload])
+  }, [barId, month, reload]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const today = tokyoNightKey()
-  const view = useMemo(() => (pack ? barFinanceView(pack, month, today) : null), [pack, month, today])
+  const view = useMemo(() => {
+    if (!pack) return null
+    try { return barFinanceView(pack, month, today) } catch (e) { console.error('barFinanceView', e); return { failed: true } }
+  }, [pack, month, today])
   const m = view?.month
   const p = view?.prev
   const name = pack?.bar?.nome || ''
@@ -214,14 +220,15 @@ function BarPage({ barId, month, setMonth, onBack }) {
         <button type="button" className="ui-btn is-ghost is-sm" onClick={onBack}><Icon name="back" size={16} />{t('barFin.allBars')}</button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="ui-pagebar-title">{name || '…'}</div>
-          <div className="ui-card-sub">{m ? t(m.window.closed ? 'barFin.closedMonth' : 'barFin.openMonth', { from: m.window.start, to: m.window.end, n: m.nights }) : t('barFin.loading')}</div>
+          <div className="ui-card-sub">{m ? t(m.window.closed ? 'barFin.closedMonth' : 'barFin.openMonth', { from: m.window.start, to: m.window.end, n: m.nights }) : pack || error ? t('barFin.noData') : t('barFin.loading')}</div>
         </div>
         <MonthPicker value={month} onChange={setMonth} />
         <button type="button" className="ui-btn is-sm" onClick={() => setReload(x => x + 1)} aria-label={t('barFin.refresh')}><Icon name="refresh" size={16} /></button>
       </div>
 
       {error && <div className="ui-error" role="alert"><Icon name="warning" />{error}</div>}
-      {!m && !error && <div className="ui-skel" style={{ height: 320 }} />}
+      {!m && !error && !pack && <div className="ui-skel" style={{ height: 320 }} />}
+      {!m && !error && pack && <div className="ui-empty">{t('barFin.noData')}</div>}
 
       {m && (
         <>

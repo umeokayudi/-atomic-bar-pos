@@ -31,17 +31,21 @@ export async function markFaturaPaid(id, { paid, date }) {
   if (upd) throw upd
 }
 
-export async function markCompraPaid(id, { paid, date }) {
-  const { error } = await supabase.from('compras').update({
+export async function markCompraPaid(id, { paid, date, metodo }) {
+  // Every paid purchase keeps its payment date (and how it was paid).
+  if (paid && !date) throw new Error('Payment date is required')
+  const patch = {
     status_pagamento: paid ? 'pago' : 'pendente',
-    data_pagamento: paid ? (date || null) : null,
-  }).eq('id', id)
+    data_pagamento: paid ? date : null,
+  }
+  if (paid && metodo) patch.metodo_pagamento_real = metodo
+  const { error } = await supabase.from('compras').update(patch).eq('id', id)
   if (error) throw error
 }
 
-export async function savePaidMark(item, { paid, date }) {
+export async function savePaidMark(item, { paid, date, metodo }) {
   if (!item?.id || !item.type) throw new Error('Missing item')
   if (item.type === 'fatura') return markFaturaPaid(item.id, { paid, date })
-  if (item.type === 'compra') return markCompraPaid(item.id, { paid, date })
+  if (item.type === 'compra') return markCompraPaid(item.id, { paid, date, metodo })
   throw new Error('Unknown type')
 }

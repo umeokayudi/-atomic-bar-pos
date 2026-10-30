@@ -44,7 +44,10 @@ assert.ok(!shellTabIds('staff').includes('faturas'))
 assert.deepEqual(shellTabIds('jbm'), ['procurement', 'fulfillment', 'payroll'])
 assert.ok(!shellTabIds('jbm').includes('purchases'))
 assert.ok(!shellTabIds('jbm').includes('dashboard'))
-assert.ok(shellTabIds('admin').includes('procurement'))
+// Fulfillment/procurement/marketing/consulting are out of the HQ menu until they work in production.
+assert.ok(!shellTabIds('admin').includes('procurement'))
+assert.ok(!shellTabIds('admin').includes('fulfillment'))
+assert.ok(shellTabIds('admin').includes('pedidos'))
 assert.deepEqual(shellTabIds('fornecedor'), [])
 assert.deepEqual(shellTabIds('cliente'), [])
 

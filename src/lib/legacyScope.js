@@ -33,13 +33,22 @@ export function barBookScope(role, barId) {
   return { kind: 'none' }
 }
 
+/**
+ * Modules kept out of the HQ menu until they work in production:
+ * - fulfillment / procurement: the same order → purchase → receive → deliver flow, and neither has its
+ *   tables in the live database (Orders already covers order → delivery);
+ * - marketing / consultoria: no real use yet (CRM and AI Center cover the need).
+ * Their code stays; remove an id here to bring the module back.
+ */
+export const HQ_HIDDEN_MODULES = new Set(['fulfillment', 'procurement', 'marketing', 'consultoria'])
+
 export function shellTabIds(role) {
   if (role === 'admin') {
     return [
       'dashboard', 'billingHub', 'purchases', 'sales', 'pedidos', 'fulfillment', 'procurement',
       'relatorio', 'ryoshusho', 'seikyusho', 'products', 'bars', 'usuarios', 'faturas', 'suppliers', 'cashflow',
       'payroll', 'crm', 'barFinance', 'marketing', 'consultoria', 'ai',
-    ]
+    ].filter(id => !HQ_HIDDEN_MODULES.has(id))
   }
   if (role === 'jbm') return ['procurement', 'fulfillment', 'payroll']
   if (role === 'funcionario') {

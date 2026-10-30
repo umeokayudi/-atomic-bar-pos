@@ -5,6 +5,8 @@ import { aiHistory, contextToScreen } from '../../lib/aiPanel'
 import { useI18n } from '../../lib/i18n'
 import AiActionCards from '../AiActionCards'
 import Icon from '../ui/Icon'
+import { useNavigate } from 'react-router-dom'
+import { pathForTab } from '../../lib/navigation'
 
 /** Prompts offered per module. Keys under ai.suggest.<module> in the locale files. */
 export const AI_SUGGEST_MODULES = ['overview', 'sales', 'stock', 'supply', 'finance', 'team', 'marketing', 'consulting', 'reports', 'crm', 'floor']
@@ -21,14 +23,27 @@ function friendlyError(msg, t) {
   return t('ai.errGeneric', { error: m.slice(0, 200) })
 }
 
+// Screen that holds the data behind each fact module (HQ), so a source can be opened in one tap.
+const SOURCE_TAB = { sales: 'sales', supplySales: 'sales', finance: 'cashflow', stock: 'products', supply: 'pedidos', reports: 'relatorio', overview: 'dashboard' }
+
+const NAV_LABEL = { pedidos: 'orders', relatorio: 'report' }
+
 function Sources({ sources }) {
   const { t } = useI18n()
+  const navigate = useNavigate()
   if (!sources) return null
+  const links = [...new Set((sources.modules || []).map(m => SOURCE_TAB[m]).filter(Boolean))].map(tab => [tab, NAV_LABEL[tab] || tab])
   return (
     <div className="ai-sources">
       <Icon name="info" size={14} />
       <span>
         {t('ai.sourcesLine', { from: sources.period?.from, to: sources.period?.to, scope: sources.scope })}
+        {links.map(([tab, label]) => (
+          <button key={tab} type="button" className="notif-panel-link" style={{ marginLeft: 6 }} onClick={() => navigate(pathForTab('hq', tab))}>
+            {t(`nav.${label}`)}
+          </button>
+        ))}
+        {sources.limitations?.length > 0 && <span style={{ display: 'block' }}>{t('ai.sourcesMissing', { list: sources.limitations.join(' · ') })}</span>}
       </span>
     </div>
   )
