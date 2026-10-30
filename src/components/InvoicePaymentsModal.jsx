@@ -5,8 +5,10 @@ import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 import './invoicePayments.css'
 import { faturaSummary, addFaturaPayment, confirmFaturaPayment, removeFaturaPayment } from '../lib/faturaLedger'
+import { DIRECT_METHOD, invoiceMoney, isDirectMethod } from '../lib/money'
 
-const METHODS = ['Transfer', 'Cash', 'Card', 'Stripe']
+const METHODS = ['Transfer', 'Cash', 'Card', 'Stripe', 'Direct']
+const methodValue = m => (m === 'Direct' ? DIRECT_METHOD : m)
 
 function todayStr() {
   const d = new Date()
@@ -21,7 +23,7 @@ export default function InvoicePaymentsModal({ faturaId, onClose, onSaved }) {
   const { t } = useI18n()
   const [fatura, setFatura] = useState(null)
   const [pagamentos, setPagamentos] = useState([])
-  const [form, setForm] = useState({ valor: '', data: todayStr(), metodo: 'Transfer', notas: '', waiting: false })
+  const [form, setForm] = useState({ valor: '', data: todayStr(), metodo: 'Transfer', notas: '', waiting: false, supplier: '' })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
@@ -53,20 +55,25 @@ export default function InvoicePaymentsModal({ faturaId, onClose, onSaved }) {
     }
   }
 
+  const direct = form.metodo === 'Direct'
+
   async function save() {
+    if (direct && !form.supplier.trim()) { setErr(t('ledger.directNeedsSupplier')); return }
     const ok = await run(() => addFaturaPayment(supabase, faturaId, {
       valor: form.valor,
       data: form.data,
-      metodo: form.metodo,
-      notas: form.notas,
-      confirmado: !form.waiting,
+      metodo: methodValue(form.metodo),
+      notas: direct ? [form.supplier.trim(), form.notas].filter(Boolean).join(' · ') : form.notas,
+      confirmado: direct || !form.waiting,
     }))
-    if (ok) setForm(f => ({ ...f, valor: '', notas: '', waiting: false }))
+    if (ok) setForm(f => ({ ...f, valor: '', notas: '', waiting: false, supplier: '' }))
   }
 
   const s = fatura ? faturaSummary(fatura, pagamentos) : null
+  const money = fatura ? invoiceMoney(fatura, pagamentos) : null
   const amount = +form.valor || 0
-  const after = s ? Math.max(0, s.remaining - (form.waiting ? 0 : amount)) : 0
+  const waiting = form.waiting && !direct
+  const after = s ? Math.max(0, s.remaining - (waiting ? 0 : amount)) : 0
 
   return (
     <div className="ledger-back" onClick={onClose} role="presentation">
@@ -92,9 +99,16 @@ export default function InvoicePaymentsModal({ faturaId, onClose, onSaved }) {
           <div className="ledger-body">
             <div className="ledger-sum">
               <div><span>{t('ledger.total')}</span><b>{fmtYen(s.total)}</b></div>
-              <div><span>{t('ledger.received')}</span><b className="is-green">{fmtYen(s.received)}</b></div>
+              <div><span>{t('ledger.cashReceived')}</span><b className="is-green">{fmtYen(money.received)}</b></div>
               <div><span>{t('ledger.left')}</span><b className={s.remaining > 0 ? 'is-red' : 'is-green'}>{fmtYen(s.remaining)}</b></div>
             </div>
+            {(money.direct > 0 || money.review > 0) && (
+              <div className="ledger-sub" style={{ marginTop: 6 }}>
+                {money.direct > 0 && <span>{t('ledger.directPaid')}: <b>{fmtYen(money.direct)}</b></span>}
+                {money.direct > 0 && money.review > 0 && ' · '}
+                {money.review > 0 && <span>{t('ledger.inReview')}: <b>{fmtYen(money.review)}</b></span>}
+              </div>
+            )}
             <div className="ledger-bar"><div style={{ width: s.pct + '%' }} /></div>
 
             {s.remaining > 0 && (
@@ -116,22 +130,33 @@ export default function InvoicePaymentsModal({ faturaId, onClose, onSaved }) {
                   </label>
                   <label className="ledger-field">
                     <span>{t('ledger.method')}</span>
-                    <select value={form.metodo} onChange={e => setForm({ ...form, metodo: e.target.value, waiting: e.target.value === 'Stripe' ? true : form.waiting })}>
+                    <select value={form.metodo} onChange={e => setForm({ ...form, metodo: e.target.value, waiting: e.target.value === 'Stripe' ? true : e.target.value === 'Direct' ? false : form.waiting })}>
                       {METHODS.map(m => <option key={m} value={m}>{t(`ledger.method${m}`)}</option>)}
                     </select>
                   </label>
                 </div>
+                {direct && (
+                  <label className="ledger-field">
+                    <span>{t('ledger.directSupplier')}</span>
+                    <input value={form.supplier} onChange={e => setForm({ ...form, supplier: e.target.value })} placeholder={t('ledger.directSupplierPlaceholder')} />
+                    <small style={{ color: 'var(--text2)' }}>{t('ledger.directHint')}</small>
+                  </label>
+                )}
                 <label className="ledger-field">
                   <span>{t('ledger.note')}</span>
                   <input value={form.notas} onChange={e => setForm({ ...form, notas: e.target.value })} placeholder={t('ledger.notePlaceholder')} />
                 </label>
-                <label className="ledger-check">
-                  <input type="checkbox" checked={form.waiting} onChange={e => setForm({ ...form, waiting: e.target.checked })} />
-                  {t('ledger.waitingCheck')}
-                </label>
+                {!direct && (
+                  <label className="ledger-check">
+                    <input type="checkbox" checked={form.waiting} onChange={e => setForm({ ...form, waiting: e.target.checked })} />
+                    {t('ledger.waitingCheck')}
+                  </label>
+                )}
                 {amount > 0 && (
                   <div className="ledger-preview">
-                    {form.waiting
+                    {direct
+                      ? t('ledger.previewDirect', { amount: fmtYen(amount), left: fmtYen(after) })
+                      : waiting
                       ? t('ledger.previewWaiting', { amount: fmtYen(amount) })
                       : after > 0
                         ? t('ledger.previewPartial', { amount: fmtYen(amount), left: fmtYen(after) })
@@ -159,6 +184,7 @@ export default function InvoicePaymentsModal({ faturaId, onClose, onSaved }) {
                         {p.comprovante_url && <> · <a href={p.comprovante_url} target="_blank" rel="noreferrer">{t('ledger.receipt')}</a></>}
                       </div>
                       {!p.confirmado && <div className="ledger-item-flag">{t('ledger.waiting')}</div>}
+                      {isDirectMethod(p.metodo) && <div className="ledger-item-flag">{t('ledger.directTag')}</div>}
                     </div>
                     <div className="ledger-item-actions">
                       {!p.confirmado && (

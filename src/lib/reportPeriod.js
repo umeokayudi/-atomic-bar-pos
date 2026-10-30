@@ -22,9 +22,17 @@ export function ryoshushoMonthShare(r, selMonth) {
   return ryoshushoPeriodSplit(r, selMonth).share
 }
 
+/** Valor real do recibo: total gravado, ou a soma dos itens quando o total ficou vazio. */
+export function ryoshushoTotal(r) {
+  const total = +r?.total || 0
+  if (total) return total
+  const itens = Array.isArray(r?.itens) ? r.itens : []
+  return Math.round(itens.reduce((a, it) => a + (+it?.preco || 0) * (+it?.qtd || 1), 0))
+}
+
 /** Detalhe da alocação proporcional (para exibir no relatório) */
 export function ryoshushoPeriodSplit(r, selMonth) {
-  const total = +r.total || 0
+  const total = ryoshushoTotal(r)
   const ini = r.periodo_inicio || r.data_emissao
   const fim = r.periodo_fim || r.data_emissao || ini
   if (!total || !ini) {

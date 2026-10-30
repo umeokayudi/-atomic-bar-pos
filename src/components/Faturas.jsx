@@ -8,6 +8,7 @@ import { useI18n } from '../lib/i18n'
 import MarkPaidPopup from './MarkPaidPopup'
 import Icon from './ui/Icon'
 import { ColumnChart } from './ui/Charts'
+import { averageOfActive, invoiceCheck, invoiceDeliveries, invoiceLockError, invoiceMoney, invoicePeriod, paymentKind } from '../lib/money'
 
 // Local date key (toISOString shifts to UTC, which moved Tokyo dates one day back).
 const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -18,6 +19,12 @@ function getBillingPeriod(date) {
   if (day <= 5) return { start: ymd(new Date(year,month,1)), end: ymd(new Date(year,month,5)), due: ymd(new Date(year,month,20)) }
   if (day <= 20) return { start: ymd(new Date(year,month,6)), end: ymd(new Date(year,month,20)), due: ymd(new Date(year,month+1,5)) }
   return { start: ymd(new Date(year,month,21)), end: ymd(new Date(year,month+1,0)), due: ymd(new Date(year,month+1,20)) }
+}
+
+// The adjustment columns come from sql/money_structure.sql; say so when they are not in the database yet.
+function adjustErrText(error, t) {
+  const msg = String(error?.message || error || '')
+  return /ajuste/i.test(msg) ? t('invoiceLock.needSql') : msg
 }
 
 export default function Faturas() {
@@ -70,7 +77,8 @@ function Overview() {
     const total = vendas.filter(v=>v.data>=startStr&&v.data<=endStr).reduce((a,v)=>a+(+v.total||0),0)
     weeks.push({ label: start.toLocaleDateString('pt-BR',{month:'short',day:'numeric'}), total })
   }
-  const avgWeek = Math.round(weeks.reduce((a,w)=>a+w.total,0)/weeks.filter(w=>w.total>0).length||1)
+  // No week with sales → no average (was ¥1 because of `|| 1`).
+  const avgWeek = averageOfActive(weeks.map(w => w.total))
 
   // Monthly chart - last 4 months
   const months = []
@@ -95,7 +103,7 @@ function Overview() {
           { label: t('invoices.toReceive'), value: fmtYen(totalPending), color: totalPending > 0 ? 'var(--red)' : 'var(--green)', icon: 'invoices', tone: totalPending > 0 ? 'danger' : 'success' },
           { label: t('invoices.overdueCount'), value: overdue.length, color: overdue.length > 0 ? 'var(--red)' : 'var(--green)', icon: 'warning', tone: overdue.length > 0 ? 'danger' : 'success' },
           { label: t('invoices.upcoming'), value: upcoming.length, color: 'var(--c-text)', icon: 'shifts', tone: 'info' },
-          { label: t('invoices.avgPerWeek'), value: fmtYen(avgWeek), color: 'var(--c-text)', icon: 'trendUp' },
+          { label: t('invoices.avgPerWeek'), value: avgWeek == null ? '—' : fmtYen(avgWeek), color: 'var(--c-text)', icon: 'trendUp' },
         ].map(k=>(
           <PortalKpi key={k.label} label={k.label} value={k.value} color={k.color} icon={k.icon} tone={k.tone} />
         ))}
@@ -127,7 +135,7 @@ function Overview() {
 
       <PortalSurface
         title={t('invoices.weeklyRevenue')}
-        headerRight={<span style={{ fontSize:12, color:'var(--text2)' }}>{t('invoices.avgWeek', { amount: fmtYen(avgWeek) })}</span>}
+        headerRight={<span style={{ fontSize:12, color:'var(--text2)' }}>{t('invoices.avgWeek', { amount: avgWeek == null ? '—' : fmtYen(avgWeek) })}</span>}
       >
         <ColumnChart
           data={weeks.map(w => ({ label: w.label, value: w.total }))}
@@ -154,7 +162,7 @@ function Overview() {
                 </div>
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:13, fontWeight:600 }}>{f.bars?.nome}</div>
-                  <div style={{ fontSize:11, color:'var(--text2)' }}>{t('common.dueOn', { date: fmtDate(f.data_vencimento) })} · {fmtDate(f.data_emissao)} → {fmtDate(f.data_vencimento)}</div>
+                  <div style={{ fontSize:11, color:'var(--text2)' }}>{t('common.dueOn', { date: fmtDate(f.data_vencimento) })} · {fmtDate(invoicePeriod(f).start)} → {fmtDate(invoicePeriod(f).end)}</div>
                 </div>
                 <div style={{ textAlign:'right' }}>
                   <div style={{ fontSize:16, fontWeight:800, color:'var(--red)' }}>{fmtYen(f.total-(f.pago||0))}</div>
@@ -183,33 +191,59 @@ function InvoiceList() {
   const [filterStatus, setFilterStatus] = useState('all')
   const [expanded, setExpanded] = useState(null)
   const [payItem, setPayItem] = useState(null)
+  const [pedidos, setPedidos] = useState([])
+  const [adjust, setAdjust] = useState(null)
+  const [lockErr, setLockErr] = useState('')
 
   useEffect(() => { load(); const iv=setInterval(load,30000); return ()=>clearInterval(iv) }, [])
   const [allPagamentos, setAllPagamentos] = useState([])
   async function load() {
-    const [fR, bR, vR, pR] = await Promise.all([
+    const [fR, bR, vR, pR, pedR] = await Promise.all([
       supabase.from('faturas').select('*, bars(nome)').order('data_vencimento',{ascending:false}),
       supabase.from('bars').select('*').order('nome'),
       supabase.from('vendas').select('*, vendas_itens(qtd,preco_unitario,produtos(nome))').order('data',{ascending:false}),
       supabase.from('fatura_pagamentos').select('*').order('criado_em',{ascending:false}),
+      supabase.from('pedidos').select('id,bar_id,status,total_estimado,data_pedido,data_entrega_prevista,criado_em'),
     ])
-    setFaturas(fR.data||[]); setBars(bR.data||[]); setVendas(filterSupplierVendas(vR.data||[])); setAllPagamentos(pR.data||[])
+    setFaturas(fR.data||[]); setBars(bR.data||[]); setVendas(filterSupplierVendas(vR.data||[])); setAllPagamentos(pR.data||[]); setPedidos(pedR.data||[])
     if (bR.data?.length>0 && !selBar) setSelBar(bR.data[0].id)
     setLoading(false)
   }
   // The period, issue date and due date start from the current billing cycle and can all be changed.
   const [genForm, setGenForm] = useState(() => {
     const p = getBillingPeriod(ymd(new Date()))
-    return { start: p.start, end: p.end, issue: ymd(new Date()), due: p.due }
+    return { start: p.start, end: p.end, issue: ymd(new Date()), due: p.due, ajuste: '', motivo: '' }
   })
   const setGen = (k, v) => setGenForm(f => ({ ...f, [k]: v }))
   async function generateInvoice() {
     if (!selBar || !genForm.start || !genForm.end || genForm.start > genForm.end) return
-    setSaving(true)
     const venc = genForm.due || customDue || getBillingPeriod(genForm.end).due
-    const total = vendas.filter(v=>v.bar_id===selBar&&v.data>=genForm.start&&v.data<=genForm.end).reduce((a,v)=>a+(+v.total||0),0)
-    await supabase.from('faturas').insert({ bar_id:selBar, valor:total, data_emissao:genForm.issue || genForm.start, periodo_inicio:genForm.start, periodo_fim:genForm.end, data_vencimento:venc, total, pago:0, status:'pendente' })
-    setSaving(false); setShowForm(false); load()
+    // Invoice lock: total = linked deliveries + an explicit adjustment with its reason.
+    const deliveries = invoiceDeliveries({ bar_id: selBar, periodo_inicio: genForm.start, periodo_fim: genForm.end }, { pedidos, vendas }).total
+    const ajuste = Math.round(+genForm.ajuste || 0)
+    const motivo = genForm.motivo.trim()
+    const total = deliveries + ajuste
+    const lock = invoiceLockError({ total, deliveries, ajuste, motivo })
+    if (lock) { setLockErr(t('invoiceLock.needReason')); return }
+    setLockErr('')
+    setSaving(true)
+    const row = { bar_id:selBar, valor:total, data_emissao:genForm.issue || genForm.start, periodo_inicio:genForm.start, periodo_fim:genForm.end, data_vencimento:venc, total, pago:0, status:'pendente' }
+    if (ajuste) Object.assign(row, { ajuste, ajuste_motivo: motivo })
+    const { error } = await supabase.from('faturas').insert(row)
+    setSaving(false)
+    if (error) { setLockErr(adjustErrText(error, t)); return }
+    setShowForm(false); setGenForm(f => ({ ...f, ajuste: '', motivo: '' })); load()
+  }
+  async function saveAdjust() {
+    if (!adjust) return
+    const ajuste = Math.round(+adjust.ajuste || 0)
+    const motivo = String(adjust.motivo || '').trim()
+    if (ajuste && !motivo) { setLockErr(t('invoiceLock.needReason')); return }
+    setSaving(true)
+    const { error } = await supabase.from('faturas').update({ ajuste, ajuste_motivo: motivo || null }).eq('id', adjust.id)
+    setSaving(false)
+    if (error) { setLockErr(adjustErrText(error, t)); return }
+    setLockErr(''); setAdjust(null); load()
   }
   async function generateRyoshusho(fatura) {
     setSaving(true)
@@ -244,8 +278,9 @@ function InvoiceList() {
           </div>
           {selBar && (() => {
             const period = { start: genForm.start, end: genForm.end, due: genForm.due }
-            const periodVendas = vendas.filter(v=>v.bar_id===selBar&&v.data>=period.start&&v.data<=period.end)
-            const total = periodVendas.reduce((a,v)=>a+(+v.total||0),0)
+            const linked = invoiceDeliveries({ bar_id: selBar, periodo_inicio: period.start, periodo_fim: period.end }, { pedidos, vendas })
+            const periodVendas = linked.rows
+            const total = linked.total + Math.round(+genForm.ajuste || 0)
             return (
               <div style={{ background:'var(--bg3)', borderRadius:10, padding:'12px 16px', marginBottom:12, fontSize:13 }}>
                 <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
@@ -257,12 +292,20 @@ function InvoiceList() {
                 <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
                   <span style={{ color:'var(--text2)' }}>{t('invoices.periodDeliveries')}</span><span style={{ fontWeight:600 }}>{periodVendas.length}</span>
                 </div>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                  <span style={{ color:'var(--text2)' }}>{t('invoiceLock.deliveriesTotal')}</span><span style={{ fontWeight:600 }}>{fmtYen(linked.total)}</span>
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'140px 1fr', gap:8, margin:'8px 0' }}>
+                  <input type="number" value={genForm.ajuste} onChange={e=>setGen('ajuste', e.target.value)} placeholder={t('invoiceLock.adjustAmount')} aria-label={t('invoiceLock.adjustAmount')} />
+                  <input value={genForm.motivo} onChange={e=>setGen('motivo', e.target.value)} placeholder={t('invoiceLock.adjustReason')} aria-label={t('invoiceLock.adjustReason')} />
+                </div>
                 <div style={{ display:'flex', justifyContent:'space-between' }}>
                   <span style={{ color:'var(--text2)' }}>{t('common.total')}</span><span style={{ fontWeight:800, fontSize:16, color:'var(--c-text)' }}>{fmtYen(total)}</span>
                 </div>
               </div>
             )
           })()}
+          {lockErr && showForm && <div style={{ color:'var(--red)', fontSize:12, marginBottom:8 }}>{lockErr}</div>}
           <div style={{ display:'flex', justifyContent:'flex-end' }}><button className="btn-primary" onClick={generateInvoice} disabled={saving}>{saving ? t('common.generating') : t('common.generate')}</button></div>
         </PortalSurface>
       )}
@@ -275,16 +318,18 @@ function InvoiceList() {
             const pendingTotal = totalPagamentosPendentes(allPagamentos, f.id)
             const pct = (+f.total||+f.valor)>0?Math.min(100,Math.round((+f.pago||0)/(+f.total||+f.valor)*100)):0
             const isOverdue = f.status!=='pago'&&remaining>0&&new Date(f.data_vencimento)<new Date()
-            const periodStart = f.periodo_inicio || f.data_emissao
-            const periodEnd = f.periodo_fim || f.data_vencimento
-            const periodVendas = vendas.filter(v=>v.bar_id===f.bar_id&&v.data>=periodStart&&v.data<=periodEnd)
+            const period = invoicePeriod(f)
+            const linked = invoiceDeliveries(f, { pedidos, vendas })
+            const periodVendas = linked.rows
+            const check = invoiceCheck(f, linked.total)
+            const money = invoiceMoney(f, allPagamentos)
             return (
               <div key={f.id} style={{ background:'var(--bg2)', border:'1px solid', borderColor:isOverdue?'rgba(255,59,48,0.3)':'var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow)' }}>
                 <div style={{ padding:'14px 18px' }}>
                   <div style={{ display:'flex', justifyContent:'space-between', marginBottom:10 }}>
                     <div>
                       <div style={{ fontSize:14, fontWeight:700 }}>{f.bars?.nome}</div>
-                      <div style={{ fontSize:12, color:'var(--text2)' }}>{fmtDate(f.data_emissao)} → {fmtDate(f.data_vencimento)} · {t('cashflow.dueOnDate', { date: fmtDate(f.data_vencimento) })}</div>
+                      <div style={{ fontSize:12, color:'var(--text2)' }}>{fmtDate(period.start)} → {fmtDate(period.end)} · {t('cashflow.dueOnDate', { date: fmtDate(f.data_vencimento) })}</div>
                     </div>
                     <div style={{ textAlign:'right' }}>
                       <span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:f.status==='pago'?'var(--green-bg)':isOverdue?'var(--red-bg)':'var(--blue-bg)', color:f.status==='pago'?'var(--green)':isOverdue?'var(--red)':'var(--navy)' }}>
@@ -297,9 +342,31 @@ function InvoiceList() {
                     <div style={{ height:'100%', width:pct+'%', background:f.status==='pago'?'var(--green)':'var(--gold)', borderRadius:3 }}/>
                   </div>
                   <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:'var(--text2)', marginBottom:10 }}>
-                    <span>{t('invoices.paidLabel', { amount: fmtYen(f.pago||0), pct })}</span>
+                    <span>{t('invoices.paidLabel', { amount: fmtYen(money.received), pct })}{money.direct > 0 ? ` · ${t('ledger.directPaid')}: ${fmtYen(money.direct)}` : ''}</span>
                     {remaining>0&&<span style={{ color:'var(--red)', fontWeight:600 }}>{t('invoices.remainingLabel', { amount: fmtYen(remaining) })}</span>}
                   </div>
+                  <div style={{ fontSize:12, color:'var(--text2)', marginBottom:8 }}>
+                    {t('invoiceLock.line', { deliveries: fmtYen(check.deliveries), count: periodVendas.length })}
+                    {check.ajuste !== 0 && <> · {t('invoiceLock.adjustLine', { amount: fmtYen(check.ajuste), reason: check.motivo || '—' })}</>}
+                  </div>
+                  {!check.ok && (
+                    <div style={{ background:'var(--red-bg)', border:'1px solid rgba(239,68,68,0.35)', borderRadius:8, padding:'8px 12px', marginBottom:10, fontSize:12 }}>
+                      <div style={{ fontWeight:700, color:'var(--red)' }}>
+                        {check.needsReason ? t('invoiceLock.noReason') : t('invoiceLock.diff', { diff: fmtYen(check.diff), deliveries: fmtYen(check.deliveries), total: fmtYen(check.total) })}
+                      </div>
+                      {adjust?.id === f.id ? (
+                        <div style={{ display:'grid', gridTemplateColumns:'130px 1fr auto auto', gap:6, marginTop:8 }}>
+                          <input type="number" value={adjust.ajuste} onChange={e=>setAdjust(a=>({ ...a, ajuste:e.target.value }))} aria-label={t('invoiceLock.adjustAmount')} />
+                          <input value={adjust.motivo} onChange={e=>setAdjust(a=>({ ...a, motivo:e.target.value }))} placeholder={t('invoiceLock.adjustReason')} aria-label={t('invoiceLock.adjustReason')} />
+                          <button type="button" className="btn-primary" disabled={saving} onClick={saveAdjust} style={{ padding:'4px 12px', fontSize:12 }}>{t('common.save')}</button>
+                          <button type="button" onClick={()=>{ setAdjust(null); setLockErr('') }} style={{ padding:'4px 12px', fontSize:12 }}>{t('common.cancel')}</button>
+                          {lockErr && <div style={{ gridColumn:'1 / -1', color:'var(--red)' }}>{lockErr}</div>}
+                        </div>
+                      ) : (
+                        <button type="button" onClick={()=>{ setLockErr(''); setAdjust({ id:f.id, ajuste:String(check.ajuste + check.diff), motivo:check.motivo }) }} style={{ marginTop:6, padding:'4px 12px', fontSize:12, borderRadius:8, border:'1px solid var(--border)', background:'var(--bg2)', cursor:'pointer' }}>{t('invoiceLock.record')}</button>
+                      )}
+                    </div>
+                  )}
                   {pendingPay.length>0 && (
                     <div style={{ background:'var(--amber-bg)', border:'1px solid #fcd34d', borderRadius:8, padding:'8px 12px', marginBottom:10, fontSize:12 }}>
                       {t('invoices.underReview', { amount: fmtYen(pendingTotal), count: pendingPay.length })}
@@ -321,19 +388,21 @@ function InvoiceList() {
                 {expanded===f.id && (
                   <div style={{ borderTop:'1px solid var(--border)', background:'var(--bg3)', padding:'12px 18px' }}>
                     <div style={{ fontSize:11, fontWeight:700, color:'var(--text2)', textTransform:'uppercase', marginBottom:8 }}>{t('invoices.deliveriesInPeriod')}</div>
-                    {periodVendas.map(v=>(
-                      <div key={v.id} style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid var(--border)', fontSize:12 }}>
+                    {periodVendas.map(r=>{
+                      const v = r.kind === 'venda' ? vendas.find(x => x.id === r.id) : null
+                      return (
+                      <div key={r.kind + r.id} style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid var(--border)', fontSize:12 }}>
                         <div>
-                          <span style={{ fontWeight:600 }}>{fmtDate(v.data)}</span>
+                          <span style={{ fontWeight:600 }}>{fmtDate(r.data)}</span>
                           <span style={{ color:'var(--text2)', marginLeft:8 }}>
-                            {(v.vendas_itens||[]).map(it=>it.produtos?.nome+'×'+it.qtd).join(', ')}
+                            {r.kind === 'pedido' ? t('invoiceLock.orderRow', { id: String(r.id).slice(0, 8) }) : (v?.vendas_itens||[]).map(it=>it.produtos?.nome+'×'+it.qtd).join(', ')}
                           </span>
                         </div>
-                        <span style={{ fontWeight:700 }}>{fmtYen(v.total)}</span>
+                        <span style={{ fontWeight:700 }}>{fmtYen(r.valor)}</span>
                       </div>
-                    ))}
+                    )})}
                     <div style={{ display:'flex', justifyContent:'space-between', fontWeight:700, marginTop:8, paddingTop:8, borderTop:'2px solid var(--border)' }}>
-                      <span>{t('common.total')}</span><span style={{ color:'var(--c-text)' }}>{fmtYen(periodVendas.reduce((a,v)=>a+(+v.total||0),0))}</span>
+                      <span>{t('common.total')}</span><span style={{ color:'var(--c-text)' }}>{fmtYen(linked.total)}</span>
                     </div>
                   </div>
                 )}
@@ -358,13 +427,24 @@ function PaymentList() {
     setPayments(data||[]); setLoading(false)
   }
   if (loading) return <Spinner text={t('common.loading')} />
-  const totalPaid = payments.reduce((a,p)=>a+p.valor,0)
+  // Same rule as Cash flow: only confirmed payments count as received; review and bar → supplier are apart.
+  const sumOf = kind => payments.filter(p => paymentKind(p) === kind).reduce((a, p) => a + (+p.valor || 0), 0)
+  const totalPaid = sumOf('received')
+  const totalReview = sumOf('review')
+  const totalDirect = sumOf('direct')
   return (
     <div>
       <PortalSurface
         title={t('invoices.paymentHistory')}
         headerRight={<span style={{ fontSize:14, fontWeight:700, color:'var(--green)' }}>{t('invoices.totalReceived', { amount: fmtYen(totalPaid) })}</span>}
       >
+      {(totalReview > 0 || totalDirect > 0) && (
+        <div style={{ fontSize:12, color:'var(--text2)', marginBottom:10 }}>
+          {totalReview > 0 && <span>{t('ledger.inReview')}: <b style={{ color:'var(--amber)' }}>{fmtYen(totalReview)}</b></span>}
+          {totalReview > 0 && totalDirect > 0 && ' · '}
+          {totalDirect > 0 && <span>{t('ledger.directPaid')}: <b>{fmtYen(totalDirect)}</b></span>}
+        </div>
+      )}
       {payments.length===0?<Empty text={t('invoices.noPayments')} icon="💳" />:(
         <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
           {payments.map(p=>{
