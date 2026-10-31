@@ -100,7 +100,9 @@ button.bar-identity.is-link:focus-visible { outline: 2px solid var(--gold); outl
 .sidebar-brand .bar-identity { flex: 1; }
 .till-kiosk-bar .bar-identity-name { font-size: 22px; line-height: 1.1; }
 @media (max-width: 640px) { .till-kiosk-bar .bar-identity-name { font-size: 18px; } }
-.sidebar.is-collapsed .sidebar-brand .bar-identity { justify-content: center; }
+.sidebar.is-collapsed .sidebar-brand .bar-identity { flex: 0 0 auto; justify-content: center; gap: 0; }
+/* Folded rail: only the mark shows (the name and role sit in the button's tooltip) */
+.sidebar.is-collapsed .sidebar-brand .bar-identity-text { display: none; }
 
 /* Uploaded logos: the whole logo on white, never cropped */
 .sa-barmark.is-logo { background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.08); }
