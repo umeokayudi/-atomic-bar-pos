@@ -1,3 +1,4 @@
+import { logChange } from './audit.js'
 /**
  * Payment log for bar invoices (faturas).
  *
@@ -68,6 +69,7 @@ async function applyDelta(supabase, faturaId, delta, date) {
     data_pagamento: status === 'pago' ? (date || new Date().toISOString().slice(0, 10)) : null,
   }).eq('id', faturaId)
   if (error) throw error
+  logChange(supabase, { tabela: 'faturas', registro_id: faturaId, acao: 'update', antes: { pago: f.pago, status: f.status }, depois: { pago, status }, bar_id: f.bar_id || null })
 }
 
 /** Log a payment. Confirmed payments lower the balance right away. */

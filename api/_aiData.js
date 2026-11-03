@@ -4,6 +4,8 @@
  * A missing table is reported as a limitation instead of failing the answer.
  */
 
+import { invoiceRemaining, moneyInFacts } from '../src/lib/money.js'
+
 const MISSING = new Set(['42P01', 'PGRST205', 'PGRST200'])
 
 export const AI_MODULES = ['overview', 'sales', 'stock', 'supply', 'finance', 'team', 'crm', 'marketing', 'consulting', 'reports', 'floor']
@@ -191,17 +193,22 @@ async function supply(db, barFilter, p) {
 }
 
 async function finance(db, barFilter, p) {
-  const inv = await safe(barFilter(db.from('faturas').select('total,valor,pago,status,data_vencimento,vencimento,bar_id,bars(nome)').limit(2000)))
+  const [inv, pags] = await Promise.all([
+    safe(barFilter(db.from('faturas').select('id,total,valor,pago,notas,status,data_vencimento,vencimento,periodo_inicio,periodo_fim,data_emissao,bar_id,bars(nome)').limit(2000))),
+    safe(db.from('fatura_pagamentos').select('fatura_id,valor,confirmado,metodo').limit(5000)),
+  ])
   const today = iso(new Date())
   const open = inv.rows.filter(r => !['pago', 'paga', 'paid'].includes(r.status))
   const due = r => r.vencimento || r.data_vencimento
-  const owed = r => Math.max(0, (+r.total || +r.valor || 0) - (+r.pago || 0))
+  const owed = r => invoiceRemaining(r)
   const cash = await safe(db.from('caixa_movimentos').select('tipo,valor,data').gte('data', p.from).lte('data', p.to).limit(5000))
   const inflow = cash.rows.filter(r => /entrada|in|receita/i.test(r.tipo || '')).reduce((a, r) => a + (+r.valor || 0), 0)
   const outflow = cash.rows.filter(r => !/entrada|in|receita/i.test(r.tipo || '')).reduce((a, r) => a + (+r.valor || 0), 0)
   const purchases = await safe(db.from('compras').select('total_real,total_pago,status_pagamento,data_pagamento').gte('data', p.from).lte('data', p.to).limit(2000))
   return {
     source: 'faturas (receivable), compras (payable), caixa_movimentos',
+    // Money in by nature (src/lib/money.js). Only receivedConfirmedCash is money that came in.
+    moneyIn: moneyInFacts(inv.rows, pags.rows),
     receivableOpen: round(open.reduce((a, r) => a + owed(r), 0)),
     receivableOverdue: round(open.filter(r => due(r) && due(r) < today).reduce((a, r) => a + owed(r), 0)),
     overdueByBar: topBy(open.filter(r => due(r) && due(r) < today), r => r.bars?.nome || r.bar_id, owed),
@@ -279,6 +286,7 @@ HOW TO READ IT:
 - barTillSales = what the bar sold at the till. today / yesterday / thisWeek / thisMonth are ready totals; byDay has every day (newest first); topProductsToday is today's best sellers.
 - jbmSupplySales = drinks JBM delivered to bars (not the bar's own sales).
 - A day with no entry in byDay had no sales (¥0).
+- finance.moneyIn: receivedConfirmedCash is the ONLY money that came in. paidByBarDirectToSupplier (the bar paid JBM's supplier itself) and inReviewNotReceived (e.g. Stripe under review) are separate lines, never part of what came in.
 
 ANSWER RULES:
 - Answer the question in the first sentence with the number (e.g. "Hoje o bar vendeu ¥12.300 em 5 vendas."). Then at most 2-3 short lines of useful context (e.g. compare with yesterday). No long reports unless asked.
@@ -286,5 +294,6 @@ ANSWER RULES:
 - Only use these numbers; never invent a value. If something truly is not in the data, say so in one short sentence and give the closest number you have.
 - Plain language for a bar owner: never mention table or column names, JSON keys, "fonte", "source", "Fato", "Fact", "Estimate" or similar labels.
 - Write amounts as ¥12.300 (pt) / ¥12,300 (en, ja).
+- "Quanto entrou / foi pago / recebido" = finance.moneyIn.receivedConfirmedCash only. Then list the direct payment to the supplier and the amount in review on their own lines, with their names; never add them to what came in.
 - Never claim you did something unless it appears as a confirmed action.`
 }

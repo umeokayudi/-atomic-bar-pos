@@ -1,3 +1,4 @@
+import { invoiceTotal } from '../lib/money'
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { staffFetch } from '../lib/apiAuth'
@@ -9,7 +10,7 @@ import { asReactText, errText } from '../lib/errText'
 import Icon from './ui/Icon'
 
 function faturaRemaining(f) {
-  return Math.max(0, (+f.valor || +f.total || 0) - (+f.pago || 0))
+  return Math.max(0, invoiceTotal(f) - (+f.pago || 0))
 }
 
 export default function ReportsBilling({ onNav }) {

@@ -1,3 +1,4 @@
+import { invoiceTotal } from './money.js'
 /** Helpers do portal do bar — faturas JBM Drinks (exclui KuriPuro/limpeza). */
 
 export function faturaText(f) {
@@ -20,8 +21,9 @@ export function filterJbmDrinksFaturas(faturas) {
   return (faturas || []).filter(f => !isKuriPuroFatura(f))
 }
 
+// Official invoice total: the same function every screen uses (src/lib/money.js).
 export function faturaValor(f) {
-  return +f?.valor || +f?.total || 0
+  return invoiceTotal(f)
 }
 
 export function faturaPago(f) {

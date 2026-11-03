@@ -33,6 +33,59 @@ const GERENTE_WRITE = new Set(['bar_overhead', 'bar_hq_meta'])
 const FLOOR_WRITE = new Set(['floor_layouts', 'floor_sectors', 'floor_tables'])
 // The bar's colour and logo are set in HQ → Bars; the bar itself only reads them.
 const HQ_WRITE = new Set(['bar_brand', 'jbm_company', 'bar_profile'])
+// Writes to these tables leave a line in the activity log (who, when, what), stamped here on the server.
+const AUDITED = new Set(['pos_vendas', 'pos_vendas_itens', 'pos_shifts', 'pos_close_checks', 'bar_overhead', 'bar_guest_ledger', 'bar_profile', 'jbm_company'])
+const AUDIT_TABLE = 'audit_events'
+const AUDIT_KEEP = 4000
+
+function actorOf(auth) {
+  return {
+    user_id: auth.user?.id || null,
+    user_nome: auth.perfil?.nome || auth.perfil?.email || auth.user?.email || null,
+    role: auth.perfil?.role || null,
+  }
+}
+
+function trimJson(v) {
+  try {
+    const txt = JSON.stringify(v ?? null)
+    return txt.length > 2000 ? JSON.parse(JSON.stringify(v, (k, x) => (typeof x === 'string' && x.length > 200 ? x.slice(0, 200) : x))) : v
+  } catch { return null }
+}
+
+/** One activity-log line; never blocks or fails the write it describes. */
+async function appendAudit(admin, auth, entry) {
+  if (!admin) return
+  try {
+    const row = {
+      id: `ae_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+      criado_em: new Date().toISOString(),
+      ...actorOf(auth),
+      bar_id: (['cliente', 'gerente', 'caixa', 'bar_staff'].includes(auth.perfil?.role) ? auth.perfil?.bar_id : entry.bar_id) || auth.perfil?.bar_id || null,
+      tabela: String(entry.tabela || ''),
+      registro_id: entry.registro_id ? String(entry.registro_id) : null,
+      acao: ['insert', 'update', 'delete', 'upsert'].includes(entry.acao) ? entry.acao : 'update',
+      antes: trimJson(entry.antes),
+      depois: trimJson(entry.depois),
+      fonte: entry.fonte || 'app',
+    }
+    await runLiveOp(admin, { table: AUDIT_TABLE, mode: 'insert', insertRows: [row] })
+    // Keep the JSON store small: drop the oldest lines past the limit.
+    const all = await runLiveOp(admin, { table: AUDIT_TABLE, mode: 'select', columns: 'id,criado_em', orderBy: { k: 'criado_em', ascending: false } })
+    const extra = (all.data || []).slice(AUDIT_KEEP).map(r => r.id)
+    if (extra.length) await runLiveOp(admin, { table: AUDIT_TABLE, mode: 'delete', filters: [{ op: 'in', k: 'id', v: extra }] })
+  } catch { /* the log must never break the write */ }
+}
+
+function auditEntryOf(table, spec) {
+  const idFilter = (spec.filters || []).find(f => f.k === 'id' && f.op === 'eq')
+  const barFilter = (spec.filters || []).find(f => f.k === 'bar_id' && f.op === 'eq')
+  if (spec.mode === 'insert' || spec.mode === 'upsert') {
+    const rows = spec.insertRows || []
+    return rows.map(r => ({ tabela: table, acao: spec.mode === 'upsert' ? 'update' : 'insert', registro_id: r?.id || null, bar_id: r?.bar_id || barFilter?.v || null, depois: r }))
+  }
+  return [{ tabela: table, acao: spec.mode, registro_id: idFilter?.v || null, bar_id: barFilter?.v || null, depois: spec.mode === 'update' ? spec.updatePatch : null, antes: spec.mode === 'delete' ? { filters: spec.filters } : null }]
+}
 
 function bodyOf(req) {
   return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
@@ -154,6 +207,19 @@ export default async function handler(req, res) {
         return res.status(403).json({ error: 'Only the manager can write HQ books' })
       }
     }
+    if (table === AUDIT_TABLE) {
+      const mode = body.mode || 'select'
+      const role = auth.perfil?.role
+      // Read: HQ (everything) and the bar owner/manager (own bar, scoped below). Write: only "insert", and the
+      // server stamps who and when; nobody edits or deletes log lines.
+      if (mode === 'select' && !['admin', 'jbm', 'cliente', 'gerente'].includes(role)) return res.status(403).json({ error: 'Forbidden' })
+      if (mode !== 'select' && mode !== 'insert') return res.status(403).json({ error: 'The activity log cannot be changed' })
+      if (mode === 'insert') {
+        if (!['admin', 'jbm', 'cliente', 'gerente'].includes(role)) return res.status(403).json({ error: 'Forbidden' })
+        for (const r of body.insertRows || []) await appendAudit(admin, auth, { ...r, fonte: 'app' })
+        return res.status(200).json({ data: null, error: null })
+      }
+    }
     if (HQ_WRITE.has(table) && (body.mode || 'select') !== 'select' && !['admin', 'jbm'].includes(auth.perfil?.role)) {
       return res.status(403).json({ error: table === 'bar_brand' ? 'Only HQ can change the bar look' : 'Only HQ can change this' })
     }
@@ -220,7 +286,11 @@ export default async function handler(req, res) {
       return sendResult(res, await runPgOp(db, spec))
     }
 
-    return sendResult(res, await runLiveOp(admin, spec))
+    const result = await runLiveOp(admin, spec)
+    if (!result?.error && spec.mode !== 'select' && AUDITED.has(table)) {
+      for (const entry of auditEntryOf(table, spec)) await appendAudit(admin, auth, entry)
+    }
+    return sendResult(res, result)
   } catch (e) {
     return res.status(500).json({ error: errText(e, 'live-db failed') })
   }

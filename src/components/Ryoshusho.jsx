@@ -6,7 +6,7 @@ import { useI18n } from '../lib/i18n'
 import { useAuth } from './Auth'
 import { barBookScope } from '../lib/legacyScope'
 import { downloadHtmlAsPdf } from '../lib/pdfFile'
-import { COMPANY_ROW_ID, companyEmitente, companyMissing, loadCompany, nextNumber } from '../lib/receipts'
+import { COMPANY_ROW_ID, companyEmitente, companyMissing, loadCompany, nextNumber, duplicateReceipts } from '../lib/receipts'
 import { askConfirm, notify } from './ui/ConfirmDialog'
 
 const TAX_RATE = 0.10
@@ -94,6 +94,8 @@ export default function RyoshushoTab() {
   }
 
   const items = getItems()
+  // Second receipt for the same payment (same bar, amount and date): flagged, pointing to the first one.
+  const dupOf = duplicateReceipts(history)
   // Preços cadastrados são 税込 (zeikomi)
   // Na nota: mostrar 税別 (zeibetsu) = preco / 1.1
   const totalZeikomi = items.reduce((a, it) => a + it.preco * it.qtd, 0)
@@ -306,7 +308,10 @@ export default function RyoshushoTab() {
               <tbody>
                 {history.map(r => (
                   <tr key={r.id}>
-                    <td style={{ fontWeight:600, fontFamily:'monospace', fontSize:12 }}>{r.numero}</td>
+                    <td style={{ fontWeight:600, fontFamily:'monospace', fontSize:12 }}>
+                      {r.numero}
+                      {dupOf.get(r.id) && <div style={{ fontFamily:'inherit', fontWeight:700, fontSize:11, color:'var(--red)' }}>{t('receipts.duplicateOf', { numero: dupOf.get(r.id).numero })}</div>}
+                    </td>
                     <td>{r.bars?.nome || '—'}</td>
                     <td>{fmtDate(r.data_emissao)}</td>
                     <td style={{ fontSize:12, color:'var(--text2)' }}>

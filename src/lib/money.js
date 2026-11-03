@@ -25,8 +25,46 @@ export function paymentKind(p) {
   return p?.confirmado ? 'received' : 'review'
 }
 
+/**
+ * THE official invoice total. Every screen (Invoices, Report, Dashboard, Receipts, Bars, AI) reads it from here:
+ * `faturas.total`, and `valor` only for old rows that never had a total. Never `valor || total` (the two
+ * columns drifted apart once and two screens showed two different July totals).
+ */
 export function invoiceTotal(f) {
   return +f?.total || +f?.valor || 0
+}
+
+/** What the bar still owes on one invoice (official total − what it no longer owes). */
+export function invoiceRemaining(f) {
+  return Math.max(0, invoiceTotal(f) - Math.max(0, +f?.pago || 0))
+}
+
+const ADJ_RE = /\[adj:(\{.*?\})\]/
+
+/**
+ * The invoice adjustment (signed: a discount is negative) and its reason. Read from the columns of
+ * sql/money_structure.sql when present, else from the tag the app writes in `notas` while that SQL is not run.
+ */
+export function invoiceAdjustment(f) {
+  if (f && f.ajuste != null && (+f.ajuste !== 0 || f.ajuste_motivo)) {
+    return { ajuste: +f.ajuste || 0, motivo: String(f.ajuste_motivo || '').trim(), by: '', at: '' }
+  }
+  const m = String(f?.notas || '').match(ADJ_RE)
+  if (m) {
+    try {
+      const j = JSON.parse(m[1])
+      return { ajuste: +j.a || 0, motivo: String(j.m || '').trim(), by: String(j.by || ''), at: String(j.at || '') }
+    } catch { /* bad tag */ }
+  }
+  return { ajuste: 0, motivo: '', by: '', at: '' }
+}
+
+/** `notas` with the adjustment tag replaced (other text kept). ajuste 0 and no reason removes the tag. */
+export function notasWithAdjustment(notas, { ajuste = 0, motivo = '', by = '', at = '' } = {}) {
+  const clean = String(notas || '').replace(ADJ_RE, '').trim()
+  if (!(+ajuste) && !String(motivo || '').trim()) return clean || null
+  const tag = `[adj:${JSON.stringify({ a: Math.round(+ajuste || 0), m: String(motivo || '').trim(), by, at })}]`
+  return clean ? `${clean} ${tag}` : tag
 }
 
 /** Same period label everywhere: the invoice covers periodo_inicio → periodo_fim (issue/due only as fallback). */
@@ -195,8 +233,7 @@ export function invoiceDeliveries(f, { pedidos = [], vendas = [] } = {}) {
  */
 export function invoiceCheck(f, deliveriesTotal) {
   const total = invoiceTotal(f)
-  const ajuste = +f?.ajuste || 0
-  const motivo = String(f?.ajuste_motivo || '').trim()
+  const { ajuste, motivo } = invoiceAdjustment(f)
   const expected = Math.round((+deliveriesTotal || 0) + ajuste)
   const diff = Math.round(total - expected)
   return {
@@ -223,4 +260,35 @@ export function averageOfActive(values = []) {
   const active = (values || []).filter(v => (+v || 0) > 0)
   if (!active.length) return null
   return Math.round(active.reduce((a, v) => a + (+v || 0), 0) / active.length)
+}
+
+/**
+ * How one invoice's official total is made up, and how what the bar paid splits by nature.
+ * total = deliveries + adjustment + other (other = what neither explains; 0 when the invoice is locked).
+ */
+export function invoiceComposition(f, deliveriesTotal, pagamentos = []) {
+  const total = invoiceTotal(f)
+  const deliveries = Math.round(+deliveriesTotal || 0)
+  const { ajuste, motivo } = invoiceAdjustment(f)
+  const other = Math.round(total - deliveries - ajuste)
+  const m = invoiceMoney(f, pagamentos)
+  return {
+    total, deliveries, ajuste, motivo, other,
+    received: m.received, direct: m.direct, review: m.review, remaining: m.remaining,
+  }
+}
+
+/**
+ * The words the AI may use for "how much came in / was paid": only confirmed cash is ENTROU/RECEBIDO.
+ * Direct payments to a supplier and payments in review are separate lines, never added to it.
+ */
+export function moneyInFacts(faturas = [], pagamentos = []) {
+  const t = ledgerTotals(faturas, pagamentos)
+  return {
+    receivedConfirmedCash: Math.round(t.received),
+    paidByBarDirectToSupplier: Math.round(t.direct),
+    inReviewNotReceived: Math.round(t.review),
+    stillOwed: Math.round(t.remaining),
+    billed: Math.round(t.billed),
+  }
 }

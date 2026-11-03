@@ -2,6 +2,8 @@
  * Advisor de fluxo de caixa — pagar à vista vs a prazo, com JBM Holding e custo de oportunidade.
  */
 
+import { invoiceTotal } from './money.js'
+import { loadReconciledCash } from './cashLoad.js'
 import {
   describeForsakenAlternatives,
   resolveOpportunityCostPct,
@@ -340,14 +342,13 @@ export async function loadCashflowSnapshot(supabase) {
   const faturas = fR.data || []
   const compras = cR.data || []
 
-  const paidIn = faturas.filter(f => f.status === 'pago').reduce((a, f) => a + (+f.valor || +f.total || 0), 0)
-  const paidOut = compras
-    .filter(c => c.status_pagamento === 'pago' || !c.status_pagamento)
-    .reduce((a, c) => a + (+c.total_real || +c.total_pago || 0), 0)
+  // Net cash is the Cash flow number (confirmed cash in − cash paid out, src/lib/money.js), the same
+  // figure on every screen. It was "fully paid invoices − purchases", which showed −¥1.355.898 as "Caixa".
+  const cash = await loadReconciledCash(supabase)
 
   const pendingIn30 = faturas
     .filter(f => f.status !== 'pago' && f.data_vencimento >= today && f.data_vencimento <= end30)
-    .reduce((a, f) => a + Math.max(0, (+f.valor || +f.total || 0) - (+f.pago || 0)), 0)
+    .reduce((a, f) => a + Math.max(0, invoiceTotal(f) - (+f.pago || 0)), 0)
 
   const pendingOut30 = compras
     .filter(c => c.status_pagamento === 'pendente')
@@ -357,5 +358,5 @@ export async function loadCashflowSnapshot(supabase) {
     })
     .reduce((a, c) => a + (+c.total_pago || +c.total_real || 0), 0)
 
-  return { netCash: paidIn - paidOut, pendingIn30, pendingOut30, paidIn, paidOut }
+  return { netCash: Math.round(cash.cash), pendingIn30, pendingOut30, paidIn: cash.received, paidOut: cash.paidOut }
 }

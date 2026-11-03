@@ -1,3 +1,4 @@
+import { invoiceTotal } from '../src/lib/money.js'
 import { fixAtomicReceivables, revertAtomicPedidosToJune, markPedidosEntregue, ATOMIC_BAR_ID } from './_atomicJuneFix.js'
 import { fixVendaDatesFromPedidos, dedupePedidoVendas, syncMissingVendasFromPedidos, backfillVendaItensFromPedidos, fixSeikyushoCompraDates } from './_pedidoVendaFix.js'
 import { drinksAdminClient } from './_supabaseAdmin.js'
@@ -104,7 +105,7 @@ export default async function handler(req, res) {
     if (action === 'fix') {
       const result = await fixAtomicReceivables(sb)
       const { data: faturas } = await sb.from('faturas').select('valor,total,pago,status').eq('bar_id', ATOMIC_BAR_ID).neq('status', 'pago')
-      const aReceber = (faturas || []).reduce((a, f) => a + Math.max(0, (+f.valor || +f.total || 0) - (+f.pago || 0)), 0)
+      const aReceber = (faturas || []).reduce((a, f) => a + Math.max(0, invoiceTotal(f) - (+f.pago || 0)), 0)
       return res.status(200).json({ ok: true, ...result, aReceber })
     }
 

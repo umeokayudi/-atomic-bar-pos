@@ -1,3 +1,5 @@
+import { invoiceTotal } from '../src/lib/money.js'
+import { loadReconciledCash } from '../src/lib/cashLoad.js'
 import { createClient } from '@supabase/supabase-js'
 import { fixAtomicReceivables, revertAtomicPedidosToJune } from './_atomicJuneFix.js'
 import { isSupplierVenda } from './_supplierVenda.js'
@@ -97,7 +99,7 @@ export default async function handler(req, res) {
       const debt = Number(req.query.debt || 465000)
       const fix = await fixAtomicReceivables(sb)
       const { data: faturas } = await sb.from('faturas').select('valor,total,pago,status').eq('bar_id', ATOMIC_BAR_ID).neq('status', 'pago')
-      const aReceber = (faturas || []).reduce((a, f) => a + Math.max(0, (+f.valor || +f.total || 0) - (+f.pago || 0)), 0)
+      const aReceber = (faturas || []).reduce((a, f) => a + Math.max(0, invoiceTotal(f) - (+f.pago || 0)), 0)
       return res.status(200).json({ ok: true, fix, aReceber })
     }
 
@@ -129,12 +131,13 @@ export default async function handler(req, res) {
     const custoMes = comprasData.filter(c => c.data?.startsWith(mes)).reduce((a, c) => a + (+c.total_real || +c.total_pago || 0), 0)
 
     const faturasData = faturas.data || []
-    const paidIn = faturasData.filter(f => f.status === 'pago').reduce((a, f) => a + (+f.valor || +f.total || 0), 0)
-    const paidOut = comprasData.filter(c => c.status_pagamento === 'pago' || !c.status_pagamento).reduce((a, c) => a + (+c.total_real || +c.total_pago || 0), 0)
-    const aReceber = faturasData.filter(f => f.status !== 'pago').reduce((a, f) => a + Math.max(0, (+f.valor || +f.total || 0) - (+f.pago || 0)), 0)
+    // Net cash = the Cash flow number (src/lib/money.js), not "fully paid invoices − purchases".
+    const cash = await loadReconciledCash(sb)
+    const netCash = Math.round(cash.cash)
+    const aReceber = faturasData.filter(f => f.status !== 'pago').reduce((a, f) => a + Math.max(0, invoiceTotal(f) - (+f.pago || 0)), 0)
     const atomicAReceber = faturasData
       .filter(f => f.bar_id === ATOMIC_BAR_ID && f.status !== 'pago')
-      .reduce((a, f) => a + Math.max(0, (+f.valor || +f.total || 0) - (+f.pago || 0)), 0)
+      .reduce((a, f) => a + Math.max(0, invoiceTotal(f) - (+f.pago || 0)), 0)
     const supplierPrices = {
       liquorMountain: fpLm.count || 0,
       felicity: fpFel.count || 0,
@@ -149,13 +152,13 @@ export default async function handler(req, res) {
       { ok: (vendas.data || []).filter(v => !isSupplierVenda(v)).length === 0, label: 'POS separado', detail: 'OK' },
       { ok: faturasData.length > 0, label: 'Faturas', detail: String(faturasData.length) },
       { ok: (barPricing.count || 0) >= 10, label: 'POS prices', detail: String(barPricing.count || 0) },
-      { ok: paidIn + aReceber >= paidOut, label: 'Caixa', detail: `¥${paidIn - paidOut} (projetado ¥${paidIn + aReceber - paidOut})` },
+      { ok: netCash + aReceber >= 0, label: 'Net cash (Cash flow)', detail: `¥${netCash} (projetado ¥${netCash + aReceber})` },
     ]
 
     const payload = {
       geradoEm: new Date().toISOString(),
       holding,
-      financeiro: { receitaMes, custoMes, caixaLiquido: paidIn - paidOut, aReceber, atomicAReceber, faturasVencidas },
+      financeiro: { receitaMes, custoMes, caixaLiquido: netCash, aReceber, atomicAReceber, faturasVencidas },
       supplierPrices,
       operacao: {
         entregas: vendasSupplier.length,

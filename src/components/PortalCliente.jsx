@@ -1,3 +1,4 @@
+import { issueReceiptChecked } from './ui/issueReceipt'
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Icon, { hasIcon } from './ui/Icon'
@@ -145,7 +146,7 @@ function usePrefetchScreens(allowed) {
 function TabHold({ children }) {
   return <Suspense fallback={<div style={{ padding: 28, color: 'var(--text2)' }}>…</div>}>{children}</Suspense>
 }
-import { issuePaymentReceipt, loadCompany } from '../lib/receipts'
+import { loadCompany } from '../lib/receipts'
 import { notify } from './ui/ConfirmDialog'
 
 // ── HOME ──────────────────────────────────────────────────────────────────────
@@ -932,8 +933,7 @@ function FaturasTab({ bar }) {
       // One receipt per payment, numbered in sequence; printing again reuses the same receipt.
       const item = { key, valor, data, metodo, notas, fatura }
       const dataEmissao = (data || new Date().toISOString().slice(0, 10)).slice(0, 10)
-      const res = await issuePaymentReceipt(supabase, { bar, item, dataEmissao, company: await loadCompany(supabase) })
-      if (res.reused) notify(t('receipts.reused', { numero: res.numero }), 'info')
+      await issueReceiptChecked(supabase, { bar, item, dataEmissao, company: await loadCompany(supabase) })
     } catch (e) {
       notify(e?.message || String(e), 'error')
     } finally {

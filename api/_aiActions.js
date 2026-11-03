@@ -5,6 +5,8 @@
  * and every action re-checks role and bar scope because table RLS is wide open.
  */
 
+import { invoiceMoney, invoiceTotal, moneyInFacts } from '../src/lib/money.js'
+
 export const HQ_ROLES = ['admin', 'jbm']
 export const BAR_MANAGER_ROLES = ['cliente', 'gerente']
 
@@ -89,10 +91,6 @@ function resolveBar(ctx, value) {
     return bar ? { row: bar } : { error: 'Your bar was not found' }
   }
   return pick(ctx.bars, value, { label: 'Bar' })
-}
-
-function invoiceTotal(f) {
-  return +f.total || +f.valor || 0
 }
 
 /**
@@ -258,7 +256,7 @@ export function normalizeAction(ctx, action) {
 /** Load what the model may reference, through the user's own session. */
 export async function loadActionContext(db, { scope, barId, userId }) {
   const barFilter = q => (scope === 'bar' ? q.eq('bar_id', barId) : q)
-  const [bars, produtos, fornecedores, faturas, pedidos, compras] = await Promise.all([
+  const [bars, produtos, fornecedores, faturas, pedidos, compras, pagamentos, allFaturas] = await Promise.all([
     scope === 'bar'
       ? db.from('bars').select('id,nome').eq('id', barId)
       : db.from('bars').select('id,nome').order('nome').limit(100),
@@ -274,6 +272,9 @@ export async function loadActionContext(db, { scope, barId, userId }) {
       ? db.from('compras').select('id,data,fornecedor,total_real,total_pago,status_pagamento')
         .or('status_pagamento.is.null,status_pagamento.neq.pago').order('data', { ascending: false }).limit(60)
       : Promise.resolve({ data: [] }),
+    // Payments by nature (confirmed cash / paid straight to a supplier / in review), for "how much came in".
+    db.from('fatura_pagamentos').select('fatura_id,valor,confirmado,metodo').limit(2000),
+    barFilter(db.from('faturas').select('id,bar_id,valor,total,pago,notas,periodo_inicio,periodo_fim,data_emissao')).limit(500),
   ])
   const withBar = rows => (rows || []).map(r => ({ ...r, bar_nome: r.bars?.nome || null }))
   return {
@@ -287,6 +288,8 @@ export async function loadActionContext(db, { scope, barId, userId }) {
     faturas: withBar(faturas.data),
     pedidos: withBar(pedidos.data),
     compras: compras.data || [],
+    pagamentos: pagamentos?.data || [],
+    moneyIn: moneyInFacts(allFaturas?.data || [], pagamentos?.data || []),
   }
 }
 
@@ -297,7 +300,16 @@ export function contextForPrompt(ctx) {
   else lines.push(`YOUR BAR: ${ctx.bars[0]?.nome || '?'}`)
   lines.push(`PRODUCTS (name · category · JBM price): ${ctx.produtos.map(p => `${p.nome} · ${p.categoria || ''} · ${yen(p.preco_venda)}`).join(' | ')}`)
   if (ctx.scope === 'hq') lines.push(`SUPPLIERS: ${ctx.fornecedores.map(f => f.nome).join(' | ') || 'none'}`)
-  lines.push(`OPEN INVOICES (ref · bar · total · paid · due): ${ctx.faturas.map(f => `${ref(f.id)} · ${f.bar_nome || ''} · ${yen(invoiceTotal(f))} · ${yen(f.pago)} · ${f.data_vencimento || f.vencimento || ''}`).join(' | ') || 'none'}`)
+  // "paid" was faturas.pago, which mixes cash received with what the bar paid a supplier directly: the AI
+  // added them up as money in. Each invoice now carries its payments split by nature.
+  lines.push(`OPEN INVOICES (ref · bar · total · cash received · paid by bar direct to supplier · in review (not received) · still owed · due): ${ctx.faturas.map(f => {
+    const m = invoiceMoney(f, ctx.pagamentos || [])
+    return `${ref(f.id)} · ${f.bar_nome || ''} · ${yen(invoiceTotal(f))} · ${yen(m.received)} · ${yen(m.direct)} · ${yen(m.review)} · ${yen(m.remaining)} · ${f.data_vencimento || f.vencimento || ''}`
+  }).join(' | ') || 'none'}`)
+  if (ctx.moneyIn) {
+    const mi = ctx.moneyIn
+    lines.push(`MONEY IN, ALL INVOICES: cash received and confirmed ${yen(mi.receivedConfirmedCash)} · paid by the bar straight to JBM's supplier ${yen(mi.paidByBarDirectToSupplier)} · payments in review, not received ${yen(mi.inReviewNotReceived)} · still owed ${yen(mi.stillOwed)}`)
+  }
   lines.push(`OPEN ORDERS (ref · bar · status · date · total): ${ctx.pedidos.map(o => `${ref(o.id)} · ${o.bar_nome || ''} · ${o.status} · ${o.data_pedido || ''} · ${yen(o.total_estimado)}`).join(' | ') || 'none'}`)
   if (ctx.scope === 'hq') {
     lines.push(`UNPAID PURCHASES (ref · date · supplier · total): ${ctx.compras.map(c => `${ref(c.id)} · ${c.data} · ${c.fornecedor} · ${yen(c.total_real || c.total_pago)}`).join(' | ') || 'none'}`)
@@ -312,6 +324,7 @@ Reply in the user's language (Portuguese, Japanese or English), short and clear.
 You can answer questions AND propose actions that write to the database. You never write yourself: every action you propose is shown to the user, who must press Confirm.
 Only propose an action when the user asks for something to be done. Use names and refs exactly as they appear in the data below. If something needed is missing or unclear, ask instead of guessing.
 Never invent amounts, refs or products.
+MONEY WORDS: when asked how much came in / was received / was paid ("quanto entrou", "quanto foi pago", "recebido"), only the confirmed cash is "entrou / recebido / received". Give the direct payment to a supplier and the payments in review as SEPARATE lines, with their own names, and never add them to the received amount.
 
 ACTIONS YOU MAY PROPOSE:
 ${allowed.map(([k, d]) => `- ${k}: ${d.doc}`).join('\n')}

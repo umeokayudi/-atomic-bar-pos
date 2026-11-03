@@ -3,7 +3,9 @@ import { supabase } from '../lib/supabase'
 import { fmtYen, monthKey, monthLabel, fmtDate, Spinner, Empty, filterSupplierVendas, saleMonthKey, compraMonthKey, RowActions } from './utils'
 import { aggregateComprasItens } from '../lib/marginCost'
 import { barCreditsForMonth, barCreditsList } from '../lib/barCredits'
-import { aReceberForMonth, faturasAbertasMes } from '../lib/faturasMonth'
+import { aReceberForMonth, faturasAbertasMes, faturaCoversMonth } from '../lib/faturasMonth'
+import { invoiceAdjustment, invoiceTotal } from '../lib/money'
+import { duplicateReceipts } from '../lib/receipts'
 import { ryoshushoForMonth, ryoshushoMonthShare, ryoshushoPeriodSplit } from '../lib/reportPeriod'
 import { loadAllCompras } from '../lib/loadCompras'
 import { loadDashboard } from '../lib/loadDashboard'
@@ -106,7 +108,9 @@ export default function RelatorioTab() {
   const margemGeral = dash.margem ?? (faturamento > 0 ? Math.round(lucroTotal / faturamento * 100) : 0)
   const aReceber = dash.aReceber ?? aReceberForMonth(faturas, selMonth)
   const faturasMes = faturasAbertasMes(faturas, selMonth)
-  const ryoTotal = ryoMes.reduce((a, r) => a + ryoshushoMonthShare(r, selMonth), 0)
+  // A second receipt for the same payment is flagged and not counted twice.
+  const dupOf = duplicateReceipts(ryoshusho)
+  const ryoTotal = ryoMes.filter(r => !dupOf.has(r.id)).reduce((a, r) => a + ryoshushoMonthShare(r, selMonth), 0)
 
   const porProdutoComprado = aggregateComprasItens(comprasMes)
 
@@ -161,6 +165,16 @@ export default function RelatorioTab() {
     loadAll()
   }
 
+  // Month close: delivered vs the official invoice total, the recorded adjustment and its reason.
+  const entreguesMes = Math.round(vendasDetalhe.reduce((a, v) => a + (+v.receita || 0), 0))
+  const faturasDoMes = faturas.filter(f => faturaCoversMonth(f, selMonth))
+  const faturadoAjustado = faturasDoMes.reduce((a, f) => a + invoiceTotal(f), 0)
+  const ajustes = faturasDoMes.map(f => ({ f, ...invoiceAdjustment(f) })).filter(a => a.ajuste !== 0)
+  const ajusteTotal = ajustes.reduce((a, x) => a + x.ajuste, 0)
+  const diferenca = faturadoAjustado - entreguesMes
+  const semMotivo = Math.round(diferenca - ajusteTotal)
+  const showClose = faturasDoMes.length > 0 && entreguesMes > 0 && Math.abs(diferenca) >= 1
+
   return (
     <AdminPage
       title={t('nav.report')}
@@ -188,6 +202,36 @@ export default function RelatorioTab() {
         <PortalKpi label={t('report.toReceive')} value={fmtYen(aReceber)} color={aReceber > 0 ? 'var(--amber)' : 'var(--green)'}
           sub={faturasMes.length ? t('report.openInvoices', { count: faturasMes.length }) : t('report.nothingPending')} />
       </div>
+
+      {showClose && (
+        <PortalSurface title={t('monthClose.title')} style={{ marginBottom: 18 }}>
+          <table>
+            <tbody>
+              <tr><td>{t('monthClose.delivered')}</td><td style={{ textAlign: 'right', fontWeight: 600 }}>{fmtYen(entreguesMes)}</td></tr>
+              {ajustes.map(a => (
+                <tr key={a.f.id}>
+                  <td>
+                    {t('monthClose.adjustment')}: <b>{a.motivo || '—'}</b>
+                    {(a.by || a.at) && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{t('monthClose.recordedBy', { who: a.by || '—', when: a.at ? fmtDate(a.at.slice(0, 10)) : '—' })}</div>}
+                  </td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmtYen(a.ajuste)}</td>
+                </tr>
+              ))}
+              {Math.abs(semMotivo) >= 1 && (
+                <tr><td style={{ color: 'var(--red)' }}>{t('monthClose.unexplained')}</td><td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--red)' }}>{fmtYen(semMotivo)}</td></tr>
+              )}
+              <tr><td style={{ fontWeight: 700 }}>{t('monthClose.adjustedBilling')}</td><td style={{ textAlign: 'right', fontWeight: 800 }}>{fmtYen(faturadoAjustado)}</td></tr>
+              {companyLedger && (custoEstimado > 0 || custoCompras > 0) && (
+                <tr>
+                  <td>{custoEstimado > 0 ? `${t('monthClose.cost')} · ${t('dashboard.estimateTag')}` : t('monthClose.cost')}{custoEstimado > 0 && <div style={{ fontSize: 11, color: 'var(--text3)' }}>{t('monthClose.estimateUntil')}</div>}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmtYen(custoEstimado > 0 ? custoEstimado : custoCompras)}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          {Math.abs(semMotivo) >= 1 && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 8 }}>{t('monthClose.recordHint')}</div>}
+        </PortalSurface>
+      )}
 
       {(creditoBar > 0 || descontoTotal > 0) && (
         <div style={{ display: 'grid', gridTemplateColumns: creditoBar > 0 && descontoTotal > 0 ? '1fr 1fr' : '1fr', gap: 12, marginBottom: 18 }}>
@@ -276,7 +320,7 @@ export default function RelatorioTab() {
               return (
                 <div key={r.id} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 6, fontSize: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, fontWeight: 700 }}>
-                    <span>{bar?.nome || '—'} · {r.numero || '—'}</span>
+                    <span>{bar?.nome || '—'} · {r.numero || '—'}{dupOf.get(r.id) && <span style={{ color: 'var(--red)', marginLeft: 6 }}>{t('receipts.duplicateOf', { numero: dupOf.get(r.id).numero })}</span>}</span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ color: 'var(--gold)' }}>{fmtYen(split.share)}</span>
                       <RowActions

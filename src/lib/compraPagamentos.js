@@ -1,3 +1,4 @@
+import { invoiceTotal } from './money.js'
 import { compraDueDate, isCompraOverdue } from '../components/utils'
 
 /** Mapa fornecedor → termo de pagamento (ex. "Dia 10") */
@@ -102,7 +103,7 @@ export function buildCashflowEvents({ faturas = [], compras = [], fornecedores =
 
   for (const f of faturas) {
     if (f.status === 'pago') continue
-    const amount = Math.max(0, (+f.valor || +f.total || 0) - (+f.pago || 0))
+    const amount = Math.max(0, invoiceTotal(f) - (+f.pago || 0))
     if (amount <= 0 || !f.data_vencimento) continue
     events.push({
       date: f.data_vencimento,

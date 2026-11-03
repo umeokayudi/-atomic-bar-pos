@@ -1,3 +1,4 @@
+import { invoiceTotal } from '../src/lib/money.js'
 import { buildLiveSnapshot } from './_cashflowSnapshot.js'
 import { sendEmail } from './_email.js'
 import { readLiveJson } from './_barLiveStore.js'
@@ -11,7 +12,7 @@ export function fmtYen(n) {
 }
 
 function faturaRemaining(f) {
-  return Math.max(0, (+f.valor || +f.total || 0) - (+f.pago || 0))
+  return Math.max(0, invoiceTotal(f) - (+f.pago || 0))
 }
 
 /** Overdue client invoices grouped by bar with portal emails. */

@@ -1,3 +1,5 @@
+import { invoiceTotal } from '../src/lib/money.js'
+import { loadReconciledCash } from '../src/lib/cashLoad.js'
 import { isSupplierVenda } from './_supplierVenda.js'
 
 function compraDueDate(c, fornecedorPagamento) {
@@ -54,11 +56,11 @@ export async function buildLiveSnapshot(sb) {
   const receitaMes = vendas.filter(v => v.data?.startsWith(mes)).reduce((a, v) => a + (+v.total || 0), 0)
   const custoMes = compras.filter(c => String(c.data || '').slice(0, 7) === mes).reduce((a, c) => a + (+c.total_real || +c.total_pago || 0), 0)
 
-  const paidIn = faturas.reduce((a, f) => a + (+f.pago || 0), 0)
-  const paidOut = compras.filter(c => c.status_pagamento === 'pago').reduce((a, c) => a + (+c.total_real || +c.total_pago || 0), 0)
+  // Net cash = the Cash flow number (confirmed cash in − cash paid out), never the sum of `pago`.
+  const cash = await loadReconciledCash(sb)
 
   const faturasPendentes = faturas.filter(f => f.status !== 'pago')
-  const aReceber = faturasPendentes.reduce((a, f) => a + Math.max(0, (+f.valor || +f.total || 0) - (+f.pago || 0)), 0)
+  const aReceber = faturasPendentes.reduce((a, f) => a + Math.max(0, invoiceTotal(f) - (+f.pago || 0)), 0)
   const faturasVencidas = faturasPendentes.filter(f => f.data_vencimento && f.data_vencimento < today)
 
   const comprasPendentes = compras.filter(c => c.status_pagamento === 'pendente')
@@ -66,7 +68,7 @@ export async function buildLiveSnapshot(sb) {
 
   const pendingIn30 = faturasPendentes
     .filter(f => f.data_vencimento >= today && f.data_vencimento <= end30)
-    .reduce((a, f) => a + Math.max(0, (+f.valor || +f.total || 0) - (+f.pago || 0)), 0)
+    .reduce((a, f) => a + Math.max(0, invoiceTotal(f) - (+f.pago || 0)), 0)
 
   const pendingOut30 = comprasPendentes
     .filter(c => {
@@ -75,7 +77,7 @@ export async function buildLiveSnapshot(sb) {
     })
     .reduce((a, c) => a + (+c.total_pago || +c.total_real || 0), 0)
 
-  const caixaLiquido = paidIn - paidOut
+  const caixaLiquido = Math.round(cash.cash)
 
   return {
     geradoEm: new Date().toISOString(),
@@ -99,7 +101,7 @@ export async function buildLiveSnapshot(sb) {
       compras: compras.slice(0, 5).map(c => ({ data: c.data, fornecedor: c.fornecedor, total: c.total_real || c.total_pago })),
       faturas: faturas.slice(0, 5).map(f => ({
         status: f.status,
-        valor: f.valor || f.total,
+        valor: invoiceTotal(f),
         vencimento: f.data_vencimento,
         bar: bars.find(b => b.id === f.bar_id)?.nome,
       })),

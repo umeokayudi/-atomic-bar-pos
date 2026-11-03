@@ -52,6 +52,9 @@ export const LIVE_TABLES = [
   'staff_schedule',
   'staff_fines',
   'staff_payouts',
+  // Activity log for changes that the database triggers (sql/audit_log.sql) cannot see: live-store writes
+  // (till shifts, close checks, costs…) and app-side notes while audit_log is not in Postgres. Server-stamped.
+  'audit_events',
 ]
 
 // Tables that had a JSON copy before the migrations created them in Postgres (sql/pos_start.sql,

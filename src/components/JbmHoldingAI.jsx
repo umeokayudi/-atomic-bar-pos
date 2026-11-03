@@ -86,7 +86,7 @@ export default function JbmHoldingAI({ holdingProfile }) {
       {ok && (
         <div className="portal-hero-grid">
           <PortalKpi icon="ok" tone={snapshot.checksOk === snapshot.checksTotal ? 'success' : 'warning'} label="Checks" value={`${snapshot.checksOk}/${snapshot.checksTotal}`} />
-          <PortalKpi icon="coins" label="Caixa" value={fmtYen(snapshot.financeiro?.caixaLiquido)} />
+          <PortalKpi icon="coins" label="Net cash (Cash flow)" value={fmtYen(snapshot.financeiro?.caixaLiquido)} sub="Confirmed cash in − cash paid out" />
           <PortalKpi icon="invoices" tone="success" label="A receber" value={fmtYen(snapshot.financeiro?.aReceber)} color="var(--green)" />
           <PortalKpi icon="trendUp" tone="info" label="Proj. 30d" value={fmtYen(snapshot.financeiro?.projetado30d)} sub={`${snapshot.opportunityCostPct}%/ano`} />
         </div>

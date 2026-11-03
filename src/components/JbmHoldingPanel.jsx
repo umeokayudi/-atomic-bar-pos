@@ -11,7 +11,7 @@ import JbmHoldingAI from './JbmHoldingAI'
 import { useI18n } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
 import { fmtYen } from './utils'
-import { reconciledCash } from '../lib/money'
+import { loadReconciledCash } from '../lib/cashLoad'
 
 export default function JbmHoldingPanel() {
   const { t } = useI18n()
@@ -28,12 +28,7 @@ export default function JbmHoldingPanel() {
       .catch(() => setProfile(loadHoldingLocal()))
       .finally(() => setLoading(false))
     // Same cash as Cash flow → Overview (one definition, src/lib/money.js).
-    Promise.all([
-      supabase.from('faturas').select('id,bar_id,total,valor,pago,periodo_inicio,periodo_fim,data_emissao'),
-      supabase.from('fatura_pagamentos').select('fatura_id,valor,confirmado,metodo'),
-      supabase.from('compras').select('fornecedor,total_real,total_pago,status_pagamento,metodo_pagamento_real,pagamento,data,data_compra'),
-    ]).then(([f, p, c]) => setCash(reconciledCash({ faturas: f.data || [], pagamentos: p.data || [], compras: c.data || [] })))
-      .catch(() => setCash(null))
+    loadReconciledCash(supabase).then(setCash).catch(() => setCash(null))
   }, [])
 
   function updateNegocio(i, patch) {

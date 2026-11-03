@@ -1,3 +1,4 @@
+import { invoiceRemaining, invoiceTotal } from '../src/lib/money.js'
 import { aReceberForMonth, faturamentoForMonth, faturaCoversMonth } from './_faturasMonth.js'
 
 export const JUNE_MONTH = '2026-06'
@@ -118,7 +119,7 @@ export function faturaMonthKeys(faturas) {
 }
 
 function faturaOutstanding(f) {
-  return Math.max(0, (+f.total || +f.valor || 0) - (+f.pago || 0))
+  return invoiceRemaining(f)
 }
 
 function compraDueDateServer(c, fornecedorPagamento) {
@@ -357,7 +358,7 @@ export function buildDashboardCalendar({
         date,
         kind: 'pagamento',
         dir: 'in',
-        amount: +f.pago || +f.valor || +f.total || 0,
+        amount: +f.pago || invoiceTotal(f),
         label: f.bars?.nome || 'Fatura',
         status: 'pago',
         tab: 'faturas',
