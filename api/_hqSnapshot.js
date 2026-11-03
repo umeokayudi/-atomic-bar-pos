@@ -6,9 +6,9 @@ import { payrollFromPunches } from '../src/lib/timeClock.js'
 import { isDemoTill, nightKeyOfSale } from '../src/lib/nightClose.js'
 import { tokyoMonthKey, tokyoNightKey, monthRange, recentMonthKeys } from '../src/lib/tokyo.js'
 import { splitCostBooks, rentForMonth, lastKnownRent, splitOverhead } from '../src/lib/costBooks.js'
-import { monthKeyOf, explainJbmGap, buildMonthSeries, invoiceOverlapsMonth, lowStockFromLedger } from '../src/lib/hqFilters.js'
+import { monthKeyOf, explainJbmGap, buildMonthSeries, invoiceOverlapsMonth } from '../src/lib/hqFilters.js'
 import { billChecks } from '../src/lib/billMatch.js'
-import { coalesceStockMoves, deliveryNoteMoves, posPourMoves } from '../src/lib/barStock.js'
+import { loadBarStockAlerts } from '../src/lib/stockAlerts.js'
 import {
   isMissingSchemaError,
   isMissingTableError,
@@ -136,7 +136,7 @@ async function computeHqSnapshot(admin, barId, barNome = '', mes, { lite = false
   })()
   const emptyPg = Promise.resolve({ data: [], error: null })
 
-  const [vendasR, pedR, fatR, posR, clockR, rentR, staff, regrasR, movR, prodR, itemR, posItemR, priceR, goalsLive] = await Promise.all([
+  const [vendasR, pedR, fatR, posR, clockR, rentR, staff, regrasR, movR, goalsLive] = await Promise.all([
     admin.from('vendas').select('id,data,data_venda,total,obs,bar_id,cast_id,criado_em').eq('bar_id', barId).order('data', { ascending: false }).limit(400),
     admin.from('pedidos').select('id,status,total_estimado,data_pedido,criado_em,obs').eq('bar_id', barId).order('criado_em', { ascending: false }).limit(200),
     admin.from('faturas').select('*').eq('bar_id', barId).order('data_vencimento', { ascending: false }).limit(24),
@@ -153,10 +153,6 @@ async function computeHqSnapshot(admin, barId, barNome = '', mes, { lite = false
     listStaffWithExtras(admin, barId).catch(() => []),
     lite ? emptyPg : admin.from('estoque_regras').select('produto_id,minimo').eq('bar_id', barId).limit(400),
     lite ? emptyPg : admin.from('estoque_movimentos').select('produto_id,tipo,qtd').eq('bar_id', barId).limit(4000),
-    lite ? emptyPg : admin.from('produtos').select('id,nome').limit(400),
-    lite ? emptyPg : admin.from('vendas_itens').select('produto_id,qtd,venda_id').limit(5000),
-    lite ? Promise.resolve({ rows: [] }) : pgOrLive(admin, 'pos_vendas_itens', [], 'produto_id,nome,qtd,pos_venda_id'),
-    lite ? emptyPg : admin.from('bar_pricing').select('produto_id,drinks_por_garrafa').eq('bar_id', barId).limit(400),
     runLiveOp(admin, {
       table: 'bar_goals',
       mode: 'select',
@@ -198,30 +194,10 @@ async function computeHqSnapshot(admin, barId, barNome = '', mes, { lite = false
   const rentAmount = rentForMonth(rentR.rows || [], mes)
   const rentRow = (rentR.rows || []).find(r => r.kind === 'rent' && r.month_key === mes) || null
   const rentPrev = lastKnownRent(rentR.rows || [], mes)
-  const supplierIds = new Set(supplier.map(v => v.id))
-  const noteItems = (!itemR?.error ? (itemR.data || []) : []).filter(it => supplierIds.has(it.venda_id))
-  const notesWithItems = supplier.map(v => ({
-    ...v,
-    vendas_itens: noteItems.filter(it => it.venda_id === v.id),
-  }))
-  const pricing = {}
-  for (const r of priceR?.error ? [] : (priceR.data || [])) {
-    if (r?.produto_id) pricing[r.produto_id] = { drinks_por_garrafa: +r.drinks_por_garrafa || 0 }
-  }
-  const posIds = new Set(posRows.map(s => s.id))
-  const posItems = (posItemR?.rows || []).filter(it => !it.pos_venda_id || posIds.has(it.pos_venda_id))
-  const stockMoves = coalesceStockMoves(
-    movR.error ? [] : (movR.data || []),
-    deliveryNoteMoves(notesWithItems),
-    posPourMoves(posItems, pricing),
-  )
-  const estoqueBaixo = !regrasR.error
-    ? lowStockFromLedger({
-      regras: regrasR.data || [],
-      movimentos: stockMoves,
-      produtos: prodR.error ? [] : (prodR.data || []),
-    }).slice(0, 8)
-    : []
+  // One low-stock list (src/lib/stockAlerts.js): the same rows the Stock screen and the AI count. The full
+  // list is kept (the tile shows the count, screens slice the names); it was cut to 8 before counting.
+  const stockAlertsRes = lite ? { rows: [], ok: true } : await loadBarStockAlerts(admin, barId).catch(() => ({ rows: [], ok: false }))
+  const estoqueBaixo = stockAlertsRes.rows
 
   const books = splitCostBooks({
     posMonthTotal,

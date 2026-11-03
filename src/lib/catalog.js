@@ -104,3 +104,18 @@ export function compareOffers(offers = []) {
     .sort((a, b) => a.gross - b.gross)
   return { offers: real, coverage: { withPrice: real.length, linked } }
 }
+
+// Test or placeholder products seen in the catalog (review 03/11/2026: TESTE-MUSE).
+const TEST_NAME = /(^|[\s_-])(teste?|test|dummy|sample|sandbox)([\s_-]|$)|\((dup|copy|copia|test)\)/i
+
+/** Archived or test product: never in the active catalog, the stock list or any AI alert. */
+export function isArchivedOrTest(p) {
+  if (!p) return true
+  if (p.ativo === false || p.arquivado === true) return true
+  return TEST_NAME.test(String(p.nome || ''))
+}
+
+/** Active catalog: drops archived and test products. */
+export function activeCatalog(produtos = []) {
+  return (produtos || []).filter(p => !isArchivedOrTest(p))
+}

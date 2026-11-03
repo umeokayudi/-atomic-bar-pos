@@ -1,4 +1,4 @@
--- Audit log: who created, changed or deleted invoices, payments, receipts, products and purchases.
+-- Audit log: who created, changed or deleted invoices, payments, receipts, products, purchases, deliveries (vendas), bar cash moves and till sales.
 -- Written by database triggers, so every screen (and the AI) is covered without extra code.
 -- Run once in Supabase → SQL Editor for project ojirgkqtqvugqktyuhem. Safe to run again.
 
@@ -46,7 +46,8 @@ END $$;
 DO $$
 DECLARE t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['faturas', 'fatura_pagamentos', 'ryoshusho', 'produtos', 'compras'] LOOP
+  -- vendas, caixa_movimentos and pos_vendas added 03/11/2026: the July invoice total and the bar's sales changed in October with no known author.
+  FOREACH t IN ARRAY ARRAY['faturas', 'fatura_pagamentos', 'ryoshusho', 'produtos', 'compras', 'vendas', 'vendas_itens', 'caixa_movimentos', 'pos_vendas', 'pos_shifts'] LOOP
     IF to_regclass('public.' || t) IS NOT NULL THEN
       EXECUTE format('DROP TRIGGER IF EXISTS audit_%1$s ON public.%1$I', t);
       EXECUTE format('CREATE TRIGGER audit_%1$s AFTER INSERT OR UPDATE OR DELETE ON public.%1$I FOR EACH ROW EXECUTE FUNCTION public.audit_row()', t);

@@ -1,6 +1,7 @@
 import { t as translate, getGlobalLang } from '../lib/i18n'
 import Icon, { hasIcon } from './ui/Icon'
 import { dateLocale } from '../lib/tokyo'
+import { isArchivedOrTest } from '../lib/catalog'
 export const fmtYen   = n => `¥${Math.round(+n || 0).toLocaleString('ja-JP')}`
 export const fmtDate  = (iso, lang = getGlobalLang()) => {
   if (!iso) return '—'
@@ -56,7 +57,8 @@ export const SUPPLIER_CATEGORIES = CATEGORIAS
 export const NON_SUPPLIER_CATEGORIES = ['Highball', 'Food', 'Bottle', 'Premium', 'Soft', 'suco', 'cha', 'licor', 'rum', 'mixer', 'vinho', 'Cerveja', 'Soft Drinks', 'Liqueurs', 'Gin Base', 'Wine Base']
 
 export function isSupplierProduct(p) {
-  if (!p || p.ativo === false) return false
+  // Archived and test products (e.g. TESTE-MUSE) are never part of the active catalog.
+  if (!p || isArchivedOrTest(p)) return false
   if (NON_SUPPLIER_CATEGORIES.includes(p.categoria)) return false
   return SUPPLIER_CATEGORIES.includes(p.categoria)
 }

@@ -6,6 +6,7 @@
  */
 
 import { invoiceMoney, invoiceTotal, moneyInFacts } from '../src/lib/money.js'
+import { activeCatalog } from '../src/lib/catalog.js'
 
 export const HQ_ROLES = ['admin', 'jbm']
 export const BAR_MANAGER_ROLES = ['cliente', 'gerente']
@@ -283,7 +284,7 @@ export async function loadActionContext(db, { scope, barId, userId }) {
     userId,
     today: tokyoToday(),
     bars: bars.data || [],
-    produtos: produtos.data || [],
+    produtos: activeCatalog(produtos.data),
     fornecedores: fornecedores.data || [],
     faturas: withBar(faturas.data),
     pedidos: withBar(pedidos.data),

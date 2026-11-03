@@ -2,8 +2,8 @@ import { useState, useEffect, Component } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmtYen, Spinner, Empty } from './utils'
 import PurchaseCashflowAdvisor from './PurchaseCashflowAdvisor'
-import { fromZeikomi, parseSupplierPriceNotas, formatPriceChange } from '../lib/consumptionTax'
-import { compareOffers, supplierTaxMode, withTaxTag, stripTaxTag } from '../lib/catalog'
+import { parseSupplierPriceNotas, formatPriceChange } from '../lib/consumptionTax'
+import { activeCatalog, compareOffers, findDuplicates, normalizeName, offerPrices, supplierTaxMode, withTaxTag, stripTaxTag } from '../lib/catalog'
 import { asReactText } from '../lib/errText'
 import { AdminPage, PortalSurface, PortalPills } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
@@ -158,15 +158,20 @@ function SupplierPricing() {
   async function load() {
     const [sR, pR, prR] = await Promise.all([
       supabase.from('fornecedores').select('*').order('nome'),
-      supabase.from('produtos').select('id,nome,categoria,custo').order('categoria').order('nome'),
+      supabase.from('produtos').select('id,nome,categoria,custo,ativo').order('categoria').order('nome'),
       supabase.from('fornecedor_precos').select('*, fornecedores(nome)'),
     ])
-    setSuppliers(sR.data||[]); setProdutos(pR.data||[]); setPrecos(prR.data||[])
+    setSuppliers(sR.data||[]); setProdutos(activeCatalog(pR.data)); setPrecos(prR.data||[])
     if (sR.data?.length>0) setSelSup(sR.data[0].id)
     setLoading(false)
   }
   async function savePreco() {
     if (!modal.preco) return
+    // One price per product and supplier: a copy of the same product ("Orange Juice (dup)") cannot get its own.
+    const prod = produtos.find(p => p.id === modal.produto_id)
+    const twin = produtos.find(p => p.id !== modal.produto_id && normalizeName(p.nome) === normalizeName(prod?.nome)
+      && precos.some(x => x.fornecedor_id === modal.fornecedor_id && x.produto_id === p.id))
+    if (twin) { notify(t('pricing.duplicate', { name: twin.nome }), 'error'); return }
     setSaving(true)
     await supabase.from('fornecedor_precos').upsert(
       { fornecedor_id:modal.fornecedor_id, produto_id:modal.produto_id, preco:+modal.preco, url_compra:modal.url_compra||null, notas:modal.notas||null, atualizado_em:new Date().toISOString() },
@@ -176,6 +181,9 @@ function SupplierPricing() {
   }
   const supPrecos = precos.filter(p=>p.fornecedor_id===selSup)
   const cats = [...new Set(produtos.map(p=>p.categoria))]
+  // Tax basis of this supplier's sheet: never +10% on prices that already include tax (Le Vin, Liquor Mountain).
+  const supTax = supplierTaxMode(suppliers.find(x => x.id === selSup) || {})
+  const dupIds = new Set(findDuplicates(produtos).flatMap(g => g.slice(1).map(p => p.id)))
   if (loading) return <Spinner text={t('common.loading')} />
   if (suppliers.length===0) return <Empty text={t('suppliers.addFirst')} icon="🏭" />
   return (
@@ -193,16 +201,17 @@ function SupplierPricing() {
             {produtos.filter(p=>p.categoria===cat).map(p => {
               const sp = supPrecos.find(x=>x.produto_id===p.id)
               const meta = sp ? parseSupplierPriceNotas(sp.notas) : {}
-              const zeibetsu = meta.zeibetsu ?? (sp ? fromZeikomi(sp.preco) : null)
+              const pr = sp ? offerPrices(sp.preco, supTax) : null
+              const zeibetsu = meta.zeibetsu ?? (pr ? pr.net : null)
               const variacao = meta.variacao_pct
               const diff = sp && p.custo ? Math.round((sp.preco - p.custo) / p.custo * 100) : null
               return (
                 <div key={p.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 14px', background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:10 }}>
-                  <div style={{ flex:1, fontSize:13, fontWeight:500 }}>{p.nome}</div>
+                  <div style={{ flex:1, fontSize:13, fontWeight:500 }}>{p.nome}{dupIds.has(p.id) && <span style={{ marginLeft:6, fontSize:11, fontWeight:700, color:'var(--red)' }}>{t('pricing.dupBadge')}</span>}</div>
                   <div style={{ fontSize:12, color:'var(--text2)' }}>JBM: {fmtYen(p.custo)}</div>
                   {sp ? <>
                     {zeibetsu != null && <div style={{ fontSize:11, color:'var(--text3)' }}>税抜 {fmtYen(zeibetsu)}</div>}
-                    <div style={{ fontSize:14, fontWeight:700, color:'var(--c-text)' }} title="税込 (+10%)">{fmtYen(sp.preco)}</div>
+                    <div style={{ fontSize:14, fontWeight:700, color:'var(--c-text)' }} title={supTax === 'included' ? t('pricing.sheetIncluded') : t('pricing.sheetExcluded')}>{fmtYen(pr.gross)}</div>
                     {variacao != null && variacao !== 0 && (
                       <div style={{ fontSize:11, fontWeight:700, color: variacao > 0 ? 'var(--red)' : 'var(--green)' }}>
                         jul {formatPriceChange(variacao)}
@@ -253,10 +262,10 @@ function SmartPurchase() {
   useEffect(() => { load() }, [])
   async function load() {
     const [pR, prR] = await Promise.all([
-      supabase.from('produtos').select('id,nome,categoria,custo,preco_venda,volume_ml').order('categoria').order('nome'),
+      supabase.from('produtos').select('id,nome,categoria,custo,preco_venda,volume_ml,ativo').order('categoria').order('nome'),
       supabase.from('fornecedor_precos').select('*, fornecedores(nome,prazo_entrega_dias,pagamento,pontos_pct,website,notas)'),
     ])
-    setProdutos(pR.data||[]); setPrecos(prR.data||[]); setLoading(false)
+    setProdutos(activeCatalog(pR.data)); setPrecos(prR.data||[]); setLoading(false)
   }
   const filtered = produtos.filter(p => !search || p.nome.toLowerCase().includes(search.toLowerCase()) || p.categoria.toLowerCase().includes(search.toLowerCase()))
   // Only real prices are compared, all on the same basis (with tax, never +10% on a tax-included sheet).

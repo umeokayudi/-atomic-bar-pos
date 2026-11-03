@@ -1,0 +1,80 @@
+/** 日本語：2026/11/03 構造修正（ja.js に上書き） */
+export default {
+  aiAct: {
+    hint: '操作も頼めます（例：「Atomicにジェムソン6本注文」）。データが変わるのは確定を押したときだけです。質問と回答はAI履歴に保存されます。',
+  },
+  invoiceComp: {
+    other: 'その他 {amount}',
+    total: '請求合計 {amount}',
+    received: '入金（確認済み現金）{amount}',
+    direct: '店舗が仕入先へ直接支払 {amount}',
+    review: '確認中・未入金 {amount}',
+    remaining: '残り {amount}',
+  },
+  invoiceLock: {
+    needSql: '調整を保存できませんでした。もう一度試すか、JBMサポートへ連絡してください。',
+  },
+  monthClose: {
+    title: '月次締め',
+    delivered: 'JBM納品（注文）',
+    adjustment: '調整',
+    recordedBy: '{who}・{when} 登録',
+    unexplained: '理由が登録されていない差額',
+    adjustedBilling: '請求額（調整後）',
+    cost: '原価',
+    estimateUntil: '実際の仕入れが登録されるまで見込み',
+    recordHint: '請求書で調整と理由を登録してください（請求 →「調整と理由を登録」）。',
+  },
+  collect: {
+    button: '督促',
+    title: '督促メール',
+    to: '宛先：{email}',
+    noEmail: '請求先メール未登録（本部 → 店舗）',
+    subjectLabel: '件名',
+    copy: '本文をコピー',
+    openMail: 'メールで開く',
+    copied: 'コピーしました',
+    copyFailed: 'コピーできませんでした。本文を選択して手動でコピーしてください。',
+    subject: 'お支払いのご案内 — {bar} — 未払い {amount}',
+    greeting: '{bar} ご担当者様',
+    intro: 'JBM Drinks の未払い請求書は以下のとおりです。',
+    introOverdue: 'JBM Drinks の請求書のうち、支払期限を過ぎたものがあります。',
+    line: '• {period}：合計 {total}、支払済 {settled}、残り {left}、期限 {due}{flag}',
+    overdueFlag: '（期限超過）',
+    totalLeft: '残り合計：{amount}',
+    overdueLeft: '期限超過：{amount}',
+    closing: 'お支払い後にご連絡いただけますと幸いです。よろしくお願いいたします。',
+    signature: 'JBM Drinks',
+  },
+  receipts: {
+    alreadyTitle: 'この入金には領収書 {numero} が発行済みです',
+    printSame: '同じ領収書を再印刷',
+    duplicateOf: '{numero} の重複',
+  },
+  audit: {
+    subtitle: '常にオン：請求合計・入金・領収書・納品・店舗のレジと現金の記録を、誰がいつ変更したか。',
+    appOnly: 'アプリ画面での変更は記録されます。データベースで直接行った変更は、DBログ（sql/audit_log.sql）を有効にすると記録されます。',
+    table: {
+      vendas: '納品', vendas_itens: '納品明細', pos_vendas: 'レジ売上', pos_vendas_itens: 'レジ売上明細',
+      pos_shifts: 'レジ締め', pos_close_checks: '現金照合', caixa_movimentos: '現金記録', bar_overhead: '店舗コスト',
+      bar_guest_ledger: 'ツケ', bar_profile: '店舗情報', jbm_company: '会社情報',
+    },
+    action: { upsert: '保存' },
+  },
+  catalog: {
+    noCost: '原価なし',
+  },
+  pricing: {
+    duplicate: 'この商品はこの仕入先で「{name}」として価格登録済みです。そちらを使ってください。',
+    dupBadge: '重複',
+    sheetIncluded: '仕入先の価格表は税込：+10%しません',
+    sheetExcluded: '仕入先の価格表は税抜：消費税+10%',
+  },
+  supplierPriceCheck: {
+    taxIncluded: '（税込・仕入先価格表どおり）',
+  },
+  configs: {
+    barsSubtitle: '取引先の店舗とJBMの納品額',
+    totalRevenue: 'JBM納品額（総額）',
+  },
+}

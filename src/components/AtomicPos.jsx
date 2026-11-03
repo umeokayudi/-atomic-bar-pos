@@ -516,7 +516,8 @@ function PosPricesTab({ bar, drinks, onRefresh }) {
       categoria: f.categoria,
       preco_venda: +f.preco_venda,
       custo,
-      margem: f.preco_venda > 0 ? (+f.preco_venda - custo) / +f.preco_venda : 0,
+      // Cost ¥0 is "no cost", not a 100% margin.
+      margem: f.preco_venda > 0 && custo > 0 ? (+f.preco_venda - custo) / +f.preco_venda : 0,
       preco_desconto: +f.preco_desconto || 500,
       custom: true,
     }
@@ -590,7 +591,7 @@ function PosPricesTab({ bar, drinks, onRefresh }) {
                   <td style={{ padding: 8 }}>{d.nome}</td>
                   <td>{fmtYen(d.preco_venda)}</td>
                   <td style={{ color: 'var(--gold)' }}>{fmtYen(d.preco_desconto || 500)}</td>
-                  <td>{Math.round((d.margem || 0) * 100)}%</td>
+                  <td>{+d.custo > 0 ? `${Math.round((d.margem || 0) * 100)}%` : <span style={{ color: 'var(--amber)', fontWeight: 700 }}>{t('catalog.noCost')}</span>}</td>
                   <td><button onClick={() => { setEditId(d.id); setForm(drinkToForm(d)) }} style={{ fontSize: 11 }}>{t('common.edit')}</button></td>
                 </tr>
               ))}
@@ -615,7 +616,7 @@ function PosPricesTab({ bar, drinks, onRefresh }) {
                   <span className="pos-price-name">{d.nome}</span>
                   <span className="pos-price-meta">
                     <span className="pos-price-vip">{t('atomicPos.colVip')} {fmtYen(d.preco_desconto || 500)}</span>
-                    {' · '}{t('atomicPos.colMargin')} {Math.round((d.margem || 0) * 100)}%
+                    {' · '}{+d.custo > 0 ? `${t('atomicPos.colMargin')} ${Math.round((d.margem || 0) * 100)}%` : t('catalog.noCost')}
                   </span>
                 </span>
                 <span className="pos-price-yen">{fmtYen(d.preco_venda)}</span>

@@ -1,0 +1,80 @@
+/** English strings for the 03/11/2026 structure fixes (merged over en.js). */
+export default {
+  aiAct: {
+    hint: 'Ask it to do something, e.g. "order 6 Jameson for Atomic". Your data changes only after you press Confirm. Your questions and answers are kept in the AI history.',
+  },
+  invoiceComp: {
+    other: 'Other {amount}',
+    total: 'Invoice total {amount}',
+    received: 'Received (confirmed cash) {amount}',
+    direct: 'Paid by the bar to the supplier {amount}',
+    review: 'In review, not received {amount}',
+    remaining: 'Left {amount}',
+  },
+  invoiceLock: {
+    needSql: 'The adjustment could not be saved. Try again or contact JBM support.',
+  },
+  monthClose: {
+    title: 'Month close',
+    delivered: 'Delivered by JBM (orders)',
+    adjustment: 'Adjustment',
+    recordedBy: 'Recorded by {who} on {when}',
+    unexplained: 'Difference with no recorded reason',
+    adjustedBilling: 'Billed (adjusted invoice)',
+    cost: 'Cost',
+    estimateUntil: 'Estimate until real purchases are logged',
+    recordHint: 'Record the adjustment and its reason on the invoice (Invoices → "Record adjustment and reason").',
+  },
+  collect: {
+    button: 'Collect',
+    title: 'Collection e-mail',
+    to: 'To: {email}',
+    noEmail: 'no billing e-mail on file (HQ → Bars)',
+    subjectLabel: 'Subject',
+    copy: 'Copy text',
+    openMail: 'Open in e-mail',
+    copied: 'Text copied',
+    copyFailed: 'Could not copy. Select the text and copy it by hand.',
+    subject: 'Payment reminder — {bar} — {amount} open',
+    greeting: 'Dear {bar} team,',
+    intro: 'Here is a summary of the open invoices from JBM Drinks:',
+    introOverdue: 'Some invoices from JBM Drinks are past their due date. Here is the summary:',
+    line: '• {period}: total {total}, already settled {settled}, left {left}, due {due}{flag}',
+    overdueFlag: '(OVERDUE)',
+    totalLeft: 'Total left: {amount}',
+    overdueLeft: 'overdue: {amount}',
+    closing: 'Please let us know when the payment is made. Thank you.',
+    signature: 'JBM Drinks',
+  },
+  receipts: {
+    alreadyTitle: 'This payment already has receipt {numero}',
+    printSame: 'Print the same receipt again',
+    duplicateOf: 'Duplicate of {numero}',
+  },
+  audit: {
+    subtitle: 'On by default: who changed invoice totals, payments received, receipts, deliveries and the bar\'s till and cash entries, and when.',
+    appOnly: 'Changes made in the app screens are recorded. Changes made straight in the database are recorded too once the database log is switched on (sql/audit_log.sql).',
+    table: {
+      vendas: 'delivery', vendas_itens: 'delivery item', pos_vendas: 'till sale', pos_vendas_itens: 'till sale item',
+      pos_shifts: 'till shift', pos_close_checks: 'cash-up check', caixa_movimentos: 'cash entry', bar_overhead: 'bar cost',
+      bar_guest_ledger: 'guest tab', bar_profile: 'bar file', jbm_company: 'company data',
+    },
+    action: { upsert: 'saved' },
+  },
+  catalog: {
+    noCost: 'No cost',
+  },
+  pricing: {
+    duplicate: 'This product already has a price from this supplier as "{name}". Use that one.',
+    dupBadge: 'duplicate',
+    sheetIncluded: 'Supplier sheet already includes tax: no +10%',
+    sheetExcluded: 'Supplier sheet without tax: +10% consumption tax',
+  },
+  supplierPriceCheck: {
+    taxIncluded: '(with tax, as on the supplier sheet)',
+  },
+  configs: {
+    barsSubtitle: 'Client bars and what JBM delivered to each',
+    totalRevenue: 'Delivered by JBM (gross)',
+  },
+}
