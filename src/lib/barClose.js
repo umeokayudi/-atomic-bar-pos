@@ -1,7 +1,7 @@
 /** Weekly and monthly close, payment dates, and salary vs what each person sold. */
 
 import { faturaRemaining } from './barPortal.js'
-import { nightKeyOfSale, paySplitFromObs, prevTokyoDateKey } from './nightClose.js'
+import { nightKeyOfSale, paySplitFromObs, prevTokyoDateKey, tabPayMethod } from './nightClose.js'
 import { readTicketMeta } from './nightTicket.js'
 import { personCredit } from './saleCredit.js'
 import { finesByStaff, payNet } from './staffFines.js'
@@ -78,7 +78,7 @@ export function tenderOf(tickets) {
       pay[split.otherBucket] += split.other
       continue
     }
-    const method = String(s.metodo_pagamento || '')
+    const method = tabPayMethod(s) || String(s.metodo_pagamento || '')
     if (/paypay|ペイペイ/i.test(method)) pay.paypay += total
     else if (/card|credit|debit|visa|クレジット/i.test(method)) pay.card += total
     else if (/cash|現金/i.test(method) || !method) pay.cash += total

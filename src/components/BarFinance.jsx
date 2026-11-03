@@ -19,6 +19,7 @@ import StaffPayCards from './StaffPayCards'
 import DayStaffBoard from './DayStaffBoard'
 import StaffDayReport from './StaffDayReport'
 import BarPayPlan from './BarPayPlan'
+import CloseCheck from './CloseCheck'
 import { useI18n } from '../lib/i18n'
 import { asReactText, errText } from '../lib/errText'
 import { listFines, listPayouts, markSalaryPaid, unmarkSalaryPaid } from '../lib/staffSelfApi'
@@ -312,6 +313,7 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
 
       {section === 'fechamento' && (
         <>
+          <CloseCheck bar={bar} />
           <DayStaffBoard />
           <section className="desk-card">
             <h3>{t('portal.close.weekday')}</h3>

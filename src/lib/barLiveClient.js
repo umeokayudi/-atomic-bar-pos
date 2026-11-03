@@ -22,6 +22,8 @@ export const LIVE_TABLES = new Set([
   'bar_overhead',
   'bar_hq_meta',
   'pos_shifts',
+  // Close check (Close page): counted cash / card / PayPay per night. No Postgres table: live store JSON.
+  'pos_close_checks',
   'pos_settings',
   'bar_people',
   'bar_registry',
