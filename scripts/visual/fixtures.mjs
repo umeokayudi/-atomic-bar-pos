@@ -53,13 +53,16 @@ const visits = [
   { id: 'vi3', bar_id: BAR.id, space_id: 'sp1', status: 'done', party_size: 2, inicio: ago(60 * 50), fim: ago(60 * 49), guest_id: null, host_nome: '', bar_guests: null },
 ]
 const posSales = [
-  { id: 'ps1', bar_id: BAR.id, total: 18400, space_id: 'sp1', visit_id: 'vi1', criado_em: ago(30), data: day(0), obs: 'Cast: Aiko Tanaka\nRoomMin: 10000' },
+  { id: 'ps1', bar_id: BAR.id, total: 18400, space_id: 'sp1', visit_id: 'vi1', criado_em: ago(30), data: day(0), metodo_pagamento: 'Credit card', obs: 'Cast: Aiko Tanaka\nRoomMin: 10000' },
   { id: 'ps2', bar_id: BAR.id, total: 46200, space_id: 'sp2', visit_id: 'vi2', criado_em: ago(60 * 23 + 5), data: day(1), obs: 'Cast: Lucia Sato\nRoomMin: 10000' },
   { id: 'ps3', bar_id: BAR.id, total: 10000, space_id: 'sp1', visit_id: 'vi3', criado_em: ago(60 * 49 + 2), data: day(2), obs: 'RoomMin: 10000' },
-  { id: 'ps4', bar_id: BAR.id, total: 3200, space_id: 'sp3', visit_id: null, criado_em: ago(45), data: day(0), obs: '' },
+  { id: 'ps4', bar_id: BAR.id, total: 3200, space_id: 'sp3', visit_id: null, criado_em: ago(45), data: day(0), metodo_pagamento: 'Cash', obs: '' },
   // Staff POS: one sale rung by Aiko herself, one shared by Aiko and Ken (equal split).
-  { id: 'ps5', bar_id: BAR.id, total: 2400, space_id: null, visit_id: null, criado_em: ago(20), data: day(0), obs: '', criado_por: 'st1' },
+  { id: 'ps5', bar_id: BAR.id, total: 2400, space_id: null, visit_id: null, criado_em: ago(20), data: day(0), metodo_pagamento: 'PayPay', obs: '', criado_por: 'st1' },
   { id: 'ps6', bar_id: BAR.id, total: 12001, space_id: null, visit_id: null, criado_em: ago(12), data: day(0), obs: 'Cast: Aiko Tanaka|st1; Ken Mori|st2', criado_por: 'st2' },
+  // Close check: a tab paid in cash and a counter sale split cash + card.
+  { id: 'ps9', bar_id: BAR.id, total: 15400, space_id: null, visit_id: null, criado_em: ago(15), data: day(0), metodo_pagamento: 'Tab', obs: 'Pay: Cash tab\nSvc: 10\nSofa W' },
+  { id: 'ps10', bar_id: BAR.id, total: 8000, space_id: null, visit_id: null, criado_em: ago(8), data: day(0), metodo_pagamento: 'Cash + Credit card', obs: 'Cast: Ken Mori|st2\nPay: Cash 5000 + Credit card 3000 record-only' },
   // Drink back page: earlier nights this month for the drink back women.
   { id: 'ps7', bar_id: BAR.id, total: 24800, space_id: null, visit_id: null, criado_em: ago(60 * 24 * 3), data: day(3), obs: 'Cast: Aiko Tanaka|st1\nComm: 1800', criado_por: 'st1' },
   { id: 'ps8', bar_id: BAR.id, total: 16500, space_id: null, visit_id: null, criado_em: ago(60 * 24 * 4), data: day(4), obs: 'Cast: Mika|dba4\nComm: 1200' },

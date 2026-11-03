@@ -32,6 +32,19 @@ export function paySplitFromObs(obs) {
   }
 }
 
+/**
+ * A tab sale is stored with method "Tab"; how the guest paid is on the obs line "Pay: Cash tab"
+ * (or "Pay: Cash + Credit card tab" when the tab was paid several ways). Returns the one method, or ''
+ * when there is none or there are several (the amounts per method are then only in the tab payments).
+ */
+export function tabPayMethod(sale) {
+  const method = String(sale?.metodo_pagamento || sale?.pay_method || '')
+  if (!/^tab$/i.test(method.trim())) return ''
+  const m = String(sale?.obs || '').match(/^Pay:\s*(.+?)\s+tab\s*$/im)
+  if (!m || /\+/.test(m[1])) return ''
+  return m[1].trim()
+}
+
 /** Seeded sample ticket. Not guest money. */
 export function isDemoTill(sale) {
   return /^Demo POS\b/i.test(String(sale?.obs || '').trim())
@@ -157,7 +170,7 @@ function addTender(pay, sale) {
     pay[split.otherBucket] += Math.round(split.other * scale)
     return
   }
-  const method = String(sale.metodo_pagamento || sale.pay_method || 'Cash')
+  const method = tabPayMethod(sale) || String(sale.metodo_pagamento || sale.pay_method || 'Cash')
   const amount = gross === net ? gross : net
   if (/\+/.test(method)) {
     if (/paypay|ペイペイ/i.test(method)) pay.paypay += amount
