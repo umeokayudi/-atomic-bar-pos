@@ -126,6 +126,8 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
   const [tabForm, setTabForm] = useState({ nome: '', pessoas: 2, tableId: '', guestId: '' })
   const [nightGoal, setNightGoal] = useState(0)
   const [orderOpen, setOrderOpen] = useState(false)
+  // Big screens: the side panel stays compact and a tab's full order opens in a pop-up.
+  const [detailOpen, setDetailOpen] = useState(false)
   // Phones: payment method, cash chips and customer fold away so the drinks on the order keep the room.
   const [payMore, setPayMore] = useState(false)
   const [server, setServer] = useState(null) // null = checking, true = server tabs, false = device tabs
@@ -453,6 +455,12 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
     setPayMore(false)
   }
 
+  /** Tab chip: switch to that tab; on a big screen also open its details pop-up (phones already show the order as a sheet). */
+  function viewTab(id) {
+    switchTo(id)
+    if (typeof window !== 'undefined' && window.matchMedia?.('(min-width: 901px)').matches) setDetailOpen(true)
+  }
+
   async function openTab(e) {
     e?.preventDefault?.()
     const table = tables.find(x => x.id === tabForm.tableId)
@@ -722,6 +730,120 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
   const needsPayStep = hasSomething && !settledTab && !setupNeeded
   const paying = payMore && needsPayStep
   useEffect(() => { if (!hasSomething) setPayMore(false) }, [hasSomething])
+  useEffect(() => {
+    if (!detailOpen) return
+    const onKey = e => { if (e.key === 'Escape') setDetailOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [detailOpen])
+  const activeName = active === COUNTER ? t('posQuick.counter') : (srvTab?.nome || order.label || '')
+  /** Same step as the big Pay button in the side panel. */
+  function goPay() {
+    setDetailOpen(false)
+    if (needsPayStep) { setPayMore(true); setErr('') } else if (needGuest) setCustSheet(true)
+    else charge()
+  }
+
+  const tabBarEl = srvTab && (
+    <div className="pq-tabbar">
+      <span className="ui-badge is-accent"><Icon name="comandas" size={12} /> {srvTab.mesa_nome || t('tabs.noTable')}</span>
+      <button type="button" className="ui-badge pq-tabbar-people" onClick={() => setPanelTab(srvTab.id)} aria-label={t('tabs.people', { n: +srvTab.pessoas || 1 })}>
+        <Icon name="users" size={12} /> {t('tabs.people', { n: +srvTab.pessoas || 1 })}
+      </button>
+      {srvMoney.paid > 0 && <span className="ui-badge is-info">{t('tabs.paidShort', { amount: fmtYen(srvMoney.paid) })}</span>}
+      {lockedTab && <span className="ui-badge is-warning">{t('tabs.state.awaiting_payment')}</span>}
+      <span className="ui-spacer" />
+      <button type="button" className="ui-btn is-sm" onClick={() => setPanelTab(srvTab.id)}><Icon name="settings" size={14} /> {t('tabs.manage')}</button>
+    </div>
+  )
+  const linesEl = (
+  <div className="pq-lines pq-lines-full">
+    {!hasSomething && <p className="pq-empty">{t('posQuick.empty')}</p>}
+    {sentLines.map(line => {
+      const look = itemVisual(line)
+      return (
+        <div key={line.item_id} className="pq-line is-sent">
+          <span className="pq-line-dot" style={{ background: look.background }}><Icon name={look.icon} size={14} /></span>
+          <div className="pq-line-name"><strong>{line.nome}</strong><span>{fmtYen(line.preco_unitario)} · {t('tabs.onTab')}</span></div>
+          <span className="pq-qty-static">×{line.qtd}</span>
+          <strong className="pq-line-total">{fmtYen(line.preco_unitario * line.qtd)}</strong>
+        </div>
+      )
+    })}
+    {cart.map(line => {
+      const look = itemVisual(byKey.get(line.key) || line)
+      return (
+        <div key={line.key} className={`pq-line${srvTab ? ' is-pending' : ''}`}>
+          <span className="pq-line-dot" style={look.image ? undefined : { background: look.background }}>
+            {look.image ? <img src={look.image} alt="" /> : <Icon name={look.icon} size={14} />}
+          </span>
+          <div className="pq-line-name">
+            <strong>{line.nome}</strong>
+            <span>{fmtYen(line.preco_unitario)}{srvTab ? ` · ${t('tabs.notSent')}` : ''}</span>
+          </div>
+          <div className="pq-qty">
+            <button type="button" aria-label={t('tabs.less', { name: line.nome })} onClick={() => bump(line.key, -1)}><Icon name="minus" size={16} /></button>
+            <span>{line.qtd}</span>
+            <button type="button" aria-label={t('tabs.more', { name: line.nome })} onClick={() => bump(line.key, 1)}><Icon name="plus" size={16} /></button>
+          </div>
+          <strong className="pq-line-total">{fmtYen(line.preco_unitario * line.qtd)}</strong>
+        </div>
+      )
+    })}
+  </div>
+  )
+  const summaryEl = (
+  <>
+  {(charges.lines.length > 0 || surchargeNow > 0 || srvMoney?.paid > 0) && (
+    <div className="pq-extra">
+      {charges.lines.map(line => (
+        <div key={line.key}><span>{line.kind === 'service' ? t('posQuick.service', { pct: servicePct }) : line.nome}</span><span>{fmtYen(line.preco)}</span></div>
+      ))}
+      {surchargePaid > 0 && <div><span>{t('posCard.surchargeLine', { pct: settings.card_surcharge_pct })}</span><span>{fmtYen(surchargePaid)}</span></div>}
+      {srvMoney?.paid > 0 && <div><span>{t('tabs.paid')}</span><span>−{fmtYen(srvMoney.paid)}</span></div>}
+      {surchargeNow > 0 && <div><span>{t('posCard.surchargeLine', { pct: settings.card_surcharge_pct })}</span><span>{fmtYen(surchargeNow)}</span></div>}
+    </div>
+  )}
+  <div className="pq-total">
+    <span>{srvMoney?.paid > 0 ? t('tabs.due') : t('posQuick.total')}{itemCount ? ` · ${t('posQuick.items', { n: itemCount })}` : ''}</span>
+    <strong>{fmtYen(due)}</strong>
+  </div>
+  </>
+  )
+  const sendEl = srvTab && cart.length > 0 && (
+    <button type="button" className="ui-btn is-lg pq-send" disabled={busy || lockedTab} onClick={async () => { setBusy(true); await sendPending(); setBusy(false) }}>
+      <Icon name="send" size={18} /> {t('tabs.send', { n: cart.reduce((a, l) => a + l.qtd, 0) })}
+    </button>
+  )
+  const serviceRowEl = !paying && (tableOrder || hasSomething) && (
+    <div className="pq-svcrow" role="group" aria-label={t('posQuick.serviceTitle')}>
+      <span className="pq-svcrow-label">{t('posQuick.serviceTitle')}</span>
+      <div className="pq-svcrow-chips">
+        <button type="button" className={servicePct === 0 ? 'is-on' : ''} disabled={busy} onClick={() => setService(0)}>{t('posQuick.serviceNone')}</button>
+        {servicePresets.map(v => (
+          <button key={v} type="button" className={servicePct === v ? 'is-on' : ''} disabled={busy} onClick={() => setService(v)}>{v}%</button>
+        ))}
+        {servicePct > 0 && !servicePresets.includes(servicePct) && svcOther == null && (
+          <button type="button" className="is-on" disabled={busy} onClick={() => serviceOtherOk && setSvcOther(String(servicePct))}>{servicePct}%</button>
+        )}
+        {!serviceOtherOk ? null : svcOther == null ? (
+          <button type="button" disabled={busy} onClick={() => setSvcOther('')}>{t('posQuick.serviceOther')}</button>
+        ) : (
+          <form className="pq-svcrow-other" onSubmit={e => { e.preventDefault(); const v = Math.round((+svcOther || 0) * 10) / 10; if (v >= 0 && v <= 50) { setService(v); setSvcOther(null) } }}>
+            <input type="number" inputMode="decimal" min="0" max="50" step="0.5" autoFocus value={svcOther} onChange={e => setSvcOther(e.target.value)} aria-label={t('posQuick.serviceOtherHint')} placeholder="%" />
+            <button type="submit" disabled={busy || svcOther === '' || +svcOther < 0 || +svcOther > 50}>OK</button>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+  const clearEl = !paying && (tableOrder && !srvTab || cart.length > 0) && (
+    <div className="pq-options">
+      <button type="button" className="is-quiet" onClick={() => (srvTab ? setCart([]) : dropActive())}>
+        {tableOrder && !srvTab ? t('posQuick.closeTab') : t('posQuick.clear')}
+      </button>
+    </div>
+  )
 
   return (
     <div className={`pq${orderOpen ? ' is-order-open' : ''}`}>
@@ -821,7 +943,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
       <aside className="pq-order" aria-label={t('posQuick.order')}>
         <div className="pq-tabs-row">
         <div className="pq-tabs">
-          <button type="button" className={`pq-tab${active === COUNTER ? ' is-on' : ''}`} onClick={() => switchTo(COUNTER)}>
+          <button type="button" className={`pq-tab${active === COUNTER ? ' is-on' : ''}`} onClick={() => viewTab(COUNTER)}>
             {t('posQuick.counter')}
             {orders[COUNTER].cart?.length > 0 && active !== COUNTER && <em>{fmtYen(cartTotal(orders[COUNTER].cart))}</em>}
           </button>
@@ -829,14 +951,14 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
             const m = tabMoney(x, x.items, x.payments, settings)
             const pend = cartTotal(orders[SRV + x.id]?.cart || [])
             return (
-              <button key={x.id} type="button" className={`pq-tab${active === SRV + x.id ? ' is-on' : ''}${x.status !== 'open' ? ' is-paying' : ''}`} onClick={() => switchTo(SRV + x.id)}>
+              <button key={x.id} type="button" className={`pq-tab${active === SRV + x.id ? ' is-on' : ''}${x.status !== 'open' ? ' is-paying' : ''}`} onClick={() => viewTab(SRV + x.id)}>
                 {x.nome}
                 <em>{fmtYen(m.drinksTotal + pend)}</em>
               </button>
             )
           })}
           {localTabIds.map(id => (
-            <button key={id} type="button" className={`pq-tab${active === id ? ' is-on' : ''}`} onClick={() => switchTo(id)}>
+            <button key={id} type="button" className={`pq-tab${active === id ? ' is-on' : ''}`} onClick={() => viewTab(id)}>
               {orders[id].label}
               <em>{fmtYen(cartTotal(orders[id].cart))}</em>
             </button>
@@ -849,75 +971,28 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
         </div>
         </div>
 
-        {srvTab && (
-          <div className="pq-tabbar">
-            <span className="ui-badge is-accent"><Icon name="comandas" size={12} /> {srvTab.mesa_nome || t('tabs.noTable')}</span>
-            <button type="button" className="ui-badge pq-tabbar-people" onClick={() => setPanelTab(srvTab.id)} aria-label={t('tabs.people', { n: +srvTab.pessoas || 1 })}>
-              <Icon name="users" size={12} /> {t('tabs.people', { n: +srvTab.pessoas || 1 })}
-            </button>
-            {srvMoney.paid > 0 && <span className="ui-badge is-info">{t('tabs.paidShort', { amount: fmtYen(srvMoney.paid) })}</span>}
-            {lockedTab && <span className="ui-badge is-warning">{t('tabs.state.awaiting_payment')}</span>}
-            <span className="ui-spacer" />
-            <button type="button" className="ui-btn is-sm" onClick={() => setPanelTab(srvTab.id)}><Icon name="settings" size={14} /> {t('tabs.manage')}</button>
-          </div>
-        )}
+        {tabBarEl}
 
-        <div className="pq-lines">
-          {!hasSomething && <p className="pq-empty">{t('posQuick.empty')}</p>}
-          {sentLines.map(line => {
-            const look = itemVisual(line)
-            return (
-              <div key={line.item_id} className="pq-line is-sent">
-                <span className="pq-line-dot" style={{ background: look.background }}><Icon name={look.icon} size={14} /></span>
-                <div className="pq-line-name"><strong>{line.nome}</strong><span>{fmtYen(line.preco_unitario)} · {t('tabs.onTab')}</span></div>
-                <span className="pq-qty-static">×{line.qtd}</span>
-                <strong className="pq-line-total">{fmtYen(line.preco_unitario * line.qtd)}</strong>
-              </div>
-            )
-          })}
-          {cart.map(line => {
-            const look = itemVisual(byKey.get(line.key) || line)
-            return (
-              <div key={line.key} className={`pq-line${srvTab ? ' is-pending' : ''}`}>
-                <span className="pq-line-dot" style={look.image ? undefined : { background: look.background }}>
-                  {look.image ? <img src={look.image} alt="" /> : <Icon name={look.icon} size={14} />}
-                </span>
-                <div className="pq-line-name">
-                  <strong>{line.nome}</strong>
-                  <span>{fmtYen(line.preco_unitario)}{srvTab ? ` · ${t('tabs.notSent')}` : ''}</span>
-                </div>
-                <div className="pq-qty">
-                  <button type="button" aria-label={t('tabs.less', { name: line.nome })} onClick={() => bump(line.key, -1)}><Icon name="minus" size={16} /></button>
-                  <span>{line.qtd}</span>
-                  <button type="button" aria-label={t('tabs.more', { name: line.nome })} onClick={() => bump(line.key, 1)}><Icon name="plus" size={16} /></button>
-                </div>
-                <strong className="pq-line-total">{fmtYen(line.preco_unitario * line.qtd)}</strong>
-              </div>
-            )
-          })}
+        <button type="button" className="pq-lines-head" onClick={() => setDetailOpen(true)} disabled={!hasSomething}>
+          <span>{itemCount ? t('posQuick.items', { n: itemCount }) : t('posQuick.empty')}</span>
+          {hasSomething && <span className="pq-lines-head-go">{t('posQuick.details')} <Icon name="next" size={14} /></span>}
+        </button>
+        <div className="pq-lines pq-lines-compact">
+          {[...sentLines.map(l => ({ key: 'sent-' + l.item_id, nome: l.nome, qtd: l.qtd, total: l.preco_unitario * l.qtd, sent: true })),
+            ...cart.map(l => ({ key: l.key, nome: l.nome, qtd: l.qtd, total: l.preco_unitario * l.qtd, sent: false }))].map(l => (
+            <button key={l.key} type="button" className={`pq-cline${l.sent ? ' is-sent' : ''}`} onClick={() => setDetailOpen(true)}>
+              <span className="pq-cline-qty">{l.qtd}×</span>
+              <span className="pq-cline-name">{l.nome}</span>
+              <strong>{fmtYen(l.total)}</strong>
+            </button>
+          ))}
         </div>
+        {linesEl}
 
         <div className={`pq-pay${paying ? ' is-paying' : ''}`}>
-          {(charges.lines.length > 0 || surchargeNow > 0 || srvMoney?.paid > 0) && (
-            <div className="pq-extra">
-              {charges.lines.map(line => (
-                <div key={line.key}><span>{line.kind === 'service' ? t('posQuick.service', { pct: srvTab ? srvTab.service_pct : settings.service_pct }) : line.nome}</span><span>{fmtYen(line.preco)}</span></div>
-              ))}
-              {surchargePaid > 0 && <div><span>{t('posCard.surchargeLine', { pct: settings.card_surcharge_pct })}</span><span>{fmtYen(surchargePaid)}</span></div>}
-              {srvMoney?.paid > 0 && <div><span>{t('tabs.paid')}</span><span>−{fmtYen(srvMoney.paid)}</span></div>}
-              {surchargeNow > 0 && <div><span>{t('posCard.surchargeLine', { pct: settings.card_surcharge_pct })}</span><span>{fmtYen(surchargeNow)}</span></div>}
-            </div>
-          )}
-          <div className="pq-total">
-            <span>{srvMoney?.paid > 0 ? t('tabs.due') : t('posQuick.total')}{itemCount ? ` · ${t('posQuick.items', { n: itemCount })}` : ''}</span>
-            <strong>{fmtYen(due)}</strong>
-          </div>
+          {summaryEl}
 
-          {srvTab && cart.length > 0 && (
-            <button type="button" className="ui-btn is-lg pq-send" disabled={busy || lockedTab} onClick={async () => { setBusy(true); await sendPending(); setBusy(false) }}>
-              <Icon name="send" size={18} /> {t('tabs.send', { n: cart.reduce((a, l) => a + l.qtd, 0) })}
-            </button>
-          )}
+          {sendEl}
 
           {paying && (
             <div className="pq-pay-head">
@@ -998,36 +1073,9 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
 
           </div>}
 
-          {!paying && (tableOrder || hasSomething) && (
-            <div className="pq-svcrow" role="group" aria-label={t('posQuick.serviceTitle')}>
-              <span className="pq-svcrow-label">{t('posQuick.serviceTitle')}</span>
-              <div className="pq-svcrow-chips">
-                <button type="button" className={servicePct === 0 ? 'is-on' : ''} disabled={busy} onClick={() => setService(0)}>{t('posQuick.serviceNone')}</button>
-                {servicePresets.map(v => (
-                  <button key={v} type="button" className={servicePct === v ? 'is-on' : ''} disabled={busy} onClick={() => setService(v)}>{v}%</button>
-                ))}
-                {servicePct > 0 && !servicePresets.includes(servicePct) && svcOther == null && (
-                  <button type="button" className="is-on" disabled={busy} onClick={() => serviceOtherOk && setSvcOther(String(servicePct))}>{servicePct}%</button>
-                )}
-                {!serviceOtherOk ? null : svcOther == null ? (
-                  <button type="button" disabled={busy} onClick={() => setSvcOther('')}>{t('posQuick.serviceOther')}</button>
-                ) : (
-                  <form className="pq-svcrow-other" onSubmit={e => { e.preventDefault(); const v = Math.round((+svcOther || 0) * 10) / 10; if (v >= 0 && v <= 50) { setService(v); setSvcOther(null) } }}>
-                    <input type="number" inputMode="decimal" min="0" max="50" step="0.5" autoFocus value={svcOther} onChange={e => setSvcOther(e.target.value)} aria-label={t('posQuick.serviceOtherHint')} placeholder="%" />
-                    <button type="submit" disabled={busy || svcOther === '' || +svcOther < 0 || +svcOther > 50}>OK</button>
-                  </form>
-                )}
-              </div>
-            </div>
-          )}
+          {!detailOpen && serviceRowEl}
 
-          {!paying && (tableOrder && !srvTab || cart.length > 0) && (
-            <div className="pq-options">
-              <button type="button" className="is-quiet" onClick={() => (srvTab ? setCart([]) : dropActive())}>
-                {tableOrder && !srvTab ? t('posQuick.closeTab') : t('posQuick.clear')}
-              </button>
-            </div>
-          )}
+          {clearEl}
 
           {err && <div className="pq-alert" role="alert">{err}</div>}
           <button type="button" className="pq-charge" disabled={busy || !hasSomething || short || setupNeeded} onClick={!paying && needsPayStep ? () => { setPayMore(true); setErr('') } : needGuest ? () => setCustSheet(true) : charge} aria-keyshortcuts="Control+Enter F12">
@@ -1043,6 +1091,29 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
       <button type="button" className="pq-cartbar-new" onClick={() => setTabSheet(true)} aria-label={t('posQuick.newTab')}>
         <Icon name="plus" size={20} /><span>{t('posQuick.newTab')}</span>
       </button>
+
+      {detailOpen && (
+        <div className="pq-sheet" role="dialog" aria-modal="true" aria-label={t('posQuick.detailsOf', { name: activeName })} onClick={e => { if (e.target === e.currentTarget) setDetailOpen(false) }}>
+          <div className="pq-sheet-card pq-detail">
+            <div className="pq-detail-head">
+              <h2>{activeName}</h2>
+              <button type="button" className="pq-detail-x" onClick={() => setDetailOpen(false)} aria-label={t('common.close')}><Icon name="close" size={18} /></button>
+            </div>
+            {tabBarEl}
+            {linesEl}
+            <div className="pq-detail-sum">{summaryEl}</div>
+            {serviceRowEl}
+            {sendEl}
+            <div className="pq-detail-actions">
+              {clearEl}
+              <button type="button" className="ui-btn is-lg" onClick={() => setDetailOpen(false)}><Icon name="plus" size={16} /> {t('posQuick.addDrinks')}</button>
+              <button type="button" className="pq-charge" disabled={busy || !hasSomething || short || setupNeeded} onClick={goPay}>
+                {needsPayStep && !busy ? t('posQuick.toPay', { amount: fmtYen(due) }) : chargeLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {tabSheet && (
         <div className="pq-sheet" role="dialog" aria-modal="true" aria-label={t('posQuick.newTab')} onClick={e => { if (e.target === e.currentTarget) setTabSheet(false) }}>
