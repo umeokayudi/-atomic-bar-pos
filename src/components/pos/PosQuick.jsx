@@ -128,6 +128,9 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
   const [orderOpen, setOrderOpen] = useState(false)
   // Big screens: the side panel stays compact and a tab's full order opens in a pop-up.
   const [detailOpen, setDetailOpen] = useState(false)
+  const [sendAsk, setSendAsk] = useState(false) // confirm sheet before a new order goes onto a tab
+  const [sentNote, setSentNote] = useState(null) // { n, amount, name } shown for a moment after sending
+  const sentTimer = useRef(null)
   // Phones: payment method, cash chips and customer fold away so the drinks on the order keep the room.
   const [payMore, setPayMore] = useState(false)
   const [server, setServer] = useState(null) // null = checking, true = server tabs, false = device tabs
@@ -275,7 +278,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVis) }
   }, [server, bar.id, refreshTabs])
 
-  useEffect(() => () => clearTimeout(doneTimer.current), [])
+  useEffect(() => () => { clearTimeout(doneTimer.current); clearTimeout(sentTimer.current) }, [])
 
   const catalog = useMemo(() => buildCatalog(drinks || [], shots || []), [drinks, shots])
   const byKey = useMemo(() => new Map(catalog.map(item => [item.key, item])), [catalog])
@@ -324,6 +327,8 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
   const qtyByKey = useMemo(() => {
     const map = {}
     for (const line of cart) map[line.key] = (map[line.key] || 0) + line.qtd
+    // On a server tab the tiles count the new order only; what is already on the tab is in the tab view.
+    if (srvMoney) return map
     for (const line of srvMoney?.lines || []) {
       const k = line.drink_menu_id ? `d-${line.drink_menu_id}` : line.produto_id ? `p-${line.produto_id}` : ''
       if (k) map[k] = (map[k] || 0) + line.qtd
@@ -351,6 +356,9 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
   const surchargeNow = cardPay ? cardSurcharge(baseDue, settings.card_surcharge_pct) : 0
   const due = baseDue + surchargeNow
   const itemCount = cart.reduce((a, l) => a + l.qtd, 0) + (srvMoney?.lines || []).reduce((a, l) => a + l.qtd, 0)
+  const pendingCount = cart.reduce((a, l) => a + l.qtd, 0)
+  // A server tab with drinks not sent yet: the bar shows that order only, with Send (after a confirm).
+  const orderMode = !!srvTab && cart.length > 0
   const cashPay = isCashMethod(pay)
   const onAccountPay = pay === ON_ACCOUNT
   const cash = cashPay ? cashSettle(due, tendered, '') : null
@@ -549,6 +557,22 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
       setErr(isConflict(e) ? t('tabs.errConflict') : t('tabs.errGeneric', { error: e.message }))
       return false
     }
+  }
+
+  /** Confirm sheet "Confirm and send": the new order goes onto the tab, then a short note confirms it. */
+  async function confirmSend() {
+    if (!orderMode || busy) return
+    const note = { n: pendingCount, amount: pendingTotal, name: srvTab.nome || srvTab.mesa_nome || '' }
+    setBusy(true)
+    const ok = await sendPending()
+    setBusy(false)
+    if (!ok) return
+    setSendAsk(false)
+    setOrderOpen(false)
+    setDetailOpen(false)
+    setSentNote(note)
+    clearTimeout(sentTimer.current)
+    sentTimer.current = setTimeout(() => setSentNote(null), 3000)
   }
 
   function rememberTop(lines) {
@@ -811,8 +835,8 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
   </>
   )
   const sendEl = srvTab && cart.length > 0 && (
-    <button type="button" className="ui-btn is-lg pq-send" disabled={busy || lockedTab} onClick={async () => { setBusy(true); await sendPending(); setBusy(false) }}>
-      <Icon name="send" size={18} /> {t('tabs.send', { n: cart.reduce((a, l) => a + l.qtd, 0) })}
+    <button type="button" className="ui-btn is-lg pq-send" disabled={busy || lockedTab} onClick={() => { setErr(''); setSendAsk(true) }}>
+      <Icon name="send" size={18} /> {t('tabs.send', { n: pendingCount })} · {fmtYen(pendingTotal)}
     </button>
   )
   const serviceRowEl = !paying && (tableOrder || hasSomething) && (
@@ -1084,13 +1108,77 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
         </div>
       </aside>
 
-      <button type="button" className="pq-cartbar" onClick={() => setOrderOpen(true)}>
-        <span><Icon name="comandas" size={16} /> {active === COUNTER ? t('posQuick.counter') : (srvTab?.nome || order.label)}{itemCount ? ` · ${t('posQuick.items', { n: itemCount })}` : ''}</span>
-        <strong>{hasSomething ? fmtYen(due) : t('posQuick.viewOrder')}</strong>
-      </button>
-      <button type="button" className="pq-cartbar-new" onClick={() => setTabSheet(true)} aria-label={t('posQuick.newTab')}>
-        <Icon name="plus" size={20} /><span>{t('posQuick.newTab')}</span>
-      </button>
+      {orderMode ? (
+        <button type="button" className="pq-cartbar is-order" onClick={() => setOrderOpen(true)}>
+          <span className="pq-cartbar-what">
+            <em>{t('tabs.orderFor', { name: activeName })}</em>
+            <b>{t('posQuick.items', { n: pendingCount })}</b>
+          </span>
+          <strong>{fmtYen(pendingTotal)}</strong>
+        </button>
+      ) : (
+        <button type="button" className="pq-cartbar" onClick={() => setOrderOpen(true)}>
+          <span><Icon name="comandas" size={16} /> {active === COUNTER ? t('posQuick.counter') : (srvTab?.nome || order.label)}{itemCount ? ` · ${t('posQuick.items', { n: itemCount })}` : ''}</span>
+          <strong>{hasSomething ? fmtYen(due) : t('posQuick.viewOrder')}</strong>
+        </button>
+      )}
+      {orderMode ? (
+        <button type="button" className="pq-cartbar-new is-send" disabled={busy || lockedTab} onClick={() => { setErr(''); setSendAsk(true) }} aria-label={t('tabs.send', { n: pendingCount })}>
+          <Icon name="send" size={20} /><span>{t('tabs.sendShort')}</span>
+        </button>
+      ) : (
+        <button type="button" className="pq-cartbar-new" onClick={() => setTabSheet(true)} aria-label={t('posQuick.newTab')}>
+          <Icon name="plus" size={20} /><span>{t('posQuick.newTab')}</span>
+        </button>
+      )}
+
+      {sendAsk && orderMode && (
+        <div className="pq-sheet" role="dialog" aria-modal="true" aria-label={t('tabs.confirmTitle')} onClick={e => { if (e.target === e.currentTarget && !busy) setSendAsk(false) }}>
+          <div className="pq-sheet-card pq-confirm">
+            <div className="pq-detail-head">
+              <h2>{t('tabs.confirmTitle')}</h2>
+              <button type="button" className="pq-detail-x" disabled={busy} onClick={() => setSendAsk(false)} aria-label={t('common.close')}><Icon name="close" size={18} /></button>
+            </div>
+            <p className="pq-confirm-sub">
+              <span className="ui-badge is-accent"><Icon name="comandas" size={12} /> {activeName}</span>
+            </p>
+            <div className="pq-confirm-lines">
+              {cart.map(line => (
+                <div key={line.key} className="pq-confirm-line">
+                  <span className="pq-confirm-name"><b>{line.nome}</b><em>{fmtYen(line.preco_unitario * line.qtd)}</em></span>
+                  <span className="pq-confirm-qty">
+                    <button type="button" disabled={busy} aria-label={t('tabs.less', { name: line.nome })} onClick={() => bump(line.key, -1)}><Icon name="minus" size={16} /></button>
+                    <span>{line.qtd}</span>
+                    <button type="button" disabled={busy} aria-label={t('tabs.more', { name: line.nome })} onClick={() => bump(line.key, 1)}><Icon name="plus" size={16} /></button>
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="pq-confirm-total">
+              <span>{t('tabs.orderTotal')} · {t('posQuick.items', { n: pendingCount })}</span>
+              <strong>{fmtYen(pendingTotal)}</strong>
+            </div>
+            <div className="pq-confirm-after">
+              <span>{t('tabs.tabAfter')}</span>
+              <span>{fmtYen(due)}</span>
+            </div>
+            {err && <div className="pq-alert" role="alert">{err}</div>}
+            <div className="pq-confirm-actions">
+              <button type="button" className="ui-btn is-lg" disabled={busy} onClick={() => setSendAsk(false)}>{t('tabs.keepAdding')}</button>
+              <button type="button" className="pq-charge pq-confirm-go" disabled={busy || lockedTab} onClick={confirmSend} autoFocus>
+                <Icon name="send" size={18} /> {busy ? t('posQuick.saving') : t('tabs.confirmSend')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {sentNote && (
+        <div className="pq-sent-note" role="status" onClick={() => setSentNote(null)}>
+          <Icon name="ok" size={18} />
+          <span><b>{t('tabs.sentToast', { n: sentNote.n, amount: fmtYen(sentNote.amount) })}</b>{sentNote.name ? ` ${t('tabs.sentTo', { name: sentNote.name })}` : ''}</span>
+        </div>
+      )}
 
       {detailOpen && (
         <div className="pq-sheet" role="dialog" aria-modal="true" aria-label={t('posQuick.detailsOf', { name: activeName })} onClick={e => { if (e.target === e.currentTarget) setDetailOpen(false) }}>

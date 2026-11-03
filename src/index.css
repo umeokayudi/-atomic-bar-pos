@@ -6109,3 +6109,42 @@ button.pq-tabbar-people { border: 0; cursor: pointer; font: inherit; font-size: 
 .close-alert-text span { font-size: 13px; color: var(--text2); }
 .close-alert-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .close-mode-title { margin: 14px 0 6px; font-size: 13px; font-weight: 600; color: var(--text2); }
+
+/* POS: a new order on a tab. The phone bar shows that order only, with Send; a confirm sheet comes first. */
+@media (max-width: 900px) {
+  button.pq-cartbar.is-order { background: var(--c-surface, var(--bg2)); color: var(--c-text, var(--text)) !important; border: 2px solid var(--pq-accent); padding: 0 16px; }
+  .pq-cartbar-what { display: grid !important; gap: 0 !important; text-align: left; min-width: 0; line-height: 1.15; }
+  .pq-cartbar-what em { font-style: normal; font-size: 12px; font-weight: 700; color: var(--c-text-2, var(--text2)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; letter-spacing: .04em; }
+  .pq-cartbar-what b { font-size: 17px; }
+  button.pq-cartbar.is-order strong { color: var(--pq-accent); }
+  button.pq-cartbar-new.is-send { background: var(--pq-accent); color: white; animation: pq-send-pop .28s ease-out; }
+  button.pq-cartbar-new.is-send:disabled { opacity: .55; }
+}
+@keyframes pq-send-pop { from { transform: scale(.85); opacity: .4; } to { transform: scale(1); opacity: 1; } }
+.pq-confirm { width: min(460px, 100%); display: grid; gap: 12px; }
+.pq-confirm-sub { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 0; }
+.pq-confirm-lines { display: grid; gap: 8px; max-height: min(46vh, 380px); overflow-y: auto; }
+.pq-confirm-line { display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 14px; border-radius: 12px; background: var(--c-surface-2, var(--bg3)); }
+.pq-confirm-name { flex: 1; display: grid; min-width: 0; line-height: 1.2; }
+.pq-confirm-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pq-confirm-name em { font-style: normal; font-size: 13px; color: var(--c-text-2, var(--text2)); }
+.pq-confirm-qty { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; }
+.pq-confirm-qty > span { min-width: 28px; text-align: center; font-size: 18px; font-weight: 800; }
+.pq-confirm-qty button { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--c-border, var(--border)); background: var(--c-surface, var(--bg2)); color: inherit; }
+.pq-confirm-total { display: flex; justify-content: space-between; align-items: baseline; padding-top: 10px; border-top: 1px solid var(--c-border, var(--border)); font-weight: 700; }
+.pq-confirm-total strong { font-size: 28px; color: var(--pq-accent); }
+.pq-confirm-after { display: flex; justify-content: space-between; font-size: 14px; color: var(--c-text-2, var(--text2)); margin-top: -6px; }
+.pq-confirm-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
+.pq-confirm-actions .pq-charge { display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin: 0; }
+.pq-sent-note {
+  position: fixed; left: 50%; bottom: calc(92px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 400;
+  display: flex; align-items: center; gap: 10px; width: max-content; max-width: calc(100vw - 32px); padding: 12px 18px; border-radius: 16px;
+  background: var(--c-success, #1f9d55); color: white; font-size: 15px; box-shadow: 0 10px 24px rgba(0,0,0,.25);
+  animation: pq-note-in .25s ease-out;
+}
+.is-staff-app .pq-sent-note { bottom: calc(164px + env(safe-area-inset-bottom)); }
+@keyframes pq-note-in { from { transform: translate(-50%, 16px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+.pq-confirm-actions .pq-charge { font-size: 18px; min-height: 56px; }
+.pq-confirm-actions .ui-btn { min-height: 56px; }
+/* A new order waiting on a tab: Send stands out in the side panel. */
+.pq .pq-send { border: 2px solid var(--pq-accent); color: var(--pq-accent); font-weight: 800; }

@@ -381,7 +381,11 @@ export default {
   },
   tabs: {
     total: '合計', paid: '支払済', due: '残り', paidShort: '支払済 {amount}', people: '{n}名', rename: '名前を変更', renameHint: '伝票の名前', removeName: '名前を外す', saveName: '保存', peopleLabel: '人数',
-    manage: '伝票を管理', onTab: '伝票に記録済', notSent: '未送信', send: '{n}点を伝票に送る', table: 'テーブル', noTable: 'テーブルなし',
+    manage: '伝票を管理', onTab: '伝票に記録済', notSent: '未送信', send: '{n}点を伝票に送る',
+    newOrder: '新しい注文', orderFor: '新しい注文 · {name}', sendShort: '送信', sendOrder: '注文を送信 · {amount}',
+    confirmTitle: '注文の確認', confirmSub: '{name} の注文です。送信前にドリンクを確認してください。', orderTotal: 'この注文',
+    tabAfter: '送信後の伝票合計', confirmSend: '確認して送信', keepAdding: '追加を続ける',
+    sentToast: '注文を送信しました · {n}点 · {amount}', sentTo: '{name} へ', table: 'テーブル', noTable: 'テーブルなし',
     busy: '使用中', deviceOnly: '伝票は今のところこの端末にのみ保存されます。',
     lockedHint: '一部支払い済みのため残額待ちです。明細を変更するには再オープンしてください。', reopen: '再オープン',
     sec: { items: '明細', pay: '支払い', transfer: '移動', split: '分割', merge: '統合', details: '詳細', history: '履歴' },
