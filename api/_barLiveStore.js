@@ -24,6 +24,8 @@ export const LIVE_TABLES = [
   'bar_overhead',
   'bar_hq_meta',
   'pos_shifts',
+  // Close check: counted cash / card / PayPay per night next to what the till recorded (Close page).
+  'pos_close_checks',
   'pos_settings',
   'bar_people',
   'bar_registry',

@@ -75,6 +75,10 @@ const PAGES = [
   { who: MANAGER, path: '/bar/metas', name: 'bar-goals' },
   { who: MANAGER, path: '/bar/ponto', name: 'bar-clock' },
   { who: MANAGER, path: '/bar/fechamento', name: 'bar-close' },
+  { who: MANAGER, path: '/bar/fechamento', name: 'bar-close-check', steps: [
+    { fill: ['.close-check-table tbody tr:nth-child(1) input', '34000'] }, { fill: ['.close-check-table tbody tr:nth-child(2) input', '21400'] },
+    { fill: ['.close-check-table tbody tr:nth-child(3) input', '2400'] }, { tap: '.close-check-list-head' },
+  ] },
   { who: MANAGER, path: '/bar/ia', name: 'bar-ai' },
   { who: MANAGER, path: '/bar/aluguel', name: 'bar-rent' },
   { who: MANAGER, path: '/bar/mesas', name: 'bar-floor' },
