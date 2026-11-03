@@ -1303,6 +1303,7 @@ export default {
     empty: 'ドリンクをタップして追加',
     items: '{n}点',
     total: '合計',
+    details: '詳細', detailsOf: '{name} の詳細', addDrinks: 'ドリンクを追加',
     service: 'サービス料 {pct}%', serviceTitle: 'サービス料', serviceNone: 'なし', serviceOther: 'その他 %', serviceOtherHint: 'サービス料 %（0〜50）',
     exact: 'ちょうど',
     change: 'お釣り',

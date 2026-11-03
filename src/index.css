@@ -5044,6 +5044,34 @@ button.pq-tab {
 }
 .pq-qty span { min-width: 40px; text-align: center; font-size: 19px; font-weight: 800; }
 
+/* Big screens: the side panel lists the order in one short row per drink; tapping a tab or a row opens the details pop-up. */
+.pq-lines-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin: 8px 12px 0; padding: 8px 12px; border: 0; border-radius: 12px;
+  background: var(--bg3); font-size: 13px; font-weight: 700; color: var(--text2); text-align: left;
+}
+.pq-lines-head:disabled { cursor: default; }
+.pq-lines-head-go { display: inline-flex; align-items: center; gap: 4px; color: var(--c-text); }
+.pq-lines-compact { padding: 4px 12px; }
+button.pq-cline {
+  width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px;
+  padding: 7px 2px; border: 0; border-bottom: 1px solid var(--border); background: transparent;
+  font-size: 15px; text-align: left;
+}
+.pq-cline-qty { min-width: 28px; font-weight: 800; color: var(--text2); }
+.pq-cline-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.pq-cline.is-sent .pq-cline-name { color: var(--text2); }
+.pq-lines-full { display: none; }
+.pq-detail .pq-lines-full { display: block; flex: none; overflow: visible; padding: 0; }
+.pq-detail { width: min(640px, 100%); }
+.pq-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+button.pq-detail-x { width: 44px; height: 44px; border-radius: 12px; border: 0; background: var(--bg3); display: grid; place-items: center; }
+.pq-detail-sum { display: grid; gap: 6px; padding-top: 4px; border-top: 1px solid var(--border); }
+.pq-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+.pq-detail-actions .pq-options { display: flex; }
+.pq-detail-actions .pq-charge { flex: 1 1 220px; min-height: 52px; }
+
+
 .pq-pay {
   flex: 0 0 auto;
   display: grid;
@@ -5210,6 +5238,8 @@ button.pq-charge {
     padding-bottom: env(safe-area-inset-bottom);
   }
   .pq.is-order-open .pq-order { transform: none; }
+  .pq-order .pq-lines-full { display: block; }
+  .pq-order .pq-lines-compact, .pq-order .pq-lines-head { display: none; }
   .pq.is-order-open::after {
     content: '';
     position: fixed;
