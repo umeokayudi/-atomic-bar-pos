@@ -2,7 +2,7 @@
 
 import { tryDrinksAdminClient, createStaffUserClient, drinksAuthClient } from './_supabaseAdmin.js'
 import { requireBarAccount } from './_requireStaff.js'
-import { hashSecret, randomTabletCode } from './_hash.js'
+import { hashSecret, isBurnedSecret, randomTabletCode } from './_hash.js'
 import {
   MAX_FAILS, COOLDOWN_MS, MONEY_KINDS, PAY_FIELDS, areaOpen, cleanAreas, cleanMinutes, hashPin, loadLock, lockEnabled, pinMatches,
   publicLock, saveLock, signUnlock, validPin, verifyUnlock, UNLOCK_HEADER,
@@ -284,8 +284,30 @@ async function unlinkLogin(db, barId, loginId, personId) {
   return saveStaffExtras(db, loginId, { person_id: '' })
 }
 
-/** PATCH for a lane login (bar_logins row of this bar): name, on/off, till/floor role, area list. Never the password hash. */
-async function patchLaneLogin(req, res, db, auth, barId, body) {
+const SIGN_IN_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/** New password typed by the owner in "Users & access": null when none, else { value } or { error }. */
+function newPasswordOf(body) {
+  if (body.password == null || String(body.password) === '') return null
+  const value = String(body.password)
+  if (value.length < 8) return { error: 'The new password needs at least 8 characters' }
+  if (value.length > 72) return { error: 'The new password is too long (72 characters max)' }
+  if (isBurnedSecret(value)) return { error: 'Pick another password' }
+  return { value }
+}
+
+/** True when another login (sign-in user or tablet lane, any bar) already signs in with this e-mail. */
+async function signInEmailTaken(admin, db, email, selfId) {
+  if (admin) {
+    const { data } = await admin.from('perfis').select('id').eq('email', email).neq('id', selfId).limit(1)
+    if (data?.length) return true
+  }
+  const lanes = await runLiveOp(db, { table: 'bar_logins', mode: 'select', columns: '*' })
+  return (lanes.data || []).some(l => l.id !== selfId && String(l.email || '').toLowerCase() === email)
+}
+
+/** PATCH for a lane login (bar_logins row of this bar): name, on/off, till/floor role, area list; the owner may also set its sign-in e-mail and a new password (stored hashed). */
+async function patchLaneLogin(req, res, db, admin, auth, barId, body) {
   const hit = await runLiveOp(db, {
     table: 'bar_logins',
     mode: 'select',
@@ -305,6 +327,19 @@ async function patchLaneLogin(req, res, db, auth, barId, body) {
   if (body.nome != null && String(body.nome).trim()) patch.nome = String(body.nome).trim().slice(0, 80)
   if (body.ativo != null) patch.ativo = !!body.ativo
   if (body.role === 'caixa' || body.role === 'bar_staff') patch.role = body.role
+  // Sign-in e-mail and password: only the owner, from "Users & access" step 3.
+  const nextEmail = body.email != null ? String(body.email).trim().toLowerCase() : ''
+  const pass = newPasswordOf(body)
+  if ((nextEmail && nextEmail !== String(login.email || '').toLowerCase()) || pass) {
+    if (auth.lane || auth.perfil.role !== 'cliente') return res.status(403).json({ error: 'Only the owner can change the sign-in' })
+  }
+  if (nextEmail && nextEmail !== String(login.email || '').toLowerCase()) {
+    if (!SIGN_IN_EMAIL_RE.test(nextEmail) || nextEmail.length > 120) return res.status(400).json({ error: 'Enter a valid e-mail' })
+    if (await signInEmailTaken(admin, db, nextEmail, login.id)) return res.status(409).json({ error: 'This e-mail is already used by another login' })
+    patch.email = nextEmail
+  }
+  if (pass?.error) return res.status(400).json({ error: pass.error })
+  if (pass) patch.password_hash = hashSecret(pass.value)
   if (Object.keys(patch).length) {
     const saved = await runLiveOp(db, {
       table: 'bar_logins',
@@ -1008,7 +1043,7 @@ export default async function handler(req, res) {
       if (!id) return res.status(400).json({ error: 'id required' })
       const { data: existing } = await db.from('perfis').select('id,bar_id,role,nome,email').eq('id', id).single()
       // Lane logins (bar_logins) have no perfis row: "Users & access" can switch them on/off, rename, set role and areas.
-      if (!existing) return patchLaneLogin(req, res, db, auth, barId, body)
+      if (!existing) return patchLaneLogin(req, res, db, admin, auth, barId, body)
       if (existing.bar_id !== barId) return res.status(404).json({ error: 'Staff not found' })
       if (existing.role === 'cliente' && existing.id !== auth.user.id) {
         return res.status(403).json({ error: 'Cannot edit another owner' })
@@ -1033,9 +1068,19 @@ export default async function handler(req, res) {
         delete extraPatch.email
         if (String(body.email).trim().toLowerCase() !== String(existing.email || '').toLowerCase()) {
           if (!canManageLogin(auth.perfil, existing)) return res.status(403).json({ error: 'You cannot change this login' })
+          if (await signInEmailTaken(admin, db, String(body.email).trim().toLowerCase(), id)) return res.status(409).json({ error: 'This e-mail is already used by another login' })
           const r = await setLoginEmail(admin, db, id, body.email)
           if (r.error) return res.status(r.status || 400).json({ error: r.error })
         }
+      }
+      // New password from "Users & access" step 3: the owner only, never for an owner login.
+      const pass = newPasswordOf(body)
+      if (pass) {
+        if (auth.lane || auth.perfil.role !== 'cliente' || existing.role === 'cliente') return res.status(403).json({ error: 'Only the owner can set a new password' })
+        if (pass.error) return res.status(400).json({ error: pass.error })
+        if (!admin) return res.status(503).json({ error: 'Changing the password needs SUPABASE_SERVICE_ROLE_KEY' })
+        const { error: pwErr } = await admin.auth.admin.updateUserById(id, { password: pass.value })
+        if (pwErr) return res.status(400).json({ error: pwErr.message || 'Could not change the password' })
       }
       if (body.ativo != null) extraPatch.ativo = !!body.ativo
       if (body.pin) extraPatch.clock_pin_hash = hashSecret(String(body.pin))

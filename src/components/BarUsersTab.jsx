@@ -236,7 +236,7 @@ export default function BarUsersTab({ bar, onTab }) {
       step: 0,
       row,
       custom: presetFor(acessos) === 'custom',
-      form: { kind: row.person_id ? 'person' : 'device', person_id: row.person_id || '', nome: row.nome || '', role: row.role, acessos, accessTouched: true, ativo: row.ativo !== false },
+      form: { kind: row.person_id ? 'person' : 'device', person_id: row.person_id || '', nome: row.nome || '', role: row.role, acessos, accessTouched: true, ativo: row.ativo !== false, login: signInOf(row), password: '' },
     })
   }
 
@@ -281,6 +281,12 @@ export default function BarUsersTab({ bar, onTab }) {
   const personOk = !!form && (form.kind === 'person' ? !!form.person_id : !!String(form.nome || '').trim())
   const signInOk = !!email && String(form?.password || '').length >= 8
   const canNext = sheet?.step === 0 ? personOk : true
+  // Owner only: change a login's sign-in e-mail and set a new password from step 3 of Edit.
+  const ownerEditsSignIn = perfil?.role === 'cliente' && sheet?.mode === 'edit' && sheet.row?.role !== 'cliente'
+  const editEmail = ownerEditsSignIn ? loginEmailFor(form?.login, bar?.id) : ''
+  const emailChanged = ownerEditsSignIn && !!String(form?.login || '').trim() && editEmail !== signInOf(sheet?.row).toLowerCase()
+  const pwTyped = ownerEditsSignIn && String(form?.password || '') !== ''
+  const signInEditOk = !ownerEditsSignIn || ((!String(form?.login || '').trim() || !!editEmail) && (!pwTyped || String(form.password).length >= 8))
 
   async function create() {
     if (!personOk || !signInOk) { setErr(t('barUsers.createNeeds')); return }
@@ -317,11 +323,19 @@ export default function BarUsersTab({ bar, onTab }) {
       if (!nextPerson && String(form.nome || '').trim() && form.nome.trim() !== row.nome) body.nome = form.nome.trim()
       if (form.role !== row.role && SWITCH_ROLES.includes(row.role) && SWITCH_ROLES.includes(form.role)) body.role = form.role
       if (form.ativo !== (row.ativo !== false)) body.ativo = form.ativo
+      if (!signInEditOk) throw new Error(editEmail || !String(form.login || '').trim() ? t('barUsers.passwordShort') : t('barUsers.loginInvalid'))
+      if (emailChanged) body.email = editEmail
+      if (pwTyped) body.password = form.password
       const r = await staffFetch('/api/bar-staff', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const j = await r.json().catch(() => ({}))
       if (!r.ok || j.error) throw new Error(errText(j.error, t('barUsers.saveFailed')))
       invalidateBarTeam()
-      setSheet(null)
+      if (pwTyped) {
+        // Show the new password once so the owner can pass it on.
+        setSheet(s => ({ ...s, created: { nome: form.nome || row.nome || signInOf(row), email: emailChanged ? editEmail : signInOf(row), password: form.password, updated: true } }))
+      } else {
+        setSheet(null)
+      }
       await load()
     } catch (e) {
       setErr(errText(e, t('barUsers.saveFailed')))
@@ -421,6 +435,30 @@ export default function BarUsersTab({ bar, onTab }) {
   }
 
   function renderSignInStep() {
+    if (ownerEditsSignIn) {
+      return (
+        <div className="bu-step">
+          <p className="bu-lead">{t('barUsers.editSignInLead')}</p>
+          <label className="ui-field bu-field">
+            <span>{t('barUsers.loginField')}</span>
+            <input autoCapitalize="none" autoCorrect="off" autoComplete="off" spellCheck={false} value={form.login} onChange={e => setForm({ login: e.target.value })} />
+          </label>
+          {String(form.login || '').trim() && (editEmail
+            ? emailChanged && <p className="bu-hint">{t('barUsers.signsInAs', { email: editEmail })}</p>
+            : <p className="bu-hint is-bad">{t('barUsers.loginInvalid')}</p>)}
+          <label className="ui-field bu-field">
+            <span>{t('barUsers.setPassword')}</span>
+            <span className="bu-pass">
+              <input type="text" autoComplete="new-password" spellCheck={false} value={form.password} placeholder={t('barUsers.keepPassword')} onChange={e => setForm({ password: e.target.value })} />
+              <button type="button" className="ui-btn is-icon" onClick={() => setForm({ password: newPassword() })} aria-label={t('barUsers.newPassword')} title={t('barUsers.newPassword')}><Icon name="refresh" size={16} /></button>
+              {pwTyped && <button type="button" className="ui-btn is-icon" onClick={() => copy('pw', form.password)} aria-label={t('barUsers.copy')} title={t('barUsers.copy')}><Icon name={sheet.copied === 'pw' ? 'check' : 'copy'} size={16} /></button>}
+            </span>
+          </label>
+          {pwTyped && String(form.password).length < 8 && <p className="bu-hint is-bad">{t('barUsers.passwordShort')}</p>}
+          <p className="bu-note"><Icon name="lock" size={14} /> {t('barUsers.setPasswordHint')}</p>
+        </div>
+      )
+    }
     if (sheet.mode === 'edit') {
       return (
         <div className="bu-step">
@@ -466,7 +504,7 @@ export default function BarUsersTab({ bar, onTab }) {
     return (
       <div className="bu-step bu-created">
         <span className="bu-created-icon"><Icon name="ok" size={28} /></span>
-        <h3>{t('barUsers.readyTitle', { name: c.nome })}</h3>
+        <h3>{t(c.updated ? 'barUsers.updatedTitle' : 'barUsers.readyTitle', { name: c.nome })}</h3>
         <p className="bu-note is-warn"><Icon name="warning" size={14} /> {t('barUsers.shownOnce')}</p>
         <div className="bu-cred">
           <div><span>{t('barUsers.loginEmail')}</span><strong>{c.email}</strong>
@@ -482,7 +520,7 @@ export default function BarUsersTab({ bar, onTab }) {
 
   function renderSheet() {
     const editing = sheet.mode === 'edit'
-    const title = sheet.created ? t('barUsers.readyHead') : editing ? (sheet.row.nome || signInOf(sheet.row)) : t('barUsers.newTitle')
+    const title = sheet.created ? t(sheet.created.updated ? 'barUsers.updatedHead' : 'barUsers.readyHead') : editing ? (sheet.row.nome || signInOf(sheet.row)) : t('barUsers.newTitle')
     const last = sheet.step === STEPS.length - 1
     return (
       <>
@@ -515,13 +553,13 @@ export default function BarUsersTab({ bar, onTab }) {
           <div className="ui-drawer-foot bu-foot">
             {sheet.created ? (
               <>
-                <button type="button" className="ui-btn" onClick={openNew}>{t('barUsers.another')}</button>
+                {!sheet.created.updated && <button type="button" className="ui-btn" onClick={openNew}>{t('barUsers.another')}</button>}
                 <button type="button" className="ui-btn is-primary" onClick={() => setSheet(null)}>{t('barUsers.done')}</button>
               </>
             ) : editing ? (
               <>
                 <button type="button" className="ui-btn" onClick={() => setSheet(null)}>{t('common.cancel')}</button>
-                <button type="button" className="ui-btn is-primary" disabled={busy || (form.kind === 'device' && !String(form.nome || '').trim())} onClick={saveEdit}>{busy ? t('common.wait') : t('barUsers.saveAccess')}</button>
+                <button type="button" className="ui-btn is-primary" disabled={busy || !signInEditOk || (form.kind === 'device' && !String(form.nome || '').trim())} onClick={saveEdit}>{busy ? t('common.wait') : t('barUsers.saveAccess')}</button>
               </>
             ) : (
               <>
@@ -608,7 +646,7 @@ export default function BarUsersTab({ bar, onTab }) {
             {!shown.length && <p className="bu-muted">{t('barUsers.noMatch')}</p>}
           </div>
         )}
-        <p className="bu-foot-note"><Icon name="lock" size={13} /> {t('barUsers.passwordHint')}</p>
+        <p className="bu-foot-note"><Icon name="lock" size={13} /> {t(perfil?.role === 'cliente' ? 'barUsers.passwordHintOwner' : 'barUsers.passwordHint')}</p>
       </section>
 
       {sheet && renderSheet()}

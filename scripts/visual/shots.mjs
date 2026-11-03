@@ -54,6 +54,7 @@ const PAGES = [
   { who: MANAGER, path: '/bar/usuarios', name: 'bar-users' },
   { who: MANAGER, path: '/bar/usuarios', name: 'bar-users-edit', click: /^Edit$/ },
   { who: MANAGER, path: '/bar/usuarios', name: 'bar-users-edit-access', click: /^Edit$/, then: /Access$/ },
+  { who: OWNER, path: '/bar/usuarios', name: 'bar-users-edit-signin', click: /^Edit$/, then: /Sign-in$/ },
   { who: MANAGER, path: '/bar/usuarios', name: 'bar-users-new', click: /New login/, taps: ['.bu-person'] },
   { who: MANAGER, path: '/bar/usuarios', name: 'bar-users-new-access', click: /New login/, taps: ['.bu-person'], then: /^Next/ },
   { who: MANAGER, path: '/bar/usuarios', name: 'bar-users-new-signin', click: /New login/, taps: ['.bu-person'], then: [/^Next/, /^Next/] },
