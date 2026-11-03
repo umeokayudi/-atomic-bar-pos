@@ -13,7 +13,7 @@ import {
   stillToSell,
 } from '../lib/barClose'
 import { tokyoNightKey } from '../lib/tokyo'
-import { clockLabel, closeSettings } from '../lib/autoClose'
+import { NIGHT_MODES, WARN_CHOICES, clockLabel, closeSettings } from '../lib/autoClose'
 import { monthRange, payrollFromPunches, clockStaff } from '../lib/timeClock'
 import StaffPayCards from './StaffPayCards'
 import DayStaffBoard from './DayStaffBoard'
@@ -55,7 +55,7 @@ function CloseHours({ goals, busy, onSave }) {
             disabled={busy}
             onBlur={e => {
               const clock = fromClock(e.target.value)
-              onSave({ hora_noite: clock.hour, min_noite: clock.minute, auto_noite: true })
+              onSave({ hora_noite: clock.hour, min_noite: clock.minute })
             }}
           />
         </label>
@@ -72,10 +72,28 @@ function CloseHours({ goals, busy, onSave }) {
           />
         </label>
       </div>
+      <h4 className="close-mode-title">{t('portal.close.modeTitle', { time: clockLabel(cfg.horaNoite, cfg.minNoite) })}</h4>
       <div className="goal-modes">
-        <button type="button" className={cfg.autoNoite ? 'is-on' : ''} disabled={busy} onClick={() => onSave({ auto_noite: !cfg.autoNoite })}>
-          {t('portal.close.autoNight')} · {cfg.autoNoite ? t('portal.close.autoOn') : t('portal.close.autoOff')}
-        </button>
+        {NIGHT_MODES.map(mode => (
+          <button key={mode} type="button" className={cfg.modoNoite === mode ? 'is-on' : ''} disabled={busy} onClick={() => onSave({ modo_noite: mode })}>
+            {t(`portal.close.mode.${mode}`)}
+          </button>
+        ))}
+      </div>
+      <p className="desk-note">{t(`portal.close.modeHint.${cfg.modoNoite}`)}</p>
+      {cfg.modoNoite !== 'off' && (
+        <>
+          <h4 className="close-mode-title">{t('portal.close.warnTitle')}</h4>
+          <div className="goal-modes">
+            {WARN_CHOICES.map(min => (
+              <button key={min} type="button" className={cfg.avisoMin === min ? 'is-on' : ''} disabled={busy} onClick={() => onSave({ aviso_min: min })}>
+                {min ? t('portal.close.warnMin', { min }) : t('portal.close.warnNone')}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      <div className="goal-modes">
         <button type="button" className={cfg.autoDia ? 'is-on' : ''} disabled={busy} onClick={() => onSave({ auto_dia: !cfg.autoDia })}>
           {t('portal.close.autoDay')} · {cfg.autoDia ? t('portal.close.autoOn') : t('portal.close.autoOff')}
         </button>
@@ -89,7 +107,7 @@ function CloseHours({ goals, busy, onSave }) {
         </button>
       </div>
       <p className="desk-note">
-        {t('portal.close.autoHint', {
+        {t(cfg.autoNoite ? 'portal.close.autoHint' : 'portal.close.autoHintDayOnly', {
           night: clockLabel(cfg.horaNoite, cfg.minNoite),
           day: clockLabel(cfg.horaDia, cfg.minDia),
         })}

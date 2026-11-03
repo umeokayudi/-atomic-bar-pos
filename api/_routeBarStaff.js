@@ -825,6 +825,17 @@ export default async function handler(req, res) {
       if (body.hora_dia != null) row.hora_dia = hourOf('hora_dia', 18)
       if (body.min_dia != null) row.min_dia = Math.max(0, Math.min(59, Math.round(+body.min_dia || 0)))
       if (body.auto_noite != null) row.auto_noite = body.auto_noite !== false && body.auto_noite !== 'false'
+      if (body.modo_noite != null) {
+        // What happens at the night close time: auto close, only an alert, or nothing. auto_noite follows it so
+        // older screens and AutoClose builds read the same choice.
+        const modo = String(body.modo_noite)
+        row.modo_noite = ['auto', 'alerta', 'off'].includes(modo) ? modo : 'auto'
+        row.auto_noite = row.modo_noite === 'auto'
+      }
+      if (body.aviso_min != null) {
+        const warn = Math.round(+body.aviso_min)
+        row.aviso_min = [0, 15, 30, 60].includes(warn) ? warn : 0
+      }
       if (body.auto_dia != null) row.auto_dia = body.auto_dia !== false && body.auto_dia !== 'false'
       if (body.fechou_noite != null) row.fechou_noite = String(body.fechou_noite || '').slice(0, 10)
       if (body.fechou_dia != null) row.fechou_dia = String(body.fechou_dia || '').slice(0, 10)
