@@ -6096,3 +6096,16 @@ button.pq-tabbar-people { border: 0; cursor: pointer; font: inherit; font-size: 
 .pos-count-diff.is-ok { color: var(--green); }
 .pos-count-diff.is-off { color: var(--amber, #d97706); }
 .pos-count-save { width: 100%; }
+
+/* Night close reminder (Close → Automatic close: alert mode / warning before). */
+.close-alert {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px;
+  margin: 0 0 12px; padding: 12px 14px; border-radius: 12px;
+  background: var(--amber-bg); border: 1px solid var(--amber); color: var(--text);
+}
+.close-alert.is-due { border-width: 2px; }
+.close-alert-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.close-alert-text strong { color: var(--amber); font-size: 15px; }
+.close-alert-text span { font-size: 13px; color: var(--text2); }
+.close-alert-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.close-mode-title { margin: 14px 0 6px; font-size: 13px; font-weight: 600; color: var(--text2); }

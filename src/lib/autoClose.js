@@ -15,10 +15,31 @@ function clampMin(value) {
   return Math.max(0, Math.min(59, n))
 }
 
+export const NIGHT_MODES = ['auto', 'alerta', 'off']
+export const WARN_CHOICES = [0, 15, 30, 60]
+
+/**
+ * What happens at the night close time: 'auto' closes the night by itself (system totals, drawer not counted),
+ * 'alerta' only reminds the bar to close, 'off' does nothing. Bars saved before the choice existed keep
+ * auto_noite (true → auto, false → off).
+ */
+export function nightMode(goals = {}) {
+  if (NIGHT_MODES.includes(goals.modo_noite)) return goals.modo_noite
+  return goals.auto_noite === false ? 'off' : 'auto'
+}
+
+function clampWarn(value) {
+  const n = Math.round(+value)
+  return WARN_CHOICES.includes(n) ? n : 0
+}
+
 export function closeSettings(goals = {}) {
   const horaNoite = clampHour(goals.hora_noite, goals.fecha == null ? 5 : goals.fecha)
+  const modoNoite = nightMode(goals)
   return {
-    autoNoite: goals.auto_noite !== false,
+    modoNoite,
+    autoNoite: modoNoite === 'auto',
+    avisoMin: clampWarn(goals.aviso_min),
     horaNoite,
     minNoite: clampMin(goals.min_noite),
     autoDia: goals.auto_dia !== false,
@@ -68,4 +89,42 @@ export function shiftsDue(goals, now = new Date()) {
     if (key && goals.fechou_dia !== key) due.push({ kind: 'dia', key: `${key}#dia`, day: key })
   }
   return due
+}
+
+function minutesUntil(now, hour, minute) {
+  const p = tokyoParts(now)
+  let diff = hour * 60 + minute - (p.hour * 60 + p.minute)
+  if (diff < 0) diff += 24 * 60
+  return diff
+}
+
+/**
+ * Banner the bar should see now about the night close, or null.
+ *  - kind 'soon': the close time is within the warning minutes (alert mode, or the warning before an auto close).
+ *  - kind 'due': alert mode and the close time has passed, the night is still open.
+ * closedKeys: night keys already closed or counting (pos_shifts). Before 12:00 the close belongs to the night
+ * that started the evening before, like nightKeyDue.
+ */
+export function closeAlert(goals, now = new Date(), closedKeys = new Set()) {
+  const cfg = closeSettings(goals)
+  if (cfg.modoNoite === 'off') return null
+  const time = clockLabel(cfg.horaNoite, cfg.minNoite)
+  const dueKey = nightKeyDue(now, cfg.horaNoite, cfg.minNoite)
+  const left = minutesUntil(now, cfg.horaNoite, cfg.minNoite)
+  if (cfg.avisoMin > 0 && left > 0 && left <= cfg.avisoMin) {
+    const key = upcomingNightKey(now, cfg.horaNoite, cfg.minNoite)
+    if (!closedKeys.has(key) && goals.fechou_noite !== key) return { kind: 'soon', mode: cfg.modoNoite, key, time, left }
+  }
+  if (cfg.modoNoite !== 'alerta' || !dueKey) return null
+  if (closedKeys.has(dueKey) || goals.fechou_noite === dueKey) return null
+  // Only nag for the night that just ended: after 12 hours a missed close is shown on the close screen instead.
+  const since = left === 0 ? 0 : 24 * 60 - left
+  if (since > 12 * 60) return null
+  return { kind: 'due', mode: 'alerta', key: dueKey, time, late: since }
+}
+
+/** Night key that the next close time will close. */
+function upcomingNightKey(now, hour, minute) {
+  const later = new Date(now.getTime() + minutesUntil(now, hour, minute) * 60_000)
+  return nightKeyDue(later, hour, minute)
 }

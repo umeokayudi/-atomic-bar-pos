@@ -43,6 +43,7 @@ import BillMatch from './BillMatch'
 import RangeCalendar from './RangeCalendar'
 import { useVaultLock } from './VaultGate'
 import AutoClose from './AutoClose'
+import CloseAlert from './CloseAlert'
 import { PricingTab, MenuTab } from './BarRecipes'
 const ClientAnalyticsTab = lazy(() => import('./ClientAnalyticsTab'))
 const PortalRecibosTab = lazy(() => import('./PortalRecibosTab'))
@@ -1409,6 +1410,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         </header>
         <main className="app-main app-main-wide till-kiosk-main">
           <AutoClose bar={bar} />
+          <CloseAlert bar={bar} />
           {tillKiosk && posAccess !== 'none' && (
             <TabHold><AtomicPosPanel bar={bar} access={kioskAccess} /></TabHold>
           )}
@@ -1423,6 +1425,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
     return (
       <div className="app-shell is-staff-app">
         <AutoClose bar={bar} />
+        <CloseAlert bar={bar} />
         <TabHold>
           <StaffApp
             bar={bar}
@@ -1505,6 +1508,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
       </aside>
       <main className="app-main app-main-wide">
         <AutoClose bar={bar} />
+        <CloseAlert bar={bar} onClose={() => selectTab('pos')} />
         <div className="mobile-search">{searchBox(false)}</div>
         <WorkspaceChrome
           start={searchBox(true)}
