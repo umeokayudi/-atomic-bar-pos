@@ -27,6 +27,8 @@ import { seatsOf, vipTag } from '../../lib/floorEditor'
 import CustomerPicker from './CustomerPicker'
 import { meDay } from '../../lib/staffSelfApi'
 import PeopleStepper from '../floor/PeopleStepper'
+import { isCarriedTab, sortCarriedFirst } from '../../lib/openTabsClose'
+import { OPEN_TAB_EVENT } from '../../lib/openTabsApi'
 
 const PAY = [
   { id: 'Cash', key: 'atomicPos.payCash', icon: 'payCash' },
@@ -322,6 +324,23 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
     if (!isSrv && active !== COUNTER && !orders[active]) setActive(COUNTER)
     return undefined
   }, [isSrv, server, tabsLoaded, srvTab, busy, active, orders])
+
+  // A tab left open past the day close (owner PIN exception) sits first, marked "from yesterday, check it".
+  const today = tokyoNightKey()
+  const shownTabs = useMemo(() => sortCarriedFirst(srvTabs, today), [srvTabs, today])
+  const carriedCount = shownTabs.filter(x => isCarriedTab(x, today)).length
+
+  // The Close screen sends staff here to close one of its open tabs.
+  useEffect(() => {
+    const go = e => {
+      if (e.detail?.barId !== bar.id || !e.detail?.tabId) return
+      setActive(SRV + e.detail.tabId)
+      setOrderOpen(true)
+      refreshTabs()
+    }
+    window.addEventListener(OPEN_TAB_EVENT, go)
+    return () => window.removeEventListener(OPEN_TAB_EVENT, go)
+  }, [bar.id, refreshTabs])
 
   const srvMoney = srvTab ? tabMoney(srvTab, srvTab.items, srvTab.payments, settings) : null
   const qtyByKey = useMemo(() => {
@@ -971,11 +990,13 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
             {t('posQuick.counter')}
             {orders[COUNTER].cart?.length > 0 && active !== COUNTER && <em>{fmtYen(cartTotal(orders[COUNTER].cart))}</em>}
           </button>
-          {server && srvTabs.map(x => {
+          {server && shownTabs.map(x => {
             const m = tabMoney(x, x.items, x.payments, settings)
             const pend = cartTotal(orders[SRV + x.id]?.cart || [])
+            const carried = isCarriedTab(x, today)
             return (
-              <button key={x.id} type="button" className={`pq-tab${active === SRV + x.id ? ' is-on' : ''}${x.status !== 'open' ? ' is-paying' : ''}`} onClick={() => viewTab(SRV + x.id)}>
+              <button key={x.id} type="button" className={`pq-tab${active === SRV + x.id ? ' is-on' : ''}${x.status !== 'open' ? ' is-paying' : ''}${carried ? ' is-carried' : ''}`} onClick={() => viewTab(SRV + x.id)} title={carried ? t('openTabs.fromYesterday') : undefined}>
+                {carried && <span className="pq-tab-carried">{t('openTabs.fromYesterdayShort')}</span>}
                 {x.nome}
                 <em>{fmtYen(m.drinksTotal + pend)}</em>
               </button>
@@ -995,6 +1016,9 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
         </div>
         </div>
 
+        {server && carriedCount > 0 && (
+          <p className="pq-carried-note" role="status">{t('openTabs.carriedNote', { n: carriedCount })}</p>
+        )}
         {tabBarEl}
 
         <button type="button" className="pq-lines-head" onClick={() => setDetailOpen(true)} disabled={!hasSomething}>

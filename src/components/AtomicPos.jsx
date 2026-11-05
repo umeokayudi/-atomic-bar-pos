@@ -26,6 +26,8 @@ import PosPaySettings from './pos/PosPaySettings'
 import Icon from './ui/Icon'
 import { useUiPrefs } from '../lib/uiPrefs'
 import { notify } from './ui/ConfirmDialog'
+import OpenTabsGate from './OpenTabsGate'
+import { OPEN_TAB_EVENT } from '../lib/openTabsApi'
 
 const SUB_TAB_IDS = [
   { id: 'dashboard', key: 'tabDashboard', icon: 'dashboard' },
@@ -66,6 +68,8 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
   const [open, setOpen] = useState(!compact)
   const [pending, setPending] = useState(null)
   const [pendingCount, setPendingCount] = useState('')
+  // Open tabs: the close (and the count of a night that closed by itself) waits until they are checked.
+  const [gate, setGate] = useState({ loading: true, blocking: 0, cleared: false })
 
   useEffect(() => {
     const bounds = nightWindow(nightKey)
@@ -118,6 +122,7 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
   }
 
   async function closeNight() {
+    if (!gate.cleared) { setMsg(t('openTabs.saveBlocked', { n: gate.blocking })); return }
     setBusy(true)
     setMsg('')
     let salesRes = await supabase.from('pos_vendas')
@@ -172,6 +177,7 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
 
   /** Saves the real cash for a night the automatic close shut without a count. */
   async function saveCount(target, value, done) {
+    if (!gate.cleared) { setMsg(t('openTabs.saveBlocked', { n: gate.blocking })); return }
     if (value === '' || !Number.isFinite(+value)) { setMsg(t('atomicPos.countRequired')); return }
     setBusy(true)
     const patch = {
@@ -220,6 +226,7 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
           <span>{t('atomicPos.paySplit', { cash: fmtYen(prior.split.cashTotal), card: fmtYen(prior.split.cardTotal), paypay: fmtYen(prior.split.paypayTotal || 0) })}</span>
         </div>
       )}
+      {!closed && <OpenTabsGate bar={bar} night={nightKey} onState={setGate} compact />}
       {pending && (
         <PendingCount
           night={pending}
@@ -247,7 +254,7 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
             value={counted}
             onChange={e => setCounted(e.target.value)}
           />
-          <button type="button" className="btn-primary" disabled={busy || counted === ''} title={counted === '' ? t('atomicPos.countRequired') : undefined} onClick={closeNight}>
+          <button type="button" className="btn-primary" disabled={busy || counted === '' || !gate.cleared} title={!gate.cleared ? t('openTabs.saveBlocked', { n: gate.blocking }) : counted === '' ? t('atomicPos.countRequired') : undefined} onClick={closeNight}>
             {busy ? t('common.saving') : t('atomicPos.closeNight')}
           </button>
         </div>
@@ -1112,6 +1119,12 @@ function PosDrinkBackTab({ bar, onUpdate }) {
 export default function AtomicPosPanel({ bar, onOrder, access = 'owner' }) {
   const { t } = useI18n()
   const [subTab, setSubTab] = useState(access === 'cashier' ? 'checkout' : 'dashboard')
+  // "Close" on an open tab at the day close: go to the till with that tab on screen.
+  useEffect(() => {
+    const go = e => { if (!e.detail?.barId || e.detail.barId === bar?.id) setSubTab('checkout') }
+    window.addEventListener(OPEN_TAB_EVENT, go)
+    return () => window.removeEventListener(OPEN_TAB_EVENT, go)
+  }, [bar?.id])
   const tabs = access === 'cashier' ? SUB_TAB_IDS.filter(t => t.id === 'checkout') : SUB_TAB_IDS
   const [ready, setReady] = useState(null)
   const [drinks, setDrinks] = useState([])

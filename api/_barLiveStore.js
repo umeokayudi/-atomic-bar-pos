@@ -26,6 +26,8 @@ export const LIVE_TABLES = [
   'pos_shifts',
   // Close check: counted cash / card / PayPay per night next to what the till recorded (Close page).
   'pos_close_checks',
+  // Day close concluded with tabs still open: owner PIN + reason, which tabs, who asked, when. /api/bar-staff only.
+  'pos_close_exceptions',
   'pos_settings',
   'bar_people',
   'bar_registry',

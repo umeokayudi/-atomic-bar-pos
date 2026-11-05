@@ -9,6 +9,7 @@ import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { ADMIN, MANAGER, OWNER, CASHIER, STAFF, TABLES, BAR_STAFF, PUNCHES } from './fixtures.mjs'
 import { castRoster } from '../../src/lib/staffPos.js'
+import { cleanException } from '../../src/lib/openTabsClose.js'
 import { earningsByDay, earningsRange, myGoalStatus, myNightSummary } from '../../src/lib/staffNight.js'
 import { tokyoNightKey, tokyoMonthKey } from '../../src/lib/tokyo.js'
 import { barListRow } from '../../src/lib/barFinanceHq.js'
@@ -79,6 +80,16 @@ const PAGES = [
     { fill: ['.close-check-table tbody tr:nth-child(1) input', '34000'] }, { fill: ['.close-check-table tbody tr:nth-child(2) input', '21400'] },
     { fill: ['.close-check-table tbody tr:nth-child(3) input', '2400'] }, { tap: '.close-check-list-head' },
   ] },
+  // Open tabs at the day close (run with CARRIED=1 for the "from yesterday" tab).
+  { who: MANAGER, path: '/bar/fechamento', name: 'bar-close-opentabs' },
+  { who: MANAGER, path: '/bar/fechamento', name: 'bar-close-opentabs-pin', click: /Close the day with tabs open/, steps: [
+    { fill: ['.open-tabs-pin textarea', 'Sato pays tomorrow, Ken confirmed'] }, { fill: ['.open-tabs-pin input', '1234'] },
+  ] },
+  { who: MANAGER, path: '/bar/fechamento', name: 'bar-close-opentabs-done', click: [/Close the day with tabs open/], steps: [
+    { fill: ['.open-tabs-pin textarea', 'Sato pays tomorrow, Ken confirmed'] }, { fill: ['.open-tabs-pin input', '1234'] }, { tap: '.open-tabs-pin .is-primary' },
+  ] },
+  { who: MANAGER, path: '/bar/fechamento', name: 'bar-close-opentabs-transfer', taps: ['.open-tabs-row:nth-child(1) .open-tabs-actions .ui-btn:nth-child(2)'] },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-carried', click: /Counter/, taps: ['.pq-cartbar'] },
   { who: MANAGER, path: '/bar/ia', name: 'bar-ai' },
   { who: MANAGER, path: '/bar/aluguel', name: 'bar-rent' },
   { who: MANAGER, path: '/bar/mesas', name: 'bar-floor' },
@@ -422,6 +433,13 @@ async function mock(page, who, missing = [], vault = null, acessos = null) {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ people: castRoster(BAR_STAFF.staff, TABLES.drink_back_agents) }) })
     }
     const action = req.method() === 'POST' && path === '/api/bar-staff' ? (req.postDataJSON() || {}).action : ''
+    if (action === 'openTabsExceptions') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ exceptions: [] }) })
+    if (action === 'openTabsException') {
+      const b = req.postDataJSON() || {}
+      if (b.pin !== '1234') return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'Wrong PIN', code: 'bad_pin', left: 4 }) })
+      const clean = cleanException(b, { barId: who.bar_id || 'bar', actor: { id: who.id, nome: who.nome } })
+      return route.fulfill({ status: clean.error ? 400 : 200, contentType: 'application/json', body: JSON.stringify(clean.error ? { error: clean.error } : { ok: true, exception: clean.row }) })
+    }
     if (action && SELF_MOCK[action]) {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(SELF_MOCK[action](who, req.postDataJSON() || {})) })
     }

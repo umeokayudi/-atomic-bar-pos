@@ -4,6 +4,7 @@ import { useI18n } from '../../lib/i18n'
 import { useAuth } from '../Auth'
 import { useAiPageContext } from '../../lib/aiPanel'
 import { DEFAULT_POS_SETTINGS, settingsFromRow } from '../../lib/nightTicket'
+import { isCarriedTab, sortCarriedFirst } from '../../lib/openTabsClose'
 import { TABLE_STATES, floorApi, floorAvailable, floorPlanAvailable, loadOpenTabs, loadTabHistory, newKey, tableState, tabMoney, tabsApi } from '../../lib/comandas'
 import { fitZoom, isSeat, itemOf } from '../../lib/floorEditor'
 import { tablesInState } from '../../lib/floorStatus'
@@ -158,10 +159,10 @@ export default function FloorScreen({ bar, onOpenTill }) {
       return { total: a.total + m.total, due: a.due + m.due }
     }, { total: 0, due: 0 })
     const since = open.length ? Math.min(...open.map(c => Date.parse(c.aberta_em))) : null
-    return { ...tb, state, open, money, minutes: since ? minutesSince(new Date(since).toISOString(), now) : 0, pessoas: open.reduce((a, c) => a + (c.pessoas || 0), 0) }
+    return { ...tb, state, open, carried: open.some(c => isCarriedTab(c)), money, minutes: since ? minutesSince(new Date(since).toISOString(), now) : 0, pessoas: open.reduce((a, c) => a + (c.pessoas || 0), 0) }
   }), [tables, tabs, now, settings])
   const counts = useMemo(() => Object.fromEntries(TABLE_STATES.map(s => [s, live.filter(x => x.state === s).length])), [live])
-  const floating = tabs.filter(c => !c.table_id || !tables.some(x => x.id === c.table_id))
+  const floating = sortCarriedFirst(tabs.filter(c => !c.table_id || !tables.some(x => x.id === c.table_id)))
   const busyTableIds = useMemo(() => new Set(tabs.filter(c => c.table_id).map(c => c.table_id)), [tabs])
   const openTotal = tabs.reduce((a, c) => a + tabMoney(c, c.items, c.payments, settings).total, 0)
   const sheet = useMemo(() => (stateSheet ? tablesInState(live, stateSheet) : null), [live, stateSheet])
@@ -350,10 +351,10 @@ export default function FloorScreen({ bar, onOpenTill }) {
             <Floor3D layout={layout} tables={[...decor, ...live]} onTable={onTable} onPeople={setPeople} live />
           ) : (
             <ul className="floor-list">
-              {live.map(tb => (
+              {[...live].sort((a, b) => (b.carried ? 1 : 0) - (a.carried ? 1 : 0)).map(tb => (
                 <li key={tb.id}>
                   <button type="button" className={`floor-row st-${tb.state}`} onClick={() => onTable(tb)}>
-                    <span className="floor-row-name">{tb.nome}<span className="ui-muted">{t('tabs.people', { n: tb.pessoas || tb.capacidade })}</span></span>
+                    <span className="floor-row-name">{tb.nome}{tb.carried && <span className="ui-badge is-warning">{t('openTabs.fromYesterday')}</span>}<span className="ui-muted">{t('tabs.people', { n: tb.pessoas || tb.capacidade })}</span></span>
                     <span className="floor-state"><Icon name={STATE_ICON[tb.state]} size={14} /> {t(`tabs.state.${tb.state}`)}</span>
                     <span className="num">{tb.open.length ? `${fmtYen(tb.money.total)} · ${tb.minutes}′` : ''}</span>
                   </button>
@@ -369,6 +370,7 @@ export default function FloorScreen({ bar, onOpenTill }) {
                 {floating.map(c => (
                   <button key={c.id} type="button" className="ui-btn" onClick={() => setPanel(c.id)}>
                     <Icon name="comandas" size={14} /> {c.nome} · {fmtYen(tabMoney(c, c.items, c.payments, settings).total)}
+                    {isCarriedTab(c) && <span className="ui-badge is-warning">{t('openTabs.fromYesterday')}</span>}
                   </button>
                 ))}
               </div>

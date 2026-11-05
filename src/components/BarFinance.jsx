@@ -331,7 +331,7 @@ export default function BarFinance({ bar, section = 'fechamento', onTab }) {
 
       {section === 'fechamento' && (
         <>
-          <CloseCheck bar={bar} />
+          <CloseCheck bar={bar} onOpenTill={() => onTab?.('pos')} />
           <DayStaffBoard />
           <section className="desk-card">
             <h3>{t('portal.close.weekday')}</h3>
