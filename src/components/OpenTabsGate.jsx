@@ -8,7 +8,7 @@ import { isMissingRelation, loadOpenTabs, tabMoney, tabsApi } from '../lib/coman
 import { fetchCastRoster } from '../lib/castRoster'
 import { prevTokyoDateKey } from '../lib/nightClose'
 import {
-  ageParts, closeCleared, exceptionError, exceptionTabs, isCarriedTab, isEmptyTab, openMinutes, tabsBlockingNight, transferNote,
+  ageParts, closeCleared, sortCarriedFirst, exceptionError, exceptionTabs, isCarriedTab, isEmptyTab, openMinutes, tabsBlockingNight, transferNote,
 } from '../lib/openTabsClose'
 import { listCloseExceptions, openTabInTill, recordCloseException } from '../lib/openTabsApi'
 
@@ -52,7 +52,7 @@ export default function OpenTabsGate({ bar, night, onState, onOpenTill, compact 
 
   useEffect(() => { load() }, [load])
 
-  const blocking = useMemo(() => tabsBlockingNight(tabs || [], night), [tabs, night])
+  const blocking = useMemo(() => sortCarriedFirst(tabsBlockingNight(tabs || [], night), night), [tabs, night])
   const cleared = tabs !== null && closeCleared(blocking, exceptions, night)
   const nightExceptions = exceptions.filter(e => e.night_key === night)
 
