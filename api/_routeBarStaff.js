@@ -14,6 +14,7 @@ import { denyMissingArea } from './_barAccess.js'
 import { OWNER_ACTIONS, PAY_WRITE_ACTIONS, SELF_ACTIONS, handleOwnerAction, handleSelfAction, setLoginEmail } from './_staffSelf.js'
 import { canLinkLogin, carryFromPerson, personLinkPatch, remapIds, remapSheet } from '../src/lib/staffLink.js'
 import { castRoster } from '../src/lib/staffPos.js'
+import { EXCEPTION_TABLE, cleanException } from '../src/lib/openTabsClose.js'
 
 function bodyOf(req) {
   return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
@@ -412,6 +413,56 @@ export default async function handler(req, res) {
         return res.status(200).json({ people: castRoster(staff, agents.rows) })
       } catch (e) {
         return res.status(500).json({ error: e?.message || 'Could not load the team' })
+      }
+    }
+    // Day close with tabs still open: any bar login (the till too) reads the exceptions; recording one needs the owner PIN.
+    if (early.action === 'openTabsExceptions' || early.action === 'openTabsException') {
+      const me = await requireBarAccount(req, admin)
+      if (me.error) return res.status(me.status).json({ error: me.error })
+      const db = admin || (me.token ? createStaffUserClient(me.token) : null)
+      if (!db) return res.status(500).json({ error: 'Database client unavailable' })
+      const barId = me.perfil.bar_id
+      try {
+        if (early.action === 'openTabsExceptions') {
+          const from = String(early.from || '').slice(0, 10)
+          const filters = [{ op: 'eq', k: 'bar_id', v: barId }]
+          if (/^\d{4}-\d{2}-\d{2}$/.test(from)) filters.push({ op: 'gte', k: 'night_key', v: from })
+          const r = await runLiveOp(db, { table: EXCEPTION_TABLE, mode: 'select', columns: '*', filters, orderBy: { k: 'criado_em', ascending: false } })
+          if (r.error && !isMissingSchemaError(r.error)) return res.status(400).json({ error: r.error.message || 'Could not load' })
+          return res.status(200).json({ exceptions: r.data || [] })
+        }
+        const lock = await loadLock(db, barId)
+        if (!lock?.pin_hash) return res.status(400).json({ error: 'The owner has not set a PIN yet (Users & access → Owner PIN)', code: 'no_pin' })
+        const now = Date.now()
+        if (+lock.locked_until > now) return res.status(429).json({ error: 'Too many wrong PINs', retryAt: +lock.locked_until })
+        if (!pinMatches(early.pin, lock)) {
+          const fails = (+lock.fails || 0) + 1
+          const patch = fails >= MAX_FAILS ? { fails: 0, locked_until: now + COOLDOWN_MS } : { fails }
+          await saveLock(db, barId, { ...lock, ...patch }, true)
+          return res.status(fails >= MAX_FAILS ? 429 : 401).json({ error: 'Wrong PIN', code: 'bad_pin', left: Math.max(0, MAX_FAILS - fails) })
+        }
+        if (+lock.fails) await saveLock(db, barId, { ...lock, fails: 0, locked_until: 0 }, true)
+        const actor = { id: me.user?.id || null, nome: me.perfil?.nome || me.perfil?.email || me.user?.email || null }
+        const clean = cleanException(early, { barId, actor })
+        if (clean.error) return res.status(400).json({ error: clean.error })
+        const saved = await runLiveOp(db, { table: EXCEPTION_TABLE, mode: 'insert', insertRows: [clean.row] })
+        if (saved.error) return res.status(400).json({ error: saved.error.message || 'Could not save' })
+        // Same line in the activity log (who asked, when, which tabs, why).
+        try {
+          await runLiveOp(db, {
+            table: 'audit_events',
+            mode: 'insert',
+            insertRows: [{
+              id: `ae_${now.toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+              criado_em: new Date(now).toISOString(),
+              user_id: actor.id, user_nome: actor.nome, role: me.perfil?.role || null, bar_id: barId,
+              tabela: EXCEPTION_TABLE, registro_id: clean.row.id, acao: 'insert', antes: null, depois: clean.row, fonte: 'app',
+            }],
+          })
+        } catch { /* the log never blocks the close */ }
+        return res.status(200).json({ ok: true, exception: clean.row })
+      } catch (e) {
+        return res.status(500).json({ error: e?.message || 'Failed' })
       }
     }
   }

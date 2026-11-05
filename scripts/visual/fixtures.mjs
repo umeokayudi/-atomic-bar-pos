@@ -39,6 +39,8 @@ const tabs = [
   tab('00000000-0000-4000-8000-0000000c0003', 'Mesa 2', tables[1].id, 6, []),
   tab('00000000-0000-4000-8000-0000000c0004', 'Suzuki', tables[4].id, 120, [[8, 2, 100], [11, 1, 100]], 'awaiting_payment', [1500]),
   tab('00000000-0000-4000-8000-0000000c0005', 'Walk-in', null, 15, [[3, 2, 10]]),
+  // CARRIED=1: a tab left open since last night (owner PIN exception), for the open-tabs close shots.
+  ...(process.env.CARRIED ? [{ ...tab('00000000-0000-4000-8000-0000000c0006', 'Sato', null, 60 * 26, [[4, 2, 60 * 25]]), responsavel_nome: 'Ken Mori' }] : []),
 ]
 
 const spaces = [

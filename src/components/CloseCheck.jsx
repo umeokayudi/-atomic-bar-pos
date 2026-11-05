@@ -6,6 +6,7 @@ import { useI18n } from '../lib/i18n'
 import { errText } from '../lib/errText'
 import { tokyoNightKey } from '../lib/tokyo'
 import { closeVariance, nextTokyoDateKey, prevTokyoDateKey } from '../lib/nightClose'
+import OpenTabsGate from './OpenTabsGate'
 import { ALL_METHODS, CHECK_METHODS, CHECK_TABLE, checkRowId, checkState, closeCheck, methodDiff } from '../lib/closeCheck'
 
 const SALE_COLS = 'id,total,refunded,card_fee,card_fee_reversed,data,criado_em,metodo_pagamento,obs,comanda_id'
@@ -36,7 +37,7 @@ function DiffBadge({ t, diff }) {
  * Close check on the Close page: per payment method, what the till recorded for the night next to what was
  * counted (drawer cash, card machine total, PayPay app), the difference, and the list of tickets behind each total.
  */
-export default function CloseCheck({ bar }) {
+export default function CloseCheck({ bar, onOpenTill }) {
   const { t } = useI18n()
   const { user } = useAuth()
   const today = tokyoNightKey()
@@ -51,6 +52,8 @@ export default function CloseCheck({ bar }) {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [openList, setOpenList] = useState('')
+  // Open tabs block the close until they are closed/transferred or the owner records an exception (PIN + reason).
+  const [gate, setGate] = useState({ loading: true, blocking: 0, cleared: false })
 
   useEffect(() => {
     let cancelled = false
@@ -100,6 +103,10 @@ export default function CloseCheck({ bar }) {
   const systemCounted = CHECK_METHODS.reduce((a, m) => a + check.methods[m].total, 0)
 
   async function save() {
+    if (!gate.cleared) {
+      setMsg(t('openTabs.saveBlocked', { n: gate.blocking }))
+      return
+    }
     if (CHECK_METHODS.some(m => counted[m] !== '' && !Number.isFinite(+counted[m]))) {
       setMsg(t('portal.close.check.badNumber'))
       return
@@ -168,6 +175,8 @@ export default function CloseCheck({ bar }) {
           onChange={e => e.target.value && setNight(e.target.value)}
         />
       </div>
+
+      <OpenTabsGate bar={bar} night={night} onState={setGate} onOpenTill={onOpenTill} />
 
       {loading ? (
         <p className="desk-note">{t('portal.close.check.loading')}</p>
@@ -248,7 +257,7 @@ export default function CloseCheck({ bar }) {
             <input type="text" value={note} placeholder={t('portal.close.check.notePh')} onChange={e => setNote(e.target.value)} />
           </label>
           <div className="close-check-actions">
-            <button type="button" className="btn-primary" disabled={busy} onClick={save}>
+            <button type="button" className="btn-primary" disabled={busy || !gate.cleared} title={gate.cleared ? undefined : t('openTabs.saveBlocked', { n: gate.blocking })} onClick={save}>
               {busy ? t('common.saving') : t('portal.close.check.save')}
             </button>
             {msg && <span className="desk-note">{msg}</span>}
