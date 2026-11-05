@@ -77,4 +77,27 @@ export default {
     barsSubtitle: 'Client bars and what JBM delivered to each',
     totalRevenue: 'Delivered by JBM (gross)',
   },
+  // 05/11/2026 review
+  portal: {
+    bill: {
+      adjusted: 'Invoice {invoice} = deliveries with an adjustment of {amount}. Reason: {reason}',
+    },
+    home: {
+      monthlySpend: 'Bought from JBM (delivered)',
+    },
+  },
+  dashboard: {
+    deliveredLabel: 'Delivered to bars',
+    deliveredVsInvoice: 'Invoice for the month {invoice}. Difference {gap}: see the Report.',
+  },
+  clockHub: {
+    noClockOut: 'No clock-out since {when} ({hours}h)',
+    noClockOutSub: 'Shift left open, not counted: {names}',
+  },
+  house: {
+    payDateOff: 'Check the date: far from {month}',
+    payDateOffTitle: 'Is the year right?',
+    payDateOffBody: 'Paid on {date}, but the cost is for {month} ({days} days apart). Save anyway?',
+    payDateOffKeep: 'Save with this date',
+  },
 }

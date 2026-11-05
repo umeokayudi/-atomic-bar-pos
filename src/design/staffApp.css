@@ -543,6 +543,7 @@ i.is-fine { background: #d97706; }
   background: rgba(0, 0, 0, .62); color: #fff;
 }
 .clock-face-photo em.is-on { background: var(--c-success); }
+.clock-face-photo em.is-warn { background: var(--c-warning); }
 .clock-face-name { font-size: 15px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
 .clock-face-stats { display: grid; gap: 2px; padding: 6px 8px; border-radius: 8px; background: var(--c-surface-2); }
 .clock-face-stats > span { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; min-width: 0; }

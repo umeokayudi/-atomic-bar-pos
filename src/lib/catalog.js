@@ -21,6 +21,22 @@ export function normalizeName(nome) {
   return s.replace(/[^a-z0-9぀-ヿ一-龯]+/g, ' ').trim().replace(/\s+/g, ' ')
 }
 
+// Same spelling fixes, keeping the original capital letter (for names shown on screen).
+const SPELLING_SHOWN = [
+  [/\b([Cc])ramberry\b/g, '$1ranberry'],
+  [/\b([Jj])asmin\b/g, '$1asmine'],
+]
+
+/**
+ * Name shown in lists and analyses: no "(dup)/(copy)" tag, known misspellings fixed, extra spaces removed.
+ * Old sales that point at a "(dup)" product are then counted with the real product of the same name.
+ */
+export function displayName(nome) {
+  let s = String(nome || '').replace(/\((dup|copy|copia)\)/gi, ' ')
+  for (const [re, to] of SPELLING_SHOWN) s = s.replace(re, to)
+  return s.replace(/\s+/g, ' ').trim()
+}
+
 /** Groups of active products that share a normalized name (likely duplicates). */
 export function findDuplicates(produtos = []) {
   const by = new Map()

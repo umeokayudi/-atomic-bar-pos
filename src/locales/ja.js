@@ -1,7 +1,7 @@
 /** Japanese UI strings — JBM Drinks */
 export default {
   aiAct: {
-    hint: '操作も頼めます（例：「Atomicにジェムソン6本注文」）。確定を押すまで保存されません。',
+    hint: '操作も頼めます（例：「Atomicにジェムソン6本注文」）。データが変わるのは確定を押したときだけです。質問と回答はAI履歴に保存されます。',
     confirm: '確定して保存',
     cancel: 'キャンセル',
     saving: '保存中...',

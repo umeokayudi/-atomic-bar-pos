@@ -66,6 +66,8 @@ function juneStats({ compras, faturas, faturamentoPedidos, aReceber, pedidos }) 
     precoBase: JULY_MONTH,
     comprasEstimadas: true,
     fontes: { faturamento: 'pedidos', compras: 'estimativa' },
+    // June's number is what was delivered; the invoice for the month is a different amount and says so.
+    faturaMes: faturamentoForMonth(faturas, JUNE_MONTH),
   }
 }
 

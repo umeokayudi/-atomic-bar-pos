@@ -77,4 +77,27 @@ export default {
     barsSubtitle: '取引先の店舗とJBMの納品額',
     totalRevenue: 'JBM納品額（総額）',
   },
+  // 05/11/2026 review
+  portal: {
+    bill: {
+      adjusted: '請求 {invoice} = 納品額 + 調整 {amount}。理由：{reason}',
+    },
+    home: {
+      monthlySpend: 'JBMからの仕入（納品額）',
+    },
+  },
+  dashboard: {
+    deliveredLabel: '店舗への納品額',
+    deliveredVsInvoice: '当月の請求 {invoice}。差額 {gap}：レポート参照。',
+  },
+  clockHub: {
+    noClockOut: '{when} から退勤なし（{hours}時間）',
+    noClockOutSub: '開いたままの勤務（集計外）：{names}',
+  },
+  house: {
+    payDateOff: '日付を確認：{month} から離れています',
+    payDateOffTitle: '年は正しいですか？',
+    payDateOffBody: '支払日 {date} ですが、費用は {month} 分です（{days}日の差）。このまま保存しますか？',
+    payDateOffKeep: 'この日付で保存',
+  },
 }

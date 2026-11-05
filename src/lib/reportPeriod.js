@@ -40,8 +40,10 @@ export function ryoshushoPeriodSplit(r, selMonth) {
   }
 
   const [y, m] = selMonth.split('-').map(Number)
-  const monthStart = new Date(y, m - 1, 1)
-  const monthEnd = new Date(y, m, 0)
+  // Noon on both ends, like the period dates below: a receipt for the last day of the month
+  // (e.g. 30 Jun → 30 Jun) used to fall after a midnight month end and showed ¥0.
+  const monthStart = new Date(y, m - 1, 1, 12)
+  const monthEnd = new Date(y, m, 0, 12)
   const periodStart = new Date(ini + 'T12:00:00')
   const periodEnd = new Date(fim + 'T12:00:00')
   const overlapStart = new Date(Math.max(monthStart, periodStart))

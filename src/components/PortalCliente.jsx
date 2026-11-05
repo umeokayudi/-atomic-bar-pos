@@ -148,6 +148,7 @@ function TabHold({ children }) {
 }
 import { loadCompany } from '../lib/receipts'
 import { notify } from './ui/ConfirmDialog'
+import { displayName } from '../lib/catalog'
 
 // ── HOME ──────────────────────────────────────────────────────────────────────
 /** Bar home cards: id, default width, hidden by default. Titles and content live in HomeTab. */
@@ -289,7 +290,7 @@ function HomeTab({ bar, onTab }) {
   const prodMap = {}
   const prodVol = {}
   itens.filter(it => it.vendas?.data >= cutoffStr).forEach(it => {
-    const nome = it.produtos?.nome || '?'
+    const nome = displayName(it.produtos?.nome) || '?'
     const val  = (it.preco_unitario||0) * it.qtd
     prodMap[nome] = (prodMap[nome]||0) + val
     prodVol[nome] = (prodVol[nome]||0) + it.qtd
@@ -304,7 +305,7 @@ function HomeTab({ bar, onTab }) {
 
   const byName = {}
   itens.filter(it => it.vendas?.data >= cutoffStr).forEach(it => {
-    const nome = it.produtos?.nome || '?'
+    const nome = displayName(it.produtos?.nome) || '?'
     if (!byName[nome]) byName[nome] = { nome, qtd: 0, jbmTotal: 0, posTotal: 0, margin: 0, source: 'pos' }
     const r = projectItemRevenue(it, pricingMap)
     byName[nome].qtd += +it.qtd || 0

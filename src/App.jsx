@@ -374,11 +374,13 @@ function Dashboard({ onNav }) {
               />
               <PortalKpi
                 icon="sales"
-                label={t('dashboard.billing')}
+                label={m.fontes?.faturamento === 'pedidos' ? t('dashboard.deliveredLabel') : t('dashboard.billing')}
                 value={fmtYen(m.faturamento ?? m.receita)}
                 delta={deltaPct(m.faturamento ?? m.receita, prevM && (prevM.faturamento ?? prevM.receita))}
                 deltaLabel={t('dash.vsLastMonth')}
-                sub={m.comprasEstimadas
+                sub={m.fontes?.faturamento === 'pedidos' && m.faturaMes > 0 && m.faturaMes !== m.faturamento
+                  ? t('dashboard.deliveredVsInvoice', { invoice: fmtYen(m.faturaMes), gap: fmtYen(m.faturamento - m.faturaMes) })
+                  : m.comprasEstimadas
                   ? t('dashboard.billingSubOrders', { count: entregasCount })
                   : m.receita > 0 && m.faturamento !== m.receita
                     ? t('dashboard.billingSubPaid', { paid: fmtYen(m.receita), count: entregasCount })
