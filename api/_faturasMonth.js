@@ -1,5 +1,7 @@
+import { invoiceTotal } from '../src/lib/money.js'
+// Official invoice total (src/lib/money.js), the same number on every screen.
 export function faturaAmount(f) {
-  return +f.total || +f.valor || 0
+  return invoiceTotal(f)
 }
 
 export function faturaBalance(f) {

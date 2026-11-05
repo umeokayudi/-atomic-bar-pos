@@ -1,3 +1,4 @@
+import { logChange } from './audit.js'
 /** Data contábil = data de entrega requerida, não quando o admin confirmou no sistema */
 export function pedidoSaleDate(pedido) {
   return pedido?.data_entrega_prevista
@@ -84,6 +85,7 @@ export async function createVendaFromPedido(supabase, pedido) {
     const total = pedidoTotal(pedido)
     if (total && +existing.total !== +total) {
       await supabase.from('vendas').update({ total }).eq('id', existing.id)
+      logChange(supabase, { tabela: 'vendas', registro_id: existing.id, acao: 'update', antes: { total: existing.total }, depois: { total, motivo: `auto: order ${String(pedido.id).slice(0, 8)}` }, bar_id: pedido.bar_id })
       existing.total = total
     }
     await insertVendaItensFromPedido(supabase, existing, pedido)
@@ -155,6 +157,7 @@ export async function mergeOrInsertPeriodFatura(supabase, { barId, amount, saleD
       total: newTotal,
       valor: newTotal,
     }).eq('id', existing.id)
+    logChange(supabase, { tabela: 'faturas', registro_id: existing.id, acao: 'update', antes: { total: existing.total }, depois: { total: newTotal, motivo: 'auto: delivery added to the period invoice' }, bar_id: barId })
     return { fatura: { ...existing, total: newTotal, valor: newTotal }, merged: true, periodStart, periodEnd, dueDate }
   }
 

@@ -37,6 +37,8 @@ export const LIVE_TABLES = new Set([
   // JBM company data (receipt issuer) and each bar's file (address, billing e-mail, terms…). Live store, HQ writes.
   'jbm_company',
   'bar_profile',
+  // Activity log entries the server stamps with who and when (see api/_routeBarLive.js).
+  'audit_events',
 ])
 
 const selectCache = new Map()

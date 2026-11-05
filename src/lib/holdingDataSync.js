@@ -1,6 +1,7 @@
 /**
  * Snapshot unificado dos dados do sistema para IA JBM Holding.
  */
+import { invoiceTotal, moneyInFacts, paymentKind } from './money.js'
 import { filterSupplierVendas, compraDueDate, isCompraOverdue } from '../components/utils'
 import { isSupplierVenda } from './supplierVenda'
 import { loadCashflowSnapshot } from './purchaseCashflowAdvisor'
@@ -21,11 +22,11 @@ export async function fetchHoldingSystemSnapshot(supabase, holdingProfile = null
     supabase.from('produtos').select('id,nome,categoria,preco_venda,custo,ativo').eq('ativo', true),
     supabase.from('vendas').select('id,bar_id,data,total,obs,cast_id').order('data', { ascending: false }).limit(100),
     supabase.from('compras').select('id,data,fornecedor,pagamento,total_real,total_pago,status_pagamento,data_pagamento,foto_url').order('data', { ascending: false }).limit(50),
-    supabase.from('faturas').select('id,bar_id,valor,total,pago,status,data_vencimento,periodo_inicio,periodo_fim').order('data_vencimento', { ascending: false }).limit(30),
+    supabase.from('faturas').select('id,bar_id,valor,total,pago,notas,status,data_vencimento,periodo_inicio,periodo_fim,data_emissao').order('data_vencimento', { ascending: false }).limit(200),
     supabase.from('pedidos').select('id,bar_id,status,total_estimado,criado_em').order('criado_em', { ascending: false }).limit(20),
     supabase.from('fornecedores').select('nome,pagamento,prazo_entrega_dias,pontos_pct'),
     supabase.from('fornecedor_precos').select('produto_id,preco,fornecedores(nome)').limit(200),
-    supabase.from('fatura_pagamentos').select('valor,metodo,data,confirmado').order('criado_em', { ascending: false }).limit(20),
+    supabase.from('fatura_pagamentos').select('fatura_id,valor,metodo,data,confirmado').order('criado_em', { ascending: false }).limit(500),
     supabase.from('perfis').select('role,email,bar_id'),
     supabase.from('bar_pricing').select('bar_id,produto_id,drinks_por_garrafa,preco_drink'),
   ])
@@ -44,7 +45,7 @@ export async function fetchHoldingSystemSnapshot(supabase, holdingProfile = null
 
   const faturasPendentes = faturas.filter(f => f.status !== 'pago')
   const faturasVencidas = faturasPendentes.filter(f => f.data_vencimento && f.data_vencimento < new Date().toISOString().slice(0, 10))
-  const aReceber = faturasPendentes.reduce((a, f) => a + Math.max(0, (+f.valor || +f.total || 0) - (+f.pago || 0)), 0)
+  const aReceber = faturasPendentes.reduce((a, f) => a + Math.max(0, invoiceTotal(f) - (+f.pago || 0)), 0)
 
   const comprasPendentes = compras.filter(c => c.status_pagamento === 'pendente')
   const fornMap = Object.fromEntries((fornecedoresR.data || []).map(f => [f.nome, f.pagamento]))
@@ -76,7 +77,7 @@ export async function fetchHoldingSystemSnapshot(supabase, holdingProfile = null
   checks.push({ ok: faturas.length > 0, label: 'Faturas Atomic', detail: `${faturas.length}` })
   checks.push({ ok: bpAtomic >= 10, label: 'Atomic POS prices', detail: `${bpAtomic}` })
   checks.push({ ok: aReceber >= 0, label: 'A receber bars', detail: `¥${Math.round(aReceber).toLocaleString('ja-JP')}` })
-  checks.push({ ok: (cashflow.netCash ?? 0) > -500000, label: 'Net cash', detail: `¥${Math.round(cashflow.netCash || 0).toLocaleString('ja-JP')}` })
+  checks.push({ ok: (cashflow.netCash ?? 0) > -500000, label: 'Net cash (Cash flow)', detail: `¥${Math.round(cashflow.netCash || 0).toLocaleString('ja-JP')}` })
 
   return {
     geradoEm: new Date().toISOString(),
@@ -90,6 +91,8 @@ export async function fetchHoldingSystemSnapshot(supabase, holdingProfile = null
       caixaLiquido: cashflow.netCash ?? 0,
       projetado30d: (cashflow.netCash ?? 0) + (cashflow.pendingIn30 ?? 0) - (cashflow.pendingOut30 ?? 0),
       aReceber,
+      // Only moneyIn.receivedConfirmedCash came in; direct-to-supplier and in-review are separate lines.
+      moneyIn: moneyInFacts(faturas, pagamentosR.data || []),
       aPagar,
       aPagarAtrasado,
       aPagarFuturo,
@@ -110,11 +113,11 @@ export async function fetchHoldingSystemSnapshot(supabase, holdingProfile = null
       compras: compras.slice(0, 8).map(c => ({ data: c.data, fornecedor: c.fornecedor, total: c.total_real || c.total_pago, pagamento: c.pagamento })),
       faturas: faturas.slice(0, 8).map(f => ({
         status: f.status,
-        valor: f.valor || f.total,
+        valor: invoiceTotal(f),
         vencimento: f.data_vencimento,
         bar: bars.find(b => b.id === f.bar_id)?.nome,
       })),
-      pagamentosCliente: (pagamentosR.data || []).slice(0, 5),
+      pagamentosCliente: (pagamentosR.data || []).slice(0, 5).map(p => ({ ...p, natureza: paymentKind(p) })),
     },
     usuarios: {
       admins: (perfisR.data || []).filter(p => p.role === 'admin').length,
@@ -134,6 +137,7 @@ export function buildHoldingFullAuditPrompt(snapshot, userQuestion = '') {
 REGRAS:
 - Always answer in English, short and direct.
 - Use os dados REAIS do snapshot abaixo — não invente números.
+- Dinheiro que ENTROU/RECEBIDO = só financeiro.moneyIn.receivedConfirmedCash. Pagamento direto do bar ao fornecedor e valor em revisão (Stripe) são linhas separadas, nunca somadas ao recebido.
 - Avalie sustentabilidade: caixa, custo de oportunidade entre negócios, cobranças, pagamentos a fornecedores.
 - Diga o que está OK, o que está em risco, e 3 ações prioritárias.
 - Se perguntarem sobre compra à vista vs prazo, use custo de oportunidade da holding (não 12% fixo).
@@ -181,9 +185,10 @@ export function buildHoldingChatSystem(snapshot) {
 Answer in English. Be concise and practical.
 
 Snapshot financeiro:
-- Caixa líquido: ¥${s.financeiro?.caixaLiquido ?? 0}
+- Net cash (same number as Cash flow: confirmed cash in − cash paid out): ¥${s.financeiro?.caixaLiquido ?? 0}
 - Projetado 30d: ¥${s.financeiro?.projetado30d ?? 0}
 - A receber bars: ¥${s.financeiro?.aReceber ?? 0}
+- Money in: received (confirmed cash) ¥${s.financeiro?.moneyIn?.receivedConfirmedCash ?? 0}; paid by bar direct to supplier ¥${s.financeiro?.moneyIn?.paidByBarDirectToSupplier ?? 0} (separate); in review, not received ¥${s.financeiro?.moneyIn?.inReviewNotReceived ?? 0} (separate). Never add these three together as money in.
 - A pagar fornecedores: ¥${s.financeiro?.aPagar ?? 0} (atrasado ¥${s.financeiro?.aPagarAtrasado ?? 0}, futuro ¥${s.financeiro?.aPagarFuturo ?? 0})
 - Receita mês: ¥${s.financeiro?.receitaMes ?? 0}
 - Custo compras mês: ¥${s.financeiro?.custoMes ?? 0}

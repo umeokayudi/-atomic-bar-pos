@@ -5,13 +5,15 @@ import { asReactText } from '../lib/errText'
 import { auditSubject, changedFields, loadAudit } from '../lib/audit'
 import { PortalSurface } from './ui/PageLayout'
 
-const TABLES = ['faturas', 'fatura_pagamentos', 'ryoshusho', 'produtos', 'compras']
+const TABLES = ['faturas', 'fatura_pagamentos', 'ryoshusho', 'vendas', 'pos_vendas', 'pos_shifts', 'pos_close_checks', 'caixa_movimentos', 'produtos', 'compras']
+
+const tableLabel = (t, k) => { const s = t(`audit.table.${k}`); return s.startsWith('audit.table.') ? k : s }
 
 /** Who created, changed or deleted invoices, payments, receipts, products and purchases. */
 export default function AuditLogPanel() {
   const { t, lang } = useI18n()
   const [tabela, setTabela] = useState('')
-  const [state, setState] = useState({ rows: [], missing: false, loading: true })
+  const [state, setState] = useState({ rows: [], missing: false, dbMissing: false, loading: true })
 
   useEffect(() => {
     let alive = true
@@ -34,6 +36,9 @@ export default function AuditLogPanel() {
           {TABLES.map(k => <option key={k} value={k}>{t(`audit.table.${k}`)}</option>)}
         </select>
       </div>
+      {state.dbMissing && !state.loading && (
+        <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 8 }}>{t('audit.appOnly')}</div>
+      )}
       {state.missing ? (
         <div style={{ fontSize: 12, color: 'var(--text2)' }}>{t('audit.notReady')}</div>
       ) : state.loading ? (
@@ -49,7 +54,7 @@ export default function AuditLogPanel() {
                 <span style={{ color: 'var(--text3)' }}>{fmtWhen(r.criado_em)}</span>
                 <span>
                   <b>{asReactText(r.user_nome || t('audit.system'))}</b>{' '}
-                  {t(`audit.action.${r.acao}`)} · {t(`audit.table.${r.tabela}`)} <b>{asReactText(auditSubject(r))}</b>
+                  {t(`audit.action.${r.acao}`)} · {tableLabel(t, r.tabela)} <b>{asReactText(auditSubject(r))}</b>
                   {fields.length > 0 && <span style={{ color: 'var(--text3)' }}> ({fields.join(', ')})</span>}
                 </span>
               </div>

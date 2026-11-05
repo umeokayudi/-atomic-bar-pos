@@ -4,6 +4,10 @@
  * A missing table is reported as a limitation instead of failing the answer.
  */
 
+import { invoiceRemaining, moneyInFacts } from '../src/lib/money.js'
+import { loadBarStockAlerts } from '../src/lib/stockAlerts.js'
+import { isArchivedOrTest } from '../src/lib/catalog.js'
+
 const MISSING = new Set(['42P01', 'PGRST205', 'PGRST200'])
 
 export const AI_MODULES = ['overview', 'sales', 'stock', 'supply', 'finance', 'team', 'crm', 'marketing', 'consulting', 'reports', 'floor']
@@ -136,25 +140,35 @@ async function supplySales(db, barFilter, p) {
   }
 }
 
-async function stock(db, barFilter) {
-  const [prods, rules] = await Promise.all([
-    safe(db.from('produtos').select('id,nome,categoria,estoque_atual,estoque_minimo,ativo').eq('ativo', true).limit(600)),
-    safe(barFilter(db.from('estoque_regras').select('produto_id,minimo,bar_id').limit(2000))),
-  ])
-  const low = prods.rows
-    .filter(r => r.estoque_minimo != null && r.estoque_atual != null && +r.estoque_atual <= +r.estoque_minimo)
-    .slice(0, 20)
-    .map(r => ({ name: r.nome, onHand: +r.estoque_atual, min: +r.estoque_minimo }))
-  // Stock control is real only when products carry an on-hand count; otherwise the AI must not state stock levels.
-  const counted = prods.rows.filter(r => r.estoque_atual != null && +r.estoque_atual !== 0).length
+/**
+ * Stock alerts: the SAME list as the bar's Stock screen and Dashboard tile (src/lib/stockAlerts.js), so the
+ * AI and the screens give one number. It read produtos.estoque_atual before (89 rows, cut at 20), including
+ * archived and test products such as TESTE-MUSE.
+ */
+async function stock(db, barFilter, barId) {
+  let barIds = barId ? [barId] : []
+  if (!barId) {
+    const rules = await safe(db.from('estoque_regras').select('bar_id').limit(5000))
+    barIds = [...new Set(rules.rows.map(r => r.bar_id).filter(Boolean))].slice(0, 10)
+  }
+  if (!barIds.length) {
+    return { limitation: 'Stock control is not set up yet (no bar has stock minimums). Do not state stock levels or shortages; say stock control must be set up first.' }
+  }
+  const names = await safe(db.from('bars').select('id,nome').in('id', barIds))
+  const byBar = []
+  for (const id of barIds) {
+    const res = await loadBarStockAlerts(db, id).catch(() => ({ rows: [], ok: false }))
+    byBar.push({
+      bar: names.rows.find(b => b.id === id)?.nome || id,
+      needAttentionCount: res.rows.length,
+      needAttention: res.rows.slice(0, 30).map(r => ({ name: r.nome, onHand: r.qtd, min: r.minimo })),
+    })
+  }
   return {
-    ...(counted === 0 ? { limitation: 'Stock control is not set up yet (no product has an on-hand count). Do not state stock levels or shortages; say stock control must be set up first.' } : {}),
-    source: 'produtos (estoque_atual/estoque_minimo), estoque_regras',
-    countedProducts: counted,
-    activeProducts: prods.rows.length,
-    barRules: rules.rows.length,
-    belowMinimum: low,
-    note: 'Bar-level on-hand comes from estoque_movimentos and is not summed here to keep the answer fast.',
+    source: 'bar stock list (same as the Stock screen and the dashboard tile)',
+    needAttentionCount: byBar.reduce((a, b) => a + b.needAttentionCount, 0),
+    byBar,
+    note: 'needAttentionCount is the exact number shown on the Dashboard and the Stock screen. Archived and test products are never listed.',
   }
 }
 
@@ -162,12 +176,12 @@ async function supply(db, barFilter, p) {
   const [orders, purchases, prices] = await Promise.all([
     safe(barFilter(db.from('pedidos').select('status,data_pedido,total_estimado,bar_id,bars(nome)').gte('data_pedido', p.from).limit(2000))),
     safe(db.from('compras').select('fornecedor,total_real,total_pago,status_pagamento,data').gte('data', p.from).lte('data', p.to).limit(2000)),
-    safe(db.from('fornecedor_precos').select('preco,produtos(nome),fornecedores(nome)').limit(400)),
+    safe(db.from('fornecedor_precos').select('preco,produtos(nome,ativo),fornecedores(nome)').limit(400)),
   ])
   const byProduct = new Map()
   for (const r of prices.rows) {
     const name = r.produtos?.nome
-    if (!name) continue
+    if (!name || isArchivedOrTest(r.produtos)) continue
     const list = byProduct.get(name) || []
     list.push({ supplier: r.fornecedores?.nome, price: +r.preco })
     byProduct.set(name, list)
@@ -191,17 +205,22 @@ async function supply(db, barFilter, p) {
 }
 
 async function finance(db, barFilter, p) {
-  const inv = await safe(barFilter(db.from('faturas').select('total,valor,pago,status,data_vencimento,vencimento,bar_id,bars(nome)').limit(2000)))
+  const [inv, pags] = await Promise.all([
+    safe(barFilter(db.from('faturas').select('id,total,valor,pago,notas,status,data_vencimento,vencimento,periodo_inicio,periodo_fim,data_emissao,bar_id,bars(nome)').limit(2000))),
+    safe(db.from('fatura_pagamentos').select('fatura_id,valor,confirmado,metodo').limit(5000)),
+  ])
   const today = iso(new Date())
   const open = inv.rows.filter(r => !['pago', 'paga', 'paid'].includes(r.status))
   const due = r => r.vencimento || r.data_vencimento
-  const owed = r => Math.max(0, (+r.total || +r.valor || 0) - (+r.pago || 0))
+  const owed = r => invoiceRemaining(r)
   const cash = await safe(db.from('caixa_movimentos').select('tipo,valor,data').gte('data', p.from).lte('data', p.to).limit(5000))
   const inflow = cash.rows.filter(r => /entrada|in|receita/i.test(r.tipo || '')).reduce((a, r) => a + (+r.valor || 0), 0)
   const outflow = cash.rows.filter(r => !/entrada|in|receita/i.test(r.tipo || '')).reduce((a, r) => a + (+r.valor || 0), 0)
   const purchases = await safe(db.from('compras').select('total_real,total_pago,status_pagamento,data_pagamento').gte('data', p.from).lte('data', p.to).limit(2000))
   return {
     source: 'faturas (receivable), compras (payable), caixa_movimentos',
+    // Money in by nature (src/lib/money.js). Only receivedConfirmedCash is money that came in.
+    moneyIn: moneyInFacts(inv.rows, pags.rows),
     receivableOpen: round(open.reduce((a, r) => a + owed(r), 0)),
     receivableOverdue: round(open.filter(r => due(r) && due(r) < today).reduce((a, r) => a + owed(r), 0)),
     overdueByBar: topBy(open.filter(r => due(r) && due(r) < today), r => r.bars?.nome || r.bar_id, owed),
@@ -255,7 +274,7 @@ export async function loadAnalysisPack(db, { module = 'overview', days = 30, bar
   const jobs = []
   if (want.has('sales')) jobs.push(['barTillSales', posSales(db, barFilter, p)])
   if (want.has('supplySales')) jobs.push(['jbmSupplySales', supplySales(db, barFilter, p)])
-  if (want.has('stock')) jobs.push(['stock', stock(db, barFilter)])
+  if (want.has('stock')) jobs.push(['stock', stock(db, barFilter, barId)])
   if (want.has('supply')) jobs.push(['purchasing', supply(db, barFilter, p)])
   if (want.has('finance')) jobs.push(['finance', finance(db, barFilter, p)])
   if (want.has('team')) jobs.push(['team', team(db, barFilter)])
@@ -279,6 +298,8 @@ HOW TO READ IT:
 - barTillSales = what the bar sold at the till. today / yesterday / thisWeek / thisMonth are ready totals; byDay has every day (newest first); topProductsToday is today's best sellers.
 - jbmSupplySales = drinks JBM delivered to bars (not the bar's own sales).
 - A day with no entry in byDay had no sales (¥0).
+- stock.needAttentionCount is the low-stock number on the Dashboard and the Stock screen; say that exact number.
+- finance.moneyIn: receivedConfirmedCash is the ONLY money that came in. paidByBarDirectToSupplier (the bar paid JBM's supplier itself) and inReviewNotReceived (e.g. Stripe under review) are separate lines, never part of what came in.
 
 ANSWER RULES:
 - Answer the question in the first sentence with the number (e.g. "Hoje o bar vendeu ¥12.300 em 5 vendas."). Then at most 2-3 short lines of useful context (e.g. compare with yesterday). No long reports unless asked.
@@ -286,5 +307,6 @@ ANSWER RULES:
 - Only use these numbers; never invent a value. If something truly is not in the data, say so in one short sentence and give the closest number you have.
 - Plain language for a bar owner: never mention table or column names, JSON keys, "fonte", "source", "Fato", "Fact", "Estimate" or similar labels.
 - Write amounts as ¥12.300 (pt) / ¥12,300 (en, ja).
+- "Quanto entrou / foi pago / recebido" = finance.moneyIn.receivedConfirmedCash only. Then list the direct payment to the supplier and the amount in review on their own lines, with their names; never add them to what came in.
 - Never claim you did something unless it appears as a confirmed action.`
 }

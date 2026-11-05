@@ -1,3 +1,4 @@
+import { issueReceiptChecked } from './ui/issueReceipt'
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { fmtYen, fmtDate, Spinner, Empty, SectionTitle } from './utils'
@@ -8,7 +9,7 @@ import {
   faturaPeriodoFim,
 } from '../lib/barPortal'
 import { receiptableItems } from '../lib/portalRecibos'
-import { issuePaymentReceipt, loadCompany } from '../lib/receipts'
+import { loadCompany } from '../lib/receipts'
 import { notify } from './ui/ConfirmDialog'
 
 export default function PortalRecibosTab({ bar }) {
@@ -44,8 +45,7 @@ export default function PortalRecibosTab({ bar }) {
     setEmittingReceipt(item.key)
     try {
       // One receipt per payment, numbered in sequence; printing again reuses the same receipt.
-      const res = await issuePaymentReceipt(supabase, { bar, item, dataEmissao: getReceiptDate(item), company: await loadCompany(supabase) })
-      if (res.reused) notify(t('receipts.reused', { numero: res.numero }), 'info')
+      await issueReceiptChecked(supabase, { bar, item, dataEmissao: getReceiptDate(item), company: await loadCompany(supabase) })
     } catch (e) {
       notify(e?.message || String(e), 'error')
     } finally {

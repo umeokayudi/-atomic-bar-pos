@@ -70,3 +70,19 @@ export function buildCostOverview({ registry = [], hq = null, books = null, mont
     missingRent: !shown.find(l => l.id === 'rent')?.amount,
   }
 }
+
+/**
+ * A payment date far from the cost's month (e.g. "28 Nov 2025" on an October 2026 cost) is almost always
+ * a typo in the year. Returns the gap in days when it is over `maxDays`, else 0.
+ */
+export function payDateOff(row, maxDays = 62) {
+  const d = String(row?.data_pagamento || '').slice(0, 10)
+  const mk = String(row?.month_key || '').slice(0, 7)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !/^\d{4}-\d{2}$/.test(mk)) return 0
+  const [y, m] = mk.split('-').map(Number)
+  const start = Date.UTC(y, m - 1, 1)
+  const end = Date.UTC(y, m, 0)
+  const at = Date.parse(`${d}T00:00:00Z`)
+  const gap = at < start ? (start - at) / 86400000 : at > end ? (at - end) / 86400000 : 0
+  return gap > maxDays ? Math.round(gap) : 0
+}

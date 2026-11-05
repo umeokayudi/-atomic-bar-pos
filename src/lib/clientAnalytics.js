@@ -1,3 +1,4 @@
+import { displayName } from './catalog.js'
 import { filterSupplierVendas } from '../components/utils'
 import { filterJbmDrinksFaturas, faturaPago, faturaValor, faturaVencimento } from './barPortal'
 
@@ -72,7 +73,7 @@ export function analyzePurchases(itens, pricingMap, { monthKey, cutoffStr } = {}
     if (r.source === 'pos') posSourced += r.jbmTotal
     if (r.source === 'estimate') estimated += r.jbmTotal
 
-    const nome = it.produtos?.nome || '?'
+    const nome = displayName(it.produtos?.nome) || '?'
     if (!byProduct[nome]) {
       byProduct[nome] = {
         nome,
@@ -229,7 +230,7 @@ export function categoryAnalysis(itens, pricingMap, { monthKey, cutoffStr } = {}
     c.jbmTotal += r.jbmTotal
     c.posTotal += r.posTotal
     c.margin += r.margin
-    c._names.add(it.produtos?.nome)
+    c._names.add(displayName(it.produtos?.nome))
   }
 
   const rows = Object.values(byCat)
@@ -281,7 +282,7 @@ export function findMissingPricing(itens, pricingMap) {
   const seen = new Map()
   for (const it of itens || []) {
     if (!it.produto_id || pricingMap[it.produto_id]?.preco_drink > 0) continue
-    const nome = it.produtos?.nome || '?'
+    const nome = displayName(it.produtos?.nome) || '?'
     if (!seen.has(it.produto_id)) {
       seen.set(it.produto_id, { produto_id: it.produto_id, nome, categoria: it.produtos?.categoria, qtd: 0, jbmTotal: 0 })
     }

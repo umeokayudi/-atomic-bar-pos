@@ -388,7 +388,11 @@ export default {
   },
   tabs: {
     total: 'Total', paid: 'Paid', due: 'Still to pay', paidShort: 'Paid {amount}', people: '{n} people', rename: 'Rename', renameHint: 'Tab name', removeName: 'Remove name', saveName: 'Save', peopleLabel: 'People',
-    manage: 'Manage tab', onTab: 'on the tab', notSent: 'not sent', send: 'Send {n} to the tab', table: 'Table', noTable: 'No table',
+    manage: 'Manage tab', onTab: 'on the tab', notSent: 'not sent', send: 'Send {n} to the tab',
+    newOrder: 'New order', orderFor: 'New order · {name}', sendShort: 'Send', sendOrder: 'Send order · {amount}',
+    confirmTitle: 'Confirm order', confirmSub: 'For {name}. Check the drinks before sending.', orderTotal: 'This order',
+    tabAfter: 'Tab total after sending', confirmSend: 'Confirm and send', keepAdding: 'Keep adding',
+    sentToast: 'Order sent · {n} items · {amount}', sentTo: 'to {name}', table: 'Table', noTable: 'No table',
     busy: 'busy', deviceOnly: 'Tabs are saved on this device only for now.',
     lockedHint: 'A payment was taken, so the tab is waiting for the rest. Reopen it to change lines.', reopen: 'Reopen',
     sec: { items: 'Items', pay: 'Pay', transfer: 'Transfer', split: 'Split', merge: 'Merge', details: 'Details', history: 'History' },

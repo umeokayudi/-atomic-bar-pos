@@ -1,3 +1,4 @@
+import { displayName } from './catalog.js'
 import { pedidoTotal } from './pedidoVenda.js'
 import { buildRestockItems, productsAlreadyOnOpenOrders } from './posSupply.js'
 
@@ -58,7 +59,7 @@ export function receivedTimeline({ pedidos = [], notes = [], month = '' } = {}) 
       kind: 'note',
       date: String(n.data || n.data_venda || n.criado_em || '').slice(0, 10),
       total: +n.total || 0,
-      items: (n.vendas_itens || []).map(it => ({ key: it.id, nome: it.produtos?.nome || '?', qtd: +it.qtd || 0, preco: +it.preco_unitario || 0 })),
+      items: (n.vendas_itens || []).map(it => ({ key: it.id, nome: displayName(it.produtos?.nome) || '?', qtd: +it.qtd || 0, preco: +it.preco_unitario || 0 })),
       order,
       note: n,
     }
@@ -70,7 +71,7 @@ export function receivedTimeline({ pedidos = [], notes = [], month = '' } = {}) 
       kind: p.status === 'cancelado' ? 'cancelled' : 'order',
       date: String(p.data_entrega_prevista || orderDay(p)).slice(0, 10),
       total: p.status === 'cancelado' ? 0 : pedidoTotal(p),
-      items: (p.pedidos_itens || []).map(it => ({ key: it.id, nome: it.produtos?.nome || '?', qtd: +it.qtd || 0, preco: +it.preco_unitario || 0 })),
+      items: (p.pedidos_itens || []).map(it => ({ key: it.id, nome: displayName(it.produtos?.nome) || '?', qtd: +it.qtd || 0, preco: +it.preco_unitario || 0 })),
       order: p,
       note: null,
     })

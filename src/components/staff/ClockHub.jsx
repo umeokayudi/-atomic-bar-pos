@@ -91,9 +91,18 @@ function Tile({ label, value, sub, tone = '', onClick }) {
 }
 
 /** At-a-glance numbers: tonight's list, who is working, late/absent, fines, next week sent, hours and pay. */
+// A shift open longer than this is a missing clock-out, not work: it is flagged and not counted as hours.
+export const STALE_OPEN_HOURS = 16
 const liveOf = row => {
   const sh = (row?.shifts || []).find(x => x.open)
-  return sh?.clockIn?.punched_at ? { at: sh.clockIn.punched_at, hours: hoursBetween(sh.clockIn.punched_at, new Date().toISOString()) } : null
+  if (!sh?.clockIn?.punched_at) return null
+  const hours = hoursBetween(sh.clockIn.punched_at, new Date().toISOString())
+  return { at: sh.clockIn.punched_at, hours, stale: hours > STALE_OPEN_HOURS }
+}
+/** Hours of the shift still running, counted the same way on the tiles and on each face. */
+const liveHours = row => {
+  const live = liveOf(row)
+  return live && !live.stale ? live.hours : 0
 }
 const hoursText = h => `${(Math.round((+h || 0) * 10) / 10).toFixed(1)}h`
 
@@ -106,7 +115,7 @@ export function StaffFaces({ staff, monthRows, todayRows, photos, showRate, onOp
     const m = month.get(String(s.id))
     const d = today.get(String(s.id))
     const live = liveOf(m)
-    const extra = live ? live.hours : 0
+    const extra = liveHours(m)
     return { ...s, open: !!m?.open, live, today: (d?.hours || 0) + extra, month: (m?.hours || 0) + extra }
   }).sort((a, b) => (b.open - a.open) || (b.today - a.today) || (b.month - a.month) || String(a.nome || '').localeCompare(String(b.nome || '')))
   const working = people.filter(p => p.open).length
@@ -125,7 +134,9 @@ export function StaffFaces({ staff, monthRows, todayRows, photos, showRate, onOp
             <button key={p.id} type="button" className={`clock-face${p.open ? ' is-open' : ''}`} onClick={() => onOpen('hours')}>
               <span className="clock-face-photo">
                 {url ? <img src={url} alt="" loading="lazy" /> : <span>{initialsOf(p.nome || p.email || '?')}</span>}
-                <em className={p.open ? 'is-on' : ''}>{p.open ? t('clockHub.inSince', { time: fmtTime(p.live.at) }) : t('clock.offShift')}</em>
+                <em className={p.live?.stale ? 'is-warn' : p.open ? 'is-on' : ''}>{p.live?.stale
+                  ? t('clockHub.noClockOut', { when: `${fmtDay(p.live.at, { month: 'numeric', day: 'numeric' })} ${fmtTime(p.live.at)}`, hours: Math.round(p.live.hours) })
+                  : p.open && p.live ? t('clockHub.inSince', { time: fmtTime(p.live.at) }) : t('clock.offShift')}</em>
               </span>
               <strong className="clock-face-name">{p.nome || p.email || '—'}</strong>
               <span className="clock-face-stats">
@@ -146,8 +157,9 @@ export function ClockOverview({ summary, teamRows, loading, onOpen, faces }) {
   const tonight = summary.tonight
   const people = tonight?.attendance || []
   const shown = people.slice(0, 6)
-  const working = teamRows.filter(r => r.open)
-  const hours = teamRows.reduce((n, r) => n + (+r.hours || 0), 0)
+  const working = teamRows.filter(r => r.open && !liveOf(r)?.stale)
+  const stale = teamRows.filter(r => liveOf(r)?.stale)
+  const hours = teamRows.reduce((n, r) => n + (+r.hours || 0) + liveHours(r), 0)
   const pay = teamRows.reduce((n, r) => n + (+r.pay || 0), 0)
   const dash = '—'
   const nw = summary.nextWeek
@@ -158,7 +170,7 @@ export function ClockOverview({ summary, teamRows, loading, onOpen, faces }) {
         <Tile label={t('clockHub.lateWeek')} value={summary.flagged ?? dash} sub={t('clockHub.lateWeekSub')} tone={summary.flagged ? 'is-warn' : ''} onClick={() => onOpen('schedule')} />
         <Tile label={t('clockHub.finesMonth')} value={summary.fines ? fmtYen(summary.fines.total) : dash} sub={t('clockHub.finesSub', { n: summary.fines?.count || 0 })} tone={summary.fines?.total ? 'is-bad' : ''} onClick={() => onOpen('fines')} />
         <Tile label={t('clockHub.nextWeekSent')} value={nw ? `${nw.sent}/${nw.total}` : dash} sub={nw ? t('clockHub.nextWeekSub', { when: `${fmtDay(nw.deadline, { weekday: 'short', month: 'numeric', day: 'numeric' })} ${fmtTime(nw.deadline)}` }) : ''} tone={nw && nw.sent < nw.total ? 'is-warn' : nw ? 'is-ok' : ''} onClick={() => onOpen('nextWeek')} />
-        <Tile label={t('clockHub.hoursMonth')} value={loading ? dash : `${hours.toFixed(1)}h`} sub={t('clockHub.monthSub')} onClick={() => onOpen('hours')} />
+        <Tile label={t('clockHub.hoursMonth')} value={loading ? dash : `${hours.toFixed(1)}h`} sub={stale.length ? t('clockHub.noClockOutSub', { names: stale.map(r => r.nome).filter(Boolean).join(', ') }) : t('clockHub.monthSub')} tone={stale.length ? 'is-warn' : ''} onClick={() => onOpen('hours')} />
         <Tile label={t('clockHub.payMonth')} value={loading ? dash : fmtYen(pay)} sub={t('clockHub.monthSub')} onClick={() => onOpen('hours')} />
       </div>
       {faces}

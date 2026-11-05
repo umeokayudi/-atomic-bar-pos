@@ -16,7 +16,7 @@ import { BarIdentity, BarMark } from './BarIdentity'
 import { ATOMIC_RED, BRAND_COLORS, brandColorOf, brandRow, brandTokens, cleanHex, cleanLogo, fileToLogo, resolveBrand } from '../lib/barBrand'
 import { initialsOf } from '../lib/staffApp'
 import { runChange } from '../lib/safeDelete'
-import { costPending, findDuplicates, isMenuItem, nameTaken, productMargin } from '../lib/catalog'
+import { costPending, findDuplicates, isArchivedOrTest, isMenuItem, nameTaken, productMargin } from '../lib/catalog'
 import { askConfirm, notify } from './ui/ConfirmDialog'
 import AuditLogPanel from './AuditLogPanel'
 
@@ -162,14 +162,14 @@ export function ProductsTab() {
       })()}
 
       <PortalSurface headerRight={(() => {
-        const n = produtos.filter(p => p.ativo !== false && isMenuItem(p, NON_SUPPLIER_CATEGORIES)).length
+        const n = produtos.filter(p => !isArchivedOrTest(p) && isMenuItem(p, NON_SUPPLIER_CATEGORIES)).length
         return n ? <label style={{ fontSize:12, display:'flex', gap:6, alignItems:'center' }}><input type="checkbox" checked={showMenu} onChange={e=>setShowMenu(e.target.checked)} />{showMenu ? t('catalog.showMenu') : t('catalog.menuHidden', { count: n })}</label> : null
       })()}>
         {loading ? <Spinner /> : produtos.length===0 ? <Empty text={t('configs.noProducts')} /> : (
           <table>
             <thead><tr><th>{t('configs.productCol')}</th><th>{t('configs.categoryCol')}</th><th>{t('configs.costCol')}</th><th>{t('configs.sellCol')}</th><th>{t('configs.margin')}</th><th></th></tr></thead>
             <tbody>
-              {produtos.filter(p=>p.ativo!==false && (showMenu || !isMenuItem(p, NON_SUPPLIER_CATEGORIES))).map(p=>{
+              {produtos.filter(p=>!isArchivedOrTest(p) && (showMenu || !isMenuItem(p, NON_SUPPLIER_CATEGORIES))).map(p=>{
                 // Cost ¥0 is a pending item, not a 100% margin.
                 const m = productMargin(p)
                 return (

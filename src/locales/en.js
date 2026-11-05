@@ -1,7 +1,7 @@
 /** English UI strings — JBM Drinks */
 export default {
   aiAct: {
-    hint: 'Ask it to do something, e.g. "order 6 Jameson for Atomic". Nothing is saved until you press Confirm.',
+    hint: 'Ask it to do something, e.g. "order 6 Jameson for Atomic". Your data changes only after you press Confirm. Your questions and answers are kept in the AI history.',
     confirm: 'Confirm and save',
     cancel: 'Cancel',
     saving: 'Saving...',

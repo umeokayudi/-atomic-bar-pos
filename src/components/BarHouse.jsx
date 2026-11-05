@@ -11,6 +11,8 @@ import { staffFileUrls } from '../lib/employeeFileApi'
 import BusinessPartners from './BusinessPartners'
 import CostEditor from './house/CostEditor'
 import { costCategoryOf, costEmoji, isKnownCostCategory } from '../lib/costCategories'
+import { payDateOff } from '../lib/costOverview'
+import { askConfirm } from './ui/ConfirmDialog'
 
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 const LANG_KEYS = ['ja', 'pt', 'en', 'zh', 'ko', 'es']
@@ -276,6 +278,7 @@ function PayLine({ row, spec }) {
     if (brands.length) parts.push(brands.join(', '))
   } else if (spec.pay) {
     if (row.data_pagamento) parts.push(t('house.paidOn', { date: String(row.data_pagamento).slice(0, 10) }))
+    if (payDateOff(row)) parts.push(t('house.payDateOff', { month: row.month_key }))
     else if (+row.vence_dia) parts.push(t('house.dueEvery', { day: row.vence_dia }))
     if (row.metodo) parts.push(named(t, 'metodo', row.metodo))
     if (!row.data_pagamento && !+row.vence_dia && !row.metodo) parts.push(t('house.payMissing'))
@@ -646,6 +649,12 @@ export default function BarHouseTab({ bar, onTab, section = 'staff' }) {
   }
 
   async function saveRegistry(row) {
+    const off = payDateOff({ data_pagamento: row.data_pagamento, month_key: row.month_key })
+    if (off && !(await askConfirm({
+      title: t('house.payDateOffTitle'),
+      message: t('house.payDateOffBody', { date: String(row.data_pagamento).slice(0, 10), month: row.month_key, days: off }),
+      confirmLabel: t('house.payDateOffKeep'),
+    }))) return
     setBusy(true)
     setErr('')
     invalidateBarTeam()

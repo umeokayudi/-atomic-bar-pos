@@ -45,22 +45,52 @@ function refOfRow(r) {
   return it?.ref || ''
 }
 
+function invoiceKeyOfRow(r) {
+  const it = Array.isArray(r?.itens) ? r.itens[0] : null
+  return r?.fatura_id || it?.fatura_id || ''
+}
+
 /**
- * An existing receipt for the same payment: same ref, or (older rows without a ref) same bar,
- * same amount and same invoice period.
+ * An existing receipt for the same payment: same ref; or same bar + same amount + same invoice (id, or the
+ * invoice period for older rows) ; or same bar + same amount + same payment date. The last rule catches the
+ * October receipts RY-202610-002/-003 (both ¥300.000 for the 29/09 transfer, saved with a one-day period).
  */
 export function findDuplicate(existing = [], { barId, item }) {
   const ref = receiptRefOf(item)
   const { start, end } = invoicePeriod(item?.fatura)
   const valor = Math.round(+item?.valor || 0)
+  const payDay = String(item?.data || '').slice(0, 10)
+  const faturaId = item?.fatura?.id || ''
   return (existing || []).find(r => {
     if (r.bar_id !== barId) return false
     const rref = refOfRow(r)
-    if (rref) return rref === ref
-    return Math.round(+r.total || 0) === valor &&
-      String(r.periodo_inicio || '').slice(0, 10) === start &&
-      String(r.periodo_fim || '').slice(0, 10) === end
+    if (rref && rref === ref) return true
+    if (Math.round(+r.total || 0) !== valor) return false
+    const rInv = invoiceKeyOfRow(r)
+    if (rInv && faturaId && rInv === faturaId) return true
+    if (!rref && String(r.periodo_inicio || '').slice(0, 10) === start && String(r.periodo_fim || '').slice(0, 10) === end) return true
+    return !!payDay && String(r.data_emissao || '').slice(0, 10) === payDay
   }) || null
+}
+
+/**
+ * Receipts already issued twice for one payment (same bar, amount and payment date, or same ref):
+ * id of the later copy → the receipt that came first. Shown on every receipt list.
+ */
+export function duplicateReceipts(rows = []) {
+  const sorted = [...(rows || [])].sort((a, b) =>
+    String(a.criado_em || '').localeCompare(String(b.criado_em || '')) || String(a.numero || '').localeCompare(String(b.numero || '')))
+  const seen = new Map()
+  const out = new Map()
+  for (const r of sorted) {
+    const ref = refOfRow(r)
+    const key = ref
+      ? `ref:${r.bar_id}:${ref}`
+      : `pay:${r.bar_id}:${Math.round(+r.total || 0)}:${String(r.data_emissao || '').slice(0, 10)}:${invoiceKeyOfRow(r) || String(r.periodo_fim || '').slice(0, 10)}`
+    if (seen.has(key)) out.set(r.id, seen.get(key))
+    else seen.set(key, r)
+  }
+  return out
 }
 
 /** Next number for the month: the highest RY-YYYYMM-NNN of any bar + 1. */
@@ -86,13 +116,15 @@ function invoiceLabel(f) {
  * Prints the receipt for one payment. If that payment already has a receipt, the same one is printed
  * again (same number) instead of making a second receipt.
  */
-export async function issuePaymentReceipt(supabase, { bar, item, dataEmissao, company }) {
+export async function issuePaymentReceipt(supabase, { bar, item, dataEmissao, company, reprint = false }) {
   const ref = receiptRefOf(item)
   const { start, end } = invoicePeriod(item.fatura)
   const emitente = companyEmitente(company)
   const { data: rows, error: listErr } = await supabase.from('ryoshusho').select('*')
   if (listErr) throw listErr
   const dup = findDuplicate(rows || [], { barId: bar.id, item })
+  // Never a second receipt for the same payment: say so, point to the existing one, print that one again.
+  if (dup && !reprint) return { numero: dup.numero, reused: true, duplicate: true, existing: dup }
   const numero = dup?.numero || nextNumber((rows || []).map(r => r.numero), dataEmissao)
   const html = buildPaymentRyoshushoHtml({
     numero,

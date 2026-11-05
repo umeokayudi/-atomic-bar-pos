@@ -256,7 +256,7 @@ function RecipeEditor({ bar, drink, produtos, cats, onClose, onSaved }) {
       copo: form.copo || '',
       preco_venda: price,
       custo: Math.round(cost),
-      margem: price > 0 ? (price - cost) / price : 0,
+      margem: price > 0 && cost > 0 ? (price - cost) / price : 0,
       preco_desconto: +form.preco_desconto || 500,
       notas: form.notas || '',
       custom: drink ? !!drink.custom : true,
@@ -493,9 +493,11 @@ export function MenuTab({ bar }) {
       return a.nome.localeCompare(b.nome)
     })
 
-  const avg = drinks.length ? Math.round(drinks.reduce((a, d) => a + (+d.margem || 0), 0) / drinks.length * 100) : 0
-  const top = [...drinks].sort((a, b) => b.margem - a.margem)[0]
-  const low = [...drinks].sort((a, b) => a.margem - b.margem)[0]
+  // Drinks with cost ¥0 have no real margin: left out of the average, best and worst.
+  const costed = drinks.filter(d => +d.custo > 0)
+  const avg = costed.length ? Math.round(costed.reduce((a, d) => a + (+d.margem || 0), 0) / costed.length * 100) : 0
+  const top = [...costed].sort((a, b) => b.margem - a.margem)[0]
+  const low = [...costed].sort((a, b) => a.margem - b.margem)[0]
 
   if (loading) return <Spinner text={t('portal.menu.title')} />
 
@@ -559,7 +561,7 @@ export function MenuTab({ bar }) {
               <div className="rm-num" data-label={t('recipes.priceShort')}><b>{fmtYen(d.preco_venda)}</b></div>
               <div className="rm-num" data-label={t('recipes.cost')}><span style={{ color: 'var(--c-danger)' }}>{fmtYen(d.custo)}</span></div>
               <div className="rm-num" data-label={t('recipes.vip')}><span>{d.preco_desconto ? fmtYen(d.preco_desconto) : '—'}{vipM != null && <small> · {vipM}%</small>}</span></div>
-              <div className="rm-num" data-label={t('recipes.margin')}><b className={'rm-pill is-' + marginTone(m)}>{m}%</b></div>
+              <div className="rm-num" data-label={t('recipes.margin')}>{+d.custo > 0 ? <b className={'rm-pill is-' + marginTone(m)}>{m}%</b> : <b className="rm-pill is-ok">{t('catalog.noCost')}</b>}</div>
               <div className="rm-actions" onClick={e => e.stopPropagation()}>
                 <button type="button" className="rb-icon-btn" onClick={() => setEditing(d)} aria-label={t('recipes.editRecipe')}><Icon name="edit" size={15} /></button>
                 <button type="button" className="rb-icon-btn is-danger" onClick={() => deleteDrink(d.id)} aria-label={t('recipes.remove')}><Icon name="trash" size={15} /></button>

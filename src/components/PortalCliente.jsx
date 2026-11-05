@@ -1,3 +1,4 @@
+import { issueReceiptChecked } from './ui/issueReceipt'
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Icon, { hasIcon } from './ui/Icon'
@@ -11,7 +12,7 @@ import { callGeminiChat, imageDataUrlToParts, parseJsonFromAI } from '../lib/ai'
 import { BarIdentity, useBarTheme } from './BarIdentity'
 import { MobileTopBar, ShellOverlay, WorkspaceChrome, TopbarUser, useMobileMenuLock } from './MobileShell'
 import GlobalSearch from './GlobalSearch'
-import { fmtYen, fmtDate, Spinner, Empty, SectionTitle, isSupplierProduct, filterSupplierVendas, roleLabel } from './utils'
+import { fmtYen, fmtDate, Spinner, Empty, SectionTitle, filterSupplierVendas, roleLabel } from './utils'
 import {
   filterJbmDrinksFaturas,
   faturaValor,
@@ -68,8 +69,8 @@ const StaffOrdersTab = lazy(() => import('./StaffOrdersTab'))
 const StaffAlerts = lazy(() => import('./StaffAlerts'))
 const EmployeeDesk = lazy(() => import('./EmployeeDesk'))
 const StaffApp = lazy(() => import('./staff/StaffApp'))
-import { fetchAllStockMovements } from '../lib/posSupply'
-import { attentionFirst, coalesceStockMoves, decorateStockList, deliveryNoteMoves, posPourMoves, stockFlow, stockGlance } from '../lib/barStock'
+import { buildStockList, loadBarStockInputs } from '../lib/stockAlerts'
+import { attentionFirst, stockFlow, stockGlance } from '../lib/barStock'
 import { groupedNavForRole, dockForLogin, defaultBarTab, posAccessForRole, canManageBarTeam, isGerente, costAccessForRole, canPlaceDrinkOrders } from '../lib/access'
 import { isTillKiosk, isClockKiosk, loginDoorFromHash, setDoorHash, doorAllowsRole } from '../lib/barDoors'
 import UiPrefsPanel from './UiPrefsPanel'
@@ -145,8 +146,9 @@ function usePrefetchScreens(allowed) {
 function TabHold({ children }) {
   return <Suspense fallback={<div style={{ padding: 28, color: 'var(--text2)' }}>…</div>}>{children}</Suspense>
 }
-import { issuePaymentReceipt, loadCompany } from '../lib/receipts'
+import { loadCompany } from '../lib/receipts'
 import { notify } from './ui/ConfirmDialog'
+import { displayName } from '../lib/catalog'
 
 // ── HOME ──────────────────────────────────────────────────────────────────────
 /** Bar home cards: id, default width, hidden by default. Titles and content live in HomeTab. */
@@ -288,7 +290,7 @@ function HomeTab({ bar, onTab }) {
   const prodMap = {}
   const prodVol = {}
   itens.filter(it => it.vendas?.data >= cutoffStr).forEach(it => {
-    const nome = it.produtos?.nome || '?'
+    const nome = displayName(it.produtos?.nome) || '?'
     const val  = (it.preco_unitario||0) * it.qtd
     prodMap[nome] = (prodMap[nome]||0) + val
     prodVol[nome] = (prodVol[nome]||0) + it.qtd
@@ -303,7 +305,7 @@ function HomeTab({ bar, onTab }) {
 
   const byName = {}
   itens.filter(it => it.vendas?.data >= cutoffStr).forEach(it => {
-    const nome = it.produtos?.nome || '?'
+    const nome = displayName(it.produtos?.nome) || '?'
     if (!byName[nome]) byName[nome] = { nome, qtd: 0, jbmTotal: 0, posTotal: 0, margin: 0, source: 'pos' }
     const r = projectItemRevenue(it, pricingMap)
     byName[nome].qtd += +it.qtd || 0
@@ -632,26 +634,18 @@ function InventoryTab({ bar, onOrder }) {
   async function load() {
     setLoading(true)
     try {
-      const [movimentos, pR, rR, vR, pourR, priceR, orderR] = await Promise.all([
-        fetchAllStockMovements(supabase, bar.id, '*').catch(() => []),
-        supabase.from('produtos_public').select('*').eq('ativo', true).order('categoria').order('nome'),
-        supabase.from('estoque_regras').select('*').eq('bar_id', bar.id),
-        supabase.from('vendas').select('*, vendas_itens(*, produtos(id,nome))').eq('bar_id', bar.id).order('data', { ascending: false }),
-        supabase.from('pos_vendas_itens').select('produto_id,nome,qtd,pos_venda_id'),
-        supabase.from('bar_pricing').select('produto_id,drinks_por_garrafa').eq('bar_id', bar.id),
+      // Same inputs as the dashboard tile, the HQ snapshot and the AI (src/lib/stockAlerts.js): one stock number.
+      const [inputs, orderR] = await Promise.all([
+        loadBarStockInputs(supabase, bar.id),
         supabase.from('pedidos').select('id,status,pedidos_itens(produto_id)').eq('bar_id', bar.id),
       ])
-      setProdutos((pR.data || []).filter(isSupplierProduct))
+      setProdutos(inputs.produtos)
       setOrders(orderR?.data || [])
-      setMovimentos(movimentos || [])
-      setNotes(filterSupplierVendas(vR.data || []))
-      setPours(pourR?.data || [])
-      const pMap = {}
-      ;(priceR.data || []).forEach(r => { pMap[r.produto_id] = { drinks_por_garrafa: +r.drinks_por_garrafa || 0 } })
-      setPricing(pMap)
-      const rMap = {}
-      ;(rR.data || []).forEach(r => { rMap[r.produto_id] = r.minimo })
-      setRegras(rMap)
+      setMovimentos(inputs.movimentos)
+      setNotes(inputs.notes)
+      setPours(inputs.pours)
+      setPricing(inputs.pricing)
+      setRegras(inputs.regras)
     } finally {
       setLoading(false)
     }
@@ -681,8 +675,7 @@ function InventoryTab({ bar, onOrder }) {
     load()
   }
 
-  const moves = coalesceStockMoves(movimentos, deliveryNoteMoves(notes), posPourMoves(pours, pricing))
-  const list = decorateStockList(produtos, moves, regras)
+  const { moves, list } = buildStockList({ produtos, movimentos, regras, notes, pours, pricing })
   const flow = stockFlow(moves)
   const unknownCount = list.filter(p => p.unknown).length
 
@@ -932,8 +925,7 @@ function FaturasTab({ bar }) {
       // One receipt per payment, numbered in sequence; printing again reuses the same receipt.
       const item = { key, valor, data, metodo, notas, fatura }
       const dataEmissao = (data || new Date().toISOString().slice(0, 10)).slice(0, 10)
-      const res = await issuePaymentReceipt(supabase, { bar, item, dataEmissao, company: await loadCompany(supabase) })
-      if (res.reused) notify(t('receipts.reused', { numero: res.numero }), 'info')
+      await issueReceiptChecked(supabase, { bar, item, dataEmissao, company: await loadCompany(supabase) })
     } catch (e) {
       notify(e?.message || String(e), 'error')
     } finally {

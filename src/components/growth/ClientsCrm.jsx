@@ -6,6 +6,9 @@ import { useAiPageContext } from '../../lib/aiPanel'
 import { buildClientRows, clientSignals, isoDay, addDays, sortClientRows } from '../../lib/growth'
 import { filterSupplierVendas, fmtYen } from '../utils'
 import Icon from '../ui/Icon'
+import ModalShell from '../ModalShell'
+import { notify } from '../ui/ConfirmDialog'
+import { billingEmailFor, buildCollectionEmail, mailtoHref } from '../../lib/collectionEmail'
 
 const WINDOWS = [30, 90]
 
@@ -19,6 +22,7 @@ export default function ClientsCrm({ onNav }) {
   const [q, setQ] = useState('')
   const [sort, setSort] = useState('revenue')
   const [onlySignals, setOnlySignals] = useState(false)
+  const [collect, setCollect] = useState(null)
 
   useEffect(() => {
     let alive = true
@@ -28,13 +32,18 @@ export default function ClientsCrm({ onNav }) {
     Promise.all([
       supabase.from('bars').select('id,nome,cor').order('nome'),
       supabase.from('vendas').select('id,bar_id,total,data,data_venda,obs,cast_id,criado_em').gte('data', from).limit(10000),
-      supabase.from('faturas').select('id,bar_id,total,valor,pago,status,vencimento,data_vencimento'),
+      supabase.from('faturas').select('id,bar_id,total,valor,pago,notas,status,vencimento,data_vencimento,periodo_inicio,periodo_fim,data_emissao'),
       supabase.from('pedidos').select('id,bar_id,status,data_pedido').order('data_pedido', { ascending: false }).limit(2000),
-    ]).then(([b, v, f, p]) => {
+      // For "Collect": payments by nature, the bar's billing e-mail (bar file) and its owner login as fallback.
+      supabase.from('fatura_pagamentos').select('fatura_id,valor,confirmado,metodo'),
+      supabase.from('bar_profile').select('*'),
+      supabase.from('perfis').select('bar_id,role,email').in('role', ['cliente', 'gerente']),
+    ]).then(([b, v, f, p, pg, prof, logins]) => {
       if (!alive) return
       const err = b.error || v.error || f.error || p.error
       if (err) { setError(err.message); return }
-      setData({ bars: b.data || [], sales: filterSupplierVendas(v.data), invoices: f.data || [], orders: p.data || [], today })
+      setData({ bars: b.data || [], sales: filterSupplierVendas(v.data), invoices: f.data || [], orders: p.data || [], today,
+        pagamentos: pg?.data || [], profiles: prof?.data || [], logins: logins?.data || [] })
     })
     return () => { alive = false }
   }, [days])
@@ -155,6 +164,13 @@ export default function ClientsCrm({ onNav }) {
                         {r.overdue > 0 && onNav && (
                           <button type="button" className="ui-btn is-ghost is-sm" onClick={() => onNav('faturas')}>{t('growth.openInvoices')}</button>
                         )}
+                        {r.receivable > 0 && (
+                          <button type="button" className="ui-btn is-ghost is-sm" onClick={() => setCollect(buildCollectionEmail({
+                            bar: { id: r.id, nome: r.nome },
+                            email: billingEmailFor(r.id, data),
+                            invoices: data.invoices, pagamentos: data.pagamentos, today: data.today, t, yen: fmtYen,
+                          }))}>{t('collect.button')}</button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -165,6 +181,23 @@ export default function ClientsCrm({ onNav }) {
         )}
         <p className="growth-formula"><Icon name="info" size={14} /> {t('growth.crmFormula', { n: days })}</p>
       </section>
+
+      <ModalShell open={!!collect} onClose={() => setCollect(null)} title={t('collect.title')} subtitle={collect ? t('collect.to', { email: collect.to || t('collect.noEmail') }) : ''}>
+        {collect && (
+          <div style={{ display: 'grid', gap: 10 }}>
+            <label className="ui-field"><span className="ui-muted">{t('collect.subjectLabel')}</span>
+              <input value={collect.subject} onChange={e => setCollect(c => ({ ...c, subject: e.target.value }))} />
+            </label>
+            <textarea value={collect.body} onChange={e => setCollect(c => ({ ...c, body: e.target.value }))} rows={14} style={{ width: '100%', fontFamily: 'inherit', fontSize: 13, lineHeight: 1.5 }} />
+            <div className="ui-row is-wrap" style={{ justifyContent: 'flex-end' }}>
+              <button type="button" className="ui-btn is-sm" onClick={async () => {
+                try { await navigator.clipboard.writeText(`${collect.subject}\n\n${collect.body}`); notify(t('collect.copied')) } catch { notify(t('collect.copyFailed'), 'error') }
+              }}><Icon name="copy" size={14} /> {t('collect.copy')}</button>
+              <a className="ui-btn is-sm is-primary" href={mailtoHref(collect)}>{t('collect.openMail')}</a>
+            </div>
+          </div>
+        )}
+      </ModalShell>
     </div>
   )
 }

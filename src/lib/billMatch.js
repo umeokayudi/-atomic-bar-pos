@@ -2,18 +2,21 @@
 
 import { faturaPago, faturaValor } from './barPortal.js'
 import { lastDayOfMonth } from './tokyo.js'
+import { invoiceAdjustment } from './money.js'
 
 const TOL = 1
 
-/** June 2026 orders above the ¥465,000 invoice. The bar already paid this gap. */
-export const JUNE_2026_GAP_PAID = 2100926
-
-function withRecordedGap(row) {
-  if (!row || row.status !== 'off') return row
-  const june = String(row.start || '').startsWith('2026-06') && String(row.end || '').startsWith('2026-06')
-  const gap = Math.abs(Math.round(row.delta || 0))
-  if (!june || gap !== JUNE_2026_GAP_PAID) return row
-  return { ...row, status: 'paid-gap', gapPaid: JUNE_2026_GAP_PAID }
+/**
+ * A gap between deliveries and the invoice is explained only by an adjustment saved on that invoice
+ * (amount + reason, see money.js invoiceAdjustment). Nothing is "already paid" unless a payment is recorded.
+ */
+function withAdjustment(row, invoice) {
+  if (!row || row.status !== 'off' || !invoice) return row
+  const adj = invoiceAdjustment(invoice)
+  if (!adj.ajuste) return row
+  const explained = row.gaps.every(g => g.right === 'invoice' && close(g.delta, adj.ajuste))
+  if (!explained) return row
+  return { ...row, status: 'adjusted', ajuste: adj.ajuste, motivo: adj.motivo, adjustedBy: adj.by, adjustedAt: adj.at }
 }
 
 function day(value) {
@@ -101,7 +104,8 @@ export function billChecks({ orders = [], notes = [], invoices = [], monthKey = 
       start: monthKey ? `${monthKey}-01` : '',
       end: monthKey ? monthEnd(monthKey) : '',
     })]
-  const marked = rows.map(withRecordedGap)
-  const headline = marked.find(r => r.status === 'paid-gap') || marked.find(r => r.status === 'off') || marked[0]
+  const invoiceById = new Map((invoices || []).filter(Boolean).map(f => [f.id, f]))
+  const marked = rows.map(r => withAdjustment(r, invoiceById.get(r.invoiceId)))
+  const headline = marked.find(r => r.status === 'off') || marked.find(r => r.status === 'adjusted') || marked[0]
   return { rows: marked, headline }
 }

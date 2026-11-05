@@ -9,10 +9,13 @@ import { dateLocale } from '../lib/tokyo'
 import MarkPaidPopup from './MarkPaidPopup'
 import Icon from './ui/Icon'
 import { ColumnChart } from './ui/Charts'
-import { averageOfActive, invoiceCheck, invoiceDeliveries, invoiceLockError, invoiceMoney, invoicePeriod, paymentKind } from '../lib/money'
+import { averageOfActive, invoiceCheck, invoiceComposition, invoiceDeliveries, invoiceLockError, invoicePeriod, invoiceRemaining, invoiceTotal, notasWithAdjustment, paymentKind } from '../lib/money'
+import { useAuth } from './Auth'
+import { logChange } from '../lib/audit'
 import { askConfirm, notify } from './ui/ConfirmDialog'
 import { runChange } from '../lib/safeDelete'
-import { issuePaymentReceipt, loadCompany } from '../lib/receipts'
+import { loadCompany } from '../lib/receipts'
+import { issueReceiptChecked } from './ui/issueReceipt'
 import { receiptableItems } from '../lib/portalRecibos'
 
 // Local date key (toISOString shifts to UTC, which moved Tokyo dates one day back).
@@ -68,7 +71,7 @@ function Overview() {
   if (loading) return <Spinner text={t('common.loading')} />
 
   const pending = faturas.filter(f=>f.status!=='pago')
-  const totalPending = pending.reduce((a,f)=>a+((+f.total||+f.valor||0)-(+f.pago||0)),0)
+  const totalPending = pending.reduce((a,f)=>a+invoiceRemaining(f),0)
   const overdue = pending.filter(f=>new Date(f.data_vencimento)<new Date())
   const upcoming = pending.filter(f=>new Date(f.data_vencimento)>=new Date()).sort((a,b)=>new Date(a.data_vencimento)-new Date(b.data_vencimento))
 
@@ -99,7 +102,7 @@ function Overview() {
       {overdue.length>0 && (
         <PortalAlert variant="red">
           <div style={{ fontSize:15, fontWeight:700, marginBottom:4 }}>{t('invoices.overduePayments', { count: overdue.length })}</div>
-          <div style={{ fontSize:12, opacity:0.9 }}>{overdue.map(f=>(f.bars?.nome||'?')+' — '+fmtYen((+f.total||+f.valor||0)-(+f.pago||0))).join(' · ')}</div>
+          <div style={{ fontSize:12, opacity:0.9 }}>{overdue.map(f=>(f.bars?.nome||'?')+' — '+fmtYen(invoiceRemaining(f))).join(' · ')}</div>
         </PortalAlert>
       )}
 
@@ -163,7 +166,7 @@ function Overview() {
           {upcoming.map(f => {
             const daysLeft = Math.ceil((new Date(f.data_vencimento)-new Date())/(1000*60*60*24))
             return (
-              <div key={f.id} onClick={() => setPayItem({ type: 'fatura', id: f.id, label: f.bars?.nome || '?', amount: (+f.total||+f.valor||0)-(+f.pago||0), dueDate: f.data_vencimento, paid: false })} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom:'1px solid var(--border)', cursor: 'pointer' }}>
+              <div key={f.id} onClick={() => setPayItem({ type: 'fatura', id: f.id, label: f.bars?.nome || '?', amount: invoiceRemaining(f), dueDate: f.data_vencimento, paid: false })} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom:'1px solid var(--border)', cursor: 'pointer' }}>
                 <div style={{ width:44, height:44, borderRadius:12, background:daysLeft<=5?'var(--red-bg)':'var(--green-bg)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                   <div style={{ fontSize:16, fontWeight:800, color:daysLeft<=5?'var(--red)':'var(--green)', lineHeight:1 }}>{daysLeft}</div>
                   <div style={{ fontSize:9, color:'var(--text2)', textTransform:'uppercase' }}>{t('common.days')}</div>
@@ -187,6 +190,7 @@ function Overview() {
 }
 
 function InvoiceList() {
+  const { perfil } = useAuth()
   const { t } = useI18n()
   const [faturas, setFaturas] = useState([])
   const [bars, setBars] = useState([])
@@ -236,21 +240,34 @@ function InvoiceList() {
     setLockErr('')
     setSaving(true)
     const row = { bar_id:selBar, valor:total, data_emissao:genForm.issue || genForm.start, periodo_inicio:genForm.start, periodo_fim:genForm.end, data_vencimento:venc, total, pago:0, status:'pendente' }
-    if (ajuste) Object.assign(row, { ajuste, ajuste_motivo: motivo })
-    const { error } = await supabase.from('faturas').insert(row)
+    let res = await supabase.from('faturas').insert(ajuste ? { ...row, ajuste, ajuste_motivo: motivo } : row).select('id').maybeSingle()
+    // Without sql/money_structure.sql the adjustment is kept as a tag in `notas` (read by invoiceAdjustment).
+    if (res.error && ajuste && /ajuste/i.test(res.error.message || '')) {
+      res = await supabase.from('faturas').insert({ ...row, notas: notasWithAdjustment('', adjStamp(ajuste, motivo)) }).select('id').maybeSingle()
+    }
     setSaving(false)
-    if (error) { setLockErr(adjustErrText(error, t)); return }
+    if (res.error) { setLockErr(adjustErrText(res.error, t)); return }
+    logChange(supabase, { tabela: 'faturas', registro_id: res.data?.id, acao: 'insert', depois: { total, ajuste, ajuste_motivo: motivo || null } })
     setShowForm(false); setGenForm(f => ({ ...f, ajuste: '', motivo: '' })); load()
   }
+  const adjStamp = (ajuste, motivo) => ({ ajuste, motivo, by: perfil?.nome || perfil?.email || '', at: new Date().toISOString() })
   async function saveAdjust() {
     if (!adjust) return
     const ajuste = Math.round(+adjust.ajuste || 0)
     const motivo = String(adjust.motivo || '').trim()
     if (ajuste && !motivo) { setLockErr(t('invoiceLock.needReason')); return }
+    const f = faturas.find(x => x.id === adjust.id)
     setSaving(true)
-    const { error } = await supabase.from('faturas').update({ ajuste, ajuste_motivo: motivo || null }).eq('id', adjust.id)
+    let { error } = await supabase.from('faturas').update({ ajuste, ajuste_motivo: motivo || null }).eq('id', adjust.id)
+    // The adjustment columns come from sql/money_structure.sql. Until it runs, the adjustment (with who and
+    // when) is kept as a tag in `notas`, so it still shows on the invoice and in the month's Report.
+    if (error && /ajuste/i.test(error.message || '')) {
+      ({ error } = await supabase.from('faturas').update({ notas: notasWithAdjustment(f?.notas, adjStamp(ajuste, motivo)) }).eq('id', adjust.id))
+    }
     setSaving(false)
     if (error) { setLockErr(adjustErrText(error, t)); return }
+    logChange(supabase, { tabela: 'faturas', registro_id: adjust.id, acao: 'update', antes: { ajuste: f?.ajuste ?? null }, depois: { ajuste, ajuste_motivo: motivo || null } })
+    notify(t('confirm.saved'))
     setLockErr(''); setAdjust(null); load()
   }
   // One receipt per confirmed payment of this invoice (the old button wrote columns the table does not have).
@@ -260,8 +277,7 @@ function InvoiceList() {
       const company = await loadCompany(supabase)
       const bar = { id: fatura.bar_id, nome: fatura.bars?.nome || '' }
       for (const item of receiptableItems([fatura], allPagamentos)) {
-        const res = await issuePaymentReceipt(supabase, { bar, item, dataEmissao: String(item.data || ymd(new Date())).slice(0, 10), company })
-        notify(res.reused ? t('receipts.reused', { numero: res.numero }) : t('confirm.saved'), res.reused ? 'info' : 'ok')
+        await issueReceiptChecked(supabase, { bar, item, dataEmissao: String(item.data || ymd(new Date())).slice(0, 10), company })
       }
     } catch (e) {
       notify(e?.message || String(e), 'error')
@@ -330,16 +346,16 @@ function InvoiceList() {
       {filtered.length===0 ? <Empty text={t('invoices.noInvoices')} icon="🧾" /> : (
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
           {filtered.map(f => {
-            const remaining = Math.max(0,(+f.total||+f.valor||0)-(+f.pago||0))
+            const remaining = invoiceRemaining(f)
             const pendingPay = pagamentosPendentes(allPagamentos, f.id)
             const pendingTotal = totalPagamentosPendentes(allPagamentos, f.id)
-            const pct = (+f.total||+f.valor)>0?Math.min(100,Math.round((+f.pago||0)/(+f.total||+f.valor)*100)):0
+            const pct = invoiceTotal(f)>0?Math.min(100,Math.round((+f.pago||0)/invoiceTotal(f)*100)):0
             const isOverdue = f.status!=='pago'&&remaining>0&&new Date(f.data_vencimento)<new Date()
             const period = invoicePeriod(f)
             const linked = invoiceDeliveries(f, { pedidos, vendas })
             const periodVendas = linked.rows
             const check = invoiceCheck(f, linked.total)
-            const money = invoiceMoney(f, allPagamentos)
+            const money = invoiceComposition(f, linked.total, allPagamentos)
             return (
               <div key={f.id} style={{ background:'var(--bg2)', border:'1px solid', borderColor:isOverdue?'rgba(255,59,48,0.3)':'var(--border)', borderRadius:16, overflow:'hidden', boxShadow:'var(--shadow)' }}>
                 <div style={{ padding:'14px 18px' }}>
@@ -352,7 +368,7 @@ function InvoiceList() {
                       <span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:f.status==='pago'?'var(--green-bg)':isOverdue?'var(--red-bg)':'var(--blue-bg)', color:f.status==='pago'?'var(--green)':isOverdue?'var(--red)':'var(--navy)' }}>
                         {f.status==='pago' ? t('invoices.statusPaid') : isOverdue ? t('invoices.statusOverdue') : f.status==='parcial' ? t('invoices.statusPartial') : t('invoices.statusPending')}
                       </span>
-                      <div style={{ fontSize:18, fontWeight:800, color:'var(--c-text)', marginTop:4 }}>{fmtYen(f.total||f.valor||0)}</div>
+                      <div style={{ fontSize:18, fontWeight:800, color:'var(--c-text)', marginTop:4 }}>{fmtYen(money.total)}</div>
                     </div>
                   </div>
                   <div style={{ height:5, background:'var(--bg3)', borderRadius:3, overflow:'hidden', marginBottom:6 }}>
@@ -362,9 +378,20 @@ function InvoiceList() {
                     <span>{t('invoices.paidLabel', { amount: fmtYen(money.received), pct })}{money.direct > 0 ? ` · ${t('ledger.directPaid')}: ${fmtYen(money.direct)}` : ''}</span>
                     {remaining>0&&<span style={{ color:'var(--red)', fontWeight:600 }}>{t('invoices.remainingLabel', { amount: fmtYen(remaining) })}</span>}
                   </div>
-                  <div style={{ fontSize:12, color:'var(--text2)', marginBottom:8 }}>
-                    {t('invoiceLock.line', { deliveries: fmtYen(check.deliveries), count: periodVendas.length })}
-                    {check.ajuste !== 0 && <> · {t('invoiceLock.adjustLine', { amount: fmtYen(check.ajuste), reason: check.motivo || '—' })}</>}
+                  {/* How the official total is made up, and what was paid by nature (src/lib/money.js). */}
+                  <div style={{ fontSize:12, color:'var(--text2)', marginBottom:8, lineHeight:1.6 }}>
+                    <div>
+                      {t('invoiceLock.line', { deliveries: fmtYen(check.deliveries), count: periodVendas.length })}
+                      {money.ajuste !== 0 && <> · {t('invoiceLock.adjustLine', { amount: fmtYen(money.ajuste), reason: money.motivo || '—' })}</>}
+                      {Math.abs(money.other) >= 1 && <> · {t('invoiceComp.other', { amount: fmtYen(money.other) })}</>}
+                      {' = '}<b style={{ color:'var(--c-text)' }}>{t('invoiceComp.total', { amount: fmtYen(money.total) })}</b>
+                    </div>
+                    <div>
+                      {t('invoiceComp.received', { amount: fmtYen(money.received) })}
+                      {money.direct > 0 && <> · {t('invoiceComp.direct', { amount: fmtYen(money.direct) })}</>}
+                      {money.review > 0 && <> · {t('invoiceComp.review', { amount: fmtYen(money.review) })}</>}
+                      {' · '}{t('invoiceComp.remaining', { amount: fmtYen(money.remaining) })}
+                    </div>
                   </div>
                   {!check.ok && (
                     <div style={{ background:'var(--red-bg)', border:'1px solid rgba(239,68,68,0.35)', borderRadius:8, padding:'8px 12px', marginBottom:10, fontSize:12 }}>
@@ -398,7 +425,7 @@ function InvoiceList() {
                     {periodVendas.length>0&&<button onClick={()=>setExpanded(expanded===f.id?null:f.id)} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'1px solid var(--border)', background:'transparent', cursor:'pointer' }}>
                       {expanded===f.id ? t('invoices.hideDeliveries') : t('invoices.showDeliveries')} {t('invoices.deliveriesCount', { count: periodVendas.length })}
                     </button>}
-                    <button onClick={async()=>{ if(!(await askConfirm({ title: t('invoices.confirmDeleteInvoice'), details: [[t('confirm.who'), f.bars?.nome || '—'], [t('confirm.amount'), fmtYen(f.total||f.valor||0)]], danger: true, typeToConfirm: t('configs.deleteWord') })))return; await supabase.from('fatura_pagamentos').delete().eq('fatura_id',f.id); if (await runChange(supabase.from('faturas').delete().eq('id',f.id))) setFaturas(prev=>prev.filter(x=>x.id!==f.id)) }} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'none', background:'var(--red)', color:'white', cursor:'pointer', fontWeight:600 }}><Icon name="trash" size={14} /></button>
+                    <button onClick={async()=>{ if(!(await askConfirm({ title: t('invoices.confirmDeleteInvoice'), details: [[t('confirm.who'), f.bars?.nome || '—'], [t('confirm.amount'), fmtYen(invoiceTotal(f))]], danger: true, typeToConfirm: t('configs.deleteWord') })))return; await supabase.from('fatura_pagamentos').delete().eq('fatura_id',f.id); if (await runChange(supabase.from('faturas').delete().eq('id',f.id))) setFaturas(prev=>prev.filter(x=>x.id!==f.id)) }} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'none', background:'var(--red)', color:'white', cursor:'pointer', fontWeight:600 }}><Icon name="trash" size={14} /></button>
                   </div>
                 </div>
                 {expanded===f.id && (
