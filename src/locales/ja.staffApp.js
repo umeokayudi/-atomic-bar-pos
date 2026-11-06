@@ -6,6 +6,7 @@ export default {
     tabPerformance: '成績',
     tabPos: 'POS',
     tabClock: '打刻',
+    tabBar: 'バー',
     tabMore: 'その他',
     yourBar: 'お店',
     onShift: '勤務中',

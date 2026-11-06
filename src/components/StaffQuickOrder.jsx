@@ -9,6 +9,7 @@ import { floorApi, floorAvailable, loadOpenTabs, newKey, pendingToLines, tabsApi
 import { cartAdd, cartBump, cartTotals } from '../lib/quickCart'
 import { fmtYen } from './utils'
 import Icon from './ui/Icon'
+import { pushTicket } from '../lib/barQueue'
 
 const NEW = '__new'
 
@@ -83,7 +84,9 @@ export default function StaffQuickOrder({ bar, perfil, onTab }) {
           responsavel: perfil?.nome || null, key: newKey('open'),
         })
       }
-      await tabsApi.addItems(supabase, id, pendingToLines(cart), newKey('add'))
+      const addKey = newKey('add')
+      await tabsApi.addItems(supabase, id, pendingToLines(cart), addKey)
+      pushTicket(supabase, { barId: bar.id, key: `tab:${addKey}`, origem: 'staff', comandaId: id, label: name, lines: cart, byName: perfil?.nome || null })
       setMsg({ tone: 'success', text: t('staffOrder.sent', { n: totals.items, name }) })
       setCart([])
       setQ('')
