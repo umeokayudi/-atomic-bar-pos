@@ -117,6 +117,10 @@ const PAGES = [
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-tab-confirm', phoneOnly: true, click: /Counter/, taps: ['.pq-cartbar', '.pq-tabs .pq-tab:nth-child(2)', '.pq-close-sheet', '.pq-tile-hit', '.pq-tile-hit', '.pq-grid .pq-tile:nth-child(2) .pq-tile-hit', '.pq-cartbar-new'] },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-tab-sent', phoneOnly: true, click: /Counter/, taps: ['.pq-cartbar', '.pq-tabs .pq-tab:nth-child(2)', '.pq-close-sheet', '.pq-tile-hit', '.pq-tile-hit', '.pq-grid .pq-tile:nth-child(2) .pq-tile-hit', '.pq-cartbar-new', '.pq-confirm-go'] },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-tab-send-wide', wideOnly: true, click: /Counter/, taps: ['.pq-tabs .pq-tab:nth-child(2)', '.pq-detail-x', '.pq-tile-hit', '.pq-tile-hit', '.pq-grid .pq-tile:nth-child(2) .pq-tile-hit', '.pq-pay .pq-send'] },
+  // Empty tab (Mesa 2, nothing on it): Delete tab button, then the Yes step.
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-empty-tab', click: /Counter/, taps: ['.pq-cartbar', '.pq-tab:has-text("Mesa 2")'] },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-empty-tab-ask', phoneOnly: true, click: /Counter/, taps: ['.pq-cartbar', '.pq-tab:has-text("Mesa 2")', '.pq-tabbar .is-danger'] },
+  { who: MANAGER, path: '/bar/pos', name: 'bar-pos-empty-tab-ask-wide', wideOnly: true, click: /Counter/, taps: ['.pq-tab:has-text("Mesa 2")', '.pq-detail .pq-tabbar .is-danger'] },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-tab-crm', click: /Counter/, taps: ['.pq-cartbar', '.pq-tab.is-add'] },
   { who: CASHIER, path: '/bar/pos', name: 'till-kiosk' },
   { who: CASHIER, path: '/bar/pos', name: 'till-kiosk-pay', taps: ['.pq-tile-hit', '.pq-grid .pq-tile:nth-child(2) .pq-tile-hit', '.pq-grid .pq-tile:nth-child(3) .pq-tile-hit', '.pq-cartbar', '.pq-charge'] },
