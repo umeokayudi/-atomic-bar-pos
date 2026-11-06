@@ -114,6 +114,8 @@ const PAGES = [
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-manage', click: /Counter/, taps: ['.pq-cartbar', '.pq-tabs .pq-tab:nth-child(2)', '.pq-tabbar-people'] },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-rename', click: /Counter/, taps: ['.pq-cartbar', '.pq-tabs .pq-tab:nth-child(2)', '.pq-tabbar-people', '.tab-name-row button'] },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-tab-order', phoneOnly: true, click: /Counter/, taps: ['.pq-cartbar', '.pq-tabs .pq-tab:nth-child(2)', '.pq-close-sheet', '.pq-tile-hit', '.pq-tile-hit', '.pq-grid .pq-tile:nth-child(2) .pq-tile-hit'] },
+  { who: OWNER, path: '/bar/pos', name: 'bar-pos-tab-order-owner', phoneOnly: true, click: /Counter/, taps: ['.pq-cartbar', '.pq-tabs .pq-tab:nth-child(2)', '.pq-close-sheet', '.pq-tile-hit', '.pq-tile-hit'] },
+  { who: OWNER, path: '/bar/pos', name: 'bar-pos-owner', phoneOnly: true, click: /Counter/ },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-tab-confirm', phoneOnly: true, click: /Counter/, taps: ['.pq-cartbar', '.pq-tabs .pq-tab:nth-child(2)', '.pq-close-sheet', '.pq-tile-hit', '.pq-tile-hit', '.pq-grid .pq-tile:nth-child(2) .pq-tile-hit', '.pq-cartbar-new'] },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-tab-sent', phoneOnly: true, click: /Counter/, taps: ['.pq-cartbar', '.pq-tabs .pq-tab:nth-child(2)', '.pq-close-sheet', '.pq-tile-hit', '.pq-tile-hit', '.pq-grid .pq-tile:nth-child(2) .pq-tile-hit', '.pq-cartbar-new', '.pq-confirm-go'] },
   { who: MANAGER, path: '/bar/pos', name: 'bar-pos-tab-send-wide', wideOnly: true, click: /Counter/, taps: ['.pq-tabs .pq-tab:nth-child(2)', '.pq-detail-x', '.pq-tile-hit', '.pq-tile-hit', '.pq-grid .pq-tile:nth-child(2) .pq-tile-hit', '.pq-pay .pq-send'] },
