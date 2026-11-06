@@ -563,6 +563,27 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
     }
   }
 
+  /** A server tab with nothing on it (no drinks sent, none waiting, nothing paid) can be deleted. Two taps: Delete, then Yes. */
+  const [delAsk, setDelAsk] = useState(null)
+  const emptyTab = !!srvTab && srvTab.status === 'open' && !cart.length && !(srvMoney?.lines || []).length && !(srvMoney?.paid > 0)
+  useEffect(() => { setDelAsk(null) }, [active])
+  async function deleteEmptyTab() {
+    if (!emptyTab) return
+    if (delAsk !== srvTab.id) { setDelAsk(srvTab.id); return }
+    setBusy(true); setErr('')
+    try {
+      await tabsApi.cancel(supabase, srvTab.id, 'empty')
+      setOrders(prev => { const next = { ...prev }; delete next[active]; return next })
+      setActive(COUNTER)
+      setDetailOpen(false)
+      await refreshTabs()
+    } catch (e) {
+      setErr(isConflict(e) ? t('tabs.errConflict') : t('tabs.errGeneric', { error: e.message }))
+    } finally {
+      setBusy(false); setDelAsk(null)
+    }
+  }
+
   /** "Send" for a server tab: pending lines go onto the tab (idempotent per batch). */
   async function sendPending() {
     if (!srvTab || !cart.length) return true
@@ -800,7 +821,13 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
       {srvMoney.paid > 0 && <span className="ui-badge is-info">{t('tabs.paidShort', { amount: fmtYen(srvMoney.paid) })}</span>}
       {lockedTab && <span className="ui-badge is-warning">{t('tabs.state.awaiting_payment')}</span>}
       <span className="ui-spacer" />
-      <button type="button" className="ui-btn is-sm" onClick={() => setPanelTab(srvTab.id)}><Icon name="settings" size={14} /> {t('tabs.manage')}</button>
+      {emptyTab && (delAsk === srvTab.id
+        ? <>
+            <button type="button" className="ui-btn is-sm is-danger" disabled={busy} onClick={deleteEmptyTab}><Icon name="trash" size={14} /> {t('tabs.deleteEmptyYes')}</button>
+            <button type="button" className="ui-btn is-sm" disabled={busy} onClick={() => setDelAsk(null)}>{t('common.cancel')}</button>
+          </>
+        : <button type="button" className="ui-btn is-sm is-danger" disabled={busy} onClick={deleteEmptyTab} title={t('tabs.cancelEmpty')}><Icon name="trash" size={14} /> {t('tabs.deleteEmpty')}</button>)}
+      {delAsk !== srvTab.id && <button type="button" className="ui-btn is-sm" onClick={() => setPanelTab(srvTab.id)}><Icon name="settings" size={14} /> {t('tabs.manage')}</button>}
     </div>
   )
   const linesEl = (
