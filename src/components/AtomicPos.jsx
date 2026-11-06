@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import PhotoField from './ui/PhotoField'
 import { useAuth } from './Auth'
+import { notifyPush } from '../lib/push'
 import { fmtYen, fmtDate, Spinner, SectionTitle } from './utils'
 import {
   checkPosSchema,
@@ -56,7 +57,7 @@ function SetupBanner({ onRefresh }) {
 
 function NightCloseBar({ bar, salesHint = [], compact = false }) {
   const { t } = useI18n()
-  const { user } = useAuth()
+  const { user, perfil } = useAuth()
   const nightKey = tokyoNightKey()
   const lastNightKey = prevTokyoDateKey(nightKey)
   const [shift, setShift] = useState(null)
@@ -172,6 +173,7 @@ function NightCloseBar({ bar, salesHint = [], compact = false }) {
       return
     }
     setShift(s => ({ ...(s || {}), ...row, status: 'closed' }))
+    notifyPush('shift_close', { night: nightKey.slice(5).replace('-', '/'), total: row.drinks_total, tickets: row.ticket_count, diff: row.variance, who: perfil?.nome || '' }, { key: `${bar.id}-${nightKey}` })
     setMsg(`${t('atomicPos.closedOk')} · ${t('atomicPos.varianceLine', { expected: fmtYen(row.expected_cash), counted: fmtYen(row.counted_cash), diff: fmtYen(row.variance) })}`)
   }
 

@@ -8,6 +8,8 @@ import { isMissingSchemaError, isRlsError, loadBarWithGeo, loadStaffWithExtras, 
 import { listPunches } from './_punchStore.js'
 import { punchAllowed } from '../src/lib/clockRule.js'
 import { checkoutContext, cleanCheckout, createDayReport, recordOffTime } from './_staffSelf.js'
+import { pushSoon, sendPushEvent } from './_push.js'
+import { clockPushVars } from '../src/lib/pushTemplates.js'
 
 function bodyOf(req) {
   return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {})
@@ -249,6 +251,17 @@ export default async function handler(req, res) {
       if (checkout.offTime) {
         try { await recordOffTime(db, admin, { barId: bar.id, staff, night: dayCtx.night, offTime: checkout.offTime }) } catch { /* the punch and report are saved */ }
       }
+    }
+
+    // Owner's phone: "<name> started / finished work". Never holds the punch for more than a moment.
+    if (admin) {
+      const inAt = tipo === 'out' ? (last?.tipo === 'in' ? last.punched_at : body.open_in_at) : null
+      await pushSoon(sendPushEvent(admin, {
+        barId: bar.id,
+        type: tipo === 'out' ? 'clock_out' : 'clock_in',
+        key: (punch || punchRow).id || `${staffId}-${punchRow.punched_at}`,
+        vars: clockPushVars({ nome: staff.nome, at: punchRow.punched_at, inAt }),
+      }))
     }
 
     return res.status(200).json({ ok: true, punch, staff: { id: staff.id, nome: staff.nome }, report_id: reportId })

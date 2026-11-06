@@ -177,5 +177,7 @@ export async function mergeOrInsertPeriodFatura(supabase, { barId, amount, saleD
   }
   const { data, error } = await supabase.from('faturas').insert(insert).select().single()
   if (error) throw error
+  // Loaded lazily: this file also runs in node tests, where the browser push helper has no place.
+  if (typeof window !== 'undefined') import('./push.js').then(m => m.notifyPush('invoice_new', { amount: totalAdd, due: String(dueDate || '').slice(5).replace('-', '/'), period: `${String(periodStart).slice(5)}–${String(periodEnd).slice(5)}` }, { key: `inv-${data?.id}`, barId })).catch(() => null)
   return { fatura: data, merged: false, periodStart, periodEnd, dueDate }
 }

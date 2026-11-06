@@ -47,7 +47,8 @@
     "test:receipts": "node scripts/receipts.test.mjs",
     "test:catalog": "node scripts/catalog.test.mjs",
     "test:notif-groups": "node scripts/notifGroups.test.mjs",
-    "test:audit": "node scripts/audit.test.mjs"
+    "test:audit": "node scripts/audit.test.mjs",
+    "test:push": "node scripts/pushTemplates.test.mjs && node scripts/push.e2e.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
@@ -57,7 +58,8 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.28.0",
-    "vercel": "^59.1.4"
+    "vercel": "^59.1.4",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.2",

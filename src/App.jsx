@@ -45,6 +45,7 @@ const Faturas = lazy(() => import('./components/Faturas'))
 const Cashflow = lazy(() => import('./components/Cashflow'))
 const ReportsBilling = lazy(() => import('./components/ReportsBilling'))
 const ProductsTab = lazy(() => import('./components/Configs').then(m => ({ default: m.ProductsTab })))
+const PushSettings = lazy(() => import('./components/PushSettings'))
 const BarsTab = lazy(() => import('./components/Configs').then(m => ({ default: m.BarsTab })))
 const UsuariosTab = lazy(() => import('./components/Configs').then(m => ({ default: m.UsuariosTab })))
 const PedidosAdminTab = lazy(() => import('./components/Configs').then(m => ({ default: m.PedidosAdminTab })))
@@ -715,7 +716,7 @@ function Shell() {
           {activeTab==='ryoshusho' && <RyoshushoTab/>}
           {activeTab==='seikyusho' && <SeikyushoTab/>}
           {activeTab==='products'  && <ProductsTab/>}
-          {activeTab==='bars'      && <BarsTab/>}
+          {activeTab==='bars'      && <><BarsTab/><PushSettings hq /></>}
           {activeTab==='usuarios'  && <UsuariosTab/>}
           {activeTab==='faturas'   && <Faturas />}
           {activeTab==='cashflow'   && <Cashflow />}

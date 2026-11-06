@@ -7,6 +7,7 @@ import { confirmFaturaPayment } from '../lib/faturaLedger'
 import { useI18n, getGlobalLang } from '../lib/i18n'
 import { dateLocale } from '../lib/tokyo'
 import MarkPaidPopup from './MarkPaidPopup'
+import { notifyPush } from '../lib/push'
 import Icon from './ui/Icon'
 import { ColumnChart } from './ui/Charts'
 import { averageOfActive, invoiceCheck, invoiceComposition, invoiceDeliveries, invoiceLockError, invoicePeriod, invoiceRemaining, invoiceTotal, notasWithAdjustment, paymentKind } from '../lib/money'
@@ -135,7 +136,7 @@ function Overview() {
                   // Crediting money is not a one-tap action: show amount, method and bar first.
                   const ok = await askConfirm({ title: t('ledger.confirmCreditTitle'), details: [[t('confirm.who'), p.faturas?.bars?.nome || '—'], [t('confirm.amount'), fmtYen(p.valor)], [t('confirm.method'), p.metodo || '—'], [t('confirm.date'), fmtDate(p.data)]], confirmLabel: t('invoices.confirmCredit') })
                   if (!ok) return
-                  try { await confirmFaturaPayment(supabase, p); notify(t('confirm.saved')) } catch (e) { notify(e.message, 'error') }
+                  try { await confirmFaturaPayment(supabase, p); notify(t('confirm.saved')); notifyPush('payment', { amount: p.valor, who: p.faturas?.bars?.nome || '', what: p.metodo || '' }, { key: `pay-${p.id}`, barId: p.faturas?.bar_id }) } catch (e) { notify(e.message, 'error') }
                   load()
                 }} style={{ padding:'6px 14px', fontSize:12, borderRadius:8, border:'none', background:'var(--green)', color:'white', cursor:'pointer', fontWeight:700 }}>{t('invoices.confirmCredit')}</button>
               </div>
@@ -248,6 +249,7 @@ function InvoiceList() {
     setSaving(false)
     if (res.error) { setLockErr(adjustErrText(res.error, t)); return }
     logChange(supabase, { tabela: 'faturas', registro_id: res.data?.id, acao: 'insert', depois: { total, ajuste, ajuste_motivo: motivo || null } })
+    notifyPush('invoice_new', { amount: total, due: String(venc || '').slice(5).replace('-', '/'), period: `${genForm.start.slice(5)}–${genForm.end.slice(5)}` }, { key: `inv-${res.data?.id || Date.now()}`, barId: selBar })
     setShowForm(false); setGenForm(f => ({ ...f, ajuste: '', motivo: '' })); load()
   }
   const adjStamp = (ajuste, motivo) => ({ ajuste, motivo, by: perfil?.nome || perfil?.email || '', at: new Date().toISOString() })
