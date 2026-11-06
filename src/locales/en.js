@@ -1414,6 +1414,7 @@ export default {
     portalHome: 'Home',
     portalGoals: 'Goals',
     portalClose: 'Close',
+    barQueue: 'Bar queue',
     portalPay: 'Payments',
     portalSalary: 'Payroll',
     portalEvents: 'Events',
@@ -3061,6 +3062,7 @@ export default {
     areas: {
       home: 'Home',
       till: 'Till',
+      bar: 'Bar (drink queue)',
       floor: 'Floor & seats',
       clock: 'Time clock',
       close: 'Night close',
@@ -3074,6 +3076,7 @@ export default {
     areaHints: {
       home: 'Home screen and AI',
       till: 'Ring up sales',
+      bar: 'The barman’s screen: orders to make, ready, delivered',
       floor: 'Tables, seats, VIP rooms',
       clock: 'Clock in and out, see shifts',
       close: 'Close the night',

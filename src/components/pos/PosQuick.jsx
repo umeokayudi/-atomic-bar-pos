@@ -12,6 +12,7 @@ import { cardMethodLabel, cardPaymentsFee, cardSurcharge, isCardMethod, machineF
 import { tokyoNightKey, tokyoDateKey } from '../../lib/tokyo'
 import { prevTokyoDateKey, summarizeNight } from '../../lib/nightClose'
 import { forgetLiveSelects } from '../../lib/barLiveClient'
+import { pushTicket } from '../../lib/barQueue'
 import {
   ON_ACCOUNT, discountGuestError, ledgerBalances, methodDisplay, onAccountError, onAccountGuestId, onAccountMethod,
   receivePaymentRow, saleOnAccountRow, tabOnAccountRows, tonightGlance,
@@ -569,6 +570,8 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
     setOrders(prev => ({ ...prev, [active]: { ...prev[active], sendKey } }))
     try {
       await tabsApi.addItems(supabase, srvTab.id, pendingToLines(cart), sendKey)
+      // The barman's queue gets the same order (same key: a retry cannot add it twice).
+      pushTicket(supabase, { barId: bar.id, key: `tab:${sendKey}`, origem: 'tab', comandaId: srvTab.id, label: srvTab.mesa_nome && srvTab.mesa_nome !== srvTab.nome ? `${srvTab.nome} · ${srvTab.mesa_nome}` : srvTab.nome, lines: cart, byName: perfil?.nome || null })
       setOrders(prev => ({ ...prev, [active]: { ...prev[active], cart: [], sendKey: undefined } }))
       await refreshTabs()
       return true
@@ -715,6 +718,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
           .finally(() => refreshLedger())
       }
       rememberTop(drinkLines)
+      if (!srvTab) pushTicket(supabase, { barId: bar.id, key: `sale:${saleKey}`, origem: 'counter', label: tableOrder ? order.label : t('posQuick.counter'), lines: cart, byName: perfil?.nome || null })
       const onAccountAmount = ledgerRows.reduce((a, r) => a + r.valor, 0)
       setDone({
         thanks: sharedTill ? t('posQuick.thanks') : t('posQuick.congrats', { name: firstName(perfil?.nome) }),

@@ -1414,6 +1414,7 @@ export default {
     portalHome: 'ホーム',
     portalGoals: '目標',
     portalClose: '締め',
+    barQueue: 'バー（ドリンク）',
     portalPay: '支払い',
     portalSalary: '給与',
     portalEvents: 'イベント',
@@ -3061,6 +3062,7 @@ export default {
     areas: {
       home: 'ホーム',
       till: 'レジ',
+      bar: 'バー（ドリンク注文）',
       floor: 'フロア・席',
       clock: '打刻',
       close: '締め',
@@ -3074,6 +3076,7 @@ export default {
     areaHints: {
       home: 'ホーム画面とAI',
       till: '会計を打つ',
+      bar: 'バーテンダー画面：作る注文・完成・提供',
       floor: 'テーブル、席、VIPルーム',
       clock: '出退勤とシフト',
       close: '夜の締め',

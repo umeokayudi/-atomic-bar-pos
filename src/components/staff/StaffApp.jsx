@@ -28,7 +28,7 @@ import { shiftCountdown, spanLabel } from '../../lib/staffSchedule'
 const StaffAlerts = lazy(() => import('../StaffAlerts'))
 /** Screens that stay open while next week's schedule is still to send (the rest point to "Send schedule"). */
 // The till stays open too: an order mid-shift never waits on next week's schedule.
-export const GATE_FREE = ['hoje', 'ponto', 'schedule', 'profile', 'settings', 'pos']
+export const GATE_FREE = ['hoje', 'ponto', 'schedule', 'profile', 'settings', 'pos', 'bar']
 /** Greeting in English and Japanese at once (Tokyo time): morning 5–12, afternoon 12–18, evening after. */
 export const GREETINGS = {
   morning: { en: 'Good morning', ja: 'おはようございます', icon: 'sun' },
@@ -474,7 +474,7 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
   const blocked = mustSend && !GATE_FREE.includes(screen)
   const shown = blocked ? 'hoje' : screen
   const lit = moreOpen ? 'more' : bottomTabFor(shown)
-  const work = ['pos', 'mesas', 'pedidos'].includes(shown) && canOpen(shown)
+  const work = ['pos', 'bar', 'mesas', 'pedidos'].includes(shown) && canOpen(shown)
   const shared = { t, lang, perfil, profile, bar, pack, missing, competence, onTab: go, onBack: back, punches, nightPremium, meId }
   const today = tokyoNightKey()
 
@@ -521,7 +521,7 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
             {renderWork?.(shown)}
           </div>
         )}
-        {['pos', 'mesas', 'pedidos'].includes(shown) && !canOpen(shown) && <Note>{t('barUsers.noAccessBody')}</Note>}
+        {['pos', 'bar', 'mesas', 'pedidos'].includes(shown) && !canOpen(shown) && <Note>{t('barUsers.noAccessBody')}</Note>}
       </main>
 
       {blocked && <ScheduleGateSheet t={t} schedule={schedule} onSend={() => go('schedule')} onHome={() => go('hoje')} />}

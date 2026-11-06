@@ -57,7 +57,7 @@ const ICONS = {
   stFree: CheckCircle2, stAwaitingOrder: Hourglass, stConsuming: GlassWater, stOccupied: People,
   stAwaitingPayment: HandCoins, stReserved: CalendarClock, stCleaning: Brush,
   // till tiles without a photo
-  catBeer: Beer, catWine: WineGlass, catCocktail: Martini, catSoft: CupSoda, catShot: Flame, catFood: UtensilsCrossed,
+  catBeer: Beer, catWine: WineGlass, catCocktail: Martini, bar: Martini, catSoft: CupSoda, catShot: Flame, catFood: UtensilsCrossed,
   catSpirit: GlassWater, catSake: Grape,
   payCash: Banknote, payCard: CreditCard, payPhone: Smartphone,
   // floor items

@@ -542,4 +542,15 @@ export default {
     searchList: 'ドリンク・材料を検索…', sortMargin: '利益率 ↓', sortName: '名前', sortCost: '原価 ↑', sortPrice: '価格 ↓',
     all: 'すべて ({n})', noneFound: 'ドリンクが見つかりません。', empty: 'まだドリンクがありません。最初のレシピを作りましょう。',
   },
+  barQueue: {
+    title: 'バー', lead: '作る注文（古い順）。できたら「完成」、渡したら「提供済み」をタップ。',
+    waiting: '{n}件待ち', none: '作る注文はありません。新しい注文は自動でここに出ます。',
+    ready: '完成', delivered: '提供済み', undo: '戻す', readyTag: '完成 · {time}', recipe: 'レシピ', noRecipe: 'このドリンクのレシピは未登録です。',
+    by: '{name}', ago: '{time}', counter: 'カウンター', from: { tab: '伝票', counter: 'カウンター', staff: 'ホール' },
+    colors: 'キューの色', colorsHint: '3件まで緑、3件超で黄、5件超で赤', sound: '音',
+    load: { green: '順調', yellow: '混雑', red: '注文が多すぎ' },
+    tonight: '今夜', made: '完成した注文', drinks: 'ドリンク数', avgPrep: '平均作成時間', maxPrep: '最長', avgToGuest: '提供までの平均',
+    perPerson: 'バーテンダー別', person: '担当', orders: '注文', time: '平均', done: '今夜の完成分', noneDone: 'まだ完成した注文はありません。',
+    needsSql: 'バーキューを準備中です。送信した注文は伝票に入ります。', errLoad: 'キューを読み込めませんでした: {error}',
+  },
 }

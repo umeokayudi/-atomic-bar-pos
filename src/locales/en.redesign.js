@@ -549,4 +549,15 @@ export default {
     searchList: 'Search drink or ingredient…', sortMargin: 'Margin ↓', sortName: 'Name', sortCost: 'Cost ↑', sortPrice: 'Price ↓',
     all: 'All ({n})', noneFound: 'No drinks found.', empty: 'No drinks yet. Create your first recipe.',
   },
+  barQueue: {
+    title: 'Bar', lead: 'Orders to make, oldest first. Tap Ready when the drink is done, then Delivered.',
+    waiting: '{n} waiting', none: 'Nothing to make. New orders show up here by themselves.',
+    ready: 'Ready', delivered: 'Delivered', undo: 'Undo', readyTag: 'Ready · {time}', recipe: 'Recipe', noRecipe: 'No recipe saved for this drink.',
+    by: 'by {name}', ago: '{time}', counter: 'Counter', from: { tab: 'Tab', counter: 'Counter', staff: 'Waiter' },
+    colors: 'Queue colours', colorsHint: 'Green up to 3 orders, yellow over 3, red over 5', sound: 'Sound',
+    load: { green: 'On time', yellow: 'Busy', red: 'Too many orders' },
+    tonight: 'Tonight', made: 'Orders made', drinks: 'Drinks', avgPrep: 'Avg time to make', maxPrep: 'Slowest', avgToGuest: 'Avg to the guest',
+    perPerson: 'Per barman', person: 'Who', orders: 'Orders', time: 'Avg', done: 'Done tonight', noneDone: 'Nothing finished yet.',
+    needsSql: 'The Bar queue is being set up. Orders sent now still go on the tabs.', errLoad: 'Could not load the queue: {error}',
+  },
 }
