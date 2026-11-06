@@ -6148,3 +6148,15 @@ button.pq-tabbar-people { border: 0; cursor: pointer; font: inherit; font-size: 
 .pq-confirm-actions .ui-btn { min-height: 56px; }
 /* A new order waiting on a tab: Send stands out in the side panel. */
 .pq .pq-send { border: 2px solid var(--pq-accent); color: var(--pq-accent); font-weight: 800; }
+
+/* Owner/manager on a phone: the order bar, Send / + Tab and the "sent" note sit above the bottom menu (easy dock), never on it. */
+@media (max-width: 768px) {
+  .has-easy-dock button.pq-cartbar,
+  .has-easy-dock button.pq-cartbar-new { bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .has-easy-dock .pq { padding-bottom: 84px; }
+  .has-easy-dock .pq-sent-note { bottom: calc(164px + env(safe-area-inset-bottom)); }
+}
+html[data-device="phone"] .has-easy-dock button.pq-cartbar,
+html[data-device="phone"] .has-easy-dock button.pq-cartbar-new { bottom: calc(84px + env(safe-area-inset-bottom)); }
+html[data-device="phone"] .has-easy-dock .pq { padding-bottom: 84px; }
+html[data-device="phone"] .has-easy-dock .pq-sent-note { bottom: calc(164px + env(safe-area-inset-bottom)); }

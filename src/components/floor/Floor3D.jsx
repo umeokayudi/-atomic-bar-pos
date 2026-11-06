@@ -904,9 +904,9 @@ export default function Floor3D({ layout, tables = [], sectors = [], onTable, on
                 {live && onPeople && selected.open?.length === 1 && (
                   <PeopleStepper key={selected.open[0].id} value={+selected.open[0].pessoas || 1} onSave={n => onPeople(selected.open[0], n)} />
                 )}
-                {onTable && <button type="button" className="ui-btn is-sm is-primary" onClick={() => onTableRef.current?.(selected)}>{t('floor.openSel')}</button>}
-                <button type="button" className="ui-btn is-sm is-icon" onClick={() => setSelectedId(null)} aria-label={t('common.close')}><Icon name="close" size={16} /></button>
-              </div>
+                {onTable && <button type="button" className="ui-btn is-sm is-primary f3-card-open" onClick={() => onTableRef.current?.(selected)}>{t('floor.openSel')}</button>}
+                </div>
+              <button type="button" className="ui-btn is-sm is-icon f3-card-close" onClick={() => setSelectedId(null)} aria-label={t('common.close')}><Icon name="close" size={16} /></button>
             </div>
           )}
 
