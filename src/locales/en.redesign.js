@@ -408,7 +408,7 @@ export default {
     splitValueHint: 'To split by value instead, take several partial payments in Pay.',
     merge: 'Bring it into this tab', mergeFrom: 'Tab to bring in', mergeHint: 'All lines and payments of the other tab move into {name}; the other tab is closed as merged.',
     name: 'Name', servicePct: 'Service %', responsible: 'Responsible', moveTable: 'Move to table', move: 'Move',
-    cancelTitle: 'Cancel', cancelEmpty: 'Cancel this empty tab',
+    cancelTitle: 'Cancel', cancelEmpty: 'Cancel this empty tab', deleteEmpty: 'Delete tab', deleteEmptyYes: 'Yes, delete it',
     chargeDue: 'Charge {amount} and close', closeSale: 'Close the sale',
     errConflict: 'This tab changed on another device. It was reloaded: check it and try again.',
     errGeneric: 'Could not save: {error}', errGone: 'This tab was closed on another device.', errPickTab: 'Choose the tab to move to.',
