@@ -401,7 +401,7 @@ export default {
     splitValueHint: '金額で分ける場合は「支払い」で分割払いを複数回受け取ってください。',
     merge: 'この伝票にまとめる', mergeFrom: 'まとめる伝票', mergeHint: '他の伝票の明細と支払いはすべて {name} に移り、元の伝票は統合済みになります。',
     name: '名前', servicePct: 'サービス料 %', responsible: '担当', moveTable: 'テーブル移動', move: '移動',
-    cancelTitle: '取消', cancelEmpty: 'この空の伝票を取り消す',
+    cancelTitle: '取消', cancelEmpty: 'この空の伝票を取り消す', deleteEmpty: '伝票を削除', deleteEmptyYes: 'はい、削除する',
     chargeDue: '{amount} を会計して閉じる', closeSale: '会計を確定',
     errConflict: 'この伝票は別の端末で変更されました。再読み込みしたので確認してからもう一度お試しください。',
     errGeneric: '保存できませんでした: {error}', errGone: 'この伝票は別の端末で閉じられました。', errPickTab: '移動先の伝票を選んでください。',
