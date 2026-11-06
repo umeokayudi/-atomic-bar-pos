@@ -6,6 +6,7 @@ export default {
     tabPerformance: 'Results',
     tabPos: 'POS',
     tabClock: 'Clock',
+    tabBar: 'Bar',
     tabMore: 'More',
     yourBar: 'Your bar',
     onShift: 'On shift',

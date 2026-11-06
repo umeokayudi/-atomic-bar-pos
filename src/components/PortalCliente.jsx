@@ -54,6 +54,7 @@ const MarketingHub = lazy(() => import('./growth/MarketingHub'))
 const ConsultingHub = lazy(() => import('./growth/ConsultingHub'))
 const AtomicPosPanel = lazy(() => import('./AtomicPos'))
 const StaffPos = lazy(() => import('./pos/StaffPos'))
+const BarQueue = lazy(() => import('./pos/BarQueue'))
 const TimeClockPanel = lazy(() => import('./TimeClock'))
 const BarTeamTab = lazy(() => import('./BarTeamTab'))
 const BarUsersTab = lazy(() => import('./BarUsersTab'))
@@ -75,7 +76,7 @@ import { groupedNavForRole, dockForLogin, defaultBarTab, posAccessForRole, canMa
 import { isTillKiosk, isClockKiosk, loginDoorFromHash, setDoorHash, doorAllowsRole } from '../lib/barDoors'
 import UiPrefsPanel from './UiPrefsPanel'
 import { useI18n } from '../lib/i18n'
-import { STAFF_SELF_TABS, canOpenTab, filterNavGroups, firstOpenTab } from '../lib/barAccess'
+import { STAFF_SELF_TABS, canOpenBarQueue, canOpenTab, filterNavGroups, firstOpenTab } from '../lib/barAccess'
 import { useMyBarAccess } from '../lib/myBarAccess'
 import { usesStaffApp } from '../lib/staffApp'
 import { tokyoMonthKey, tokyoNightKey } from '../lib/tokyo'
@@ -1295,14 +1296,17 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
   const access = { id: perfil?.id, role: perfil?.role, acessos: myAccess.acessos }
   const NAV_GROUPS = filterNavGroups(groupedNavForRole(perfil?.role), access)
   // Floor staff always get the POS (sending an order to the bar), even on "Staff only": URL, tabs and screen agree.
-  const canOpenHere = id => (id === 'pos' && perfil?.role === 'bar_staff') || canOpenTab(access, id)
+  // The Bar queue shows only on logins with "Bar" ticked in Users & access (the barman), the owner and full managers.
+  const canOpenHere = id => (id === 'bar' ? canOpenBarQueue(access) : (id === 'pos' && perfil?.role === 'bar_staff') || canOpenTab(access, id))
   const DOCK = dockForLogin(perfil?.role, canOpenHere)
   const location = useLocation()
   const navigate = useNavigate()
   // Tabs reachable by URL (/bar/<tab>): the role's menu plus staff self-service sections, minus areas this login lacks.
   const allowedTabs = [...NAV_GROUPS.flatMap(g => g.items.map(n => n.id)), ...DOCK.map(d => d.id), ...STAFF_SELF_TABS, 'equipe', 'entregas', 'energia', 'aluguel', 'senha', 'conta']
     .filter(canOpenHere)
-  const homeTab = firstOpenTab(access, [defaultBarTab(perfil?.role), ...allowedTabs], defaultBarTab(perfil?.role))
+  // The barman (staff app with "Bar" ticked) opens straight on the drink queue.
+  const barHome = usesStaffApp(perfil, myAccess.acessos) && canOpenBarQueue(access) ? 'bar' : null
+  const homeTab = barHome || firstOpenTab(access, [defaultBarTab(perfil?.role), ...allowedTabs], defaultBarTab(perfil?.role))
   const tab = tabFromPath(location.pathname, 'bar', allowedTabs, homeTab)
   const tabOk = canOpenHere(tab)
   usePrefetchScreens(allowedTabs)
@@ -1430,6 +1434,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
             renderWork={id => (
               <TabHold>
                 {id === 'pos' && posAccess !== 'none' && (perfil?.role === 'bar_staff' ? <StaffPos bar={bar} /> : <AtomicPosPanel bar={bar} access={posAccess === 'owner' ? 'cashier' : posAccess} />)}
+                {id === 'bar' && canOpenBarQueue(access) && <BarQueue bar={bar} />}
                 {id === 'mesas' && posAccess !== 'none' && <FloorScreen bar={bar} onOpenTill={() => selectTab('pos')} />}
                 {id === 'pedidos' && canPlaceDrinkOrders(perfil?.role) && <BarOrdersTab bar={bar} manager={false} />}
               </TabHold>
@@ -1562,6 +1567,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
         {tab==='faturas'   && canManageBarTeam(perfil?.role) && <FaturasTab bar={bar} />}
         {tab==='recibos'  && canManageBarTeam(perfil?.role) && <TabHold><PortalRecibosTab bar={bar} /></TabHold>}
         {tab==='ia'       && canManageBarTeam(perfil?.role) && <TabHold><AiCenter bar={bar} /></TabHold>}
+        {tab==='bar'       && canOpenBarQueue(access) && <TabHold><BarQueue bar={bar} /></TabHold>}
         {tab==='mesas'     && posAccess !== 'none' && <TabHold><FloorScreen bar={bar} onOpenTill={() => selectTab('pos')} /></TabHold>}
         {tab==='marketing' && canManageBarTeam(perfil?.role) && <TabHold><MarketingHub barId={bar.id} /></TabHold>}
         {tab==='consultoria' && canManageBarTeam(perfil?.role) && <TabHold><ConsultingHub barId={bar.id} /></TabHold>}

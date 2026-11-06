@@ -64,5 +64,6 @@ assert.deepEqual(m, { total: 3000, tickets: 2, bestNight: '2026-10-10', bestTota
 // Icon PNG is a real PNG; taps open the right screen.
 const png = colorDiscPng('#d7191f')
 assert.equal(png.subarray(1, 4).toString(), 'PNG')
-assert.equal(urlFor('order'), '/bar/pos')
+assert.equal(urlFor('order'), '/bar/bar')
+assert.equal(urlFor('sale'), '/bar/pos')
 console.log('pushTemplates ok')

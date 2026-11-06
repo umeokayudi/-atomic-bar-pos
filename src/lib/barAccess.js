@@ -9,7 +9,7 @@
  */
 
 /** Areas in menu order. */
-export const BAR_AREAS = ['home', 'till', 'floor', 'clock', 'close', 'drinks', 'money', 'payroll', 'team', 'clients', 'users']
+export const BAR_AREAS = ['home', 'till', 'bar', 'floor', 'clock', 'close', 'drinks', 'money', 'payroll', 'team', 'clients', 'users']
 
 /** Areas a manager preset leaves out: money, payroll and logins/passwords. */
 export const SENSITIVE_AREAS = ['money', 'payroll', 'users']
@@ -18,6 +18,7 @@ export const SENSITIVE_AREAS = ['money', 'payroll', 'users']
 export const TAB_AREA = {
   inicio: 'home', ia: 'home',
   pos: 'till',
+  bar: 'bar',
   mesas: 'floor', espacos: 'floor', vip: 'floor',
   ponto: 'clock',
   fechamento: 'close',
@@ -45,7 +46,7 @@ export const ACCESS_PRESETS = [
   { id: 'till', areas: ['till'] },
   { id: 'tillFloor', areas: ['till', 'floor'] },
   { id: 'floorClock', areas: ['floor', 'clock'] },
-  { id: 'manager', areas: BAR_AREAS.filter(a => !SENSITIVE_AREAS.includes(a)) },
+  { id: 'manager', areas: BAR_AREAS.filter(a => !SENSITIVE_AREAS.includes(a) && a !== 'bar') },
   { id: 'full', areas: null },
 ]
 
@@ -93,6 +94,18 @@ export function canAccess(perfil, area) {
 export function canAccessAny(perfil, spec) {
   if (!spec) return true
   return String(spec).split('|').some(a => canAccess(perfil, a))
+}
+
+/**
+ * The barman's drink queue (Bar screen): the owner always; a login with a list only when "Bar" is ticked;
+ * a manager with no list too. Staff and cashiers need "Bar" ticked in Users & access, so it shows on the barman's account only.
+ */
+export function canOpenBarQueue(perfil) {
+  if (!perfil) return false
+  if (isOwner(perfil)) return true
+  const list = cleanAcessos(perfil.acessos)
+  if (list == null) return perfil.role === 'gerente' || perfil.role === 'admin' || perfil.role === 'jbm'
+  return list.includes('bar')
 }
 
 export function areaForTab(tab) {

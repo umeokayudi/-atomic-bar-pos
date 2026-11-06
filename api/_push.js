@@ -266,7 +266,9 @@ export async function sendPushEvent(admin, { barId, type, vars, key, onlyEndpoin
 
 /** Where a tap on the notification opens. */
 export function urlFor(type) {
-  if (type === 'order' || type === 'sale') return '/bar/pos'
+  // A new order opens the Bar queue (the drinks to make); a sale opens the till.
+  if (type === 'order') return '/bar/bar'
+  if (type === 'sale') return '/bar/pos'
   if (type === 'clock_in' || type === 'clock_out') return '/bar/ponto'
   if (type === 'shift_close' || type === 'day_close') return '/bar/fechamento'
   if (type === 'invoice_new' || type === 'payment') return '/bar/faturas'

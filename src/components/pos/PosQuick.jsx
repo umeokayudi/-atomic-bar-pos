@@ -12,6 +12,7 @@ import { cardMethodLabel, cardPaymentsFee, cardSurcharge, isCardMethod, machineF
 import { tokyoNightKey, tokyoDateKey } from '../../lib/tokyo'
 import { prevTokyoDateKey, summarizeNight } from '../../lib/nightClose'
 import { forgetLiveSelects } from '../../lib/barLiveClient'
+import { pushTicket } from '../../lib/barQueue'
 import {
   ON_ACCOUNT, discountGuestError, ledgerBalances, methodDisplay, onAccountError, onAccountGuestId, onAccountMethod,
   receivePaymentRow, saleOnAccountRow, tabOnAccountRows, tonightGlance,
@@ -563,6 +564,27 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
     }
   }
 
+  /** A server tab with nothing on it (no drinks sent, none waiting, nothing paid) can be deleted. Two taps: Delete, then Yes. */
+  const [delAsk, setDelAsk] = useState(null)
+  const emptyTab = !!srvTab && srvTab.status === 'open' && !cart.length && !(srvMoney?.lines || []).length && !(srvMoney?.paid > 0)
+  useEffect(() => { setDelAsk(null) }, [active])
+  async function deleteEmptyTab() {
+    if (!emptyTab) return
+    if (delAsk !== srvTab.id) { setDelAsk(srvTab.id); return }
+    setBusy(true); setErr('')
+    try {
+      await tabsApi.cancel(supabase, srvTab.id, 'empty')
+      setOrders(prev => { const next = { ...prev }; delete next[active]; return next })
+      setActive(COUNTER)
+      setDetailOpen(false)
+      await refreshTabs()
+    } catch (e) {
+      setErr(isConflict(e) ? t('tabs.errConflict') : t('tabs.errGeneric', { error: e.message }))
+    } finally {
+      setBusy(false); setDelAsk(null)
+    }
+  }
+
   /** "Send" for a server tab: pending lines go onto the tab (idempotent per batch). */
   async function sendPending(notify = false) {
     if (!srvTab || !cart.length) return true
@@ -570,6 +592,8 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
     setOrders(prev => ({ ...prev, [active]: { ...prev[active], sendKey } }))
     try {
       await tabsApi.addItems(supabase, srvTab.id, pendingToLines(cart), sendKey)
+      // The barman's queue gets the same order (same key: a retry cannot add it twice).
+      pushTicket(supabase, { barId: bar.id, key: `tab:${sendKey}`, origem: 'tab', comandaId: srvTab.id, label: srvTab.mesa_nome && srvTab.mesa_nome !== srvTab.nome ? `${srvTab.nome} · ${srvTab.mesa_nome}` : srvTab.nome, lines: cart, byName: perfil?.nome || null })
       // Owner's phone: "new order" (only for Send; paying straight away reports the sale instead).
       if (notify) notifyPush('order', { tab: srvTab.nome || srvTab.mesa_nome || '', items: pendingCount, amount: pendingTotal }, { key: sendKey })
       setOrders(prev => ({ ...prev, [active]: { ...prev[active], cart: [], sendKey: undefined } }))
@@ -718,6 +742,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
           .finally(() => refreshLedger())
       }
       rememberTop(drinkLines)
+      if (!srvTab) pushTicket(supabase, { barId: bar.id, key: `sale:${saleKey}`, origem: 'counter', label: tableOrder ? order.label : t('posQuick.counter'), lines: cart, byName: perfil?.nome || null })
       if (!result.replay) notifyPush('sale', { tab: tableOrder ? (srvTab?.nome || order.label) : '', amount: chargedTotal, method: methodDisplay(pay) }, { key: saleKey })
       const onAccountAmount = ledgerRows.reduce((a, r) => a + r.valor, 0)
       setDone({
@@ -800,7 +825,13 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
       {srvMoney.paid > 0 && <span className="ui-badge is-info">{t('tabs.paidShort', { amount: fmtYen(srvMoney.paid) })}</span>}
       {lockedTab && <span className="ui-badge is-warning">{t('tabs.state.awaiting_payment')}</span>}
       <span className="ui-spacer" />
-      <button type="button" className="ui-btn is-sm" onClick={() => setPanelTab(srvTab.id)}><Icon name="settings" size={14} /> {t('tabs.manage')}</button>
+      {emptyTab && (delAsk === srvTab.id
+        ? <>
+            <button type="button" className="ui-btn is-sm is-danger" disabled={busy} onClick={deleteEmptyTab}><Icon name="trash" size={14} /> {t('tabs.deleteEmptyYes')}</button>
+            <button type="button" className="ui-btn is-sm" disabled={busy} onClick={() => setDelAsk(null)}>{t('common.cancel')}</button>
+          </>
+        : <button type="button" className="ui-btn is-sm is-danger" disabled={busy} onClick={deleteEmptyTab} title={t('tabs.cancelEmpty')}><Icon name="trash" size={14} /> {t('tabs.deleteEmpty')}</button>)}
+      {delAsk !== srvTab.id && <button type="button" className="ui-btn is-sm" onClick={() => setPanelTab(srvTab.id)}><Icon name="settings" size={14} /> {t('tabs.manage')}</button>}
     </div>
   )
   const linesEl = (

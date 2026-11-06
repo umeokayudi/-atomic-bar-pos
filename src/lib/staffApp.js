@@ -10,6 +10,7 @@ import { resolveBrand } from './barBrand.js'
 /** Bottom tabs, in order. `id` is the /bar/<tab> path that opens it; 'more' opens the full-screen menu. */
 export const STAFF_APP_TABS = [
   { id: 'hoje', icon: 'home', labelKey: 'staffApp.tabHome' },
+  { id: 'bar', icon: 'catCocktail', labelKey: 'staffApp.tabBar', needs: 'bar' },
   { id: 'performance', icon: 'result', labelKey: 'staffApp.tabPerformance' },
   { id: 'pos', icon: 'pos', labelKey: 'staffApp.tabPos', needs: 'pos' },
   { id: 'ponto', icon: 'clock', labelKey: 'staffApp.tabClock', needs: 'ponto' },
@@ -53,7 +54,7 @@ const FOLDED = {
 }
 
 /** Work screens a staff login may open from the app (only when "Users & access" allows them). */
-export const STAFF_WORK_TABS = ['pos', 'mesas', 'pedidos']
+export const STAFF_WORK_TABS = ['pos', 'bar', 'mesas', 'pedidos']
 
 /** Self-service screens of the app (no area: every login of the role may open them). */
 export const STAFF_APP_SELF = ['hoje', 'performance', 'schedule', 'shifts', 'salary', 'reports', 'profile', 'occurrences', 'settings']

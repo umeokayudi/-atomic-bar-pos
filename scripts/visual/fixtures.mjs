@@ -82,6 +82,22 @@ vendas[2] = { ...vendas[2], vendas_itens: [{ id: 'vi3', qtd: 2, preco_unitario: 
 
 export const TABLES = {
   bars: [BAR, BAR2],
+  // Bar queue (barman's screen): 5 waiting (yellow), 1 ready, 3 delivered tonight.
+  pos_bar_fila: (() => {
+    const d = id => `00000000-0000-4000-8000-0000000d00${String(id).padStart(2, '0')}`
+    const row = (id, label, origem, itens, by, mins, extra = {}) => ({ id, bar_id: BAR.id, idem_key: id, origem, label, itens, qtd: itens.reduce((a, l) => a + l.qtd, 0), pedido_por_nome: by, status: 'novo', chegou_em: ago(mins), ...extra })
+    return [
+      row('q1', 'Mesa 1', 'tab', [{ nome: 'Gin Tonic', qtd: 2, drink_menu_id: d(1) }, { nome: 'Highball', qtd: 1, drink_menu_id: d(0) }], 'Ken Mori', 6.2),
+      row('q2', 'VIP 1 · Tanaka', 'tab', [{ nome: 'Mojito', qtd: 3, drink_menu_id: d(2) }], 'Lucia Sato', 4.5),
+      row('q3', 'Counter', 'counter', [{ nome: 'Draft beer', qtd: 2, drink_menu_id: d(3) }], 'Front till', 2.1),
+      row('q4', 'Mesa 3', 'staff', [{ nome: 'Margarita', qtd: 1, drink_menu_id: d(8) }, { nome: 'Cola', qtd: 2, drink_menu_id: d(6) }], 'Ken Mori', 1.2),
+      row('q5', 'Mesa 5', 'tab', [{ nome: 'Lemon sour', qtd: 4, drink_menu_id: d(4) }], 'Ken Mori', 0.4),
+      row('q6', 'Mesa 2', 'tab', [{ nome: 'Red wine', qtd: 2, drink_menu_id: d(5) }], 'Lucia Sato', 8, { status: 'pronto', pronto_em: ago(5.5), feito_por: 'st1', feito_por_nome: 'Aiko Tanaka' }),
+      row('q7', 'Mesa 4', 'tab', [{ nome: 'Highball', qtd: 2, drink_menu_id: d(0) }], 'Ken Mori', 40, { status: 'entregue', pronto_em: ago(37.5), entregue_em: ago(36), feito_por: 'st1', feito_por_nome: 'Aiko Tanaka' }),
+      row('q8', 'Counter', 'counter', [{ nome: 'Gin Tonic', qtd: 1, drink_menu_id: d(1) }], 'Front till', 30, { status: 'entregue', pronto_em: ago(28), entregue_em: ago(27), feito_por: 'st1', feito_por_nome: 'Aiko Tanaka' }),
+      row('q9', 'VIP 1 · Tanaka', 'tab', [{ nome: 'Mojito', qtd: 2, drink_menu_id: d(2) }], 'Lucia Sato', 22, { status: 'entregue', pronto_em: ago(18), entregue_em: ago(16.5), feito_por: 'gm', feito_por_nome: 'Gerente Demo' }),
+    ]
+  })(),
   // HQ → Bars look: BRAND_COLOR=#1C7ED6 paints the bar app in that colour (BAR_NAME=Atomic gives the red/black look).
   bar_brand: process.env.BRAND_COLOR ? [{ id: BAR.id, bar_id: BAR.id, cor: process.env.BRAND_COLOR, logo: null }] : [],
   perfis: [ADMIN, MANAGER, OWNER, { ...STAFF }, { ...CASHIER }],

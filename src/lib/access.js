@@ -44,6 +44,7 @@ const GERENTE_NAV = [
   { id: 'senha', labelKey: 'nav.vault', icon: '🔒' },
   { id: 'conta', labelKey: 'nav.myAccount', icon: '👤' },
   { id: 'pos', labelKey: 'nav.portalPos', icon: '🧾' },
+  { id: 'bar', labelKey: 'nav.barQueue', icon: '🍸' },
   { id: 'mesas', labelKey: 'nav.mesas', icon: '🗺' },
   { id: 'pedidos', labelKey: 'nav.supply', icon: '🛒' },
   { id: 'faturas', labelKey: 'nav.jbmInvoices', icon: '📄' },
@@ -79,7 +80,7 @@ const GERENTE_NAV = [
 // Bar owner/manager menu in the order a night runs: tonight, drinks, money, team, clients.
 const NAV_GROUPS = [
   { id: 'overview', labelKey: 'barArea.overview', ids: ['inicio', 'ia', 'senha', 'conta'] },
-  { id: 'tonight', labelKey: 'barArea.tonight', ids: ['pos', 'mesas', 'espacos', 'vip', 'ponto', 'fechamento'] },
+  { id: 'tonight', labelKey: 'barArea.tonight', ids: ['pos', 'bar', 'mesas', 'espacos', 'vip', 'ponto', 'fechamento'] },
   { id: 'drinks', labelKey: 'barArea.drinks', ids: ['pedidos', 'estoque', 'precos', 'fornecedor'] },
   { id: 'money', labelKey: 'barArea.money', ids: ['pagamentos', 'custos', 'fixo', 'variavel', 'cartao', 'faturas', 'contador', 'imposto', 'recibos'] },
   { id: 'team', labelKey: 'barArea.team', ids: ['staff', 'usuarios', 'ordens', 'salarios', 'metas', 'drinkback'] },
@@ -88,6 +89,7 @@ const NAV_GROUPS = [
 
 const CAIXA_NAV = [
   { id: 'pos', labelKey: 'nav.portalPos', icon: '🧾' },
+  { id: 'bar', labelKey: 'nav.barQueue', icon: '🍸' },
   { id: 'mesas', labelKey: 'nav.mesas', icon: '🗺' },
 ]
 
@@ -95,6 +97,7 @@ const STAFF_NAV = [
   { id: 'hoje', labelKey: 'nav.myToday', icon: '☀️' },
   { id: 'ponto', labelKey: 'nav.portalClock', icon: '🕒' },
   { id: 'pos', labelKey: 'nav.portalPos', icon: '🧾' },
+  { id: 'bar', labelKey: 'nav.barQueue', icon: '🍸' },
   { id: 'mesas', labelKey: 'nav.mesas', icon: '🗺' },
   { id: 'pedidos', labelKey: 'nav.supply', icon: '🛒' },
   { id: 'shifts', labelKey: 'nav.myShifts', icon: '🗓️' },
@@ -109,7 +112,7 @@ const STAFF_NAV = [
 
 // Staff see their own day first, then work, results and pay — never the bar's books.
 const STAFF_GROUPS = [
-  { id: 'myDay', labelKey: 'nav.groupMyDay', ids: ['hoje', 'ponto', 'pos', 'mesas', 'pedidos'] },
+  { id: 'myDay', labelKey: 'nav.groupMyDay', ids: ['hoje', 'ponto', 'pos', 'bar', 'mesas', 'pedidos'] },
   { id: 'myWork', labelKey: 'nav.groupMyWork', ids: ['shifts', 'goals', 'result'] },
   { id: 'myRecord', labelKey: 'nav.groupMyRecord', ids: ['points', 'rewards', 'occurrences'] },
   { id: 'myPay', labelKey: 'nav.groupMyPay', ids: ['salary', 'profile'] },

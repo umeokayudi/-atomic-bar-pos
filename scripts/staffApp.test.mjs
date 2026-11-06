@@ -150,8 +150,8 @@ test('staff app: who gets it', () => {
   assert.equal(usesStaffApp(null), false)
 })
 
-test('staff app: bottom tabs Home · Performance · POS · Clock · More; POS/Clock follow the areas', () => {
-  assert.deepEqual(staffAppTabsFor().map(t => t.id), ['hoje', 'performance', 'pos', 'ponto', 'more'])
+test('staff app: bottom tabs Home · (Bar) · Performance · POS · Clock · More; POS/Clock follow the areas', () => {
+  assert.deepEqual(staffAppTabsFor().map(t => t.id), ['hoje', 'bar', 'performance', 'pos', 'ponto', 'more'])
   const staffOnly = { role: 'bar_staff', acessos: presetAreas('staffOnly') }
   const open = id => canOpenTab(staffOnly, id)
   assert.deepEqual(staffAppTabsFor(open).map(t => t.id), ['hoje', 'performance', 'ponto', 'more'])
