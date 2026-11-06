@@ -1,0 +1,25 @@
+/* My account / HQ → Bars: notifications on this phone and the bar's message style. */
+.push-card { display: grid; gap: 14px; margin-top: 16px; max-width: 640px; }
+.push-card .ui-seg { justify-self: start; }
+.push-head { display: flex; gap: 10px; align-items: flex-start; }
+.push-head h3 { margin: 0 0 2px; font-size: 16px; }
+.push-head p { margin: 0; }
+.push-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.push-hint { margin: 0; font-size: 13px; color: var(--c-text-2); background: var(--c-surface-2); border: 1px solid var(--c-border); border-radius: var(--radius); padding: 10px 12px; }
+.push-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.push-group h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--c-text-2); }
+.push-row { display: flex; gap: 8px; align-items: center; min-height: 36px; font-size: 14px; cursor: pointer; }
+.push-row input { width: 18px; height: 18px; flex-shrink: 0; }
+.push-style { display: grid; gap: 12px; border-top: 1px solid var(--c-border); padding-top: 12px; }
+.push-style-toggle { justify-self: start; }
+.push-checks { display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.push-texts { display: grid; gap: 12px; }
+.push-text { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--c-border); border-radius: var(--radius); background: var(--c-surface); }
+.push-text-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.push-text textarea, .push-ai input { width: 100%; box-sizing: border-box; font: inherit; font-size: 14px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--c-border); background: var(--c-surface-2); color: var(--c-text); resize: vertical; }
+.push-ai { display: flex; gap: 6px; }
+.push-preview { display: flex; gap: 10px; align-items: center; padding: 10px; border-radius: 14px; background: var(--c-surface-2); border-left: 4px solid var(--push-accent, var(--c-border)); }
+.push-preview img { border-radius: 9px; object-fit: contain; flex-shrink: 0; }
+.push-preview div { display: grid; gap: 2px; min-width: 0; }
+.push-preview b { font-size: 13px; }
+.push-preview span { font-size: 13px; color: var(--c-text-2); overflow-wrap: anywhere; }

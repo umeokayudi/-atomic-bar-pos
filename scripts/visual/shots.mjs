@@ -203,6 +203,7 @@ const PAGES = [
   { who: OWNER, path: '/bar/conta', name: 'bar-account' },
   { who: OWNER, path: '/bar/conta', name: 'bar-account-password', taps: ['.my-account-line:nth-of-type(3) .ui-btn'] },
   { who: OWNER, path: '/bar/conta', name: 'bar-logo-home', taps: ['button.bar-identity.is-link'] },
+  { who: OWNER, path: '/bar/conta', name: 'bar-account-push-style', taps: ['.push-style-toggle'] },
 ]
 let CURRENT = {}
 const ONLY = process.env.PAGES ? process.env.PAGES.split(',') : null
@@ -427,6 +428,18 @@ async function mock(page, who, missing = [], vault = null, acessos = null) {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: spec.wantSingle ? rows[0] || null : rows }) })
     }
     const path = new URL(req.url()).pathname
+    // Push notifications: the key, the bar's style and its look; no phone subscribed in the shots.
+    if (path === '/api/bar/push') {
+      const icon = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8v5ehHgAGhAJ/wlseKgAAAABJRU5ErkJggg=='
+      if (req.method() === 'GET') return new URL(req.url()).searchParams.get('action') === 'icon'
+        ? route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from(icon, 'base64') })
+        : route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ publicKey: 'x' }) })
+      const a = (req.postDataJSON() || {}).action
+      const body = a === 'style'
+        ? { style: { tone: 'party', emoji: true, congrats: true, texts: { order: '🍸 {who} mandou pedido: {items} itens · {amount} · {tab}' }, congratsText: 'Parabéns! 🎉' }, look: { name: TABLES.bars[0].nome, color: '#d7191f' } }
+        : { sub: null }
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
+    }
     if (req.method() === 'POST' && path === '/api/bar-staff' && (req.postDataJSON() || {}).action === 'lockStatus') {
       const on = vault ? { enabled: true, hasPin: true, areas: ['money', 'payroll'], minutes: 15 } : { enabled: false, hasPin: false, areas: [], minutes: 15 }
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...on, unlockedUntil: 0, canEdit: who.role !== 'gerente' || vault === 'owner' }) })

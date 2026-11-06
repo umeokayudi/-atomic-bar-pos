@@ -149,6 +149,7 @@ function TabHold({ children }) {
 import { loadCompany } from '../lib/receipts'
 import { notify } from './ui/ConfirmDialog'
 import { displayName } from '../lib/catalog'
+import { notifyPush } from '../lib/push'
 
 // ── HOME ──────────────────────────────────────────────────────────────────────
 /** Bar home cards: id, default width, hidden by default. Titles and content live in HomeTab. */
@@ -977,6 +978,7 @@ function FaturasTab({ bar }) {
       notas:payForm.notas, data:new Date().toISOString().slice(0,10),
       comprovante_url, confirmado:false, submetido_por:user?.id
     })
+    notifyPush('payment', { amount: +payForm.valor, what: payForm.metodo }, { key: `sub-${payModal.id}-${Date.now()}` })
     setSaving(false); setPayModal(null); setPayForm({ valor:"", metodo:"transfer", notas:"" }); setImage(null); setScannedData(null); load()
   }
 

@@ -1,6 +1,7 @@
 {
   "buildCommand": "npm run build",
   "regions": ["icn1"],
+  "crons": [{ "path": "/api/bar/push?action=cron", "schedule": "0 0 1 * *" }],
   "headers": [
     {
       "source": "/assets/(.*)",
@@ -13,11 +14,12 @@
     { "source": "/api/pos-reorder", "destination": "/api/bar/pos-reorder" },
     { "source": "/api/pos-status", "destination": "/api/bar/pos-status" },
     { "source": "/api/lane-login", "destination": "/api/bar/lane-login" },
+    { "source": "/api/push", "destination": "/api/bar/push" },
     { "source": "/api/holding-modules", "destination": "/api/holding/holding-modules" },
     { "source": "/api/holding-audit", "destination": "/api/holding/holding-audit" },
     { "source": "/api/cashflow-export", "destination": "/api/holding/cashflow-export" },
     {
-      "source": "/((?!api/|holding/|assets/|icons/|logo|favicon\\.svg|favicon\\.ico|manifest\\.webmanifest).*)",
+      "source": "/((?!api/|holding/|assets/|icons/|logo|favicon\\.svg|sw\\.js|favicon\\.ico|manifest\\.webmanifest).*)",
       "destination": "/index.html"
     }
   ]

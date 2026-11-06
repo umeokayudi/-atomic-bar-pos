@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { staffFetch } from '../lib/apiAuth'
+import { notifyPush } from '../lib/push'
 import { loadBarTeam, peekBarTeam } from '../lib/barTeam'
 import { shiftsDue } from '../lib/autoClose'
 import { addDays } from '../lib/barClose'
@@ -70,6 +71,10 @@ export default function AutoClose({ bar }) {
           const ins = item.kind === 'dia' ? { error: null } : await supabase.from('pos_shifts').insert(row)
           if (!ins.error) {
             patch[item.kind === 'dia' ? 'fechou_dia' : 'fechou_noite'] = item.kind === 'dia' ? item.day : item.key
+            const shown = String(item.kind === 'dia' ? item.day : item.key).slice(5, 10).replace('-', '/')
+            notifyPush(item.kind === 'dia' ? 'day_close' : 'shift_close', item.kind === 'dia'
+              ? { day: shown, total: sum.drinksTotal, tickets: sum.ticketCount }
+              : { night: shown, total: sum.drinksTotal, tickets: sum.ticketCount }, { key: `${bar.id}-${item.kind}-${item.key}` })
           }
         }
         if (Object.keys(patch).length) {

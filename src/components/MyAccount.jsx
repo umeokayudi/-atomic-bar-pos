@@ -5,6 +5,7 @@ import { errText } from '../lib/errText'
 import { meAccount, meName } from '../lib/staffSelfApi'
 import { PageHeader } from './ui/PageLayout'
 import Icon from './ui/Icon'
+import PushSettings from './PushSettings'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -121,6 +122,7 @@ export default function MyAccount() {
         )}
         {msg && <div className={msg.tone === 'success' ? 'ui-badge is-success' : 'ui-error'} role={msg.tone === 'success' ? 'status' : 'alert'}>{msg.text}</div>}
       </div>
+      <PushSettings />
     </div>
   )
 }

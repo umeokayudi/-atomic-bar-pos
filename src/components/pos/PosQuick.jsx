@@ -29,6 +29,7 @@ import { meDay } from '../../lib/staffSelfApi'
 import PeopleStepper from '../floor/PeopleStepper'
 import { isCarriedTab, sortCarriedFirst } from '../../lib/openTabsClose'
 import { OPEN_TAB_EVENT } from '../../lib/openTabsApi'
+import { notifyPush } from '../../lib/push'
 
 const PAY = [
   { id: 'Cash', key: 'atomicPos.payCash', icon: 'payCash' },
@@ -563,12 +564,14 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
   }
 
   /** "Send" for a server tab: pending lines go onto the tab (idempotent per batch). */
-  async function sendPending() {
+  async function sendPending(notify = false) {
     if (!srvTab || !cart.length) return true
     const sendKey = order.sendKey || newKey('add')
     setOrders(prev => ({ ...prev, [active]: { ...prev[active], sendKey } }))
     try {
       await tabsApi.addItems(supabase, srvTab.id, pendingToLines(cart), sendKey)
+      // Owner's phone: "new order" (only for Send; paying straight away reports the sale instead).
+      if (notify) notifyPush('order', { tab: srvTab.nome || srvTab.mesa_nome || '', items: pendingCount, amount: pendingTotal }, { key: sendKey })
       setOrders(prev => ({ ...prev, [active]: { ...prev[active], cart: [], sendKey: undefined } }))
       await refreshTabs()
       return true
@@ -583,7 +586,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
     if (!orderMode || busy) return
     const note = { n: pendingCount, amount: pendingTotal, name: srvTab.nome || srvTab.mesa_nome || '' }
     setBusy(true)
-    const ok = await sendPending()
+    const ok = await sendPending(true)
     setBusy(false)
     if (!ok) return
     setSendAsk(false)
@@ -715,6 +718,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
           .finally(() => refreshLedger())
       }
       rememberTop(drinkLines)
+      if (!result.replay) notifyPush('sale', { tab: tableOrder ? (srvTab?.nome || order.label) : '', amount: chargedTotal, method: methodDisplay(pay) }, { key: saleKey })
       const onAccountAmount = ledgerRows.reduce((a, r) => a + r.valor, 0)
       setDone({
         thanks: sharedTill ? t('posQuick.thanks') : t('posQuick.congrats', { name: firstName(perfil?.nome) }),
