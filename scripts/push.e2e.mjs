@@ -70,6 +70,9 @@ assert.match(msg.icon, /action=icon&bar=bar1/)
 assert.equal(msg.url, '/bar/pos')
 assert.match(got[0].headers.authorization, /^vapid t=.+, k=.+/)
 assert.equal(got[0].headers['content-encoding'], 'aes128gcm')
+assert.equal(got[0].headers.ttl, '86400', 'kept 24 h by the push service')
+assert.equal(got[0].headers.urgency, 'high')
+assert.equal(msg.badge, '/icons/badge-96.png')
 
 // Same event again (retry) is not sent twice; a kind turned off is not sent; another bar is not sent.
 assert.equal((await sendPushEvent(admin, { barId: 'bar1', type: 'sale', vars: { amount: 1 }, key: 's1' })).skipped, 'duplicate')

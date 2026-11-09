@@ -235,7 +235,7 @@ export async function sendPushEvent(admin, { barId, type, vars, key, onlyEndpoin
         title: msg.title,
         body: msg.body,
         icon,
-        badge: '/icons/icon-192.png?v=2',
+        badge: '/icons/badge-96.png',
         color: look.color,
         tag: `${type}-${barId || 'hq'}-${key || Date.now()}`,
         url: urlFor(type),
@@ -243,7 +243,7 @@ export async function sendPushEvent(admin, { barId, type, vars, key, onlyEndpoin
       })
       try {
         await webpush.sendNotification({ endpoint: sub.endpoint, keys: sub.keys }, payload, {
-          TTL: 6 * 3600,
+          TTL: 24 * 3600,
           urgency: 'high',
           timeout: timeoutMs,
           ...(agent ? { agent } : {}),

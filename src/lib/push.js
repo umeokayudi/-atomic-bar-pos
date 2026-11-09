@@ -61,14 +61,44 @@ export async function enablePush({ prefs, lang } = {}) {
     sub = null
   }
   if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: want })
+  const saved = await saveOnServer(sub, prefs, lang)
+  return { sub, saved }
+}
+
+/** Saves the phone on the server and returns its row only when the server confirms it (else "on" would lie). */
+async function saveOnServer(sub, prefs, lang) {
   const j = await post({ action: 'subscribe', subscription: sub.toJSON(), prefs, lang })
-  return { sub, saved: j.sub }
+  if (!j?.sub?.id) throw new Error('not_saved')
+  return j.sub
+}
+
+/**
+ * On every app open: when this phone already allowed notifications, subscribe again quietly and save it on the
+ * server (a phone the server lost, or a renewed subscription, keeps receiving). Never asks anything.
+ */
+export async function resyncPush(lang) {
+  try {
+    const sup = pushSupport()
+    if (!sup.ok || Notification.permission !== 'granted') return null
+    const { saved } = await enablePush({ lang })
+    return saved
+  } catch {
+    return null
+  }
+}
+
+const DISMISS_KEY = 'jbm_push_prompt_off'
+export function promptDismissed() {
+  try { return localStorage.getItem(DISMISS_KEY) === '1' } catch { return false }
+}
+export function dismissPrompt() {
+  try { localStorage.setItem(DISMISS_KEY, '1') } catch { /* private mode */ }
 }
 
 export async function savePrefs(prefs, lang) {
   const sub = await currentSubscription()
   if (!sub) throw new Error('off')
-  return (await post({ action: 'subscribe', subscription: sub.toJSON(), prefs, lang })).sub
+  return saveOnServer(sub, prefs, lang)
 }
 
 export async function disablePush() {
@@ -85,10 +115,17 @@ export async function mySubscription() {
   return j.sub
 }
 
-export async function testPush(type, style) {
-  const sub = await currentSubscription()
+/** Test on this phone. Delivered to nobody → save the phone on the server again and try once more. */
+export async function testPush(type, style, lang) {
+  let sub = await currentSubscription()
   if (!sub) throw new Error('off')
-  return post({ action: 'test', type, style, endpoint: sub.endpoint })
+  let r = await post({ action: 'test', type, style, endpoint: sub.endpoint })
+  if (!r.sent) {
+    await enablePush({ lang })
+    sub = await currentSubscription()
+    r = await post({ action: 'test', type, style, endpoint: sub.endpoint })
+  }
+  return r
 }
 
 export const loadPushStyle = barId => post({ action: 'style', bar_id: barId })

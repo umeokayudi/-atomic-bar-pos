@@ -23,3 +23,6 @@
 .push-preview div { display: grid; gap: 2px; min-width: 0; }
 .push-preview b { font-size: 13px; }
 .push-preview span { font-size: 13px; color: var(--c-text-2); overflow-wrap: anywhere; }
+.push-prompt { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; margin: 0 0 12px; }
+.push-prompt-text { display: grid; gap: 2px; flex: 1 1 200px; min-width: 0; font-size: 13px; }
+.push-prompt-text span { color: var(--c-text-2); }

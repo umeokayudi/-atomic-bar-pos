@@ -70,7 +70,7 @@ export default function PushSettings({ hq = false }) {
       setSub(r.saved)
       say('success', t('push.onOk'))
     } catch (e) {
-      say('danger', e.message === 'denied' ? t('push.denied') : e.message === 'ios_home' ? t('push.iosHome') : errText(e))
+      say('danger', e.message === 'denied' ? t('push.denied') : e.message === 'ios_home' ? t('push.iosHome') : e.message === 'not_saved' ? t('push.notSaved') : errText(e))
     } finally { setBusy('') }
   }
 
@@ -89,7 +89,7 @@ export default function PushSettings({ hq = false }) {
   async function test(type = 'sale') {
     setBusy('test'); setMsg(null)
     try {
-      const r = await testPush(type, style)
+      const r = await testPush(type, style, lang)
       say(r.sent ? 'success' : 'danger', r.sent ? t('push.testSent') : t('push.testNone'))
     } catch (e) { say('danger', errText(e)) } finally { setBusy('') }
   }

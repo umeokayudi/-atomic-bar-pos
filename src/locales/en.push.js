@@ -1,6 +1,11 @@
 /** English strings for push notifications on the phone (06/11/2026), merged over the other dictionaries. */
 export default {
   push: {
+    notSaved: 'The server did not save this phone. Try again in a moment.',
+    promptTitle: 'Get notifications on this phone',
+    promptLead: 'New orders, clock-ins, closes and money — even with the app closed.',
+    promptGo: 'Turn on',
+    promptLater: 'Later',
     title: 'Notifications on this phone',
     lead: 'Get a notification for new orders, clock-ins, closes, invoices and money — with the bar\'s name and logo.',
     turnOn: 'Turn on notifications',

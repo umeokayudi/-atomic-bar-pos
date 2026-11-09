@@ -45,6 +45,7 @@ import RangeCalendar from './RangeCalendar'
 import { useVaultLock } from './VaultGate'
 import AutoClose from './AutoClose'
 import CloseAlert from './CloseAlert'
+import PushPrompt from './PushPrompt'
 import { PricingTab, MenuTab } from './BarRecipes'
 const ClientAnalyticsTab = lazy(() => import('./ClientAnalyticsTab'))
 const PortalRecibosTab = lazy(() => import('./PortalRecibosTab'))
@@ -1508,6 +1509,7 @@ export default function PortalCliente({ bar, signOut, notifs=[], unread=0, markR
       <main className="app-main app-main-wide">
         <AutoClose bar={bar} />
         <CloseAlert bar={bar} onClose={() => selectTab('pos')} />
+        {(perfil?.role === 'cliente' || perfil?.role === 'gerente') && !perfil?.lane && <PushPrompt />}
         <div className="mobile-search">{searchBox(false)}</div>
         <WorkspaceChrome
           start={searchBox(true)}

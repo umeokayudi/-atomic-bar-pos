@@ -46,6 +46,7 @@ const Cashflow = lazy(() => import('./components/Cashflow'))
 const ReportsBilling = lazy(() => import('./components/ReportsBilling'))
 const ProductsTab = lazy(() => import('./components/Configs').then(m => ({ default: m.ProductsTab })))
 const PushSettings = lazy(() => import('./components/PushSettings'))
+const PushPrompt = lazy(() => import('./components/PushPrompt'))
 const BarsTab = lazy(() => import('./components/Configs').then(m => ({ default: m.BarsTab })))
 const UsuariosTab = lazy(() => import('./components/Configs').then(m => ({ default: m.UsuariosTab })))
 const PedidosAdminTab = lazy(() => import('./components/Configs').then(m => ({ default: m.PedidosAdminTab })))
@@ -702,6 +703,7 @@ function Shell() {
           <NotificationBell notifs={notifs} unread={unread} markRead={markRead} markAllRead={markAllRead} deleteNotif={deleteNotif} deleteAll={deleteAll} onNavigate={selectTab} overdueAlerts={overdueAlerts} placement="header"/>
         </WorkspaceChrome>
         <Suspense fallback={null}>
+        {perfil?.role === 'admin' && <PushPrompt />}
         <div className="fade-in" key={activeTab}>
           {activeTab==='dashboard' && <Dashboard onNav={selectTab}/>}
           {activeTab==='billingHub' && <ReportsBilling onNav={selectTab}/>}
