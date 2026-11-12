@@ -133,6 +133,8 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
   // Big screens: the side panel stays compact and a tab's full order opens in a pop-up.
   const [detailOpen, setDetailOpen] = useState(false)
   const [sendAsk, setSendAsk] = useState(false) // confirm sheet before a new order goes onto a tab
+  const [routeAsk, setRouteAsk] = useState(false) // Counter order: "where does it go?" pop-up (pay now / a tab / new tab)
+  const [routeNew, setRouteNew] = useState(false) // the New tab sheet was opened from that pop-up: send straight onto the new tab
   const [sentNote, setSentNote] = useState(null) // { n, amount, name } shown for a moment after sending
   const sentTimer = useRef(null)
   // Phones: payment method, cash chips and customer fold away so the drinks on the order keep the room.
@@ -380,6 +382,8 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
   const pendingCount = cart.reduce((a, l) => a + l.qtd, 0)
   // A server tab with drinks not sent yet: the bar shows that order only, with Send (after a confirm).
   const orderMode = !!srvTab && cart.length > 0
+  // A Counter order with server tabs on: Send asks where it goes (pay now, a tab, or a new tab).
+  const routeMode = !!server && active === COUNTER && cart.length > 0
   const cashPay = isCashMethod(pay)
   const onAccountPay = pay === ON_ACCOUNT
   const cash = cashPay ? cashSettle(due, tendered, '') : null
@@ -413,7 +417,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
     setOrders(prev => {
       const current = prev[active] || { cart: [] }
       const nextCart = typeof updater === 'function' ? updater(current.cart || []) : updater
-      return { ...prev, [active]: { ...current, cart: nextCart, saleKey: undefined } }
+      return { ...prev, [active]: { ...current, cart: nextCart, saleKey: undefined, routeKey: undefined } }
     })
   }
 
@@ -505,13 +509,19 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
           barId: bar.id, nome: name, tableId: table?.id || null, pessoas: +tabForm.pessoas || 1,
           responsavel: perfil?.nome || null, servicePct: settings.service_pct, key: newKey('open'),
         })
-        setOrders(prev => ({
-          ...prev,
-          [COUNTER]: active === COUNTER ? { cart: [] } : prev[COUNTER],
-          [SRV + id]: { ...(prev[SRV + id] || {}), cart: [...(prev[SRV + id]?.cart || []), ...moving], guestId: tabForm.guestId || prev[SRV + id]?.guestId || null },
-        }))
-        await refreshTabs()
-        switchTo(SRV + id)
+        if (routeNew && moving.length) {
+          // Opened from "where does it go?": the order goes straight onto the new tab and the till stays on the Counter.
+          await sendLinesToTab(id, name, moving)
+          setOrders(prev => ({ ...prev, [SRV + id]: { ...(prev[SRV + id] || {}), guestId: tabForm.guestId || prev[SRV + id]?.guestId || null } }))
+        } else {
+          setOrders(prev => ({
+            ...prev,
+            [COUNTER]: active === COUNTER ? { cart: [] } : prev[COUNTER],
+            [SRV + id]: { ...(prev[SRV + id] || {}), cart: [...(prev[SRV + id]?.cart || []), ...moving], guestId: tabForm.guestId || prev[SRV + id]?.guestId || null },
+          }))
+          await refreshTabs()
+          switchTo(SRV + id)
+        }
       } catch (err2) {
         setErr(t('tabs.errGeneric', { error: err2.message }))
       } finally {
@@ -532,6 +542,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
       }
     }
     setTabSheet(false)
+    setRouteNew(false)
     setTabForm({ nome: '', pessoas: 2, tableId: '', guestId: '' })
   }
 
@@ -619,6 +630,39 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
     setSentNote(note)
     clearTimeout(sentTimer.current)
     sentTimer.current = setTimeout(() => setSentNote(null), 3000)
+  }
+
+  function flashSent(note) {
+    setSentNote(note)
+    clearTimeout(sentTimer.current)
+    sentTimer.current = setTimeout(() => setSentNote(null), 3000)
+  }
+
+  /** The Counter order goes onto a server tab in one step (same key on a retry), then the Counter is empty again. */
+  async function sendLinesToTab(tabId, tabName, lines) {
+    const key = orders[COUNTER]?.routeKey || newKey('add')
+    setOrders(prev => ({ ...prev, [COUNTER]: { ...(prev[COUNTER] || { cart: [] }), routeKey: key } }))
+    await tabsApi.addItems(supabase, tabId, pendingToLines(lines), key)
+    pushTicket(supabase, { barId: bar.id, key: `tab:${key}`, origem: 'tab', comandaId: tabId, label: tabName, lines, byName: perfil?.nome || null })
+    setOrders(prev => ({ ...prev, [COUNTER]: { cart: [] } }))
+    flashSent({ n: lines.reduce((a, l) => a + l.qtd, 0), amount: cartTotal(lines), name: tabName })
+    refreshTabs()
+  }
+
+  /** "Where does it go?" → an open tab. */
+  async function routeTo(tab) {
+    if (busy || !cart.length) return
+    setBusy(true)
+    setErr('')
+    try {
+      await sendLinesToTab(tab.id, tab.nome || tab.mesa_nome || '', cart)
+      setRouteAsk(false)
+      setOrderOpen(false)
+    } catch (e) {
+      setErr(isConflict(e) ? t('tabs.errConflict') : t('tabs.errGeneric', { error: e.message }))
+    } finally {
+      setBusy(false)
+    }
   }
 
   function rememberTop(lines) {
@@ -1161,9 +1205,15 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
           {clearEl}
 
           {err && <div className="pq-alert" role="alert">{err}</div>}
+          {routeMode && !paying ? (
+            <button type="button" className="pq-charge pq-route-go" disabled={busy || setupNeeded} onClick={() => { setErr(''); setRouteAsk(true) }}>
+              <Icon name="send" size={20} /> {t('posRoute.send', { items: t('posQuick.items', { n: pendingCount }), amount: fmtYen(pendingTotal) })}
+            </button>
+          ) : (
           <button type="button" className="pq-charge" disabled={busy || !hasSomething || short || setupNeeded} onClick={!paying && needsPayStep ? () => { setPayMore(true); setErr('') } : needGuest ? () => setCustSheet(true) : charge} aria-keyshortcuts="Control+Enter F12">
             {!paying && needsPayStep && !busy ? t('posQuick.toPay', { amount: fmtYen(due) }) : chargeLabel}
           </button>
+          )}
         </div>
       </aside>
 
@@ -1181,7 +1231,11 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
           <strong>{hasSomething ? fmtYen(due) : t('posQuick.viewOrder')}</strong>
         </button>
       )}
-      {orderMode ? (
+      {routeMode ? (
+        <button type="button" className="pq-cartbar-new is-send" disabled={busy || setupNeeded} onClick={() => { setErr(''); setRouteAsk(true) }} aria-label={t('posRoute.title')}>
+          <Icon name="send" size={20} /><span>{t('tabs.sendShort')}</span>
+        </button>
+      ) : orderMode ? (
         <button type="button" className="pq-cartbar-new is-send" disabled={busy || lockedTab} onClick={() => { setErr(''); setSendAsk(true) }} aria-label={t('tabs.send', { n: pendingCount })}>
           <Icon name="send" size={20} /><span>{t('tabs.sendShort')}</span>
         </button>
@@ -1232,6 +1286,46 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
         </div>
       )}
 
+      {routeAsk && routeMode && (
+        <div className="pq-sheet" role="dialog" aria-modal="true" aria-label={t('posRoute.title')} onClick={e => { if (e.target === e.currentTarget && !busy) setRouteAsk(false) }}>
+          <div className="pq-sheet-card pq-route">
+            <div className="pq-detail-head">
+              <h2>{t('posRoute.title')}</h2>
+              <button type="button" className="pq-detail-x" disabled={busy} onClick={() => setRouteAsk(false)} aria-label={t('common.close')}><Icon name="close" size={18} /></button>
+            </div>
+            <p className="pq-route-sum">
+              <b>{t('posQuick.items', { n: pendingCount })} · {fmtYen(pendingTotal)}</b>
+              <span>{cart.map(l => `${l.qtd}× ${l.nome}`).join(', ')}</span>
+            </p>
+            <button type="button" className="pq-route-pay" disabled={busy} onClick={() => { setRouteAsk(false); setOrderOpen(true); goPay() }}>
+              <Icon name="payCash" size={26} />
+              <span><b>{t('posRoute.payNow')}</b><small>{t('posRoute.payNowHint')}</small></span>
+              <strong>{fmtYen(due)}</strong>
+            </button>
+            <h3 className="pq-route-h">{t('posRoute.toTab')}</h3>
+            <div className="pq-route-tabs">
+              {shownTabs.filter(x => x.status === 'open').map(x => {
+                const m = tabMoney(x, x.items, x.payments, settings)
+                const carried = isCarriedTab(x, today)
+                return (
+                  <button key={x.id} type="button" className={`pq-route-tab${carried ? ' is-carried' : ''}`} disabled={busy} onClick={() => routeTo(x)}>
+                    {carried && <span className="pq-tab-carried">{t('openTabs.fromYesterdayShort')}</span>}
+                    <b>{x.nome}</b>
+                    <small>{[x.mesa_nome && x.mesa_nome !== x.nome ? x.mesa_nome : '', t('tabs.people', { n: +x.pessoas || 1 })].filter(Boolean).join(' · ')}</small>
+                    <em>{fmtYen(m.total)}</em>
+                  </button>
+                )
+              })}
+              <button type="button" className="pq-route-tab is-new" disabled={busy} onClick={() => { setRouteAsk(false); setRouteNew(true); setTabSheet(true) }}>
+                <Icon name="plus" size={22} />
+                <b>{t('posRoute.newTab')}</b>
+              </button>
+            </div>
+            {err && <div className="pq-alert" role="alert">{err}</div>}
+          </div>
+        </div>
+      )}
+
       {sentNote && (
         <div className="pq-sent-note" role="status" onClick={() => setSentNote(null)}>
           <Icon name="ok" size={18} />
@@ -1254,21 +1348,27 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
             <div className="pq-detail-actions">
               {clearEl}
               <button type="button" className="ui-btn is-lg" onClick={() => setDetailOpen(false)}><Icon name="plus" size={16} /> {t('posQuick.addDrinks')}</button>
+              {routeMode ? (
+                <button type="button" className="pq-charge pq-route-go" disabled={busy || setupNeeded} onClick={() => { setDetailOpen(false); setErr(''); setRouteAsk(true) }}>
+                  <Icon name="send" size={20} /> {t('posRoute.send', { items: t('posQuick.items', { n: pendingCount }), amount: fmtYen(pendingTotal) })}
+                </button>
+              ) : (
               <button type="button" className="pq-charge" disabled={busy || !hasSomething || short || setupNeeded} onClick={goPay}>
                 {needsPayStep && !busy ? t('posQuick.toPay', { amount: fmtYen(due) }) : chargeLabel}
               </button>
+              )}
             </div>
           </div>
         </div>
       )}
 
       {tabSheet && (
-        <div className="pq-sheet" role="dialog" aria-modal="true" aria-label={t('posQuick.newTab')} onClick={e => { if (e.target === e.currentTarget) setTabSheet(false) }}>
+        <div className="pq-sheet" role="dialog" aria-modal="true" aria-label={t('posQuick.newTab')} onClick={e => { if (e.target === e.currentTarget) { setTabSheet(false); setRouteNew(false) } }}>
           <form className="pq-sheet-card" onSubmit={openTab}>
             <h2>{t('posQuick.newTab')}</h2>
             <div className="pq-sheet-name">
               <input autoFocus value={tabForm.nome} onChange={e => setTabForm(f => ({ ...f, nome: e.target.value }))} placeholder={t('posQuick.tabName')} aria-label={t('posQuick.tabName')} />
-              <button type="submit" disabled={busy || !(tabForm.nome.trim() || tabForm.tableId)}>{t('posQuick.openTab')}</button>
+              <button type="submit" disabled={busy || !(tabForm.nome.trim() || tabForm.tableId)}>{routeNew ? t('posRoute.openSend') : t('posQuick.openTab')}</button>
             </div>
             {server && (
               <div className="pq-sheet-people">
@@ -1283,7 +1383,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
                     <button key={row.id} type="button" role="radio" aria-checked={tabForm.tableId === row.id}
                       className={`${tabForm.tableId === row.id ? 'is-on' : ''}${taken ? ' is-taken' : ''}`}
                       onClick={() => {
-                        if (taken) { switchTo(SRV + taken.id); setTabSheet(false); return }
+                        if (taken) { setTabSheet(false); if (routeNew) { setRouteNew(false); routeTo(taken) } else switchTo(SRV + taken.id); return }
                         setTabForm(f => ({ ...f, tableId: f.tableId === row.id ? '' : row.id }))
                       }}>
                       {row.nome}{server && vipTag(row) ? ` · ${t('floor.vip')}` : ''}{taken ? ` · ${taken.nome}` : ''}
@@ -1301,8 +1401,8 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
                     balances={balances} error={crmErr ? t('onAccount.errCrm', { error: crmErr }) : ''} />}
             </div>
             {!server && server !== null && <p className="pq-hint">{t('tabs.deviceOnly')}</p>}
-            {active === COUNTER && cart.length > 0 && <p className="pq-hint">{t('posQuick.moveHint')}</p>}
-            <button type="button" className="pq-sheet-cancel" onClick={() => setTabSheet(false)}>{t('common.cancel')}</button>
+            {active === COUNTER && cart.length > 0 && <p className="pq-hint">{routeNew ? t('posRoute.newHint') : t('posQuick.moveHint')}</p>}
+            <button type="button" className="pq-sheet-cancel" onClick={() => { setTabSheet(false); setRouteNew(false) }}>{t('common.cancel')}</button>
           </form>
         </div>
       )}

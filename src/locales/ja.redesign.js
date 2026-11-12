@@ -553,4 +553,8 @@ export default {
     perPerson: 'バーテンダー別', person: '担当', orders: '注文', time: '平均', done: '今夜の完成分', noneDone: 'まだ完成した注文はありません。',
     needsSql: 'バーキューを準備中です。送信した注文は伝票に入ります。', errLoad: 'キューを読み込めませんでした: {error}',
   },
+  posRoute: {
+    send: '送信 · {items} · {amount}', openSend: '開いて送信', newHint: '注文はそのまま新しい伝票に入ります。', title: 'この注文はどこへ？',
+    payNow: '今すぐ会計', payNowHint: 'カウンターで現金・カード・PayPay', toTab: '伝票に付ける', newTab: '新しい伝票',
+  },
 }

@@ -6228,3 +6228,26 @@ html[data-device="phone"] .has-easy-dock .pq-sent-note { bottom: calc(164px + en
   .bq-load { flex: 1 1 auto; display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; text-align: left; }
   .bq-load strong { font-size: 20px; }
 }
+
+/* POS: "Where does this order go?" — pay now, an open tab, or a new tab (big, one tap). */
+.pq-route { width: min(640px, 100%); display: grid; gap: 14px; max-height: min(88vh, 900px); overflow-y: auto; }
+.pq-route-sum { display: grid; gap: 2px; margin: -6px 0 0; }
+.pq-route-sum b { font-size: 18px; }
+.pq-route-sum span { color: var(--c-text-2, var(--text2)); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pq-route-pay { display: flex; align-items: center; gap: 14px; min-height: 76px; padding: 0 20px; border: 0; border-radius: 18px; background: var(--pq-accent); color: white !important; text-align: left; cursor: pointer; }
+.pq-route-pay span { flex: 1; display: grid; }
+.pq-route-pay b { font-size: 22px; }
+.pq-route-pay small { font-size: 13px; opacity: .85; }
+.pq-route-pay strong { font-size: 24px; }
+.pq-route-h { margin: 4px 0 0; font-size: 15px; color: var(--c-text-2, var(--text2)); text-transform: uppercase; letter-spacing: .04em; }
+.pq-route-tabs { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.pq-route-tab { position: relative; display: grid; align-content: center; gap: 2px; min-height: 92px; padding: 12px 14px; border-radius: 16px; border: 2px solid var(--c-border, var(--border)); background: var(--c-surface, var(--bg2)); color: inherit; text-align: left; cursor: pointer; }
+.pq-route-tab:hover, .pq-route-tab:focus-visible { border-color: var(--pq-accent); }
+.pq-route-tab b { font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pq-route-tab small { font-size: 12px; color: var(--c-text-2, var(--text2)); }
+.pq-route-tab em { font-style: normal; font-weight: 800; color: var(--pq-accent); }
+.pq-route-tab.is-carried { border-color: color-mix(in srgb, var(--c-warning, #b7791f) 60%, transparent); }
+.pq-route-tab.is-carried .pq-tab-carried { justify-self: start; }
+.pq-route-tab.is-new { justify-items: center; text-align: center; border-style: dashed; color: var(--pq-accent); }
+.pq-route-go { display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
+@media (max-width: 520px) { .pq-route-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pq-route-tab { min-height: 80px; } }
