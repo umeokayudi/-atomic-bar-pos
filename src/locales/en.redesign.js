@@ -560,4 +560,8 @@ export default {
     perPerson: 'Per barman', person: 'Who', orders: 'Orders', time: 'Avg', done: 'Done tonight', noneDone: 'Nothing finished yet.',
     needsSql: 'The Bar queue is being set up. Orders sent now still go on the tabs.', errLoad: 'Could not load the queue: {error}',
   },
+  posRoute: {
+    send: 'Send · {items} · {amount}', openSend: 'Open & send', newHint: 'The order goes straight onto the new tab.', title: 'Where does this order go?',
+    payNow: 'Pay now', payNowHint: 'Cash, card or PayPay at the counter', toTab: 'Put it on a tab', newTab: 'New tab',
+  },
 }
