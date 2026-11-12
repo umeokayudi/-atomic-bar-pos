@@ -218,8 +218,15 @@ export default function HqOrders() {
   async function registerVendaForPedido(pedido) {
     const { data: fresh, error } = await supabase.from('pedidos').select(PEDIDOS_SELECT).eq('id', pedido.id).single()
     if (error) throw new Error(error.message)
-    const { venda } = await ensureVendaFromPedido(supabase, fresh)
+    const { venda, created } = await ensureVendaFromPedido(supabase, fresh)
     if (!venda) throw new Error('Could not create the sale')
+    // A sale made now carries the order number too ("Auto: order 1a2b3c4d · ORD-2026-0142"); old sales are not touched.
+    const code = orderCode(tracks[pedido.id], pedido)
+    if (created && code && !String(venda.obs || '').includes(code)) {
+      const obs = `${venda.obs || ''} · ${code}`.trim()
+      const { error: oErr } = await supabase.from('vendas').update({ obs }).eq('id', venda.id)
+      if (!oErr) venda.obs = obs
+    }
     try { await addStockFromDelivery(supabase, fresh) } catch (e) { console.warn('estoque entrega:', e.message) }
     return venda
   }

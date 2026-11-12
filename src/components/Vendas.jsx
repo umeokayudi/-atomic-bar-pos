@@ -10,6 +10,8 @@ import { runChange } from '../lib/safeDelete'
 import { useNavigate } from 'react-router-dom'
 import { pathForTab } from '../lib/navigation'
 import Icon from './ui/Icon'
+import { loadTracks } from '../lib/orderTrackApi'
+import { orderCode } from '../lib/orderTrack'
 
 export default function VendasTab() {
   const { t } = useI18n()
@@ -24,6 +26,7 @@ export default function VendasTab() {
   const [saving,   setSaving]   = useState(false)
   const [filterMonth, setFilterMonth] = useState('')
   const [filterBar,   setFilterBar]   = useState('')
+  const [codes, setCodes] = useState({})
   const [form, setForm] = useState({ data: new Date().toISOString().slice(0,10), bar_id: '', obs: '', itens: [] })
 
   useEffect(() => { loadAll() }, [perfil?.role, perfil?.bar_id])
@@ -48,6 +51,12 @@ export default function VendasTab() {
       barsQ,
     ])
     setVendas(filterSupplierVendas(v || []))
+    // Sales written from a delivered order show that order's number (ORD-2026-0142), found by the id in obs.
+    if (scope.kind !== 'bar') {
+      const { data: peds } = await supabase.from('pedidos').select('id,criado_em').limit(5000)
+      const tracks = await loadTracks({})
+      setCodes(Object.fromEntries((peds || []).map(p => [String(p.id).slice(0, 8).toLowerCase(), orderCode(tracks[p.id], p)]).filter(([, c]) => c)))
+    }
     setProdutos((p || []).filter(isSupplierProduct))
     setBars(b || [])
     if (b?.length && !form.bar_id) setForm(f => ({ ...f, bar_id: b[0].id }))
@@ -213,7 +222,10 @@ export default function VendasTab() {
                       ).join(' · ')}
                     </td>
                     <td style={{ fontWeight:700 }}>{fmtYen(v.total)}</td>
-                    <td style={{ color:'var(--text2)' }}>{v.obs||'—'}</td>
+                    <td style={{ color:'var(--text2)' }}>
+                      {(() => { const k = /order\s+([0-9a-f]{8})/i.exec(v.obs || '')?.[1]?.toLowerCase(); const c = k && codes[k]; return c && !String(v.obs).includes(c) ? <b style={{ marginRight: 6 }}>{c}</b> : null })()}
+                      {v.obs||'—'}
+                    </td>
                     <td><DelBtn onClick={()=>deleteVenda(v.id)} /></td>
                   </tr>
                 )
