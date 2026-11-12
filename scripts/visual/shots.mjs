@@ -157,7 +157,7 @@ const PAGES = [
   { who: MANAGER, path: '/bar/cartao', name: 'bar-card-machines' },
   { who: MANAGER, path: '/bar/energia', name: 'bar-power-old-link' },
   { who: MANAGER, path: '/bar/pedidos', name: 'bar-supply-way', click: /To receive/ },
-  { who: MANAGER, path: '/bar/pedidos', name: 'bar-supply-receive', click: [/To receive/, /Receive and count/], steps: [{ tap: '.ord-modal .ui-btn.is-sm' }, { fill: ['.rc-table tbody tr:nth-child(2) input', '10'] }] },
+  { who: MANAGER, path: '/bar/pedidos', name: 'bar-supply-receive', click: [/To receive/, /Receive and count/], steps: [{ tap: '.ord-modal .ui-btn.is-sm' }, { fill: ['.ord-modal .rc-table tbody tr:nth-child(1) input', '2'] }] },
   { who: MANAGER, path: '/bar/pedidos', name: 'bar-supply-short', click: /Missing/ },
   { who: STAFF, path: '/bar/pedidos', name: 'staff-supply-way', click: /To receive/ },
   { who: ADMIN, path: '/hq/pedidos', name: 'hq-orders' },

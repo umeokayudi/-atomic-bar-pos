@@ -368,7 +368,7 @@ export default function HqOrders() {
                 </div>
               )
             })}
-            <button type="button" className="ui-btn is-sm" onClick={() => setForm(f => ({ ...f, lines: [...f.lines, emptyLine()] }))}><Icon name="plus" size={13} /> {t('common.addItem')}</button>
+            <button type="button" className="ui-btn is-sm" onClick={() => setForm(f => ({ ...f, lines: [...f.lines, emptyLine()] }))}>{t('common.addItem')}</button>
           </div>
 
           {merged > 0 && <div className="ot-info"><Icon name="info" size={14} /> {t('ot.willMerge', { n: merged })}</div>}
@@ -412,7 +412,7 @@ export default function HqOrders() {
           <PortalSurface key={p.id} style={{ marginBottom: 12, borderLeft: `3px solid var(--${st === 'pendente' ? 'gold' : 'border'})` }}>
             <div className="ot-card-top">
               <div>
-                <div className="ot-code">{code || t('ot.noNumber')} <span className="ot-bar">{p.bars?.nome}</span> {tr?.prioridade === 'urgent' && <span className="ot-pill is-red">{t('ot.prio.urgent')}</span>}</div>
+                <div className="ot-code">{code || t('ot.noNumber')} <span className="ot-bar">{barById.get(p.bar_id)?.nome || p.bars?.nome}</span> {tr?.prioridade === 'urgent' && <span className="ot-pill is-red">{t('ot.prio.urgent')}</span>}</div>
                 <div className="ot-sub">{createdLine(p, tr, t)}</div>
                 {deliveryWindow(p, tr) && <div className="ot-sub"><Icon name="entregas" size={12} /> {t('ot.delivery', { when: deliveryWindow(p, tr) })}{tr?.responsavel ? ` · ${t('ot.by', { who: tr.responsavel })}` : ''}</div>}
                 {tr?.nota && <div className="ot-note">{tr.nota}</div>}
@@ -453,7 +453,7 @@ export default function HqOrders() {
             )}
             {p.status === 'cancelado' && tr?.cancelado_motivo && <div className="ot-sub is-red">{t('ot.cancelledLine', { why: tr.cancelado_motivo, by: tr.cancelado_por || '—' })}</div>}
             {missingVenda[p.id] && (
-              <div className="ot-warn"><Icon name="warning" size={14} /> {t('configs.saleNotRegistered')}
+              <div className="ot-warn">{t('configs.saleNotRegistered')}
                 <button type="button" className="ui-btn is-sm" onClick={() => repairVenda(p)} disabled={repairing === p.id}>{repairing === p.id ? t('configs.registering') : t('configs.registerSaleNow')}</button>
               </div>
             )}
