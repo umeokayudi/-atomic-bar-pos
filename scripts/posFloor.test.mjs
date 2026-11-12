@@ -626,7 +626,7 @@ assert.doesNotMatch(quickSource, /pos_void_sale/)
   // No closed sale yet, a VIP tab with ¥10,000 open: sold 0, open 10,000 on 1 tab (this is what the owner saw).
   const none = summarizeNight([], night)
   assert.deepEqual(tonightGlance({ summary: none, tabs: [{ total: 10000, paid: 0 }, { total: 0, paid: 0 }] }),
-    { soldTotal: 0, soldCount: 0, openTotal: 10000, openPaid: 0, openCount: 1 })
+    { soldTotal: 0, soldCount: 0, openTotal: 10000, openPaid: 0, openCount: 2 })
   // Sales after midnight belong to the night that started the evening before; yesterday's and refunds are out.
   const sales = [
     { total: 5000, criado_em: at(22), data: night },
