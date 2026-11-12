@@ -33,7 +33,16 @@ const tab = (id, nome, table, minutes, items, status = 'open', pays = []) => ({
   _items: items.map(([d, q, mAgo], j) => ({ id: `${id}-i${j}`, comanda_id: id, bar_id: BAR.id, drink_menu_id: drinks[d].id, nome: drinks[d].nome, categoria: drinks[d].categoria, qtd: q, preco_unitario: drinks[d].preco_venda, preco_lista: drinks[d].preco_venda, tipo_preco: 'regular', desconto_valor: 0, criado_em: ago(mAgo) })),
   _pays: pays.map((v, j) => ({ id: `${id}-p${j}`, comanda_id: id, bar_id: BAR.id, valor: v, metodo: 'Cash', criado_em: ago(5) })),
 })
-const tabs = [
+// TABS13=1: the 13/11/2026 check at Atomic: 6 open tabs, 1 with value and 5 empty (¥0), one of them from yesterday.
+const tabs13 = [
+  { ...tab('00000000-0000-4000-8000-0000000c0d01', 'Ken', null, 60 * 26, []), responsavel_nome: 'Ken Mori' },
+  tab('00000000-0000-4000-8000-0000000c0d02', 'Mesa 1', tables[0].id, 140, [[0, 6, 130], [1, 4, 90], [2, 6, 60], [5, 4, 30]]),
+  tab('00000000-0000-4000-8000-0000000c0d03', 'Walk-in', null, 95, []),
+  tab('00000000-0000-4000-8000-0000000c0d04', 'Mesa 2', tables[1].id, 70, []),
+  tab('00000000-0000-4000-8000-0000000c0d05', 'Tanaka', null, 40, []),
+  tab('00000000-0000-4000-8000-0000000c0d06', 'Counter 2', null, 12, []),
+]
+const tabs = process.env.TABS13 ? tabs13 : [
   tab('00000000-0000-4000-8000-0000000c0001', 'Mesa 1', tables[0].id, 50, [[0, 2, 40], [1, 1, 20]]),
   tab('00000000-0000-4000-8000-0000000c0002', 'Tanaka', tables[3].id, 95, [[2, 3, 90], [5, 1, 80]]),
   tab('00000000-0000-4000-8000-0000000c0003', 'Mesa 2', tables[1].id, 6, []),

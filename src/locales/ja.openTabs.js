@@ -43,4 +43,13 @@ export default {
       noPin: 'オーナーPINが未設定です：ユーザーとアクセス → オーナーPIN。',
     },
   },
+  tabsList: {
+    button: '伝票',
+    title: '未会計の伝票 · {n}',
+    onTabs: '未会計',
+    opened: '開始 {at}',
+    open: '開く',
+    closeEmpty: '閉じる（空）',
+    search: '伝票・テーブル・担当で検索',
+  },
 }

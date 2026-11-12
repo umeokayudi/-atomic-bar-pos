@@ -43,4 +43,13 @@ export default {
       noPin: 'The owner has not set a PIN yet: Users & access → Owner PIN.',
     },
   },
+  tabsList: {
+    button: 'Tabs',
+    title: 'Open tabs · {n}',
+    onTabs: 'on the open tabs',
+    opened: 'Opened {at}',
+    open: 'Open',
+    closeEmpty: 'Close (empty)',
+    search: 'Find a tab, table or person',
+  },
 }

@@ -31,6 +31,8 @@ import PeopleStepper from '../floor/PeopleStepper'
 import { isCarriedTab, sortCarriedFirst } from '../../lib/openTabsClose'
 import { OPEN_TAB_EVENT } from '../../lib/openTabsApi'
 import { notifyPush } from '../../lib/push'
+import { openTabsCount, tabRows } from '../../lib/tabsList'
+import TabsListSheet from './TabsListSheet'
 
 const PAY = [
   { id: 'Cash', key: 'atomicPos.payCash', icon: 'payCash' },
@@ -127,6 +129,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(null)
   const [tabSheet, setTabSheet] = useState(false)
+  const [tabsList, setTabsList] = useState(false) // full list of open tabs (the "Tabs · N" button)
   const [tabForm, setTabForm] = useState({ nome: '', pessoas: 2, tableId: '', guestId: '' })
   const [nightGoal, setNightGoal] = useState(0)
   const [orderOpen, setOrderOpen] = useState(false)
@@ -407,6 +410,14 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
     ...localTabIds.map(id => ({ total: cartTotal(orders[id].cart || []), paid: 0 })),
   ]
   const glance = tonightGlance({ summary: night?.summary || (night?.error ? null : todaySales && { drinksTotal: todaySales.total, ticketCount: todaySales.count }), tabs: openTabsMoney })
+  // Every open tab counts, ¥0 ones too (a tab opened by mistake must not vanish from the number).
+  const tabsOpenN = openTabsCount(server ? srvTabs : [], localTabIds)
+  const listRows = useMemo(() => tabRows({
+    serverTabs: server ? srvTabs : [],
+    localTabs: localTabIds.map(id => ({ id, label: orders[id].label, total: cartTotal(orders[id].cart || []), openedAt: orders[id].openedAt, openedBy: orders[id].openedBy })),
+    total: x => tabMoney(x, x.items, x.payments, settings).total + cartTotal(orders[SRV + x.id]?.cart || []),
+    today,
+  }), [server, srvTabs, localTabIds.join('|'), orders, settings, today]) // eslint-disable-line react-hooks/exhaustive-deps
   // The shared till login (role caixa) is not one person: it gets a thank-you, a named login gets congratulated.
   const sharedTill = perfil?.role === 'caixa' || !perfil?.nome
   const goalPct = nightGoal > 0 ? Math.min(999, Math.round((glance.soldTotal / nightGoal) * 100)) : null
@@ -536,7 +547,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
         setOrders(prev => ({
           ...prev,
           [COUNTER]: active === COUNTER ? { cart: [] } : prev[COUNTER],
-          [id]: { label: name, spaceId, cart: moving, openedAt: new Date().toISOString(), guestId: tabForm.guestId || null },
+          [id]: { label: name, spaceId, cart: moving, openedAt: new Date().toISOString(), openedBy: perfil?.nome || '', guestId: tabForm.guestId || null },
         }))
         switchTo(id)
       }
@@ -1018,7 +1029,7 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
             <div className="pq-glance-cell" title={t('onAccount.openHint')}>
               <span>{t('onAccount.openTabs')}</span>
               <strong>{fmtYen(glance.openTotal)}</strong>
-              <em>{t('onAccount.tabsCount', { n: glance.openCount })}</em>
+              <em>{t('onAccount.tabsCount', { n: tabsOpenN })}</em>
             </div>
             {ledgerReady !== false && (
               <button type="button" className="pq-glance-cell is-btn" onClick={() => { setFiadoSheet(true); refreshLedger() }} aria-label={t('onAccount.title')}>
@@ -1069,26 +1080,19 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
             {t('posQuick.counter')}
             {orders[COUNTER].cart?.length > 0 && active !== COUNTER && <em>{fmtYen(cartTotal(orders[COUNTER].cart))}</em>}
           </button>
-          {server && shownTabs.map(x => {
-            const m = tabMoney(x, x.items, x.payments, settings)
-            const pend = cartTotal(orders[SRV + x.id]?.cart || [])
-            const carried = isCarriedTab(x, today)
-            return (
-              <button key={x.id} type="button" className={`pq-tab${active === SRV + x.id ? ' is-on' : ''}${x.status !== 'open' ? ' is-paying' : ''}${carried ? ' is-carried' : ''}`} onClick={() => viewTab(SRV + x.id)} title={carried ? t('openTabs.fromYesterday') : undefined}>
-                {carried && <span className="pq-tab-carried">{t('openTabs.fromYesterdayShort')}</span>}
-                {x.nome}
-                <em>{fmtYen(m.drinksTotal + pend)}</em>
-              </button>
-            )
-          })}
-          {localTabIds.map(id => (
-            <button key={id} type="button" className={`pq-tab${active === id ? ' is-on' : ''}`} onClick={() => viewTab(id)}>
-              {orders[id].label}
-              <em>{fmtYen(cartTotal(orders[id].cart))}</em>
+          {/* One fixed button with the number of open tabs (¥0 ones included) opens the full list; no sideways strip. */}
+          <button type="button" className={`pq-tab pq-tabs-btn${carriedCount > 0 ? ' is-carried' : ''}`} onClick={() => { setErr(''); setTabsList(true); refreshTabs() }} aria-haspopup="dialog">
+            <span className="pq-tabs-btn-label"><Icon name="comandas" size={14} /> {t('tabsList.button')} · <b>{tabsOpenN}</b></span>
+            {carriedCount > 0 && <em>{t('openTabs.fromYesterdayShort')} · {carriedCount}</em>}
+          </button>
+          {active !== COUNTER && (
+            <button type="button" className={`pq-tab pq-tab-current is-on${srvTab && isCarriedTab(srvTab, today) ? ' is-carried' : ''}`} onClick={() => viewTab(active)} title={activeName}>
+              <span className="pq-tab-current-name">{activeName}</span>
+              <em>{fmtYen(srvTab ? (srvMoney?.drinksTotal || 0) + pendingTotal : cartTotal(cart))}</em>
             </button>
-          ))}
+          )}
         </div>
-        {/* Outside the scrolling tab list so New tab and Close are always on screen. */}
+        {/* New tab and Close are always on screen. */}
         <div className="pq-tabs-actions">
           <button type="button" className="pq-tab is-add" onClick={() => setTabSheet(true)}><Icon name="plus" size={14} /> {t('posQuick.newTab')}</button>
           <button type="button" className="pq-close-sheet" onClick={() => setOrderOpen(false)} aria-label={t('posQuick.backToMenu')}><Icon name="close" size={18} /></button>
@@ -1284,6 +1288,22 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
             </div>
           </div>
         </div>
+      )}
+
+      {tabsList && (
+        <TabsListSheet
+          rows={listRows}
+          activeKey={active}
+          onDismiss={() => setTabsList(false)}
+          onOpen={key => { setTabsList(false); viewTab(key); setOrderOpen(true) }}
+          onPay={key => { setTabsList(false); switchTo(key); setOrderOpen(true); setDetailOpen(true) }}
+          onDropLocal={key => {
+            setOrders(prev => { const next = { ...prev }; delete next[key]; return next })
+            if (active === key) switchTo(COUNTER)
+          }}
+          onChanged={refreshTabs}
+          onNew={() => { setTabsList(false); setTabSheet(true) }}
+        />
       )}
 
       {routeAsk && routeMode && (

@@ -6251,3 +6251,35 @@ html[data-device="phone"] .has-easy-dock .pq-sent-note { bottom: calc(164px + en
 .pq-route-tab.is-new { justify-items: center; text-align: center; border-style: dashed; color: var(--pq-accent); }
 .pq-route-go { display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
 @media (max-width: 520px) { .pq-route-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pq-route-tab { min-height: 80px; } }
+
+/* POS: "Tabs · N" button + full list of open tabs (12/11/2026), replaces the sideways strip of tabs. */
+.pq-tabs { overflow-x: visible; flex-wrap: nowrap; }
+button.pq-tabs-btn { border: 2px solid var(--pq-accent); color: var(--pq-accent); background: var(--c-surface, var(--bg2)); }
+.pq-tabs-btn-label { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.pq-tabs-btn-label b { font-size: 17px; }
+button.pq-tab-current { flex: 0 1 auto; min-width: 0; max-width: 220px; }
+.pq-tab-current-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pq-tl { width: min(760px, 100%); max-height: min(90dvh, 960px); }
+.pq-tl-sum { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -6px 0 0; color: var(--c-text-2, var(--text2)); }
+.pq-tl-sum b { font-size: 18px; color: var(--c-text, var(--text)); }
+.pq-tl-search { margin: 0; }
+.pq-tl-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.pq-tl-row { display: grid; gap: 10px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--c-border, var(--border)); background: var(--c-surface, var(--bg)); }
+.pq-tl-row.is-on { border-color: var(--pq-accent); box-shadow: inset 0 0 0 1px var(--pq-accent); }
+.pq-tl-row.is-carried { border-color: var(--c-warning); box-shadow: inset 0 0 0 1px var(--c-warning); background: color-mix(in srgb, var(--c-warning-bg, #fff7e6) 55%, var(--c-surface, var(--bg))); }
+.pq-tl-main { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name total" "meta total"; gap: 2px 12px; align-items: center; padding: 0; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
+.pq-tl-name { grid-area: name; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.pq-tl-name b { font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.pq-tl-name small { font-size: 13px; color: var(--c-text-2, var(--text2)); }
+.pq-tl-meta { grid-area: meta; font-size: 13px; color: var(--c-text-2, var(--text2)); }
+.pq-tl-total { grid-area: total; font-size: 20px; font-weight: 800; }
+.pq-tl-total.is-zero { color: var(--c-text-2, var(--text2)); }
+.pq-tl-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.pq-tl-actions .ui-btn { min-height: 44px; }
+.pq-tl-form { margin: 0; }
+.pq-tl-new { justify-self: start; }
+@media (max-width: 520px) {
+  .pq-tl-name b { font-size: 16px; }
+  .pq-tl-total { font-size: 17px; }
+  button.pq-tab-current { max-width: 130px; }
+}

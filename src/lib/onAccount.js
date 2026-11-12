@@ -165,7 +165,8 @@ export function tonightGlance({ summary = null, tabs = [] } = {}) {
     soldCount: Math.round(+summary?.ticketCount || 0),
     openTotal: open.reduce((a, x) => a + Math.round(+x.total || 0), 0),
     openPaid: open.reduce((a, x) => a + Math.round(+x.paid || 0), 0),
-    openCount: open.length,
+    // Every open tab counts, ¥0 ones too (owner, 13/11/2026: 6 open with 5 empty showed "1 tabs").
+    openCount: (tabs || []).length,
   }
 }
 
