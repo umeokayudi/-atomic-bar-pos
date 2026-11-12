@@ -17,6 +17,7 @@ import { askConfirm, notify } from './ui/ConfirmDialog'
 import { normalizeName } from '../lib/catalog'
 import { purchaseItemsError, realCost, realCostFormula } from '../lib/purchaseRules'
 import { runChange } from '../lib/safeDelete'
+import { gapReasonOf, purchaseGap, withGapReason } from '../lib/orderTrack'
 
 export default function ComprasTab() {
   const { t } = useI18n()
@@ -37,7 +38,7 @@ export default function ComprasTab() {
       data: new Date().toISOString().slice(0,10),
       fornecedor: '', pagamento: 'Dinheiro', status_pagamento: 'pago',
       pontos_ganhos: 0, desconto_pontos: 0, tipo_ponto: '', data_pagamento: '', foto_url: '',
-      subtotal: 0, total_pago: 0, obs: '',
+      subtotal: 0, total_pago: 0, obs: '', gap_motivo: '',
       itens: []
     }
   }
@@ -118,6 +119,9 @@ export default function ComprasTab() {
     const itemErr = purchaseItemsError(form.itens, +form.subtotal || +form.total_pago || 0)
     if (itemErr) return notify(t(`purchaseRules.${itemErr.code}`, itemErr), 'error')
     if (form.status_pagamento === 'pago' && !(form.data_pagamento || form.data)) return notify(t('payMark.pickDate'), 'error')
+    // Subtotal and real cost apart by more than ¥1 (tax, delivery, points…): the reason is required.
+    const gap = purchaseGap(form)
+    if (gap.needsReason && !String(form.gap_motivo || '').trim()) return notify(t('purchaseGap.need', { subtotal: fmtYen(gap.subtotal), real: fmtYen(gap.real), diff: fmtYen(gap.unexplained) }), 'error')
     setSaving(true)
     const total_real = realCost(form)
     const { data: compra, error } = await supabase.from('compras').insert({
@@ -133,7 +137,7 @@ export default function ComprasTab() {
       status_pagamento: form.status_pagamento,
       data_pagamento:  form.status_pagamento === 'pago' ? (form.data_pagamento || form.data) : (form.data_pagamento || null),
       foto_url:        form.foto_url||null,
-      obs:             form.obs,
+      obs:             gap.needsReason ? withGapReason(form.obs, form.gap_motivo) : form.obs,
       criado_por:      user.id
     }).select().single()
 
@@ -272,6 +276,14 @@ export default function ComprasTab() {
           <div><label className="form-label">{form.status_pagamento === 'pago' ? t('common.paymentDate') : t('paySupplier.dueOptional')}</label>
             <input type="date" value={form.data_pagamento} onChange={e=>setF('data_pagamento',e.target.value)} /></div>
         </div>
+        {purchaseGap(form).needsReason && (
+          <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 10, background: 'var(--amber-bg)' }}>
+            <label className="form-label" style={{ color: 'var(--amber)' }}>
+              {t('purchaseGap.reason')} · {t('purchaseGap.tag', { diff: fmtYen(purchaseGap(form).unexplained) })}
+            </label>
+            <input type="text" value={form.gap_motivo} onChange={e=>setF('gap_motivo',e.target.value)} placeholder={t('purchaseGap.reasonPh')} />
+          </div>
+        )}
         <div style={{marginBottom:12}}>
           <label className="form-label">{t('common.receiptPhoto')}</label>
           <input type="file" accept="image/*,.pdf,application/pdf" onChange={async e=>{
@@ -374,6 +386,12 @@ export default function ComprasTab() {
                   <td style={{ fontWeight:700 }}>
                     {fmtYen(c.total_real)}
                     {(() => { const f = realCostFormula(c); return <div style={{ fontSize:10, fontWeight:400, color:'var(--text2)' }}>{t('purchaseRules.formula', { base: t(`purchaseRules.base_${f.base}`), baseAmount: fmtYen(f.baseAmount), points: fmtYen(f.points), real: fmtYen(f.real) })}</div> })()}
+                    {(() => {
+                      const g = purchaseGap(c)
+                      if (!g.needsReason) return null
+                      const why = gapReasonOf(c.obs)
+                      return <div style={{ fontSize:10, fontWeight:600, color: why ? 'var(--text2)' : 'var(--red)' }}>{t('purchaseGap.tag', { diff: fmtYen(g.unexplained) })}: {why || t('purchaseGap.missing')}</div>
+                    })()}
                   </td>
                   <td>{+c.pontos_ganhos > 0 ? `+${c.pontos_ganhos}${c.tipo_ponto?' ('+c.tipo_ponto+')':''}` : '—'}</td>
                   <td style={{ color: c.status_pagamento === 'pago' && !c.data_pagamento ? 'var(--red)' : undefined }}>{c.data_pagamento ? fmtDate(c.data_pagamento) : c.status_pagamento === 'pago' ? t('payMark.pickDate') : '—'}</td>

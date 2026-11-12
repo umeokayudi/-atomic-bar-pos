@@ -48,6 +48,7 @@
     "test:catalog": "node scripts/catalog.test.mjs",
     "test:notif-groups": "node scripts/notifGroups.test.mjs",
     "test:audit": "node scripts/audit.test.mjs",
+    "test:order-track": "node scripts/orderTrack.test.mjs",
     "test:push": "node scripts/pushTemplates.test.mjs && node scripts/push.e2e.mjs"
   },
   "dependencies": {

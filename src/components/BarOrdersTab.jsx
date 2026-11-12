@@ -14,7 +14,11 @@ import { shiftMonth } from '../lib/barCalendar'
 import OwnOrders from './OwnOrders'
 import { PageHeader } from './ui/PageLayout'
 import Icon from './ui/Icon'
-import { askConfirm, notify } from './ui/ConfirmDialog'
+import { notify } from './ui/ConfirmDialog'
+import { useAuth } from './Auth'
+import { loadTracks, receiveOrder, setTrackStatus } from '../lib/orderTrackApi'
+import { arrivedOn, barQueue, orderCode, receivingRows, tokyoDay, tokyoTime, trackStatus } from '../lib/orderTrack'
+import './orders.css'
 
 const STATUS_PEDIDO = {
   pendente:   { labelKey: 'orderStatus.pendente',   color: 'var(--amber)', bg: 'var(--amber-bg)' },
@@ -22,7 +26,17 @@ const STATUS_PEDIDO = {
   entregue:   { labelKey: 'orderStatus.entregue',   color: 'var(--green)', bg: 'var(--green-bg)' },
   cancelado:  { labelKey: 'orderStatus.cancelado',  color: 'var(--red)', bg: 'var(--red-bg)' },
 }
-const TRACK = ['pendente', 'confirmado', 'entregue']
+const TRACK = ['pendente', 'confirmado', 'a_caminho', 'entregue']
+const unitOf = (it, tr) => tr?.linhas?.[it.id]?.unidade || it.produtos?.unidade || ''
+function unitWord(t, u) {
+  if (!u) return ''
+  const s = t(`ot.units.${u}`)
+  return s === `ot.units.${u}` ? u : s
+}
+function windowOf(p, tr) {
+  if (tr?.entrega_de) return `${fmtDate(tokyoDay(tr.entrega_de))} ${tokyoTime(tr.entrega_de)}${tr.entrega_ate ? `–${tokyoTime(tr.entrega_ate)}` : ''}`
+  return p?.data_entrega_prevista ? fmtDate(String(p.data_entrega_prevista).slice(0, 10)) : ''
+}
 
 function Badge({ status }) {
   const { t } = useI18n()
@@ -30,14 +44,14 @@ function Badge({ status }) {
   return <span className="ord-badge" style={{ background: s.bg, color: s.color }}>{t(s.labelKey)}</span>
 }
 
-/** Sent → Confirmed by JBM → Arrived, so nobody has to read status names. */
-function OrderProgress({ status }) {
+/** Sent → Confirmed by JBM → On the way → Received, so nobody has to read status names. */
+function OrderProgress({ status, counted = false }) {
   const { t } = useI18n()
-  const at = TRACK.indexOf(status)
+  const at = counted ? TRACK.length : TRACK.indexOf(status)
   return (
     <ol className="sup-progress" aria-label={t(STATUS_PEDIDO[status]?.labelKey || 'orderStatus.pendente')}>
       {TRACK.map((s, i) => (
-        <li key={s} className={i < at ? 'is-done' : i === at ? 'is-now' : ''}>
+        <li key={s} className={i < at || (s === 'entregue' && at >= i) ? 'is-done' : i === at ? 'is-now' : ''}>
           <span aria-hidden="true">{i < at ? <Icon name="check" size={11} /> : i + 1}</span>{t(`supply.track.${s}`)}
         </li>
       ))}
@@ -49,8 +63,14 @@ function OrderProgress({ status }) {
  * Drink supply: the one place a bar orders drinks from JBM, follows them on the way and checks what arrived.
  * Replaces the separate Orders and Deliveries pages; /bar/entregas opens this on "Received".
  */
-export default function BarOrdersTab({ bar, section: startAt = 'order', manager = true }) {
+export default function BarOrdersTab({ bar, section: startAt = 'order', manager = true, readOnly = false }) {
   const { t } = useI18n()
+  const { perfil } = useAuth()
+  const [tracks, setTracks] = useState({})
+  const [receive, setReceive] = useState(null)
+  const [cancelAsk, setCancelAsk] = useState(null)
+  // Prices, costs and totals are for the owner/manager; the barman sees item, unit and quantity.
+  const money = manager
   const [step, setStep] = useState(startAt)
   const [produtos, setProdutos] = useState([])
   const [pedidos, setPedidos] = useState([])
@@ -81,13 +101,12 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
   useEffect(() => { load() }, [bar]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function load() {
+    loadTracks({ bar: bar.id }).then(setTracks)
     const [pR, pedR, priceR, noteR] = await Promise.all([
       supabase.from('produtos_public').select('*').eq('ativo', true).order('categoria').order('nome'),
-      supabase.from('pedidos').select('*, pedidos_itens(*, produtos(nome,preco_venda,categoria,volume_ml))').eq('bar_id', bar.id).order('criado_em', { ascending: false }).limit(120),
+      supabase.from('pedidos').select('*, pedidos_itens(*, produtos(nome,preco_venda,categoria,volume_ml,unidade))').eq('bar_id', bar.id).order('criado_em', { ascending: false }).limit(120),
       supabase.from('bar_product_prices').select('product_id,sale_price,minimum_quantity,valid_from,valid_until,active').eq('bar_id', bar.id).eq('active', true),
-      manager
-        ? supabase.from('vendas').select('*, vendas_itens(*, produtos(*))').eq('bar_id', bar.id).order('data', { ascending: false })
-        : Promise.resolve({ data: [] }),
+      supabase.from('vendas').select('*, vendas_itens(*, produtos(*))').eq('bar_id', bar.id).order('data', { ascending: false }),
     ])
     const prods = (pR.data || []).filter(isSupplierProduct)
     const supplierNotes = filterSupplierVendas(noteR.data || [])
@@ -96,7 +115,7 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
     setNotes(supplierNotes)
     if (!priceR.error) setBarPrices(priceR.data || [])
     setLoading(false)
-    if (manager) loadStock(prods, supplierNotes)
+    loadStock(prods, supplierNotes)
   }
 
   // Same stock count as the Stock page, only to suggest what to reorder; never blocks the page.
@@ -122,8 +141,12 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
   const prevMonth = shiftMonth(thisMonth, -1)
   const restock = useMemo(() => restockSuggestions(stockList, pedidos), [stockList, pedidos])
   const overview = useMemo(() => supplyOverview({ pedidos, notes, restock, today, month: thisMonth }), [pedidos, notes, restock, today, thisMonth])
-  const onTheWay = useMemo(() => openOrders(pedidos, today), [pedidos, today])
-  const received = useMemo(() => receivedTimeline({ pedidos, notes, month: mes }), [pedidos, notes, mes])
+  const queue = useMemo(() => barQueue(pedidos, tracks, stockList), [pedidos, tracks, stockList])
+  const onTheWay = useMemo(() => openOrders(pedidos, today).filter(p => !tracks[p.id]?.recebimento?.em), [pedidos, today, tracks])
+  const arrivedToday = useMemo(() => arrivedOn(pedidos, tracks, today), [pedidos, tracks, today])
+  const outAtTill = queue.short.filter(s => s.kind === 'stock')
+  const countedDays = useMemo(() => new Map(Object.values(tracks).filter(r => r?.recebimento?.em).map(r => [r.id, tokyoDay(r.recebimento.em)])), [tracks])
+  const received = useMemo(() => receivedTimeline({ pedidos, notes, month: mes, counted: countedDays }), [pedidos, notes, mes, countedDays])
   const receivedTotal = received.reduce((a, r) => a + r.total, 0)
   const productRows = useMemo(() => receivedByProduct(received), [received])
 
@@ -260,17 +283,22 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
     },
     {
       id: 'way', icon: 'entregas', n: 2, title: t('supply.stepWay'),
-      value: overview.onTheWay ? t('supply.wayCount', { n: overview.onTheWay }) : t('supply.nothingWay'),
+      value: onTheWay.length ? t('supply.wayCount', { n: onTheWay.length }) : t('supply.nothingWay'),
       sub: overview.late ? t('supply.lateCount', { n: overview.late }) : overview.nextArrival ? t('supply.nextArrival', { date: fmtDate(overview.nextArrival) }) : '',
       tone: overview.late ? 'danger' : '',
     },
     {
       id: 'received', icon: 'ok', n: 3, title: t('supply.stepReceived'),
       value: t('supply.receivedCount', { n: overview.receivedCount }),
-      sub: t('supply.thisMonthTotal', { amount: fmtYen(overview.receivedTotal) }),
+      sub: money ? t('supply.thisMonthTotal', { amount: fmtYen(overview.receivedTotal) }) : '',
     },
-    ...(manager ? [{
-      id: 'own', icon: 'package', n: 4, title: t('ownOrders.step'),
+    {
+      id: 'short', icon: 'warning', n: 4, title: t('supply.stepShort'),
+      value: queue.short.length ? t('supply.shortCount', { n: queue.short.length }) : t('supply.nothingShort'),
+      tone: queue.short.length ? 'danger' : '',
+    },
+    ...(manager && !readOnly ? [{
+      id: 'own', icon: 'package', n: 5, title: t('ownOrders.step'),
       value: t('ownOrders.stepValue'),
       sub: t('ownOrders.stepSub'),
     }] : []),
@@ -279,6 +307,32 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
   return (
     <div className="fade-in ord-page sup">
       <PageHeader title={t('supply.title')} subtitle={t('supply.lead')} />
+      {readOnly && <div className="ot-warn" role="status"><b>{t('ot.readOnlyBanner')}</b></div>}
+
+      {(arrivedToday.length > 0 || outAtTill.length > 0) && (
+        <div className="sup-today">
+          <section className="ui-card" aria-label={t('supply.todayIn')}>
+            <div className="ui-card-title"><Icon name="ok" size={15} /> {t('supply.todayIn')}</div>
+            {arrivedToday.length ? (
+              <ul>
+                {arrivedToday.flatMap(p => (p.pedidos_itens || []).map(it => {
+                  const got = tracks[p.id]?.recebimento?.linhas?.find(l => l.id === it.id)
+                  return <li key={it.id}><span>{it.produtos?.nome}</span><b>{got ? got.recebido : it.qtd} {unitWord(t, unitOf(it, tracks[p.id]))}</b></li>
+                }))}
+              </ul>
+            ) : <p className="desk-note">{t('supply.todayNone')}</p>}
+          </section>
+          <section className="ui-card" aria-label={t('supply.tillOut')}>
+            <div className="ui-card-title"><Icon name="warning" size={15} /> {t('supply.tillOut')}</div>
+            {outAtTill.length ? (
+              <ul>
+                {outAtTill.slice(0, 8).map(s => <li key={s.produto_id}><span>{s.nome}</span><small>{s.onOrder ? t('supply.onOrder') : t('supply.notOrdered')}</small></li>)}
+              </ul>
+            ) : <p className="desk-note">{t('supply.tillNone')}</p>}
+            {outAtTill.length > 8 && <button type="button" className="ui-btn is-sm" onClick={() => setStep('short')}>{t('supply.seeAll', { n: outAtTill.length })}</button>}
+          </section>
+        </div>
+      )}
 
       <div className="sup-steps" role="group" aria-label={t('supply.title')}>
         {steps.map(s => (
@@ -369,7 +423,7 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
               <div className="ord-modal-bg" onClick={() => !saving && setSendOpen(false)}>
                 <div className="ord-modal ord-send-modal" onClick={e => e.stopPropagation()}>
                   <div className="ord-modal-title">{t('portal.orders.sendOrder')}</div>
-                  <div className="ord-composer-hint">{bottleCount} {t('portal.orders.items')} · {fmtYen(totalOrder)}</div>
+                  <div className="ord-composer-hint">{bottleCount} {t('portal.orders.items')}{money ? ` · ${fmtYen(totalOrder)}` : ''}</div>
                   <div className="ord-meta-grid">
                     <label>{t('portal.orders.deliveryDate')}
                       <input type="date" value={entrega} onChange={e => setEntrega(e.target.value)} />
@@ -417,9 +471,9 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
             <div className="ord-sendbar">
               <div className="ord-send-sum">
                 <div className="ord-send-kicker">{bottleCount} {t('portal.orders.items')}</div>
-                <div className="ord-send-total">{fmtYen(totalOrder)}</div>
+                {money && <div className="ord-send-total">{fmtYen(totalOrder)}</div>}
               </div>
-              <button type="button" className="btn-primary ord-send-btn" onClick={() => { setOrderErr(''); setSendOpen(true) }} disabled={saving || items.length === 0}>
+              <button type="button" className="btn-primary ord-send-btn" onClick={() => { setOrderErr(''); setSendOpen(true) }} disabled={readOnly || saving || items.length === 0}>
                 {t('portal.orders.sendOrder')}
               </button>
             </div>
@@ -439,39 +493,47 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
           <div className="sup-list">
             {onTheWay.map(p => {
               const details = barNoteFromObs(p.obs)
+              const tr = tracks[p.id]
+              const st = trackStatus(p, tr)
+              const when = windowOf(p, tr)
               return (
                 <article key={p.id} className={`ord-card sup-order${p.late ? ' is-late' : ''}`}>
                   <div className="ord-card-top">
                     <div>
-                      <div className="ord-card-date">{t('supply.orderedOn', { date: fmtDate(p.criado_em?.slice(0, 10) || p.data_pedido) })}</div>
-                      {p.data_entrega_prevista && (
-                        <div className={`ord-card-sub${p.late ? ' sup-late' : ''}`}>
-                          {p.late ? t('supply.lateSince', { date: fmtDate(String(p.data_entrega_prevista).slice(0, 10)) }) : t('portal.orders.expected', { date: fmtDate(String(p.data_entrega_prevista).slice(0, 10)) })}
-                        </div>
-                      )}
-                      <div className="ord-card-sub">{t('supply.supplierJbm')}</div>
+                      <div className="ord-card-date">{orderCode(tr, p) || t('supply.orderedOn', { date: fmtDate(p.criado_em?.slice(0, 10) || p.data_pedido) })}{tr?.prioridade === 'urgent' && <span className="ot-pill is-red" style={{ marginLeft: 8 }}>{t('ot.prio.urgent')}</span>}</div>
+                      {orderCode(tr, p) && <div className="ord-card-sub">{t('supply.orderedOn', { date: fmtDate(p.criado_em?.slice(0, 10) || p.data_pedido) })}</div>}
+                      <div className="sup-meta">
+                        {when && <span className={p.late ? 'sup-late' : ''}>{p.late ? t('supply.lateSince', { date: when }) : t('supply.window', { when })}</span>}
+                        {tr?.responsavel && <span>{t('supply.deliverer')} <b>{tr.responsavel}</b></span>}
+                        <span>{t('supply.supplierJbm')}</span>
+                      </div>
                       {isRestockPedido(p) && <div className="ord-restock">{t('portal.orders.restockFromCounter')}</div>}
                       {details && !isRestockPedido(p) && <div className="ord-details-box compact">{details}</div>}
+                      {tr?.nota && <div className="ot-note">{tr.nota}</div>}
                     </div>
-                    <div className="ord-card-right"><span className="ord-send-total">{fmtYen(p.total_estimado || 0)}</span></div>
+                    {money && <div className="ord-card-right"><span className="ord-send-total">{fmtYen(p.total_estimado || 0)}</span></div>}
                   </div>
-                  <OrderProgress status={p.status} />
-                  <div className="ord-card-items">
-                    {(p.pedidos_itens || []).map(it => (
-                      <PedidoItemChip key={it.id} nome={it.produtos?.nome || '?'} qtd={it.qtd} precoUnitario={it.preco_unitario} hideCost />
-                    ))}
-                  </div>
-                  <div className="ord-card-actions">
-                    <button type="button" className="ui-btn is-sm is-primary" onClick={() => openTracking(p)}><Icon name="check" size={14} /> {t('supply.trackOrReceive')}</button>
-                    {p.status === 'pendente' && (
-                      <button type="button" className="ord-ghost danger" onClick={async () => {
-                        if (!(await askConfirm({ title: t('portal.orders.cancelConfirm'), danger: true }))) return
-                        await supabase.from('pedidos_itens').delete().eq('pedido_id', p.id)
-                        await supabase.from('pedidos').delete().eq('id', p.id)
-                        setPedidos(prev => prev.filter(x => x.id !== p.id))
-                      }}>{t('portal.orders.cancel')}</button>
-                    )}
-                  </div>
+                  <OrderProgress status={st} />
+                  <table className="rc-table">
+                    <thead><tr><th>{t('portal.orders.colProduct')}</th><th className="num">{t('portal.orders.colQty')}</th><th>{t('ot.unit')}</th></tr></thead>
+                    <tbody>
+                      {(p.pedidos_itens || []).map(it => (
+                        <tr key={it.id}>
+                          <td className="rc-name">{it.produtos?.nome || '?'}{tr?.linhas?.[it.id]?.nota && <small>{tr.linhas[it.id].nota}</small>}</td>
+                          <td className="num"><b>{it.qtd}</b></td>
+                          <td>{unitWord(t, unitOf(it, tr)) || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {!readOnly && (
+                    <div className="ord-card-actions">
+                      <button type="button" className="ui-btn is-sm is-primary" onClick={() => setReceive({ pedido: p, counted: {}, responsavel: perfil?.nome || '', nota: '' })}><Icon name="check" size={14} /> {t('supply.receiveNow')}</button>
+                      {p.status === 'pendente' && (
+                        <button type="button" className="ord-ghost danger" onClick={() => setCancelAsk({ pedido: p, nota: '' })}>{t('portal.orders.cancel')}</button>
+                      )}
+                    </div>
+                  )}
                 </article>
               )
             })}
@@ -495,7 +557,7 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
           </div>
 
           <section className="bill-match is-match sup-sum">
-            <div className="bill-match-row"><span>{t('supply.receivedCount', { n: received.filter(r => r.kind !== 'cancelled').length })}</span><b>{fmtYen(receivedTotal)}</b></div>
+            <div className="bill-match-row"><span>{t('supply.receivedCount', { n: received.filter(r => r.kind !== 'cancelled').length })}</span>{money && <b>{fmtYen(receivedTotal)}</b>}</div>
             <p className="desk-note">{t(manager ? 'supply.receivedNote' : 'supply.receivedNoteStaff')}</p>
           </section>
 
@@ -503,9 +565,9 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
             productRows.length === 0 ? <div className="ord-empty">{t('portal.orders.noOrdersMonth')}</div> : (
               <div className="ui-card table-scroll">
                 <table className="sup-table">
-                  <thead><tr><th>{t('portal.orders.colProduct')}</th><th className="num">{t('portal.orders.colQty')}</th><th className="num">{t('portal.orders.colTotal')}</th></tr></thead>
-                  <tbody>{productRows.map(r => <tr key={r.nome}><td>{r.nome}</td><td className="num">{r.qtd}</td><td className="num">{fmtYen(r.total)}</td></tr>)}</tbody>
-                  <tfoot><tr><td colSpan={2}>{t('common.total')}</td><td className="num">{fmtYen(productRows.reduce((a, r) => a + r.total, 0))}</td></tr></tfoot>
+                  <thead><tr><th>{t('portal.orders.colProduct')}</th><th className="num">{t('portal.orders.colQty')}</th>{money && <th className="num">{t('portal.orders.colTotal')}</th>}</tr></thead>
+                  <tbody>{productRows.map(r => <tr key={r.nome}><td>{r.nome}</td><td className="num">{r.qtd}</td>{money && <td className="num">{fmtYen(r.total)}</td>}</tr>)}</tbody>
+                  {money && <tfoot><tr><td colSpan={2}>{t('common.total')}</td><td className="num">{fmtYen(productRows.reduce((a, r) => a + r.total, 0))}</td></tr></tfoot>}
                 </table>
               </div>
             )
@@ -524,12 +586,21 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
                       </div>
                     </div>
                     <div className="ord-card-right">
-                      {r.kind === 'cancelled' ? <Badge status="cancelado" /> : <span className="ord-send-total">{fmtYen(r.total)}</span>}
+                      {r.kind === 'cancelled' ? <Badge status="cancelado" /> : money ? <span className="ord-send-total">{fmtYen(r.total)}</span> : null}
                     </div>
                   </div>
                   <div className="ord-card-items">
-                    {r.items.map(it => <PedidoItemChip key={it.key} nome={it.nome} qtd={it.qtd} precoUnitario={it.preco} hideCost />)}
+                    {r.items.map(it => <PedidoItemChip key={it.key} nome={it.nome} qtd={it.qtd} precoUnitario={money ? it.preco : null} hideCost hidePrice={!money} />)}
                   </div>
+                  {r.order && tracks[r.order.id]?.recebimento && (() => {
+                    const rec = tracks[r.order.id].recebimento
+                    return (
+                      <div className={`ot-rec${rec.faltas || rec.sobras ? ' is-bad' : ''}`}>
+                        {orderCode(tracks[r.order.id], r.order)} · {t('ot.barReceived', { who: rec.responsavel || rec.por || '?', at: `${fmtDate(tokyoDay(rec.em))} ${tokyoTime(rec.em)}` })}
+                        {' · '}{rec.faltas || rec.sobras ? t('ot.recDiff', { short: rec.faltas || 0, over: rec.sobras || 0 }) : t('ot.recOk')}
+                      </div>
+                    )
+                  })()}
                   {r.order && r.kind !== 'cancelled' && (
                     <div className="ord-card-actions">
                       <button type="button" className="ord-ghost" onClick={() => openTracking(r.order)}>{t('fulfillment.track')}</button>
@@ -542,7 +613,96 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
         </>
       )}
 
+      {step === 'short' && (
+        queue.short.length === 0 ? (
+          <div className="ui-card ui-empty-state"><span className="ui-empty-icon"><Icon name="ok" size={22} /></span><p>{t('supply.shortEmpty')}</p></div>
+        ) : (
+          <div className="ui-card">
+            <p className="desk-note">{t('supply.shortLead')}</p>
+            {queue.short.map((s, i) => (
+              <div key={`${s.kind}:${s.produto_id || s.id}:${i}`} className="sup-short-item">
+                <div>
+                  <b>{s.nome}</b>
+                  <small>{s.kind === 'order'
+                    ? t('supply.shortOrder', { n: s.falta, of: s.esperado, code: orderCode(tracks[s.pedido.id], s.pedido) || '' })
+                    : s.onOrder ? t('supply.shortStockOnOrder') : t('supply.shortStock')}</small>
+                </div>
+                <span className={`ot-pill ${s.kind === 'order' ? 'is-red' : s.onOrder ? 'is-blue' : 'is-amber'}`}>{s.kind === 'order' ? `−${s.falta}` : t('supply.out')}</span>
+              </div>
+            ))}
+          </div>
+        )
+      )}
+
       {step === 'own' && manager && <OwnOrders bar={bar} />}
+
+      {receive && (() => {
+        const tr = tracks[receive.pedido.id]
+        const items = (receive.pedido.pedidos_itens || []).map(it => ({ ...it, nome: it.produtos?.nome, unidade: unitOf(it, tr) }))
+        const check = receivingRows(items, receive.counted)
+        return (
+          <div className="ord-modal-bg" onClick={() => !saving && setReceive(null)}>
+            <div className="ord-modal wide" onClick={e => e.stopPropagation()}>
+              <div className="ord-modal-title">{t('supply.receiveTitle', { code: orderCode(tr, receive.pedido) || '' })}</div>
+              <p className="desk-note">{t('supply.receiveLead')}</p>
+              <button type="button" className="ui-btn is-sm" onClick={() => setReceive(r => ({ ...r, counted: Object.fromEntries(items.map(it => [it.id, it.qtd])) }))}><Icon name="check" size={13} /> {t('supply.allArrived')}</button>
+              <table className="rc-table">
+                <thead><tr><th>{t('portal.orders.colProduct')}</th><th className="num">{t('supply.expected')}</th><th className="num">{t('supply.receivedCol')}</th><th className="num">{t('supply.diff')}</th></tr></thead>
+                <tbody>
+                  {check.rows.map(r => (
+                    <tr key={r.id}>
+                      <td className="rc-name">{r.nome}<small>{unitWord(t, r.unidade)}</small></td>
+                      <td className="num">{r.esperado}</td>
+                      <td className="num"><input type="number" min="0" inputMode="numeric" value={receive.counted[r.id] ?? ''} onChange={e => setReceive(x => ({ ...x, counted: { ...x.counted, [r.id]: e.target.value } }))} aria-label={t('supply.receivedOf', { name: r.nome })} /></td>
+                      <td className={`num rc-diff ${r.diff == null ? '' : r.diff < 0 ? 'is-short' : r.diff > 0 ? 'is-over' : 'is-ok'}`}>{r.diff == null ? '—' : r.diff === 0 ? '✓' : r.diff > 0 ? `+${r.diff}` : r.diff}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <label className="ot-wide">{t('supply.responsible')}<input value={receive.responsavel} onChange={e => setReceive(x => ({ ...x, responsavel: e.target.value }))} /></label>
+              <label className="ot-wide">{t('supply.receiveNote')}<textarea rows={2} value={receive.nota} onChange={e => setReceive(x => ({ ...x, nota: e.target.value }))} placeholder={t('supply.receiveNotePh')} /></label>
+              {check.done && !check.ok && <div className="ot-warn">{t('supply.diffWarn', { short: check.short.length, over: check.over.length })}</div>}
+              {orderErr && <div className="pos-sale-err">{orderErr}</div>}
+              <div className="ord-modal-actions">
+                <button type="button" className="ord-ghost" disabled={saving} onClick={() => setReceive(null)}>{t('common.cancel')}</button>
+                <button type="button" className="btn-primary" disabled={saving || !check.done || !receive.responsavel.trim()} onClick={async () => {
+                  setSaving(true); setOrderErr('')
+                  try {
+                    const row = await receiveOrder(receive.pedido.id, {
+                      linhas: check.rows.map(r => ({ id: r.id, produto_id: r.produto_id, nome: r.nome, unidade: r.unidade, esperado: r.esperado, recebido: r.recebido })),
+                      responsavel: receive.responsavel.trim(), nota: receive.nota.trim(),
+                    })
+                    setTracks(prev => ({ ...prev, [receive.pedido.id]: row.row }))
+                    setReceive(null)
+                    notify(check.ok ? t('supply.receivedOk') : t('supply.receivedDiff'))
+                    setStep(check.ok ? 'received' : 'short')
+                  } catch (e) { setOrderErr(e.message) }
+                  setSaving(false)
+                }}>{saving ? t('common.saving') : t('supply.saveCount')}</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {cancelAsk && (
+        <div className="ord-modal-bg" onClick={() => setCancelAsk(null)}>
+          <div className="ord-modal" onClick={e => e.stopPropagation()}>
+            <div className="ord-modal-title">{t('portal.orders.cancelConfirm')}</div>
+            <p className="desk-note">{t('ot.cancelLead')}</p>
+            <textarea rows={3} value={cancelAsk.nota} onChange={e => setCancelAsk(c => ({ ...c, nota: e.target.value }))} placeholder={t('ot.cancelPh')} style={{ width: '100%' }} autoFocus />
+            <div className="ord-modal-actions">
+              <button type="button" className="ord-ghost" onClick={() => setCancelAsk(null)}>{t('ot.back')}</button>
+              <button type="button" className="btn-danger" disabled={!cancelAsk.nota.trim()} onClick={async () => {
+                try {
+                  await setTrackStatus(cancelAsk.pedido.id, 'cancelado', { nota: cancelAsk.nota.trim() })
+                  setCancelAsk(null); load()
+                } catch (e) { notify(e.message, 'error') }
+              }}>{t('portal.orders.cancel')}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {orderPreview && (
         <div className="ord-modal-bg" onClick={() => setOrderPreview(null)}>
@@ -570,10 +730,12 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
                 <span className="ord-card-sub">× {it.qtd}</span>
               </div>
             ))}
-            <div className="ord-total-bar">
-              <span>{t('common.total')}</span>
-              <span>{fmtYen(orderPreview.total_estimado || 0)}</span>
-            </div>
+            {money && (
+              <div className="ord-total-bar">
+                <span>{t('common.total')}</span>
+                <span>{fmtYen(orderPreview.total_estimado || 0)}</span>
+              </div>
+            )}
             {trackErr && <p className="ff-miss">{trackErr}</p>}
             {track?.public_code && <div className="ord-card-sub">{track.public_code}</div>}
             {Array.isArray(track?.lines) && track.lines.some(line => (line.tasks || []).some(task => task.supplier_marked_delivered && !task.stock_received)) && (
@@ -588,7 +750,7 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
             {Array.isArray(track?.shipments) && track.shipments.map(s => (
               <div key={s.id} className="ord-line">
                 <span>{s.code} · {s.status}</span>
-                {s.status === 'delivered' && (
+                {s.status === 'delivered' && !readOnly && (
                   <button type="button" className="ord-ghost" onClick={async () => {
                     setConfirmBusy(true)
                     const { error } = await supabase.rpc('confirm_bar_shipment', {
@@ -605,7 +767,7 @@ export default function BarOrdersTab({ bar, section: startAt = 'order', manager 
               </div>
             ))}
             {track?.events && <OrderTimeline events={track.events} audience="bar" />}
-            {track && !(track.shipments || []).length && track.status !== 'completed' && track.status !== 'cancelled' && (
+            {!readOnly && track && !(track.shipments || []).length && track.status !== 'completed' && track.status !== 'cancelled' && (
               <DeliveryConfirmation
                 expected={(orderPreview.pedidos_itens || []).reduce((a, it) => a + (+it.qtd || 0), 0)}
                 busy={confirmBusy}

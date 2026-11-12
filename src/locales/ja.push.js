@@ -31,6 +31,7 @@ export default {
       invoice_new: '新しい請求書',
       payment: '支払い・入金の記録',
       month_close: '月締めのまとめ（毎月1日）',
+      supply: 'JBMからのドリンク：確定・配送中・納品',
     },
     styleTitle: 'メッセージのスタイル',
     styleLead: '通知の書き方。タイトルは常にお店の名前で、ロゴ（またはお店の色の丸）が付きます。',

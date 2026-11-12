@@ -24,6 +24,8 @@ function sendResult(res, result) {
 const SECRET_TABLES = new Set([
   'bar_logins', 'bar_sessions', 'bar_locks', 'staff_requests', 'staff_day_reports',
   'staff_availability', 'staff_schedule', 'staff_fines', 'staff_payouts', 'pos_close_exceptions',
+  // Supply order tracking: only /api/bar/order-track (stamps who and when, checks the bar).
+  'order_track',
 ])
 // Raw rows behind the owner's PIN: cost registry (money) and pay per person (payroll). The app reads them via /api/bar-staff.
 const VAULT_TABLES = { bar_registry: 'money', staff_extras: 'payroll' }

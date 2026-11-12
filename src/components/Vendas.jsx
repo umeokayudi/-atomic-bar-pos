@@ -7,10 +7,17 @@ import { AdminPage, PortalSurface, PortalKpi } from './ui/PageLayout'
 import { useI18n } from '../lib/i18n'
 import { askConfirm, notify } from './ui/ConfirmDialog'
 import { runChange } from '../lib/safeDelete'
+import { useNavigate } from 'react-router-dom'
+import { pathForTab } from '../lib/navigation'
+import Icon from './ui/Icon'
+import { loadTracks } from '../lib/orderTrackApi'
+import { orderCode } from '../lib/orderTrack'
 
 export default function VendasTab() {
   const { t } = useI18n()
   const { user, perfil } = useAuth()
+  const navigate = useNavigate()
+  const hq = perfil?.role === 'admin' || perfil?.role === 'jbm'
   const scope = barBookScope(perfil?.role, perfil?.bar_id)
   const [vendas,   setVendas]   = useState([])
   const [produtos, setProdutos] = useState([])
@@ -19,6 +26,7 @@ export default function VendasTab() {
   const [saving,   setSaving]   = useState(false)
   const [filterMonth, setFilterMonth] = useState('')
   const [filterBar,   setFilterBar]   = useState('')
+  const [codes, setCodes] = useState({})
   const [form, setForm] = useState({ data: new Date().toISOString().slice(0,10), bar_id: '', obs: '', itens: [] })
 
   useEffect(() => { loadAll() }, [perfil?.role, perfil?.bar_id])
@@ -29,9 +37,9 @@ export default function VendasTab() {
       setVendas([]); setProdutos([]); setBars([]); setLoading(false)
       return
     }
-    let vendasQ = supabase.from('vendas').select('*, vendas_itens(*, produtos(id,nome,preco_venda,categoria))').order('data', { ascending: false })
+    let vendasQ = supabase.from('vendas').select('*, vendas_itens(*, produtos(id,nome,preco_venda,categoria,unidade))').order('data', { ascending: false })
     let barsQ = supabase.from('bars').select('id,nome,cor').order('nome')
-    const productCols = canReadProductCost(perfil?.role) ? '*' : 'id,nome,preco_venda,categoria'
+    const productCols = canReadProductCost(perfil?.role) ? '*' : 'id,nome,preco_venda,categoria,unidade'
     let produtosQ = supabase.from('produtos').select(productCols).eq('ativo', true).order('nome')
     if (scope.kind === 'bar') {
       vendasQ = vendasQ.eq('bar_id', scope.barId)
@@ -43,6 +51,12 @@ export default function VendasTab() {
       barsQ,
     ])
     setVendas(filterSupplierVendas(v || []))
+    // Sales written from a delivered order show that order's number (ORD-2026-0142), found by the id in obs.
+    if (scope.kind !== 'bar') {
+      const { data: peds } = await supabase.from('pedidos').select('id,criado_em').limit(5000)
+      const tracks = await loadTracks({})
+      setCodes(Object.fromEntries((peds || []).map(p => [String(p.id).slice(0, 8).toLowerCase(), orderCode(tracks[p.id], p)]).filter(([, c]) => c)))
+    }
     setProdutos((p || []).filter(isSupplierProduct))
     setBars(b || [])
     if (b?.length && !form.bar_id) setForm(f => ({ ...f, bar_id: b[0].id }))
@@ -69,10 +83,12 @@ export default function VendasTab() {
     if (!form.itens.length) return notify(t('sales.addOneItem'), 'error')
     const barId = scope.kind === 'bar' ? scope.barId : form.bar_id
     if (!barId) return notify(t('sales.selectBar'), 'error')
+    // A sale without an order is an exception: it needs a written reason (kept in obs).
+    if (!String(form.obs || '').trim()) return notify(t('salesHq.needReason'), 'error')
     setSaving(true)
     const { data: venda, error } = await supabase.from('vendas').insert({
       data: form.data, bar_id: barId,
-      total: totalVendaForm, obs: form.obs || t('sales.defaultObs'), criado_por: user.id,
+      total: totalVendaForm, obs: `Manual: ${String(form.obs).trim()}`, criado_por: user.id,
     }).select().single()
     if (!error) {
       await supabase.from('vendas_itens').insert(
@@ -108,6 +124,14 @@ export default function VendasTab() {
 
   return (
     <AdminPage title={t('nav.sales')} subtitle={t('sales.subtitle')}>
+      {hq && (
+        <PortalSurface title={t('salesHq.moveTitle')} style={{ marginBottom: 16 }}>
+          <p style={{ fontSize: 13, color: 'var(--text2)', margin: '0 0 12px' }}>{t('salesHq.moveLead')}</p>
+          <button type="button" className="ui-btn is-primary" onClick={() => navigate(`${pathForTab('hq', 'pedidos')}?new=1`)}><Icon name="plus" size={15} /> {t('salesHq.goOrders')}</button>
+        </PortalSurface>
+      )}
+      <details className="sales-manual" open={!hq}>
+      <summary style={{ cursor: 'pointer', fontWeight: 700, fontSize: 13, margin: '0 0 10px' }}>{t('salesHq.manualTitle')}</summary>
       <PortalSurface title={t('sales.registerSale')}>
         <div className="grid3" style={{ marginBottom: 12 }}>
           <div><label className="form-label">{t('common.date')}</label>
@@ -116,8 +140,8 @@ export default function VendasTab() {
             <select value={form.bar_id} onChange={e=>setF('bar_id',e.target.value)}>
               {bars.map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
             </select></div>
-          <div><label className="form-label">{t('common.observation')}</label>
-            <input type="text" value={form.obs} onChange={e=>setF('obs',e.target.value)} /></div>
+          <div><label className="form-label">{t('salesHq.manualReason')}</label>
+            <input type="text" value={form.obs} onChange={e=>setF('obs',e.target.value)} placeholder={t('salesHq.manualReasonPh')} /></div>
         </div>
 
         <div style={{ marginBottom: 14 }}>
@@ -131,7 +155,7 @@ export default function VendasTab() {
           {form.itens.map((it, i) => {
             const prod = produtos.find(p => p.id === it.produto_id)
             return (
-              <div key={i} style={{ display:'grid', gridTemplateColumns:'2fr 80px 1fr 36px', gap:6, marginBottom:6, alignItems:'center' }}>
+              <div key={i} style={{ display:'grid', gridTemplateColumns:'2fr 80px 70px 1fr 36px', gap:6, marginBottom:6, alignItems:'center' }}>
                 <select value={it.produto_id} onChange={e=>{
                   const a=[...form.itens]; a[i]={...a[i],produto_id:e.target.value}; setF('itens',a)
                 }}>
@@ -140,6 +164,7 @@ export default function VendasTab() {
                 <input type="number" value={it.qtd} min={1} onChange={e=>{
                   const a=[...form.itens]; a[i]={...a[i],qtd:+e.target.value}; setF('itens',a)
                 }}/>
+                <span style={{ fontSize:12, color:'var(--text3)' }}>{prod?.unidade || 'bottle'}</span>
                 <span style={{ fontSize:13, color:'var(--text2)' }}>
                   {prod ? fmtYen(prod.preco_venda * it.qtd) : '—'}
                 </span>
@@ -157,6 +182,7 @@ export default function VendasTab() {
           </button>
         </div>
       </PortalSurface>
+      </details>
 
       <PortalSurface
         title={t('common.history')}
@@ -192,11 +218,14 @@ export default function VendasTab() {
                     <td><Badge color={bar?.cor||'var(--blue)'}>{bar?.nome||'?'}</Badge></td>
                     <td style={{ fontSize:12, color:'var(--text2)', maxWidth:200 }}>
                       {(v.vendas_itens||[]).map(it=>
-                        `${it.produtos?.nome||'?'} ×${it.qtd}`
+                        `${it.produtos?.nome||'?'} ×${it.qtd}${it.produtos?.unidade ? ` ${it.produtos.unidade}` : ''}`
                       ).join(' · ')}
                     </td>
                     <td style={{ fontWeight:700 }}>{fmtYen(v.total)}</td>
-                    <td style={{ color:'var(--text2)' }}>{v.obs||'—'}</td>
+                    <td style={{ color:'var(--text2)' }}>
+                      {(() => { const k = /order\s+([0-9a-f]{8})/i.exec(v.obs || '')?.[1]?.toLowerCase(); const c = k && codes[k]; return c && !String(v.obs).includes(c) ? <b style={{ marginRight: 6 }}>{c}</b> : null })()}
+                      {v.obs||'—'}
+                    </td>
                     <td><DelBtn onClick={()=>deleteVenda(v.id)} /></td>
                   </tr>
                 )

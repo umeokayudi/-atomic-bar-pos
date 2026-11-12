@@ -18,6 +18,8 @@ export const PUSH_TYPES = [
   { id: 'invoice_new', group: 'money', money: true, vars: ['amount', 'due', 'period'] },
   { id: 'payment', group: 'money', money: true, vars: ['amount', 'who', 'what'] },
   { id: 'month_close', group: 'money', money: true, vars: ['month', 'total', 'tickets', 'best'] },
+  // Drinks ordered from JBM: sent, confirmed, on the way, delivered (HQ changes the status; the bar's phones hear it).
+  { id: 'supply', group: 'ops', money: false, vars: ['code', 'status', 'when'] },
 ]
 export const PUSH_TYPE_IDS = PUSH_TYPES.map(t => t.id)
 export const typeOf = id => PUSH_TYPES.find(t => t.id === id) || null
@@ -37,6 +39,7 @@ export const DEFAULT_TEXTS = {
       invoice_new: 'New invoice: {amount} · due {due}',
       payment: 'Payment of {amount} recorded · {what}',
       month_close: '{month} closed: {total} in {tickets} ticket(s) {best}',
+      supply: 'Drinks order {code}: {status} 🚚 {when}',
     },
     neutral: {
       order: 'New order from {who}: {items} item(s), {amount} ({tab})',
@@ -48,6 +51,7 @@ export const DEFAULT_TEXTS = {
       invoice_new: 'New invoice {amount}, due {due}',
       payment: 'Payment recorded: {amount} ({what})',
       month_close: 'Month {month} closed. Sales {total}, {tickets} ticket(s)',
+      supply: 'Drinks order {code}: {status} {when}',
     },
     short: {
       order: 'Order {amount} · {tab}',
@@ -59,6 +63,7 @@ export const DEFAULT_TEXTS = {
       invoice_new: 'Invoice {amount}',
       payment: 'Paid {amount}',
       month_close: '{month}: {total}',
+      supply: '{code} {status}',
     },
     congrats: { party: '🎉 Congratulations!', neutral: 'Well done.', short: '🎉' },
   },
@@ -73,6 +78,7 @@ export const DEFAULT_TEXTS = {
       invoice_new: '新しい請求書：{amount}・支払期限{due}',
       payment: '{amount}の支払いを記録しました · {what}',
       month_close: '{month}の月締め：売上{total}・{tickets}件 {best}',
+      supply: 'ドリンク発注 {code}：{status} 🚚 {when}',
     },
     neutral: {
       order: '新しい注文（{who}）：{items}点、{amount}（{tab}）',
@@ -84,6 +90,7 @@ export const DEFAULT_TEXTS = {
       invoice_new: '新しい請求書 {amount}、期限{due}',
       payment: '支払い記録：{amount}（{what}）',
       month_close: '{month} 月締め。売上{total}、{tickets}件',
+      supply: 'ドリンク発注 {code}：{status} {when}',
     },
     short: {
       order: '注文 {amount} · {tab}',
@@ -95,6 +102,7 @@ export const DEFAULT_TEXTS = {
       invoice_new: '請求書 {amount}',
       payment: '入金 {amount}',
       month_close: '{month}：{total}',
+      supply: '{code} {status}',
     },
     congrats: { party: '🎉 おめでとうございます！', neutral: 'お疲れさまでした。', short: '🎉' },
   },
@@ -194,6 +202,7 @@ export const SAMPLE_VARS = {
   day_close: { day: '11/06', total: 54200, tickets: 12 },
   sale: { who: 'Ken', tab: 'Table 3', amount: 12800, method: 'card' },
   invoice_new: { amount: 98000, due: '11/30', period: '10/16–11/15' },
+  supply: { code: 'ORD-2026-0142', status: 'on the way', when: '18:00–19:00' },
   payment: { amount: 98000, who: 'Atomic', what: 'JBM invoice' },
   month_close: { month: '2026-10', total: 4210000, tickets: 812, best: '· best night 10/31' },
 }

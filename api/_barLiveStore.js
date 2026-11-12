@@ -57,6 +57,9 @@ export const LIVE_TABLES = [
   // Activity log for changes that the database triggers (sql/audit_log.sql) cannot see: live-store writes
   // (till shifts, close checks, costs…) and app-side notes while audit_log is not in Postgres. Server-stamped.
   'audit_events',
+  // Supply orders HQ → bar: number (ORD-2026-0142), status history, delivery window, receiving check.
+  // One row per pedido (id = pedido id). Only /api/bar/order-track reads and writes it (server-stamped).
+  'order_track',
 ]
 
 // Tables that had a JSON copy before the migrations created them in Postgres (sql/pos_start.sql,
