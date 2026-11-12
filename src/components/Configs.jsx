@@ -19,6 +19,7 @@ import { runChange } from '../lib/safeDelete'
 import { costPending, findDuplicates, isArchivedOrTest, isMenuItem, nameTaken, productMargin } from '../lib/catalog'
 import { askConfirm, notify } from './ui/ConfirmDialog'
 import AuditLogPanel from './AuditLogPanel'
+import { logChange } from '../lib/audit'
 
 // Category values saved in Portuguese by older screens → the one list the form uses.
 const LEGACY_CATEGORY = { Cerveja: 'Beer', cerveja: 'Beer', vinho: 'Wine', Vinho: 'Wine', suco: 'Juice', Suco: 'Juice' }
@@ -58,6 +59,9 @@ export function ProductsTab() {
     // One product per name: "Orange Juice (dup)", "Cramberry", "Chivas 12 (1L)" match an existing item.
     const taken = nameTaken(produtos, form.nome, editId)
     if (taken) { setFormErr(t('catalog.nameTaken', { name: taken.nome })); return }
+    // A JBM product at cost ¥0 bills with no margin: the cost is required (bar menu items are exempt).
+    const menuItem = isMenuItem({ nome: form.nome, categoria: LEGACY_CATEGORY[form.categoria] || form.categoria }, NON_SUPPLIER_CATEGORIES)
+    if (!menuItem && form.ativo !== false && !(+form.custo > 0)) { setFormErr(t('catalogFix.needCost')); return }
     setFormErr('')
     setSaving(true)
     const row = {
@@ -86,6 +90,33 @@ export function ProductsTab() {
     // Soft delete (sales and orders still point at the product); the result is checked and shown.
     if (await runChange(supabase.from('produtos').update({ ativo: false }).eq('id', id), { okText: t('configs.productRemoved', { name: p?.nome || '' }) })) {
       setProducts(prev => prev.map(x => x.id === id ? { ...x, ativo: false } : x))
+    }
+    load()
+  }
+
+  // Duplicates: orders, sales, stock and prices of the others move to the one kept; the others are switched off.
+  async function mergeGroup(keep, group) {
+    const dups = group.filter(p => p.id !== keep.id)
+    if (!(await askConfirm({ title: t('catalogFix.mergeKeep', { name: keep.nome }), message: `${t('catalogFix.mergeLead')}\n${dups.map(d => d.nome).join(' · ')}` }))) return
+    try {
+      for (const d of dups) {
+        for (const table of ['pedidos_itens', 'vendas_itens', 'estoque_movimentos']) {
+          const { error } = await supabase.from(table).update({ produto_id: keep.id }).eq('produto_id', d.id)
+          if (error) throw new Error(`${table}: ${error.message}`)
+        }
+        // These may already have a row for the kept product (unique per supplier/bar): best effort.
+        for (const table of ['fornecedor_precos', 'estoque_regras']) await supabase.from(table).update({ produto_id: keep.id }).eq('produto_id', d.id)
+        const { error } = await supabase.from('produtos').update({ ativo: false }).eq('id', d.id)
+        if (error) throw new Error(error.message)
+        logChange(supabase, { tabela: 'produtos', registro_id: d.id, acao: 'update', antes: { nome: d.nome, ativo: true }, depois: { ativo: false, motivo: `merged into ${keep.nome} (${keep.id})` } })
+      }
+      if (!(+keep.custo > 0)) {
+        const withCost = dups.find(d => +d.custo > 0)
+        if (withCost) await supabase.from('produtos').update({ custo: withCost.custo }).eq('id', keep.id)
+      }
+      notify(t('catalogFix.mergeDone', { n: dups.length, name: keep.nome }))
+    } catch (e) {
+      notify(t('catalogFix.mergeFail', { message: e.message }), 'error')
     }
     load()
   }
@@ -154,7 +185,17 @@ export function ProductsTab() {
               <details>
                 <summary style={{ fontSize:13, fontWeight:700, cursor:'pointer' }}>{t('catalog.duplicates', { count: dups.length })}</summary>
                 <div style={{ fontSize:12, color:'var(--text2)', margin:'6px 0' }}>{t('catalog.duplicatesHint')}</div>
-                {dups.map(g => <div key={g[0].id} style={{ fontSize:12, padding:'3px 0' }}>{g.map(p => p.nome).join('  ·  ')}</div>)}
+                <div style={{ fontSize:12, color:'var(--text2)', margin:'0 0 6px' }}>{t('catalogFix.mergeLead')}</div>
+                {dups.map(g => (
+                  <div key={g[0].id} style={{ display:'flex', flexWrap:'wrap', gap:6, alignItems:'center', fontSize:12, padding:'6px 0', borderTop:'1px solid var(--border)' }}>
+                    <span style={{ fontWeight:600, marginRight:4 }}>{t('catalogFix.merge')}:</span>
+                    {g.map(p => (
+                      <button key={p.id} type="button" className="ui-btn is-sm" onClick={() => mergeGroup(p, g)} title={t('catalogFix.mergeKeep', { name: p.nome })}>
+                        {t('catalogFix.mergeKeep', { name: p.nome })}{+p.custo > 0 ? ` · ${fmtYen(p.custo)}` : ''}
+                      </button>
+                    ))}
+                  </div>
+                ))}
               </details>
             )}
           </PortalSurface>
@@ -654,328 +695,6 @@ export function UsuariosTab() {
 
       <AuditLogPanel />
 
-    </AdminPage>
-  )
-}
-
-export function PedidosAdminTab() {
-  const { t } = useI18n()
-  const [pedidos,setPedidos]=useState([])
-  const [loading,setLoading]=useState(true)
-  const [filterStatus,setFilterStatus]=useState('')
-  const [checklistPedido,setChecklistPedido]=useState(null)
-  const [detailPedido,setDetailPedido]=useState(null)
-  const [checkedItems,setCheckedItems]=useState({})
-  const [missingVenda,setMissingVenda]=useState({})
-  const [repairing,setRepairing]=useState(null)
-  const [supplierByProdId,setSupplierByProdId]=useState(new Map())
-  const [supplierByProdName,setSupplierByProdName]=useState(new Map())
-
-  const PEDIDOS_SELECT = '*, pedidos_itens(*, produtos(nome,custo,preco_venda,categoria,volume_ml)), bars(nome)'
-
-  useEffect(()=>{ load() },[])
-  useEffect(()=>{
-    supabase.from('fornecedor_precos').select('produto_id, preco, produtos(id,nome), fornecedores(nome)')
-      .then(({ data }) => {
-        const list = data || []
-        const byId = new Map()
-        const byName = new Map()
-        for (const p of list) {
-          if (p.produto_id) byId.set(p.produto_id, p)
-          const n = p.produtos?.nome
-          if (n) byName.set(n.toLowerCase(), p)
-        }
-        setSupplierByProdId(byId)
-        setSupplierByProdName(byName)
-      })
-  },[])
-
-  async function fetchPedidoCompleto(id) {
-    const { data, error } = await supabase
-      .from('pedidos')
-      .select('*, pedidos_itens(*, produtos(nome,custo,preco_venda,categoria,volume_ml)), bars(nome)')
-      .eq('id', id)
-      .single()
-    if (error) throw new Error(error.message)
-    return data
-  }
-
-  async function markMissingVendas(list) {
-    const entregues = (list || []).filter(p => p.status === 'entregue')
-    const vendaKeys = await findVendaKeysForPedidos(supabase, entregues)
-    const miss = {}
-    for (const p of entregues) {
-      if (!vendaKeys.has(String(p.id).slice(0, 8).toLowerCase())) miss[p.id] = true
-    }
-    setMissingVenda(miss)
-  }
-
-  async function load(){
-    const since = new Date()
-    since.setMonth(since.getMonth() - 6)
-    const sinceStr = since.toISOString().slice(0, 10)
-
-    const { data: p } = await supabase
-      .from('pedidos')
-      .select(PEDIDOS_SELECT)
-      .or(`data_entrega_prevista.gte.${sinceStr},criado_em.gte.${sinceStr}T00:00:00`)
-      .order('criado_em', { ascending: false })
-      .limit(80)
-
-    const list = p || []
-    setPedidos(list)
-    await markMissingVendas(list)
-    setLoading(false)
-  }
-
-  async function registerVendaForPedido(pedido) {
-    const fresh = await fetchPedidoCompleto(pedido.id)
-    const { venda } = await ensureVendaFromPedido(supabase, fresh)
-    if (!venda) throw new Error('Could not create the sale')
-    try { await addStockFromDelivery(supabase, fresh) } catch (e) { console.warn('estoque entrega:', e.message) }
-    return venda
-  }
-
-  async function repairVenda(pedido) {
-    setRepairing(pedido.id)
-    try {
-      const venda = await registerVendaForPedido(pedido)
-      notify(t('configs.deliveryOk', { amount: fmtYen(venda.total || 0), date: venda.data }))
-      await load()
-    } catch (e) {
-      notify(t('configs.saleError', { message: e.message }), 'error')
-    } finally {
-      setRepairing(null)
-    }
-  }
-
-  async function updateStatus(id,status){
-    if(status==='entregue'){
-      const pedido=pedidos.find(p=>p.id===id)
-      if(!pedido) return
-      try {
-        const venda = await registerVendaForPedido(pedido)
-        await supabase.from('pedidos').update({status}).eq('id',id)
-        await supabase.from('notificacoes').insert({
-          user_id:pedido.criado_por,tipo:'pedido_entregue',
-          titulo: t('configs.notifDeliveredTitle'),
-          mensagem: t('configs.notifDeliveredBody', { amount: '¥'+Math.round(pedido.total_estimado).toLocaleString('ja-JP') }),
-          link:'pedidos',
-        }).catch(()=>{})
-        const saleDate = pedidoSaleDate(pedido)
-        try {
-          await mergeOrInsertPeriodFatura(supabase, {
-            barId: pedido.bar_id,
-            amount: pedido.total_estimado,
-            saleDate,
-            vendaId: venda?.id || null,
-            notas: t('configs.invoiceAutoNote'),
-          })
-        } catch (e) { console.error('auto-fatura error:', e) }
-      } catch (e) {
-        notify(t('configs.saleError', { message: e.message }), 'error')
-        return
-      }
-    } else {
-      await supabase.from('pedidos').update({status}).eq('id',id)
-    }
-    if(status==='confirmado'){
-      const pedido=pedidos.find(p=>p.id===id)
-      if(pedido) await supabase.from('notificacoes').insert({
-        user_id:pedido.criado_por,tipo:'pedido_confirmado',
-        titulo:t('configs.notifConfirmedTitle'),mensagem:t('configs.notifConfirmedBody'),link:'pedidos',
-      }).catch(()=>{})
-    }
-    setPedidos(prev => prev.map(p => p.id===id ? {...p, status} : p))
-    load()
-  }
-
-  function openChecklist(pedido){
-    const init={}
-    ;(pedido.pedidos_itens||[]).forEach(it=>{init[it.id]=false})
-    setCheckedItems(init)
-    setChecklistPedido(pedido)
-  }
-
-  async function confirmDelivery(){
-    if(!Object.values(checkedItems).every(v=>v)){
-      notify(t('configs.checkItemsFirst'), 'error')
-      return
-    }
-    const pedido=checklistPedido
-    const id=pedido.id
-    setChecklistPedido(null)
-    setCheckedItems({})
-    try {
-      const venda = await registerVendaForPedido(pedido)
-      await supabase.from("pedidos").update({status:"entregue"}).eq("id",id)
-      await supabase.from("notificacoes").insert({user_id:pedido.criado_por,tipo:"pedido_entregue",titulo:t('configs.notifDeliveredTitle'),mensagem:t('configs.notifDeliveredBody', { amount: `¥${Math.round(venda.total||0).toLocaleString('ja-JP')}` }),link:"pedidos"}).catch(()=>{})
-
-      const saleDate = pedidoSaleDate(pedido)
-      try {
-        await mergeOrInsertPeriodFatura(supabase, {
-          barId: pedido.bar_id,
-          amount: pedido.total_estimado,
-          saleDate,
-          vendaId: venda?.id || null,
-          notas: t('configs.invoiceAutoNote'),
-        })
-      } catch (e) { console.error('Invoice auto-create failed:', e) }
-      notify(t('configs.deliveryOk', { amount: fmtYen(venda.total || 0), date: venda.data }))
-    } catch (e) {
-      notify(t('configs.saleError', { message: e.message }), 'error')
-    }
-    load()
-  }
-
-  const STATUS_MAP={
-    pendente:{label:'Pendente',color:'var(--amber)',bg:'var(--amber-bg)'},
-    confirmado:{label:'Confirmado',color:'var(--blue)',bg:'var(--blue-bg)'},
-    entregue:{label:'Entregue',color:'var(--green)',bg:'var(--green-bg)'},
-    cancelado:{label:'Cancelado',color:'var(--red)',bg:'var(--red-bg)'},
-  }
-  const filtered=filterStatus?pedidos.filter(p=>p.status===filterStatus):pedidos
-  const pendentes=pedidos.filter(p=>p.status==='pendente').length
-  const missingCount=Object.keys(missingVenda).length
-
-  return(
-    <AdminPage
-      title={t('configs.pedidosTitle')}
-      subtitle={t('configs.pedidosSubtitle')}
-      actions={
-        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-          {missingCount>0&&(
-            <button onClick={async()=>{
-              if(!(await askConfirm({ title: t('configs.confirmSyncMissing', { count: missingCount }), danger: false }))) return
-              for(const p of pedidos.filter(x=>missingVenda[x.id])) await repairVenda(p)
-            }} style={{padding:'8px 14px',fontSize:11,borderRadius:8,background:'var(--red)',color:'white',border:'none',fontWeight:700,cursor:'pointer'}}>
-              {t('configs.syncMissingSales')}
-            </button>
-          )}
-          <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{width:'auto'}}>
-            <option value="">{t('configs.allStatuses')}</option>
-            <option value="pendente">{t('orderStatus.pendente')}</option>
-            <option value="confirmado">{t('orderStatus.confirmado')}</option>
-            <option value="entregue">{t('orderStatus.entregue')}</option>
-            <option value="cancelado">{t('orderStatus.cancelado')}</option>
-          </select>
-        </div>
-      }
-    >
-      {(pendentes>0||missingCount>0)&&(
-        <div style={{marginBottom:16}}>
-          {pendentes>0&&<div style={{fontSize:12,color:'var(--red)',marginTop:2}}>{t('configs.awaitingConfirm', { count: pendentes })}</div>}
-          {missingCount>0&&<div style={{fontSize:12,color:'var(--red)',marginTop:2,fontWeight:600}}>{t('configs.deliveredNoSale', { count: missingCount })}</div>}
-        </div>
-      )}
-
-      {loading
-        ? <div style={{color:'var(--text2)',fontSize:13}}>{t('common.loading')}</div>
-        : filtered.length===0
-          ? <div style={{color:'var(--text3)',textAlign:'center',padding:'40px 0'}}>{t('configs.noOrders')}</div>
-          : filtered.map(p=>{
-            const s=STATUS_MAP[p.status]||STATUS_MAP.pendente
-            return(
-              <PortalSurface key={p.id} style={{marginBottom:12,borderLeft:p.status==='pendente'?'3px solid var(--gold)':'3px solid var(--border)'}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
-                  <div>
-                    <div style={{fontWeight:700,fontSize:14}}>{p.bars?.nome} &mdash; {pedidoSaleDate(p)}</div>
-                    {p.data_entrega_prevista && p.data_pedido && p.data_entrega_prevista !== p.data_pedido && (
-                      <div style={{fontSize:11,color:'var(--text3)'}}>Pedido registrado: {p.data_pedido}</div>
-                    )}
-                    {p.data_entrega_prevista&&<div style={{fontSize:12,color:'var(--text3)'}}>Entrega: {p.data_entrega_prevista}</div>}
-                    {p.obs&&<div style={{fontSize:12,color:'var(--text2)',marginTop:2}}>{p.obs}</div>}
-                  </div>
-                  <div style={{display:'flex',alignItems:'center',gap:8}}>
-                    <span style={{fontWeight:700}}>&yen;{Math.round(p.total_estimado).toLocaleString()}</span>
-                    <span style={{fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:20,background:s.bg,color:s.color}}>{s.label}</span>
-                  </div>
-                </div>
-                <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:12}}>
-                  {(p.pedidos_itens||[]).map(it=>(
-                    <PedidoItemChip
-                      key={it.id}
-                      nome={it.produtos?.nome || '?'}
-                      qtd={it.qtd}
-                      precoUnitario={it.preco_unitario}
-                      custoUnitario={it.produtos?.custo}
-                    />
-                  ))}
-                </div>
-                {missingVenda[p.id]&&(
-                  <div style={{marginBottom:12,padding:'10px 14px',borderRadius:10,background:'var(--red-bg)',border:'1px solid #f5c6c6',fontSize:12,color:'var(--red)'}}>
-                    <Icon name="warning" size={14} /> {t('configs.saleNotRegistered')}
-                    <button onClick={()=>repairVenda(p)} disabled={repairing===p.id}
-                      style={{marginLeft:10,padding:'4px 10px',fontSize:11,borderRadius:6,background:'var(--red)',color:'white',border:'none',fontWeight:700,cursor:'pointer'}}>
-                      {repairing===p.id ? t('configs.registering') : t('configs.registerSaleNow')}
-                    </button>
-                  </div>
-                )}
-                <div style={{display:'flex',gap:8}}>
-                  <button onClick={()=>setDetailPedido(p)} style={{padding:'6px 14px',fontSize:11,borderRadius:8,fontWeight:600}}><Icon name="pedidos" size={14} /> {t('orderDetail.open')}</button>
-                  {p.status==='pendente'&&<>
-                    <button onClick={()=>updateStatus(p.id,'confirmado')} style={{padding:'6px 14px',fontSize:11,borderRadius:8,background:'var(--navy)',color:'var(--gold)',border:'none',fontWeight:600}}>{t('configs.confirm')}</button>
-                    <button onClick={()=>updateStatus(p.id,'cancelado')} className="btn-danger" style={{padding:'6px 14px',fontSize:11,borderRadius:8}}>{t('common.cancel')}</button>
-                  </>}
-                  <button onClick={async()=>{ if(!(await askConfirm({ title: t('configs.confirmDeleteOrder'), danger: true })))return; setPedidos(prev=>prev.filter(x=>x.id!==p.id)); await supabase.from('pedidos_itens').delete().eq('pedido_id',p.id); const {data:v}=await supabase.from('vendas').select('id').eq('obs','Auto: order '+p.id.slice(0,8)).maybeSingle(); if(v){await supabase.from('vendas_itens').delete().eq('venda_id',v.id); await supabase.from('vendas').delete().eq('id',v.id);} await supabase.from('pedidos').delete().eq('id',p.id); }} style={{padding:'6px 14px',fontSize:11,borderRadius:8,background:'var(--red)',color:'white',border:'none',fontWeight:600,cursor:'pointer'}}><Icon name="trash" size={14} /></button>
-                  {p.status==='confirmado'&&(
-                    <button onClick={()=>openChecklist(p)} style={{padding:'6px 14px',fontSize:11,borderRadius:8,background:'var(--green)',color:'white',border:'none',fontWeight:600}}>{t('configs.markDelivered')}</button>
-                  )}
-                </div>
-              </PortalSurface>
-            )
-          })
-      }
-
-      {detailPedido&&<OrderDetailPopup pedido={detailPedido} date={pedidoSaleDate(detailPedido)} onClose={()=>setDetailPedido(null)} />}
-      {checklistPedido&&(
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-          <div style={{background:'var(--bg2)',borderRadius:16,padding:'28px 28px 24px',width:'100%',maxWidth:480,maxHeight:'90vh',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
-            <div style={{fontSize:16,fontWeight:800,color:'var(--c-text)',marginBottom:4}}>{t('configs.deliveryChecklist')}</div>
-            <div style={{fontSize:12,color:'var(--text3)',marginBottom:20}}>{checklistPedido.bars?.nome} &mdash; {t('configs.markEachItem')}</div>
-            {(checklistPedido.pedidos_itens||[]).map(it=>(
-              <div key={it.id} onClick={()=>setCheckedItems(prev=>({...prev,[it.id]:!prev[it.id]}))}
-                style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',borderRadius:10,marginBottom:8,cursor:'pointer',
-                  background:checkedItems[it.id]?'var(--green-bg)':'var(--bg3)',
-                  border:checkedItems[it.id]?'1.5px solid var(--green)':'1.5px solid var(--border)',transition:'all 0.15s'}}>
-                <div style={{width:22,height:22,borderRadius:6,flexShrink:0,
-                  background:checkedItems[it.id]?'var(--green)':'var(--bg2)',
-                  border:checkedItems[it.id]?'none':'2px solid var(--border)',
-                  display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontSize:13,fontWeight:700}}>
-                  {checkedItems[it.id]?'\u2713':''}
-                </div>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:600}}>{it.produtos?.nome}</div>
-                  <div style={{fontSize:11,color:'var(--text3)'}}>Qtd: {it.qtd} &times; &yen;{(it.preco_unitario||0).toLocaleString()}</div>
-                  <SupplierCostHint
-                    produtoId={it.produto_id}
-                    produtoNome={it.produtos?.nome}
-                    byProductId={supplierByProdId}
-                    byProductName={supplierByProdName}
-                  />
-                </div>
-                <div style={{fontWeight:700,fontSize:13}}>&yen;{((it.preco_unitario||0)*it.qtd).toLocaleString()}</div>
-              </div>
-            ))}
-            <div style={{background:'var(--navy)',borderRadius:10,padding:'12px 16px',display:'flex',justifyContent:'space-between',marginTop:12,marginBottom:20}}>
-              <span style={{color:'rgba(255,255,255,0.6)',fontSize:13}}>{t('common.total')}</span>
-              <span style={{color:'var(--gold)',fontWeight:800,fontSize:15}}>&yen;{Math.round(checklistPedido.total_estimado).toLocaleString()}</span>
-            </div>
-            <div style={{display:'flex',gap:10}}>
-              <button onClick={()=>{setChecklistPedido(null);setCheckedItems({})}} style={{flex:1,padding:'11px',borderRadius:10,border:'1px solid var(--border)',background:'transparent',fontSize:13,cursor:'pointer'}}>{t('common.cancel')}</button>
-              <button onClick={confirmDelivery} style={{flex:2,padding:'11px',borderRadius:10,border:'none',
-                background:Object.values(checkedItems).every(v=>v)?'var(--green)':'var(--border)',
-                color:Object.values(checkedItems).every(v=>v)?'white':'var(--text3)',
-                fontSize:13,fontWeight:700,cursor:'pointer'}}>
-                {t('configs.markedConfirmDelivery', {
-                  checked: Object.values(checkedItems).filter(v=>v).length,
-                  total: Object.values(checkedItems).length,
-                })}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </AdminPage>
   )
 }

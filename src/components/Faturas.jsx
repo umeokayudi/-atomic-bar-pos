@@ -18,6 +18,7 @@ import { runChange } from '../lib/safeDelete'
 import { loadCompany } from '../lib/receipts'
 import { issueReceiptChecked } from './ui/issueReceipt'
 import { receiptableItems } from '../lib/portalRecibos'
+import { billingMissing } from '../lib/orderTrack'
 
 // Local date key (toISOString shifts to UTC, which moved Tokyo dates one day back).
 const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -230,6 +231,12 @@ function InvoiceList() {
   const setGen = (k, v) => setGenForm(f => ({ ...f, [k]: v }))
   async function generateInvoice() {
     if (!selBar || !genForm.start || !genForm.end || genForm.start > genForm.end) return
+    // First invoice of a bar: its billing e-mail, payment term and credit limit must be on file (HQ → Bars).
+    if (!faturas.some(f => f.bar_id === selBar)) {
+      const { data: prof } = await supabase.from('bar_profile').select('*').eq('bar_id', selBar).maybeSingle()
+      const miss = billingMissing(prof)
+      if (miss.length) { setLockErr(t('ot.billingBlock', { bar: bars.find(b => b.id === selBar)?.nome || '', list: miss.map(k => t(`ot.billing.${k}`)).join(', ') })); return }
+    }
     const venc = genForm.due || customDue || getBillingPeriod(genForm.end).due
     // Invoice lock: total = linked deliveries + an explicit adjustment with its reason.
     const deliveries = invoiceDeliveries({ bar_id: selBar, periodo_inicio: genForm.start, periodo_fim: genForm.end }, { pedidos, vendas }).total

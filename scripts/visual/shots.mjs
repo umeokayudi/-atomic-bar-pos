@@ -156,7 +156,17 @@ const PAGES = [
   { who: MANAGER, path: '/bar/variavel', name: 'bar-variable-costs', click: /^Add$/ },
   { who: MANAGER, path: '/bar/cartao', name: 'bar-card-machines' },
   { who: MANAGER, path: '/bar/energia', name: 'bar-power-old-link' },
-  { who: MANAGER, path: '/bar/pedidos', name: 'bar-supply-way', click: /On the way/ },
+  { who: MANAGER, path: '/bar/pedidos', name: 'bar-supply-way', click: /To receive/ },
+  { who: MANAGER, path: '/bar/pedidos', name: 'bar-supply-receive', click: [/To receive/, /Receive and count/], steps: [{ tap: '.ord-modal .ui-btn.is-sm' }, { fill: ['.rc-table tbody tr:nth-child(2) input', '10'] }] },
+  { who: MANAGER, path: '/bar/pedidos', name: 'bar-supply-short', click: /Missing/ },
+  { who: STAFF, path: '/bar/pedidos', name: 'staff-supply-way', click: /To receive/ },
+  { who: ADMIN, path: '/hq/pedidos', name: 'hq-orders' },
+  { who: ADMIN, path: '/hq/pedidos', name: 'hq-orders-new', click: /^New order$/, steps: [
+    { select: ['.ot-line:not(.ot-line-head) select', 'pr1'] }, { fill: ['.ot-line:not(.ot-line-head) .ot-price input', '3000'] },
+  ] },
+  { who: ADMIN, path: '/hq/pedidos', name: 'hq-orders-history', click: /^History \(3\)$/ },
+  { who: ADMIN, path: '/hq/pedidos', name: 'hq-orders-deliver', click: /Mark delivered/ },
+  { who: ADMIN, path: '/hq/pedidos', name: 'hq-orders-viewbar', click: /^View as the bar$/ },
   { who: MANAGER, path: '/bar/entregas', name: 'bar-supply-received' },
   { who: MANAGER, path: '/bar/pedidos', name: 'bar-supply-own', click: /Own orders/ },
   { who: MANAGER, path: '/bar/pedidos', name: 'bar-supply-own-new', click: [/Own orders/, /New own order/] },
@@ -219,6 +229,17 @@ const PAGES = [
   { who: OWNER, path: '/bar/conta', name: 'bar-account-push-style', taps: ['.push-style-toggle'] },
 ]
 let CURRENT = {}
+const isoAgo = (days, hh = 14, mm = 0) => { const d = new Date(Date.now() - days * 86400000); d.setUTCHours(hh - 9, mm, 0, 0); return d.toISOString() }
+const ORDER_TRACK = [
+  { id: 'aaaa1111-p', bar_id: TABLES.bars[0].id, numero: 142, ano: '2026', criado_por_nome: 'Yudi (HQ)', prioridade: 'urgent', responsavel: 'Ken (JBM)',
+    entrega_de: isoAgo(0, 18), entrega_ate: isoAgo(0, 19), nota: 'Use the back door, call on arrival', saiu_em: isoAgo(0, 17, 20),
+    linhas: { pi3: { unidade: 'bottle', nota: '1 for the VIP room' }, pi4: { unidade: 'case', preco_catalogo: 1500, preco_motivo: 'Promo agreed with the owner' } },
+    historico: [{ status: 'pendente', por: 'Yudi (HQ)', em: isoAgo(1, 11, 5) }, { status: 'confirmado', por: 'Yudi (HQ)', em: isoAgo(1, 12) }, { status: 'a_caminho', por: 'Ken', em: isoAgo(0, 17, 20) }] },
+  { id: 'bbbb2222-p', bar_id: TABLES.bars[0].id, numero: 141, ano: '2026', criado_por_nome: 'Mika (manager)', historico: [{ status: 'pendente', por: 'Mika (manager)', em: isoAgo(4, 15, 40) }] },
+  { id: 'p1', bar_id: TABLES.bars[0].id, numero: 140, ano: '2026', criado_por_nome: 'Yudi (HQ)', entregue_em: isoAgo(3, 18, 30), entregue_por: 'Ken', recebido_por: 'Mika',
+    recebimento: { em: isoAgo(3, 18, 25), responsavel: 'Mika', faltas: 1, sobras: 0, linhas: [{ id: 'pi1', nome: 'Tanqueray Gin', esperado: 4, recebido: 4 }, { id: 'pi2', nome: 'Asahi Super Dry', esperado: 24, recebido: 22 }] },
+    historico: [{ status: 'pendente', em: isoAgo(5) }, { status: 'confirmado', em: isoAgo(4) }, { status: 'recebido', por: 'Mika', em: isoAgo(3, 18, 25), nota: 'Mika: 1 short' }, { status: 'entregue', por: 'Ken', em: isoAgo(3, 18, 30) }] },
+]
 const ONLY = process.env.PAGES ? process.env.PAGES.split(',') : null
 
 const VENUE = { configured: true, lat: 35.6595, lng: 139.7005, radius_m: 150 }
@@ -441,6 +462,11 @@ async function mock(page, who, missing = [], vault = null, acessos = null) {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: spec.wantSingle ? rows[0] || null : rows }) })
     }
     const path = new URL(req.url()).pathname
+    // Supply order tracking: numbers, history, delivery window, the bar's count.
+    if (path === '/api/bar/order-track') {
+      if (req.method() === 'GET') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ rows: ORDER_TRACK }) })
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ row: ORDER_TRACK[0], numbered: 0 }) })
+    }
     // Push notifications: the key, the bar's style and its look; no phone subscribed in the shots.
     if (path === '/api/bar/push') {
       const icon = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8v5ehHgAGhAJ/wlseKgAAAABJRU5ErkJggg=='
@@ -565,9 +591,9 @@ async function main() {
           }
           for (const step of pg.steps || []) {
             // Typing and tapping inside an opened form: { fill: [selector, text] } or { tap: selector }.
-            const sel = step.fill ? step.fill[0] : step.tap
+            const sel = step.fill ? step.fill[0] : step.select ? step.select[0] : step.tap
             const loc = page.locator(`${sel}:visible`).first()
-            await (step.fill ? loc.fill(step.fill[1], { timeout: 5000 }) : loc.click({ timeout: 5000 })).catch(e => errors.push(`step ${sel}: ${e.message}`))
+            await (step.fill ? loc.fill(step.fill[1], { timeout: 5000 }) : step.select ? loc.selectOption(step.select[1], { timeout: 5000 }) : loc.click({ timeout: 5000 })).catch(e => errors.push(`step ${sel}: ${e.message}`))
             await page.waitForTimeout(300)
           }
           if (pg.ask) {

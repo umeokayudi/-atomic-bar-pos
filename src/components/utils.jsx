@@ -247,12 +247,13 @@ export function Divider() {
 }
 
 /** Chip de item de pedido — hover mostra preço × qtd = total */
-export function PedidoItemChip({ nome, qtd, precoUnitario, custoUnitario, hideCost = false }) {
+export function PedidoItemChip({ nome, qtd, precoUnitario, custoUnitario, hideCost = false, hidePrice = false, unidade = '' }) {
   const qty = +qtd || 0
   const unit = +precoUnitario || 0
   const line = unit * qty
-  const cost = !hideCost && custoUnitario != null ? +custoUnitario : null
-  const tipLines = [
+  const cost = !hideCost && !hidePrice && custoUnitario != null ? +custoUnitario : null
+  // The barman sees item, unit and quantity only: no price, cost or margin in the tooltip either.
+  const tipLines = hidePrice ? [] : [
     `¥${Math.round(unit).toLocaleString('ja-JP')} × ${qty} = ¥${Math.round(line).toLocaleString('ja-JP')}`,
   ]
   if (cost != null && cost > 0) {
@@ -262,9 +263,9 @@ export function PedidoItemChip({ nome, qtd, precoUnitario, custoUnitario, hideCo
   }
 
   return (
-    <span className="pedido-item-chip" data-tip={tipLines.join('\n')}>
+    <span className="pedido-item-chip" data-tip={tipLines.length ? tipLines.join('\n') : undefined}>
       <span className="pedido-item-chip-name">{nome}</span>
-      <span className="pedido-item-chip-qty">×{qty}</span>
+      <span className="pedido-item-chip-qty">×{qty}{unidade ? ` ${unidade}` : ''}</span>
     </span>
   )
 }

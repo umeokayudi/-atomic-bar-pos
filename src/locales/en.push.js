@@ -31,6 +31,7 @@ export default {
       invoice_new: 'New invoice (charge)',
       payment: 'Payments recorded',
       month_close: 'Month close summary (1st of the month)',
+      supply: 'Drinks from JBM: confirmed, on the way, delivered',
     },
     styleTitle: 'Message style',
     styleLead: 'How your notifications are written. The title is always the bar\'s name, with its logo (or a circle in its colour).',

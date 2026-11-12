@@ -11,6 +11,8 @@ import enOpenTabs from '../locales/en.openTabs'
 import jaOpenTabs from '../locales/ja.openTabs'
 import enPush from '../locales/en.push'
 import jaPush from '../locales/ja.push'
+import enOrders from '../locales/en.orders'
+import jaOrders from '../locales/ja.orders'
 
 /** Deep merge (plain objects only) so new screens can keep their strings in their own file. */
 export function mergeDict(base, extra) {
@@ -22,8 +24,8 @@ export function mergeDict(base, extra) {
   }
   return out
 }
-const en = mergeDict(mergeDict(mergeDict(mergeDict(mergeDict(enBase, enRedesign), enStaffApp), enFixes), enOpenTabs), enPush)
-const ja = mergeDict(mergeDict(mergeDict(mergeDict(mergeDict(jaBase, jaRedesign), jaStaffApp), jaFixes), jaOpenTabs), jaPush)
+const en = mergeDict(mergeDict(mergeDict(mergeDict(mergeDict(mergeDict(enBase, enRedesign), enStaffApp), enFixes), enOpenTabs), enPush), enOrders)
+const ja = mergeDict(mergeDict(mergeDict(mergeDict(mergeDict(mergeDict(jaBase, jaRedesign), jaStaffApp), jaFixes), jaOpenTabs), jaPush), jaOrders)
 
 const LANG_KEY = 'jbm_drinks_lang'
 

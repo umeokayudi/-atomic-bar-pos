@@ -48,7 +48,7 @@ export function openOrders(pedidos = [], today = '') {
  * Everything that arrived (or was cancelled), as one list: each delivery note once, joined to the order it
  * came from when there is one, plus delivered or cancelled orders that have no note yet.
  */
-export function receivedTimeline({ pedidos = [], notes = [], month = '' } = {}) {
+export function receivedTimeline({ pedidos = [], notes = [], month = '', counted = new Map() } = {}) {
   const byKey = new Map((pedidos || []).map(p => [orderKey(p.id), p]))
   const linked = new Set()
   const rows = (notes || []).map(n => {
@@ -65,11 +65,13 @@ export function receivedTimeline({ pedidos = [], notes = [], month = '' } = {}) 
     }
   })
   for (const p of pedidos || []) {
-    if (linked.has(p.id) || (p.status !== 'entregue' && p.status !== 'cancelado')) continue
+    // `counted`: orders the bar already checked in (id → Tokyo day), still waiting for JBM to close them.
+    const countedDay = counted?.get?.(p.id) || ''
+    if (linked.has(p.id) || (p.status !== 'entregue' && p.status !== 'cancelado' && !countedDay)) continue
     rows.push({
       id: `o:${p.id}`,
-      kind: p.status === 'cancelado' ? 'cancelled' : 'order',
-      date: String(p.data_entrega_prevista || orderDay(p)).slice(0, 10),
+      kind: p.status === 'cancelado' ? 'cancelled' : p.status === 'entregue' ? 'order' : 'counted',
+      date: String(countedDay && p.status !== 'entregue' ? countedDay : (p.data_entrega_prevista || orderDay(p))).slice(0, 10),
       total: p.status === 'cancelado' ? 0 : pedidoTotal(p),
       items: (p.pedidos_itens || []).map(it => ({ key: it.id, nome: displayName(it.produtos?.nome) || '?', qtd: +it.qtd || 0, preco: +it.preco_unitario || 0 })),
       order: p,

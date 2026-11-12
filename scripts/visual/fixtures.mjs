@@ -138,6 +138,13 @@ export const TABLES = {
     { id: 'pr6', nome: 'Grey Goose', categoria: 'Vodka', volume_ml: 700, preco_venda: 4800, ativo: true },
     { id: 'pr7', nome: 'Hakushu 12', categoria: 'Japanese Whisky', volume_ml: 700, preco_venda: 18000, ativo: true },
   ],
+  produtos: [
+    { id: 'pr1', nome: 'Tanqueray Gin', categoria: 'Gin', volume_ml: 750, custo: 2400, preco_venda: 3300, unidade: 'bottle', ativo: true },
+    { id: 'pr2', nome: 'Jameson', categoria: 'Whisky', volume_ml: 700, custo: 3100, preco_venda: 4200, unidade: 'bottle', ativo: true },
+    { id: 'pr4', nome: 'Asahi Super Dry', categoria: 'Beer', volume_ml: 350, custo: 420, preco_venda: 550, unidade: 'can', ativo: true },
+    { id: 'pr5', nome: 'Wilkinson Tonic', categoria: 'Soda', volume_ml: 500, custo: 900, preco_venda: 1500, unidade: 'case', ativo: true },
+    { id: 'pr6', nome: 'Grey Goose', categoria: 'Vodka', volume_ml: 700, custo: 0, preco_venda: 4800, ativo: true },
+  ],
   estoque_regras: [{ bar_id: BAR.id, produto_id: 'pr1', minimo: 4 }, { bar_id: BAR.id, produto_id: 'pr6', minimo: 3 }, { bar_id: BAR.id, produto_id: 'pr7', minimo: 2 }],
   estoque_movimentos: [
     { id: 'em1', bar_id: BAR.id, produto_id: 'pr6', tipo: 'entrada', qtd: 4 }, { id: 'em2', bar_id: BAR.id, produto_id: 'pr6', tipo: 'saida', qtd: 3 },

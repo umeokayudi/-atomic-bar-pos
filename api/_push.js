@@ -272,6 +272,7 @@ export function urlFor(type) {
   if (type === 'clock_in' || type === 'clock_out') return '/bar/ponto'
   if (type === 'shift_close' || type === 'day_close') return '/bar/fechamento'
   if (type === 'invoice_new' || type === 'payment') return '/bar/faturas'
+  if (type === 'supply') return '/bar/pedidos'
   return '/'
 }
 

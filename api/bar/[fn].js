@@ -8,6 +8,7 @@ import laneLogin from '../_routeLaneLogin.js'
 import hqSync from '../_routeHqSync.js'
 import barFinance from '../_routeBarFinanceHq.js'
 import push from '../_routePush.js'
+import orderTrack from '../_routeOrderTrack.js'
 
 export default async function handler(req, res) {
   const fn = String(req.query?.fn || '')
@@ -20,5 +21,6 @@ export default async function handler(req, res) {
   if (fn === 'hq-sync') return hqSync(req, res)
   if (fn === 'bar-finance') return barFinance(req, res)
   if (fn === 'push') return push(req, res)
+  if (fn === 'order-track') return orderTrack(req, res)
   return res.status(404).json({ error: 'Unknown bar route' })
 }
