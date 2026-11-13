@@ -30,6 +30,7 @@ import { meDay } from '../../lib/staffSelfApi'
 import PeopleStepper from '../floor/PeopleStepper'
 import { isCarriedTab, sortCarriedFirst } from '../../lib/openTabsClose'
 import { OPEN_TAB_EVENT } from '../../lib/openTabsApi'
+import { countOpenTabs, missingOpeners, openedAtLabel, openerName, tabsListRows } from '../../lib/tabsList'
 import { notifyPush } from '../../lib/push'
 
 const PAY = [
@@ -97,7 +98,7 @@ function Tile({ item, qty, fav, onAdd, onFav, t }) {
  * shows her own credited sales instead of the bar's totals and the on-account ledger.
  */
 export default function PosQuick({ bar, drinks = [], shots = [], agents = [], castPeople = null, staff = null, discountCodes = [], todaySales, catalogError = '', onSale }) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const { user, perfil } = useAuth()
   const ordersKey = `pos-orders:${bar.id}`
   const localTopKey = `pos-top:${bar.id}`
@@ -144,6 +145,10 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
   const [tabsLoaded, setTabsLoaded] = useState(false)
   const [tables, setTables] = useState([])
   const [panelTab, setPanelTab] = useState(null)
+  // "Tabs" button: the full list of open tabs (replaces the sideways-scrolling tab strip, 13/11/2026).
+  const [tabsList, setTabsList] = useState(false)
+  const [listDel, setListDel] = useState(null) // id of an empty tab waiting for the second "Yes, delete it" tap
+  const [openerNames, setOpenerNames] = useState({}) // criado_por → name of the login that opened the tab
   // CRM customers (bar_guests), the on-account ledger and tonight's closed sales.
   const [guests, setGuests] = useState(null)
   const [crmErr, setCrmErr] = useState('')
@@ -333,6 +338,25 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
   const today = tokyoNightKey()
   const shownTabs = useMemo(() => sortCarriedFirst(srvTabs, today), [srvTabs, today])
   const carriedCount = shownTabs.filter(x => isCarriedTab(x, today)).length
+  // Every open tab counts, empty ones too (6 open with 5 at ¥0 = "Tabs · 6").
+  const openTabsCount = (server ? countOpenTabs(srvTabs) : 0) + localTabIds.length
+
+  // Names of the logins that opened the tabs, for "opened by" in the list (read only; the tab keeps the id).
+  useEffect(() => {
+    if (!tabsList || !server) return undefined
+    const ids = missingOpeners(srvTabs, openerNames)
+    if (!ids.length) return undefined
+    let alive = true
+    supabase.from('perfis').select('id,nome').in('id', ids)
+      .then(({ data }) => {
+        if (!alive) return
+        const got = Object.fromEntries(ids.map(id => [id, null]))
+        for (const row of data || []) got[row.id] = row.nome || null
+        setOpenerNames(prev => ({ ...prev, ...got }))
+      })
+      .catch(() => { if (alive) setOpenerNames(prev => ({ ...prev, ...Object.fromEntries(ids.map(id => [id, null])) })) })
+    return () => { alive = false }
+  }, [tabsList, server, srvTabs, openerNames])
 
   // The Close screen sends staff here to close one of its open tabs.
   useEffect(() => {
@@ -593,6 +617,43 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
       setErr(isConflict(e) ? t('tabs.errConflict') : t('tabs.errGeneric', { error: e.message }))
     } finally {
       setBusy(false); setDelAsk(null)
+    }
+  }
+
+  /** Tabs list: open a tab on the till (phones: the order sheet; big screens: its details pop-up). */
+  function listOpen(id) {
+    setTabsList(false); setListDel(null)
+    viewTab(id)
+    setOrderOpen(true)
+  }
+  /** Tabs list: Close = go to that tab's bill to charge it (same as Charge in Manage tab). */
+  function listClose(x) {
+    setTabsList(false); setListDel(null)
+    switchTo(SRV + x.id)
+    setDetailOpen(false)
+    setOrderOpen(true)
+  }
+  /** Tabs list: Transfer / manage = the Manage tab panel (transfer lines, move table, hand over, split, merge). */
+  function listManage(x) {
+    setTabsList(false); setListDel(null)
+    setPanelTab(x.id)
+  }
+  /** Tabs list: an empty tab (nothing ordered, nothing paid) can be deleted, with a second tap to confirm. */
+  async function listDelete(x) {
+    const pend = orders[SRV + x.id]?.cart || []
+    const empty = x.status === 'open' && !pend.length && !(x.items || []).length && !(x.payments || []).length
+    if (!empty) return
+    if (listDel !== x.id) { setListDel(x.id); return }
+    setBusy(true); setErr('')
+    try {
+      await tabsApi.cancel(supabase, x.id, 'empty')
+      setOrders(prev => { const next = { ...prev }; delete next[SRV + x.id]; return next })
+      if (active === SRV + x.id) { setActive(COUNTER); setDetailOpen(false) }
+      await refreshTabs()
+    } catch (e) {
+      setErr(isConflict(e) ? t('tabs.errConflict') : t('tabs.errGeneric', { error: e.message }))
+    } finally {
+      setBusy(false); setListDel(null)
     }
   }
 
@@ -1015,11 +1076,11 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
                 </span>
               )}
             </div>
-            <div className="pq-glance-cell" title={t('onAccount.openHint')}>
+            <button type="button" className="pq-glance-cell is-btn" title={t('onAccount.openHint')} onClick={() => setTabsList(true)} aria-label={t('tabsList.button', { n: openTabsCount })}>
               <span>{t('onAccount.openTabs')}</span>
               <strong>{fmtYen(glance.openTotal)}</strong>
               <em>{t('onAccount.tabsCount', { n: glance.openCount })}</em>
-            </div>
+            </button>
             {ledgerReady !== false && (
               <button type="button" className="pq-glance-cell is-btn" onClick={() => { setFiadoSheet(true); refreshLedger() }} aria-label={t('onAccount.title')}>
                 <span>{t('onAccount.short')}</span>
@@ -1064,31 +1125,22 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
 
       <aside className="pq-order" aria-label={t('posQuick.order')}>
         <div className="pq-tabs-row">
-        <div className="pq-tabs">
+        <div className="pq-tabs is-fixed">
           <button type="button" className={`pq-tab${active === COUNTER ? ' is-on' : ''}`} onClick={() => viewTab(COUNTER)}>
             {t('posQuick.counter')}
             {orders[COUNTER].cart?.length > 0 && active !== COUNTER && <em>{fmtYen(cartTotal(orders[COUNTER].cart))}</em>}
           </button>
-          {server && shownTabs.map(x => {
-            const m = tabMoney(x, x.items, x.payments, settings)
-            const pend = cartTotal(orders[SRV + x.id]?.cart || [])
-            const carried = isCarriedTab(x, today)
-            return (
-              <button key={x.id} type="button" className={`pq-tab${active === SRV + x.id ? ' is-on' : ''}${x.status !== 'open' ? ' is-paying' : ''}${carried ? ' is-carried' : ''}`} onClick={() => viewTab(SRV + x.id)} title={carried ? t('openTabs.fromYesterday') : undefined}>
-                {carried && <span className="pq-tab-carried">{t('openTabs.fromYesterdayShort')}</span>}
-                {x.nome}
-                <em>{fmtYen(m.drinksTotal + pend)}</em>
-              </button>
-            )
-          })}
-          {localTabIds.map(id => (
-            <button key={id} type="button" className={`pq-tab${active === id ? ' is-on' : ''}`} onClick={() => viewTab(id)}>
-              {orders[id].label}
-              <em>{fmtYen(cartTotal(orders[id].cart))}</em>
-            </button>
-          ))}
+          {/* One fixed button for every tab: it shows how many are open and, when a tab is on screen, which one. */}
+          <button type="button" className={`pq-tab is-list${active !== COUNTER ? ' is-on' : ''}${carriedCount > 0 ? ' has-carried' : ''}`} onClick={() => setTabsList(true)} aria-haspopup="dialog" title={srvTab && isCarriedTab(srvTab, today) ? t('openTabs.fromYesterday') : undefined}>
+            <span className="pq-tab-name"><Icon name="comandas" size={14} /> {t('tabsList.button', { n: openTabsCount })}</span>
+            {srvTab
+              ? <em className="pq-tab-name">{isCarriedTab(srvTab, today) && <span className="pq-tab-carried">{t('openTabs.fromYesterdayShort')}</span>}{srvTab.nome} · {fmtYen(tabMoney(srvTab, srvTab.items, srvTab.payments, settings).drinksTotal + cartTotal(cart))}</em>
+              : !isSrv && active !== COUNTER && orders[active]
+                ? <em className="pq-tab-name">{orders[active].label} · {fmtYen(cartTotal(orders[active].cart))}</em>
+                : carriedCount > 0 && <em className="pq-tab-carried">{t('tabsList.carriedBadge', { n: carriedCount })}</em>}
+          </button>
         </div>
-        {/* Outside the scrolling tab list so New tab and Close are always on screen. */}
+        {/* New tab and Close stay on screen next to the Tabs button. */}
         <div className="pq-tabs-actions">
           <button type="button" className="pq-tab is-add" onClick={() => setTabSheet(true)}><Icon name="plus" size={14} /> {t('posQuick.newTab')}</button>
           <button type="button" className="pq-close-sheet" onClick={() => setOrderOpen(false)} aria-label={t('posQuick.backToMenu')}><Icon name="close" size={18} /></button>
@@ -1404,6 +1456,75 @@ export default function PosQuick({ bar, drinks = [], shots = [], agents = [], ca
             {active === COUNTER && cart.length > 0 && <p className="pq-hint">{routeNew ? t('posRoute.newHint') : t('posQuick.moveHint')}</p>}
             <button type="button" className="pq-sheet-cancel" onClick={() => { setTabSheet(false); setRouteNew(false) }}>{t('common.cancel')}</button>
           </form>
+        </div>
+      )}
+
+      {tabsList && (
+        <div className="pq-sheet" role="dialog" aria-modal="true" aria-label={t('tabsList.title', { n: openTabsCount })} onClick={e => { if (e.target === e.currentTarget && !busy) { setTabsList(false); setListDel(null) } }}>
+          <div className="pq-sheet-card pq-tl">
+            <div className="pq-tl-head">
+              <h2>{t('tabsList.title', { n: openTabsCount })}</h2>
+              <button type="button" className="ui-btn is-ghost is-icon" onClick={() => { setTabsList(false); setListDel(null) }} aria-label={t('common.close')}><Icon name="close" /></button>
+            </div>
+            <p className="pq-tl-sum">{t('tabsList.sum', { amount: fmtYen(glance.openTotal) })}</p>
+            {server && carriedCount > 0 && <p className="pq-carried-note" role="status">{t('openTabs.carriedNote', { n: carriedCount })}</p>}
+            {err && <div className="pq-alert">{err}</div>}
+            {!openTabsCount && <p className="pq-empty">{t('openTabs.none')}</p>}
+            <ul className="pq-tl-list">
+              {server && tabsListRows(srvTabs, today).map(({ tab: x, carried }) => {
+                const m = tabMoney(x, x.items, x.payments, settings)
+                const pend = orders[SRV + x.id]?.cart || []
+                const amount = m.drinksTotal + cartTotal(pend)
+                const empty = x.status === 'open' && !pend.length && !(x.items || []).length && !(x.payments || []).length
+                const by = openerName(x, openerNames)
+                const holder = x.responsavel_nome && x.responsavel_nome !== by ? x.responsavel_nome : ''
+                const here = active === SRV + x.id
+                return (
+                  <li key={x.id} className={`pq-tl-row${carried ? ' is-carried' : ''}${here ? ' is-on' : ''}${empty ? ' is-empty' : ''}`}>
+                    <button type="button" className="pq-tl-main" onClick={() => listOpen(SRV + x.id)}>
+                      <span className="pq-tl-title">
+                        {carried && <span className="pq-tab-carried">{t('openTabs.fromYesterday')}</span>}
+                        <b>{x.nome}</b>
+                        {x.mesa_nome && x.mesa_nome !== x.nome && <small>{x.mesa_nome}</small>}
+                        {x.status !== 'open' && <span className="ui-badge is-warning">{t('tabs.state.awaiting_payment')}</span>}
+                      </span>
+                      <span className="pq-tl-meta">
+                        {t('tabsList.opened', { at: openedAtLabel(x.aberta_em, lang) || '—' })}
+                        {by ? ` · ${t('tabsList.by', { name: by })}` : ''}
+                        {holder ? ` · ${t('tabsList.with', { name: holder })}` : ''}
+                        {` · ${t('tabs.people', { n: +x.pessoas || 1 })}`}
+                      </span>
+                      <span className="pq-tl-amount">
+                        <strong>{fmtYen(amount)}</strong>
+                        {empty && <em>{t('openTabs.empty')}</em>}
+                        {m.paid > 0 && <em>{t('tabs.paidShort', { amount: fmtYen(m.paid) })}</em>}
+                      </span>
+                    </button>
+                    <div className="pq-tl-acts">
+                      <button type="button" className="ui-btn is-sm" disabled={busy} onClick={() => listOpen(SRV + x.id)}>{t('tabsList.open')}</button>
+                      {empty
+                        ? <button type="button" className="ui-btn is-sm is-danger" disabled={busy} onClick={() => listDelete(x)}><Icon name="trash" size={14} /> {listDel === x.id ? t('tabs.deleteEmptyYes') : t('tabs.deleteEmpty')}</button>
+                        : <button type="button" className="ui-btn is-sm is-primary" disabled={busy} onClick={() => listClose(x)}>{t('openTabs.close')}</button>}
+                      <button type="button" className="ui-btn is-sm" disabled={busy} onClick={() => listManage(x)}><Icon name="transfer" size={14} /> {t('tabsList.transfer')}</button>
+                    </div>
+                  </li>
+                )
+              })}
+              {localTabIds.map(id => (
+                <li key={id} className={`pq-tl-row${active === id ? ' is-on' : ''}`}>
+                  <button type="button" className="pq-tl-main" onClick={() => listOpen(id)}>
+                    <span className="pq-tl-title"><b>{orders[id].label}</b></span>
+                    <span className="pq-tl-meta">{t('tabs.deviceOnly')}</span>
+                    <span className="pq-tl-amount"><strong>{fmtYen(cartTotal(orders[id].cart))}</strong></span>
+                  </button>
+                  <div className="pq-tl-acts">
+                    <button type="button" className="ui-btn is-sm" onClick={() => listOpen(id)}>{t('tabsList.open')}</button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <button type="button" className="pq-sheet-cancel pq-tl-new" onClick={() => { setTabsList(false); setListDel(null); setTabSheet(true) }}><Icon name="plus" size={16} /> {t('posQuick.newTab')}</button>
+          </div>
         </div>
       )}
 

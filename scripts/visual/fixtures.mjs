@@ -29,11 +29,20 @@ const tables = [
 
 const tab = (id, nome, table, minutes, items, status = 'open', pays = []) => ({
   id, bar_id: BAR.id, table_id: table, mesa_nome: tables.find(t => t.id === table)?.nome || null, nome, status, pessoas: 3,
-  service_pct: 10, aberta_em: ago(minutes), versao: 3, responsavel_nome: 'Gerente Demo',
+  service_pct: 10, aberta_em: ago(minutes), versao: 3, responsavel_nome: 'Gerente Demo', criado_por: MANAGER.id,
   _items: items.map(([d, q, mAgo], j) => ({ id: `${id}-i${j}`, comanda_id: id, bar_id: BAR.id, drink_menu_id: drinks[d].id, nome: drinks[d].nome, categoria: drinks[d].categoria, qtd: q, preco_unitario: drinks[d].preco_venda, preco_lista: drinks[d].preco_venda, tipo_preco: 'regular', desconto_valor: 0, criado_em: ago(mAgo) })),
   _pays: pays.map((v, j) => ({ id: `${id}-p${j}`, comanda_id: id, bar_id: BAR.id, valor: v, metodo: 'Cash', criado_em: ago(5) })),
 })
-const tabs = [
+// TABS_CASE=owner: what the owner saw on 13/11/2026 — 6 open tabs, one with drinks, five empty, one left from yesterday.
+const ownerCase = () => [
+  { ...tab('00000000-0000-4000-8000-0000000c0011', 'ze', tables[0].id, 60 * 27, []), criado_por: CASHIER.id, responsavel_nome: 'Ken Mori' },
+  tab('00000000-0000-4000-8000-0000000c0012', 'lots', tables[3].id, 95, [[2, 3, 90], [5, 1, 80], [8, 2, 60]]),
+  tab('00000000-0000-4000-8000-0000000c0013', 'Mesa 39', null, 70, []),
+  tab('00000000-0000-4000-8000-0000000c0014', '4', tables[1].id, 40, []),
+  { ...tab('00000000-0000-4000-8000-0000000c0015', 'Joao', tables[4].id, 20, []), criado_por: CASHIER.id },
+  tab('00000000-0000-4000-8000-0000000c0016', '2', null, 6, []),
+]
+const tabs = process.env.TABS_CASE === 'owner' ? ownerCase() : [
   tab('00000000-0000-4000-8000-0000000c0001', 'Mesa 1', tables[0].id, 50, [[0, 2, 40], [1, 1, 20]]),
   tab('00000000-0000-4000-8000-0000000c0002', 'Tanaka', tables[3].id, 95, [[2, 3, 90], [5, 1, 80]]),
   tab('00000000-0000-4000-8000-0000000c0003', 'Mesa 2', tables[1].id, 6, []),

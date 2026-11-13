@@ -43,4 +43,16 @@ export default {
       noPin: 'The owner has not set a PIN yet: Users & access → Owner PIN.',
     },
   },
+  // "Tabs" button and full list of open tabs on the till (13/11/2026).
+  tabsList: {
+    button: 'Tabs · {n}',
+    title: 'Open tabs · {n}',
+    sum: 'Open on tabs now: {amount}',
+    carriedBadge: '{n} yesterday',
+    opened: 'Opened {at}',
+    by: 'by {name}',
+    with: 'now with {name}',
+    open: 'Open',
+    transfer: 'Transfer / manage',
+  },
 }

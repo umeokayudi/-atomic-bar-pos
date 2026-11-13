@@ -17,7 +17,7 @@
     "test:pos": "node scripts/posFloor.test.mjs",
     "test:closecheck": "node scripts/closeCheck.test.mjs",
     "test:barqueue": "node scripts/barQueue.test.mjs",
-    "test:opentabs": "node scripts/openTabsClose.test.mjs",
+    "test:opentabs": "node scripts/openTabsClose.test.mjs && node scripts/tabsList.test.mjs",
     "test:pos-visual": "node scripts/posVisual.test.mjs",
     "test:ledger": "node scripts/faturaLedger.test.mjs",
     "test:fixes1103": "node scripts/fixes1103.test.mjs",

@@ -623,10 +623,10 @@ assert.doesNotMatch(quickSource, /pos_void_sale/)
 {
   const night = '2026-10-10'
   const at = (h, m = 0, day = 10) => new Date(tokyoWallToUtcMs(2026, 10, day, h, m)).toISOString()
-  // No closed sale yet, a VIP tab with ¥10,000 open: sold 0, open 10,000 on 1 tab (this is what the owner saw).
+  // No closed sale yet, a VIP tab with ¥10,000 open and an empty one: sold 0, open 10,000, 2 tabs (empty tabs count too, 13/11).
   const none = summarizeNight([], night)
   assert.deepEqual(tonightGlance({ summary: none, tabs: [{ total: 10000, paid: 0 }, { total: 0, paid: 0 }] }),
-    { soldTotal: 0, soldCount: 0, openTotal: 10000, openPaid: 0, openCount: 1 })
+    { soldTotal: 0, soldCount: 0, openTotal: 10000, openPaid: 0, openCount: 2 })
   // Sales after midnight belong to the night that started the evening before; yesterday's and refunds are out.
   const sales = [
     { total: 5000, criado_em: at(22), data: night },

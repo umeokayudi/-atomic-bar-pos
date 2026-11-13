@@ -157,6 +157,7 @@ export function queueRows(queue = [], rows = []) {
 /**
  * The till's "tonight" card: closed sales of the night (from summarizeNight) plus what is open on tabs now.
  * tabs: [{ total, paid }] — total of each open tab's bill (service included), paid = partial payments taken.
+ * openCount counts every open tab, empty ones too (owner, 13/11/2026: 6 open with 5 at ¥0 must read "6 tabs").
  */
 export function tonightGlance({ summary = null, tabs = [] } = {}) {
   const open = (tabs || []).filter(x => (+x.total || 0) > 0)
@@ -165,7 +166,7 @@ export function tonightGlance({ summary = null, tabs = [] } = {}) {
     soldCount: Math.round(+summary?.ticketCount || 0),
     openTotal: open.reduce((a, x) => a + Math.round(+x.total || 0), 0),
     openPaid: open.reduce((a, x) => a + Math.round(+x.paid || 0), 0),
-    openCount: open.length,
+    openCount: (tabs || []).length,
   }
 }
 

@@ -43,4 +43,16 @@ export default {
       noPin: 'オーナーPINが未設定です：ユーザーとアクセス → オーナーPIN。',
     },
   },
+  // 「伝票」ボタンと未会計伝票の一覧（2026/11/13）。
+  tabsList: {
+    button: '伝票 · {n}',
+    title: '未会計の伝票 · {n}',
+    sum: '伝票の未会計合計: {amount}',
+    carriedBadge: '昨日 {n}',
+    opened: '開始 {at}',
+    by: '担当 {name}',
+    with: '現在の担当 {name}',
+    open: '開く',
+    transfer: '引き継ぎ・管理',
+  },
 }
