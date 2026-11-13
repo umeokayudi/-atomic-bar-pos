@@ -6286,3 +6286,15 @@ button.pq-tab.is-list.is-on { color: white; }
   .pq-tl-acts .ui-btn { flex: 1 1 auto; }
   .pq-tl-title .pq-tab-carried { flex-basis: 100%; width: fit-content; max-width: fit-content; }
 }
+
+/* Bar Home → Analytics widget: side-by-side on wide screens, stacked on phones (13/11/2026) */
+.ca-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ca-split { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+.ca-sim { grid-template-columns: 2fr 1fr 1fr; }
+.ca-card { padding: 20px 24px; }
+@media (max-width: 760px) {
+  .ca-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ca-split { grid-template-columns: minmax(0, 1fr); }
+  .ca-sim { grid-template-columns: minmax(0, 1fr); }
+  .ca-card { padding: 16px; }
+}

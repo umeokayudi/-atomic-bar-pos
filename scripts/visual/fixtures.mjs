@@ -138,6 +138,14 @@ export const TABLES = {
     { id: 'bp2', bar_id: BAR.id, produto_id: 'pr1', drinks_por_garrafa: 16, preco_drink: 900 },
     { id: 'bp3', bar_id: BAR.id, produto_id: 'pr7', drinks_por_garrafa: 23, preco_drink: 2400 },
   ],
+  // Bought items for Home → Analytics (ROI by category). 'vendas.bar_id' is flat because the mock filters on the top-level key.
+  vendas_itens: [['pr3', 'Moët Impérial', 'Champagne', 12, 4200], ['pr4', 'Asahi Super Dry', 'Beer', 48, 550], ['pr7', 'Hakushu 12', 'Japanese Whisky', 2, 18000],
+    ['pr8', 'Patrón Silver', 'Tequila', 4, 6800], ['pr1', 'Tanqueray Gin', 'Gin', 6, 3300], ['pr6', 'Grey Goose', 'Vodka', 3, 4800], ['pr2', 'Jameson', 'Whisky', 4, 4200]]
+    .map(([pid, nome, categoria, qtd, preco], i) => ({
+      id: `vix${i}`, produto_id: pid, qtd, preco_unitario: preco, 'vendas.bar_id': BAR.id,
+      produtos: { nome, categoria, preco_venda: preco, volume_ml: 700 },
+      vendas: { data: day(3), bar_id: BAR.id, obs: null },
+    })),
   produtos_public: [
     { id: 'pr1', nome: 'Tanqueray Gin', categoria: 'Gin', volume_ml: 750, preco_venda: 3300, ativo: true },
     { id: 'pr2', nome: 'Jameson', categoria: 'Whisky', volume_ml: 700, preco_venda: 4200, ativo: true },

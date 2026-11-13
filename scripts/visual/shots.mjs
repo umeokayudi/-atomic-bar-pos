@@ -226,6 +226,8 @@ const PAGES = [
   { who: MANAGER, path: '/bar/inicio', name: 'bar-home' },
   { who: MANAGER, path: '/bar/inicio', name: 'bar-home-rail', rail: true },
   { who: OWNER, path: '/bar/inicio', name: 'bar-home-owner' },
+  // Owner who turned on every card (Analytics: ROI by category + Weekly spending) — phone layout check 13/11/2026.
+  { who: OWNER, path: '/bar/inicio', name: 'bar-home-analytics', dash: { 'bar-home': { hidden: [] } }, scrollTo: '.ca-split' },
   { who: OWNER, path: '/bar/conta', name: 'bar-account' },
   { who: OWNER, path: '/bar/conta', name: 'bar-account-password', taps: ['.my-account-line:nth-of-type(3) .ui-btn'] },
   { who: OWNER, path: '/bar/conta', name: 'bar-logo-home', taps: ['button.bar-identity.is-link'] },
@@ -554,6 +556,7 @@ async function main() {
           await mock(page, pg.who, pg.missing, pg.vault, pg.acessos)
           const session = { access_token: fakeJwt(pg.who), token_type: 'bearer', expires_in: 86400, expires_at: Math.floor(Date.now() / 1000) + 86400, refresh_token: 'r', user: { id: pg.who.id, email: pg.who.email, aud: 'authenticated', role: 'authenticated', user_metadata: {}, app_metadata: {} } }
           await page.addInitScript(rail => { if (rail) localStorage.setItem('jbm_sidebar_collapsed', '1') }, !!pg.rail)
+          if (pg.dash) await page.addInitScript(d => { for (const [k, v] of Object.entries(d)) localStorage.setItem(`jbm_dash_${k}`, JSON.stringify(v)) }, pg.dash)
           await page.addInitScript(([s, th]) => {
             sessionStorage.setItem('bebidas_tab_id', 'pw')
             if (s) sessionStorage.setItem('sb-ojirgkqtqvugqktyuhem-auth-pw', JSON.stringify(s))
@@ -602,6 +605,11 @@ async function main() {
           if (pg.ask) {
             await page.locator('.ui-ask-ai:visible').first().click({ timeout: 5000 }).catch(e => errors.push(`ask ai: ${e.message}`))
             await page.waitForTimeout(400)
+          }
+          if (pg.scrollTo) {
+            await page.locator(pg.scrollTo).first().scrollIntoViewIfNeeded({ timeout: 5000 }).catch(e => errors.push(`scroll ${pg.scrollTo}: ${e.message}`))
+            await page.evaluate(sel => { const el = document.querySelector(sel); if (el) window.scrollBy(0, el.getBoundingClientRect().top - 90) }, pg.scrollTo)
+            await page.waitForTimeout(300)
           }
           const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
           const culprits = overflow > 1 ? await page.evaluate(() => {
