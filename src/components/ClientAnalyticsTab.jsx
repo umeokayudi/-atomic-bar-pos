@@ -15,6 +15,8 @@ import {
 } from '../lib/clientAnalytics'
 import { useI18n } from '../lib/i18n'
 
+const CAT_PREVIEW = 4
+
 const CAT_COLORS = ['#001028', 'var(--blue)', 'var(--gold)', 'var(--green)', '#8b5cf6', 'var(--red)', '#0891b2', '#ea580c']
 
 function DualBarChart({ labels, seriesA, seriesB, names, selectedIndex, onSelect, height = 120 }) {
@@ -86,6 +88,7 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
   const { t } = useI18n()
   const [vendas, setVendas] = useState([])
   const [itens, setItens] = useState([])
+  const [showAllCats, setShowAllCats] = useState(false)
   const [barPricing, setBarPricing] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
@@ -234,7 +237,7 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
       </div>
 
       {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+      <div className="ca-kpis" style={{ display: 'grid', gap: 12, marginBottom: 20 }}>
         {[
           {
             label: t('portal.analytics.jbmAccount'),
@@ -304,52 +307,69 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
       </div>
 
       {/* Categories + weekly */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 12, marginBottom: 16 }}>
-        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 16, padding: '20px 24px' }}>
+      <div className="ca-split" style={{ display: 'grid', gap: 12, marginBottom: 16 }}>
+        <div className="ca-card" style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 16, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{t('portal.analytics.roiByCategory')}</div>
           <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 16 }}>{t('portal.analytics.clickToFilter', { month: activeMonthKey })}</div>
           {categories.length === 0 ? (
             <Empty text={t('portal.analytics.noDataThisMonth')} icon="📊" />
-          ) : categories.map((c, i) => (
+          ) : (showAllCats ? categories : categories.slice(0, CAT_PREVIEW)).map((c, i) => (
             <button
               key={c.categoria}
               type="button"
               onClick={() => setCatFilter(catFilter === c.categoria ? '' : c.categoria)}
               style={{
-                width: '100%', textAlign: 'left', marginBottom: 12, padding: '10px 12px',
+                width: '100%', textAlign: 'left', marginBottom: 8, padding: '10px 12px',
                 borderRadius: 10, cursor: 'pointer',
                 border: catFilter === c.categoria ? '2px solid var(--navy)' : '1px solid var(--border)',
-                background: catFilter === c.categoria ? 'var(--blue-bg)' : 'white',
+                background: catFilter === c.categoria ? 'var(--blue-bg)' : 'transparent', color: 'inherit',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
-                <span style={{ fontWeight: 700 }}>{c.categoria}</span>
-                <span>{t('portal.analytics.shareOfSpend', { pct: c.sharePct })}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, fontSize: 12, marginBottom: 6 }}>
+                <span style={{ fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.categoria}</span>
+                <span style={{ color: 'var(--green)', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>ROI {c.roiPct}%</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>
-                <span>{fmtYen(c.jbmTotal)} → {fmtYen(c.posTotal)}</span>
-                <span style={{ color: 'var(--green)', fontWeight: 700 }}>ROI {c.roiPct}%</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>
+                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{fmtYen(c.jbmTotal)} → {fmtYen(c.posTotal)}</span>
+                <span style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>{t('portal.analytics.shareOfSpend', { pct: c.sharePct })}</span>
               </div>
               <div style={{ height: 6, background: 'var(--bg3)', borderRadius: 3, overflow: 'hidden' }}>
                 <div style={{ height: '100%', width: `${c.sharePct}%`, background: CAT_COLORS[i % CAT_COLORS.length], borderRadius: 3 }} />
               </div>
             </button>
           ))}
+          {categories.length > CAT_PREVIEW && (
+            <button
+              type="button"
+              className="ui-btn is-sm"
+              onClick={() => setShowAllCats(v => !v)}
+              style={{ width: '100%', justifyContent: 'center' }}
+            >
+              {showAllCats
+                ? t('portal.analytics.showFewerCats')
+                : t('portal.analytics.seeAllCats', { count: categories.length })}
+            </button>
+          )}
         </div>
 
-        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 16, padding: '20px 24px' }}>
+        <div className="ca-card" style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 16, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{t('portal.analytics.weeklySpend')}</div>
           <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 16 }}>{t('portal.analytics.last8Weeks')}</div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 100 }}>
+          {weekSeries.values.every(v => !(v > 0)) && (
+            <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 8 }}>{t('portal.analytics.noWeeklySpend')}</div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'stretch', gap: 4, height: 120 }}>
             {weekSeries.values.map((v, i) => (
-              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                <div style={{ fontSize: 9, color: 'var(--text2)' }}>{v > 0 ? (v >= 10000 ? `${Math.round(v / 1000)}k` : fmtYen(v)) : ''}</div>
-                <div style={{
-                  width: '100%', height: `${Math.max(v / maxWeek * 100, v > 0 ? 4 : 0)}%`,
-                  minHeight: v > 0 ? 4 : 0, background: i === weekSeries.values.length - 1 ? 'var(--gold)' : 'var(--border)',
-                  borderRadius: '4px 4px 0 0',
-                }} />
-                <div style={{ fontSize: 9, color: 'var(--text3)' }}>{weekSeries.labels[i]}</div>
+              <div key={i} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                <div style={{ fontSize: 9, color: 'var(--text2)', height: 12, whiteSpace: 'nowrap' }}>{v > 0 ? (v >= 10000 ? `${Math.round(v / 1000)}k` : fmtYen(v)) : ''}</div>
+                <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
+                  <div style={{
+                    width: '100%', height: `${Math.max(v / maxWeek * 100, v > 0 ? 4 : 0)}%`,
+                    minHeight: v > 0 ? 4 : 2, background: i === weekSeries.values.length - 1 ? 'var(--gold)' : 'var(--border)',
+                    borderRadius: '4px 4px 0 0',
+                  }} />
+                </div>
+                <div style={{ fontSize: 9, color: 'var(--text3)', whiteSpace: 'nowrap' }}>{weekSeries.labels[i]}</div>
               </div>
             ))}
           </div>
@@ -365,7 +385,7 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
         <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 16 }}>
           {t('portal.analytics.simulatorSub')}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 12, alignItems: 'end' }}>
+        <div className="ca-sim" style={{ display: 'grid', gap: 12, alignItems: 'end' }}>
           <div>
             <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text2)' }}>{t('portal.analytics.product')}</label>
             <select value={simItem?.produto_id || ''} onChange={e => setSimProductId(e.target.value)} style={{ width: '100%', marginTop: 4 }}>
@@ -397,7 +417,7 @@ export default function ClientAnalyticsTab({ bar, onTab }) {
 
       {/* Missing pricing alert */}
       {missingPricing.length > 0 && (
-        <div style={{ background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 14, padding: '14px 16px', marginBottom: 16, fontSize: 12 }}>
+        <div style={{ background: 'var(--amber-bg)', color: 'var(--text)', border: '1px solid #fdba74', borderRadius: 14, padding: '14px 16px', marginBottom: 16, fontSize: 12 }}>
           <strong>{t('portal.analytics.missingPricing', {
             count: missingPricing.length,
             amount: fmtYen(missingPricing.reduce((a, p) => a + p.jbmTotal, 0)),
