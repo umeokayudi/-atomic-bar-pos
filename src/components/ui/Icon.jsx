@@ -23,7 +23,7 @@ const ICONS = {
   dashboard: LayoutDashboard, billingHub: ChartNoAxesCombined, purchases: ShoppingCart, sales: Banknote,
   pedidos: ClipboardList, orders: ClipboardList, fulfillment: Truck, procurement: PackageSearch,
   relatorio: LineChart, report: LineChart, ryoshusho: Receipt, seikyusho: FileText, products: Wine,
-  bars: Store, usuarios: Users, users: Users, faturas: FileText, invoices: FileText, suppliers: Factory,
+  bars: Store, usuarios: Users, users: Users, faturas: FileText, conciliacao: Scale, invoices: FileText, suppliers: Factory,
   cashflow: ArrowLeftRight, payroll: BadgeJapaneseYen, profile: User, conta: User, shifts: CalendarDays, clock: Clock,
   goals: Target, result: TrendingUp, points: Star, occurrences: NotebookPen, rewards: Award, salary: Wallet,
   tasks: ListChecks, inicio: Home, home: Home, pos: ReceiptText, entregas: Truck, espacos: Armchair,

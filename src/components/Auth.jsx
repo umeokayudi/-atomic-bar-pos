@@ -1,6 +1,7 @@
 import { LogoLogin } from './Logo'
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase, drinksAuth } from '../lib/supabase'
+import { applyAccountLang } from '../lib/i18n'
 import { useI18n, LANGS } from '../lib/i18n'
 import {
   readLanePerfil,
@@ -69,6 +70,15 @@ export function AuthProvider({ children }) {
     })
     return () => subscription.unsubscribe()
   }, [])
+
+  // Language is fixed per account: apply it whenever the signed-in account changes.
+  useEffect(() => {
+    const id = user?.id || perfil?.id || null
+    if (!id) return
+    const real = !perfil?.lane && user?.user_metadata
+    applyAccountLang(id, real ? user.user_metadata.lang : null,
+      real ? lang => drinksAuth.auth.updateUser({ data: { lang } }) : null)
+  }, [user?.id, perfil?.id, perfil?.lane]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadPerfil(uid) {
     let { data } = await supabase.from('perfis').select('*').eq('id', uid).single()
@@ -219,7 +229,6 @@ export function LoginPage() {
           padding: '32px 28px',
           backdropFilter: 'blur(10px)',
         }}>
-          <LoginLanguagePicker />
           <form onSubmit={e => { e.preventDefault(); submit() }}>
           <div style={{
             fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.55)',

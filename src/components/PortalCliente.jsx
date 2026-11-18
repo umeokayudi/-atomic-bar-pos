@@ -1,4 +1,5 @@
 import { issueReceiptChecked } from './ui/issueReceipt'
+import MoneyLabelsLive from './ui/MoneyLabels'
 import { openStoredFile } from '../lib/privateFile'
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -1009,6 +1010,7 @@ function FaturasTab({ bar }) {
   return (
     <div className="fade-in portal-page" style={{ maxWidth:860 }}>
       <PageHeader title={t('portal.invoices.title')} subtitle={t('portal.invoices.subtitle')} />
+      <MoneyLabelsLive barId={bar.id} />
       <RangeCalendar from={dateFrom} to={dateTo} onChange={(a, b) => { setDateFrom(a); setDateTo(b) }} />
       <BillMatch orders={ordersInRange} notes={notesInRange} invoices={filtered} monthKey={activeMonth} variant="slip" />
       <div className="ar-war">

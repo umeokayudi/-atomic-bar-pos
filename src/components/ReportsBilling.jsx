@@ -1,4 +1,5 @@
 import { invoiceTotal } from '../lib/money'
+import MoneyLabelsLive from './ui/MoneyLabels'
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { staffFetch } from '../lib/apiAuth'
@@ -95,6 +96,7 @@ export default function ReportsBilling({ onNav }) {
         />
       )}
     >
+      <MoneyLabelsLive />
       {err && <PortalAlert variant="red">{asReactText(err)}</PortalAlert>}
       {msg && <PortalAlert variant="green">{msg}</PortalAlert>}
 

@@ -51,25 +51,37 @@ export function faturaSummary(f, pagamentos = [], today) {
 async function loadFatura(supabase, id) {
   const { data, error } = await supabase
     .from('faturas')
-    .select('id,total,valor,pago,status')
+    .select('id,bar_id,total,valor,pago,status')
     .eq('id', id)
     .single()
   if (error) throw error
   return data
 }
 
+/**
+ * Add `delta` to faturas.pago. The update only lands if `pago` is still the value just read (two people or
+ * two taps at once cannot both add on top of the same number); on a clash it reads again and retries.
+ */
 async function applyDelta(supabase, faturaId, delta, date) {
-  const f = await loadFatura(supabase, faturaId)
-  const total = faturaTotal(f)
-  const pago = Math.max(0, (+f.pago || 0) + delta)
-  const status = statusForPaid(total, pago)
-  const { error } = await supabase.from('faturas').update({
-    pago,
-    status,
-    data_pagamento: status === 'pago' ? (date || new Date().toISOString().slice(0, 10)) : null,
-  }).eq('id', faturaId)
-  if (error) throw error
-  logChange(supabase, { tabela: 'faturas', registro_id: faturaId, acao: 'update', antes: { pago: f.pago, status: f.status }, depois: { pago, status }, bar_id: f.bar_id || null })
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const f = await loadFatura(supabase, faturaId)
+    const total = faturaTotal(f)
+    const pago = Math.max(0, (+f.pago || 0) + delta)
+    const status = statusForPaid(total, pago)
+    let q = supabase.from('faturas').update({
+      pago,
+      status,
+      data_pagamento: status === 'pago' ? (date || new Date().toISOString().slice(0, 10)) : null,
+    }).eq('id', faturaId)
+    q = f.pago == null ? q.is('pago', null) : q.eq('pago', f.pago)
+    const { data, error } = await q.select('id')
+    if (error) throw error
+    if (data && data.length) {
+      logChange(supabase, { tabela: 'faturas', registro_id: faturaId, acao: 'update', antes: { pago: f.pago, status: f.status }, depois: { pago, status }, bar_id: f.bar_id || null })
+      return
+    }
+  }
+  throw new Error('The invoice changed while saving. Nothing was added twice: open it again and check the balance.')
 }
 
 /** Log a payment. Confirmed payments lower the balance right away. */
@@ -91,12 +103,19 @@ export async function addFaturaPayment(supabase, faturaId, { valor, data, metodo
 
 /** Money of a waiting payment arrived: count it. */
 export async function confirmFaturaPayment(supabase, p) {
-  if (p.confirmado) return
-  const { error } = await supabase.from('fatura_pagamentos')
+  if (p.confirmado) return { already: true }
+  // Only a row that is still waiting flips to confirmed: a second tap (or a second person) changes nothing,
+  // so the same payment can never be added to the invoice twice.
+  const { data, error } = await supabase.from('fatura_pagamentos')
     .update({ confirmado: true, confirmado_em: new Date().toISOString() })
     .eq('id', p.id)
+    .eq('confirmado', false)
+    .select('id')
   if (error) throw error
+  if (!data || !data.length) return { already: true }
+  logChange(supabase, { tabela: 'fatura_pagamentos', registro_id: p.id, acao: 'confirm', antes: { confirmado: false }, depois: { confirmado: true, valor: +p.valor || 0 } })
   await applyDelta(supabase, p.fatura_id, +p.valor || 0, p.data)
+  return { already: false }
 }
 
 /** Remove a payment logged by mistake; the balance goes back up. */

@@ -67,7 +67,7 @@ async function appendAudit(admin, auth, entry) {
       bar_id: (['cliente', 'gerente', 'caixa', 'bar_staff'].includes(auth.perfil?.role) ? auth.perfil?.bar_id : entry.bar_id) || auth.perfil?.bar_id || null,
       tabela: String(entry.tabela || ''),
       registro_id: entry.registro_id ? String(entry.registro_id) : null,
-      acao: ['insert', 'update', 'delete', 'upsert'].includes(entry.acao) ? entry.acao : 'update',
+      acao: ['insert', 'update', 'delete', 'upsert', 'confirm', 'owner_decision', 'resolve'].includes(entry.acao) ? entry.acao : 'update',
       antes: trimJson(entry.antes),
       depois: trimJson(entry.depois),
       fonte: entry.fonte || 'app',

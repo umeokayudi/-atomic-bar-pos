@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { LanguageToggle } from './UiPrefsPanel'
 import { supabase } from '../lib/supabase'
 import { ensureVendaFromPedido, findVendaForPedido, findVendaKeysForPedidos, pedidoSaleDate, mergeOrInsertPeriodFatura } from '../lib/pedidoVenda'
 import { addStockFromDelivery } from '../lib/posSupply'
@@ -564,6 +565,7 @@ export function UsuariosTab() {
         <button className="btn-primary" style={{fontSize:12,padding:'8px 16px'}} onClick={()=>{ setShowNew(v=>!v); setErr('') }}>{t('configs.newUser')}</button>
       }
     >
+      <div className="ui-card" style={{ padding: 14, marginBottom: 16 }}><LanguageToggle /></div>
 
       {err && <div style={{background:'var(--red-bg)',color:'#b91c1c',border:'1px solid #fecaca',borderRadius:8,padding:'10px 16px',marginBottom:16,fontSize:13}}>{asReactText(err)}</div>}
       {msg && <div style={{background:'var(--green-bg)',color:'var(--green)',borderRadius:8,padding:'10px 16px',marginBottom:16,fontSize:13}}>{msg}</div>}

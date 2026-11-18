@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import MoneyLabelsLive from './ui/MoneyLabels'
 import { openStoredFile } from '../lib/privateFile'
 import { supabase } from '../lib/supabase'
 import { fmtYen, fmtDate, Spinner, Empty, filterSupplierVendas } from './utils'
@@ -48,6 +49,7 @@ export default function Faturas() {
         subtitle={t('invoices.subtitle')}
         actions={<PortalPills options={[['overview', t('invoices.tabOverview')],['invoices', t('invoices.tabInvoices')],['payments', t('invoices.tabPayments')]]} value={tab} onChange={setTab} />}
       />
+      <MoneyLabelsLive />
       {tab==='overview'  && <Overview />}
       {tab==='invoices'  && <InvoiceList />}
       {tab==='payments'  && <PaymentList />}

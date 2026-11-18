@@ -46,7 +46,7 @@ export function shellTabIds(role) {
   if (role === 'admin') {
     return [
       'dashboard', 'billingHub', 'purchases', 'sales', 'pedidos', 'fulfillment', 'procurement',
-      'relatorio', 'ryoshusho', 'seikyusho', 'products', 'bars', 'usuarios', 'faturas', 'suppliers', 'cashflow',
+      'relatorio', 'ryoshusho', 'seikyusho', 'products', 'bars', 'usuarios', 'faturas', 'conciliacao', 'suppliers', 'cashflow',
       'payroll', 'crm', 'barFinance', 'marketing', 'consultoria', 'ai',
     ].filter(id => !HQ_HIDDEN_MODULES.has(id))
   }

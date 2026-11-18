@@ -88,5 +88,5 @@ export function monthRange(isoDay = tokyoDateKey()) {
 }
 
 export function dateLocale(lang) {
-  return lang === 'ja' ? 'ja-JP' : 'en-US'
+  return { ja: 'ja-JP', pt: 'pt-BR', es: 'es-419' }[lang] || 'en-US'
 }
