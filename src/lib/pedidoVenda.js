@@ -48,30 +48,17 @@ export async function findVendaKeysForPedidos(supabase, pedidos) {
 
 /** Período de faturamento com base na data da venda (não hoje) */
 export function billingPeriodForDate(isoDate) {
-  const d = new Date(`${isoDate}T12:00:00`)
-  const day = d.getDate()
-  const year = d.getFullYear()
-  const month = d.getMonth()
-
-  if (day <= 5) {
-    return {
-      periodStart: new Date(year, month, 1).toISOString().slice(0, 10),
-      periodEnd: new Date(year, month, 5).toISOString().slice(0, 10),
-      dueDate: new Date(year, month, 20).toISOString().slice(0, 10),
-    }
+  // Pure calendar arithmetic on the date text. (The old version went through toISOString(), which in Japan
+  // (UTC+9) moved every period start, end and due date one day early.)
+  const [year, month, day] = String(isoDate).slice(0, 10).split('-').map(Number)
+  const iso = (y, m, d) => {
+    const dt = new Date(Date.UTC(y, m - 1, d))
+    return dt.toISOString().slice(0, 10)
   }
-  if (day <= 20) {
-    return {
-      periodStart: new Date(year, month, 6).toISOString().slice(0, 10),
-      periodEnd: new Date(year, month, 20).toISOString().slice(0, 10),
-      dueDate: new Date(year, month + 1, 5).toISOString().slice(0, 10),
-    }
-  }
-  return {
-    periodStart: new Date(year, month, 21).toISOString().slice(0, 10),
-    periodEnd: new Date(year, month + 1, 0).toISOString().slice(0, 10),
-    dueDate: new Date(year, month + 1, 20).toISOString().slice(0, 10),
-  }
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  if (day <= 5) return { periodStart: iso(year, month, 1), periodEnd: iso(year, month, 5), dueDate: iso(year, month, 20) }
+  if (day <= 20) return { periodStart: iso(year, month, 6), periodEnd: iso(year, month, 20), dueDate: iso(year, month + 1, 5) }
+  return { periodStart: iso(year, month, 21), periodEnd: iso(year, month, lastDay), dueDate: iso(year, month + 1, 20) }
 }
 
 export async function createVendaFromPedido(supabase, pedido) {

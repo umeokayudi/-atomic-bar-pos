@@ -276,7 +276,11 @@ export default function HqOrders() {
       const venda = await registerVendaForPedido(p)
       try {
         await mergeOrInsertPeriodFatura(supabase, { barId: p.bar_id, amount: p.total_estimado, saleDate: pedidoSaleDate(p), vendaId: venda?.id || null, notas: t('configs.invoiceAutoNote') })
-      } catch (e) { console.error('auto-fatura error:', e) }
+      } catch (e) {
+        // Honest error: the delivery is saved but the invoice was not updated. Say so instead of hiding it.
+        console.error('auto-fatura error:', e)
+        notify(`${t('nav.invoices')}: ${e?.message || e}`, 'error')
+      }
       try { await setTrackStatus(p.id, 'entregue', { recebido_por }) } catch {
         await supabase.from('pedidos').update({ status: 'entregue' }).eq('id', p.id)
       }

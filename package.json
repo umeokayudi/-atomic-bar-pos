@@ -49,6 +49,8 @@
     "test:notif-groups": "node scripts/notifGroups.test.mjs",
     "test:audit": "node scripts/audit.test.mjs",
     "test:order-track": "node scripts/orderTrack.test.mjs",
+    "test:mission": "node scripts/tests/liveScope.test.mjs && node scripts/tests/conciliacao.test.mjs && node scripts/tests/rlsPorPapel.pg.test.mjs",
+    "test": "for f in scripts/*.test.mjs scripts/tests/*.test.mjs; do case $f in *posVisual*|*.pg.test.mjs) continue;; esac; node $f > /tmp/jbm-test.log 2>&1 || { echo FAIL $f; tail -20 /tmp/jbm-test.log; exit 1; }; done; echo all tests passed",
     "test:push": "node scripts/pushTemplates.test.mjs && node scripts/push.e2e.mjs"
   },
   "dependencies": {
