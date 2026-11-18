@@ -90,7 +90,7 @@ export function UiPrefsProvider({ children }) {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     const meta = document.querySelector('meta[name="theme-color"]')
-    if (meta) meta.setAttribute('content', theme === THEMES.classic ? '#101B19' : '#F4F7F5')
+    if (meta) meta.setAttribute('content', theme === THEMES.classic ? '#0A1424' : '#F3F6FA')
   }, [theme])
 
   useEffect(() => {

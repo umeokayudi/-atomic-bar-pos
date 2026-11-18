@@ -43,7 +43,7 @@ button:disabled, .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
 .sidebar-footer { border-top-color: color-mix(in srgb, var(--c-on-chrome) 8%, transparent); }
 .nav-item { border-radius: var(--radius); min-height: 40px; gap: 10px; color: color-mix(in srgb, var(--c-on-chrome) 72%, transparent); }
 .nav-item:hover { background: color-mix(in srgb, var(--c-on-chrome) 6%, transparent); color: var(--c-on-chrome); }
-.nav-item.active { background: color-mix(in srgb, #83B7A0 18%, transparent); color: #CFE6DA; box-shadow: inset 2px 0 0 #83B7A0; }
+.nav-item.active { background: color-mix(in srgb, #38BDF8 18%, transparent); color: #D6EEFB; box-shadow: inset 2px 0 0 #38BDF8; }
 .nav-item .ui-icon { flex-shrink: 0; opacity: .9; }
 .nav-group-label { color: color-mix(in srgb, var(--c-on-chrome) 45%, transparent); }
 
@@ -177,7 +177,7 @@ html[data-pointer="coarse"] .ui-btn { min-height: var(--tap); }
 /* Sidebar groups and badges */
 .nav-group + .nav-group { margin-top: 10px; }
 .nav-group-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; padding: 6px 12px 4px; }
-.nav-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--radius-pill); background: color-mix(in srgb, #83B7A0 30%, transparent); color: #E3F1EA; font-size: 11px; font-weight: 700; display: inline-grid; place-items: center; }
+.nav-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--radius-pill); background: color-mix(in srgb, #38BDF8 30%, transparent); color: #E6F5FD; font-size: 11px; font-weight: 700; display: inline-grid; place-items: center; }
 .nav-badge.is-danger { background: #C2493F; color: #fff; }
 
 .txt-success { color: var(--c-success); }

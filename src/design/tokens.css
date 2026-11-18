@@ -1,5 +1,5 @@
 /*
- * JBMTech design tokens — Deep Emerald.
+ * JBMTech design tokens — Navy (base) with #38BDF8 as highlight only.
  * One place for every colour, radius, shadow, spacing and breakpoint.
  * Themes switch with <html data-theme="classic|modern"> (classic = dark, modern = light),
  * set before paint by the inline script in index.html and kept by src/lib/uiPrefs.jsx.
@@ -45,60 +45,65 @@
 :root,
 [data-theme="modern"] {
   color-scheme: light;
-  --c-bg:         #F4F7F5;
+  --c-bg:         #F3F6FA;
   --c-surface:    #FFFFFF;
-  --c-surface-2:  #E9EFEC;
-  --c-surface-3:  #DDE6E1;
-  --c-text:       #13201D;
-  --c-text-2:     #4D5E59;
-  --c-text-3:     #6E7E79;
-  --c-border:     #D6E0DB;
-  --c-border-2:   #C2CFC9;
-  --c-accent:     #3F7F67;
-  --c-accent-2:   #346B56;
-  --c-accent-soft:#E2EEE8;
+  --c-surface-2:  #E8EDF4;
+  --c-surface-3:  #DAE2EC;
+  --c-text:       #0F1B2D;
+  --c-text-2:     #44546A;
+  --c-text-3:     #5C6C83;
+  --c-border:     #D4DCE7;
+  --c-border-2:   #BCC8D8;
+  /* Interactive colour on light surfaces is navy blue: AA as text on white (9.1:1) and under white text. */
+  --c-accent:     #1B4B8A;
+  --c-accent-2:   #153C70;
+  --c-accent-soft:#E2EBF6;
   --c-on-accent:  #FFFFFF;
-  --c-focus:      #3F7F67;
+  --c-focus:      #1B4B8A;
+  /* #38BDF8 is a highlight only (dots, bars, rings, text on navy). Never running text on white (2.1:1). */
+  --c-highlight:  #38BDF8;
 
-  /* app chrome (sidebar, login, top bar): stays deep emerald in both themes */
-  --c-chrome:     #13201D;
-  --c-chrome-2:   #1B2B27;
-  --c-chrome-3:   #22332F;
-  --c-on-chrome:  #F0F3F0;
+  /* app chrome (sidebar, login, top bar): navy in both themes */
+  --c-chrome:     #0B1A30;
+  --c-chrome-2:   #12243F;
+  --c-chrome-3:   #1A2F50;
+  --c-on-chrome:  #EEF3F9;
 
-  --c-success: #2F7A55; --c-success-bg: #E3F2EA;
+  --c-success: #1F7A4D; --c-success-bg: #E2F3EA;
   --c-danger:  #B0362B; --c-danger-bg:  #FBEAE7;
   --c-warning: #8A5A00; --c-warning-bg: #FBF1DC;
-  --c-info:    #2D5F8A; --c-info-bg:    #E5EEF7;
+  --c-info:    #1F5F99; --c-info-bg:    #E3EEF9;
 
-  --shadow-sm: 0 1px 2px rgba(19,32,29,.06);
-  --shadow:    0 1px 3px rgba(19,32,29,.08), 0 1px 2px rgba(19,32,29,.04);
-  --shadow-md: 0 4px 14px rgba(19,32,29,.08);
-  --shadow-lg: 0 12px 32px rgba(19,32,29,.14);
+  --shadow-sm: 0 1px 2px rgba(11,26,48,.06);
+  --shadow:    0 1px 3px rgba(11,26,48,.08), 0 1px 2px rgba(11,26,48,.04);
+  --shadow-md: 0 4px 14px rgba(11,26,48,.08);
+  --shadow-lg: 0 12px 32px rgba(11,26,48,.14);
 }
 
 /* ── Dark (classic) ─────────────────────────────────────────────────────── */
 [data-theme="classic"] {
   color-scheme: dark;
-  --c-bg:         #101B19;
-  --c-surface:    #1A2926;
-  --c-surface-2:  #22332F;
-  --c-surface-3:  #2B3F3A;
-  --c-text:       #F0F3F0;
-  --c-text-2:     #B5C2BD;
-  --c-text-3:     #8A9A95;
-  --c-border:     rgba(240,243,240,.09);
-  --c-border-2:   rgba(240,243,240,.16);
-  --c-accent:     #83B7A0;
-  --c-accent-2:   #9CC8B4;
-  --c-accent-soft:rgba(131,183,160,.14);
-  --c-on-accent:  #0E1A17;
-  --c-focus:      #9CC8B4;
+  --c-bg:         #0A1424;
+  --c-surface:    #12203A;
+  --c-surface-2:  #1A2B49;
+  --c-surface-3:  #233758;
+  --c-text:       #EEF3F9;
+  --c-text-2:     #B6C3D6;
+  --c-text-3:     #8E9FB8;
+  --c-border:     rgba(238,243,249,.10);
+  --c-border-2:   rgba(238,243,249,.18);
+  /* On navy the highlight blue is readable (9:1), so it is the accent here. */
+  --c-accent:     #38BDF8;
+  --c-accent-2:   #7DD3FC;
+  --c-accent-soft:rgba(56,189,248,.14);
+  --c-on-accent:  #06213A;
+  --c-focus:      #7DD3FC;
+  --c-highlight:  #38BDF8;
 
-  --c-chrome:     #0C1513;
-  --c-chrome-2:   #14211E;
-  --c-chrome-3:   #1B2B27;
-  --c-on-chrome:  #F0F3F0;
+  --c-chrome:     #070F1C;
+  --c-chrome-2:   #0E1A2E;
+  --c-chrome-3:   #15243D;
+  --c-on-chrome:  #EEF3F9;
 
   --c-success: #7FCB9F; --c-success-bg: rgba(127,203,159,.13);
   --c-danger:  #F08A7E; --c-danger-bg:  rgba(240,138,126,.13);
