@@ -1,5 +1,3 @@
-import { invoiceTotal } from '../src/lib/money.js'
-import { fixAtomicReceivables, revertAtomicPedidosToJune } from './_atomicJuneFix.js'
 import { requireGlobalFinance } from './_requireStaff.js'
 import { drinksAdminClient } from './_supabaseAdmin.js'
 import { buildLiveSnapshot } from './_cashflowSnapshot.js'
@@ -31,17 +29,6 @@ export default async function handler(req, res) {
     const auth = await requireGlobalFinance(req, sb)
     if (auth.error) return res.status(auth.status).json({ error: auth.error })
 
-    if (req.query.revertPedidosJune === '1' && req.query.confirm === 'atomic-june-465000') {
-      const revert = await revertAtomicPedidosToJune(sb)
-      return res.status(200).json({ ok: true, revert })
-    }
-
-    if (req.query.fixAtomicJune === '1' && req.query.confirm === 'atomic-june-465000') {
-      const fix = await fixAtomicReceivables(sb)
-      const { data: faturas } = await sb.from('faturas').select('valor,total,pago,status').eq('bar_id', 'b23a5f97-ad4c-4c2a-baa6-72a0d3ba85b9').neq('status', 'pago')
-      const aReceber = (faturas || []).reduce((a, f) => a + Math.max(0, invoiceTotal(f) - (+f.pago || 0)), 0)
-      return res.status(200).json({ ok: true, fix, aReceber })
-    }
 
     try {
       const { data } = await sb.storage.from(BUCKET).download(FILE)
