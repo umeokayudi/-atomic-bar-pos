@@ -1,5 +1,6 @@
 -- Close the drinks database to anyone without a login, keep invoices per bar, and stop till/staff logins
--- from editing or deleting sales directly. Applied to production 2026-10-17 with the owner's go-ahead.
+-- from editing or deleting sales directly. NOT applied to production (checked 2026-11-18: jbm_can_see_bar_money does not exist there).
+-- Replaced by sql/rls_por_papel.sql, which covers steps 1 to 3; step 4 (till sale guard) is still only here.
 -- Additive and safe to run again. Rollback at the end.
 
 -- 1) Tables that had RLS off (their "authenticated" policies were ignored, so the public anon key could read,

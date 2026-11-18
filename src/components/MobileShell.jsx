@@ -3,6 +3,7 @@ import { LogoMobileHeader } from './Logo'
 import { useAuth } from './Auth'
 import { useI18n } from '../lib/i18n'
 import { roleLabel } from './utils'
+import LiveClock from './ui/LiveClock'
 
 export function useMobileMenuLock(open) {
   useEffect(() => {
@@ -34,6 +35,7 @@ export function MobileTopBar({ open, onToggle, title, children }) {
             <span className="mobile-who-name">{name}{role ? ` · ${role}` : ''}</span>
           </div>
         )}
+        <LiveClock className="live-clock-mobile" />
       </div>
       <div className="mobile-topbar-actions">{children}</div>
     </header>
@@ -48,10 +50,10 @@ export function ShellOverlay({ open, onClose }) {
 
 /** Desktop/tablet tools that sit in the page, not the sidebar. */
 export function WorkspaceChrome({ children, start = null, end = null }) {
-  if (!children && !start && !end) return null
   return (
     <div className="workspace-chrome">
       {start && <div className="workspace-chrome-start">{start}</div>}
+      <LiveClock className="live-clock-desk" />
       <div className="workspace-chrome-end">{children}{end}</div>
     </div>
   )

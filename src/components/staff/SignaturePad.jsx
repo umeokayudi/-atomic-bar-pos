@@ -23,7 +23,7 @@ export default function SignaturePad({ onChange, label, clearLabel, hint }) {
     ctx.lineWidth = 2.2
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
-    ctx.strokeStyle = '#13201D'
+    ctx.strokeStyle = '#0B1A30'
   }, [])
 
   function point(e) {

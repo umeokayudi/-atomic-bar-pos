@@ -8,7 +8,7 @@
 
 import { loadStaffWithExtras, runLiveOp, saveStaffExtras } from './_barLiveStore.js'
 import { listPunches } from './_punchStore.js'
-import { geminiGenerate } from './_gemini.js'
+import { aiGenerate } from './_ai.js'
 import { drinksAuthClient } from './_supabaseAdmin.js'
 import { forgetBarActors } from './_barLaneAuth.js'
 import { earningsByDay, myGoalStatus, myNightSummary } from '../src/lib/staffNight.js'
@@ -213,7 +213,7 @@ function reportPrompt({ staffName, barName, ctx, checkout, hours }) {
 }
 
 async function aiReport(prompt, timeoutMs = 12000) {
-  const work = geminiGenerate({
+  const work = aiGenerate({
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     generationConfig: { maxOutputTokens: 400, temperature: 0.4 },
   }).then(j => (j?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').trim())

@@ -1,4 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
+import LiveClock from '../ui/LiveClock'
 import { useAuth } from '../Auth'
 import { useI18n } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
@@ -495,6 +496,7 @@ export default function StaffApp({ bar, tab, onTab, signOut, canOpen = () => tru
             <small>{clock.onShift ? <><span className="sa-dot is-live" /> {t('staffApp.onShift')}</> : (profile?.cargo || t('staffApp.staffLabel'))}</small>
           </span>
         </button>
+        <LiveClock className="live-clock-staff" />
         <StaffBell t={t} schedule={schedule} onNavigate={go} />
         <span className={`sa-me${clock.onShift ? ' is-on' : ''}`}>
           <Avatar name={profile?.nome || perfil?.nome} url={profile?.foto_url} size={44} onClick={() => go('profile')} label={t('employee.profile')} />

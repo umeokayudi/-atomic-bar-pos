@@ -1,5 +1,5 @@
 import { setCorsHeaders, handleCorsPreflight } from './_cors.js'
-import { geminiGenerate } from './_gemini.js'
+import { aiGenerate } from './_ai.js'
 import { requireBarAccount, requireGlobalFinance, requireStaffOrTrustedOrigin } from './_requireStaff.js'
 import { drinksAdminClient } from './_supabaseAdmin.js'
 
@@ -85,8 +85,9 @@ export default async function handler(req, res) {
       geminiBody.contents = toGeminiContents(messages)
     }
 
-    const data = await geminiGenerate(geminiBody)
-    return res.status(200).json({ text: extractText(data) })
+    // Thinking goes to Muse; reading a photo into fields stays on Gemini (api/_ai.js).
+    const data = await aiGenerate(geminiBody, { purpose: image?.data ? 'fill' : 'think' })
+    return res.status(200).json({ text: extractText(data), provider: data.provider, fallback: data.fallback || null })
   } catch (e) {
     return res.status(500).json({ error: e.message })
   }

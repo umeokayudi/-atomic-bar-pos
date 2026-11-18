@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#101B19" />
+    <meta name="theme-color" content="#0A1424" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -25,7 +25,7 @@
           t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'classic' : 'modern';
         }
         var tc = document.querySelector('meta[name="theme-color"]');
-        if (tc) tc.setAttribute('content', t === 'classic' ? '#101B19' : '#F4F7F5');
+        if (tc) tc.setAttribute('content', t === 'classic' ? '#0A1424' : '#F3F6FA');
         var lang = 'en';
         try { lang = localStorage.getItem('jbm_drinks_lang') === 'ja' ? 'ja' : 'en'; } catch (e) {}
         var w = window.innerWidth;
@@ -47,18 +47,18 @@
     <style>
       /* Opening screen: drawn before the app's JS loads, so an installed app never starts on a blank page.
          The app fades it out once it knows who is signed in (src/lib/bootSplash.js). */
-      html, body { background: #13201D; }
+      html, body { background: #0B1A30; }
       #boot-splash {
         position: fixed; inset: 0; z-index: 2147483000;
         display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px;
-        background: radial-gradient(120% 80% at 50% 42%, #1B2B27 0%, #13201D 55%, #0C1513 100%);
+        background: radial-gradient(120% 80% at 50% 42%, #12243F 0%, #0B1A30 55%, #070F1C 100%);
         transition: opacity .32s ease, transform .32s ease;
       }
       #boot-splash.bs-out { opacity: 0; transform: scale(1.03); pointer-events: none; }
       #boot-splash .bs-mark { width: clamp(96px, 28vw, 132px); height: auto; overflow: visible; }
       #boot-splash .bs-frame { fill: none; stroke: #F0F3F0; stroke-width: 42;
         stroke-dasharray: 1; stroke-dashoffset: 1; animation: bs-draw .95s cubic-bezier(.65,0,.35,1) .05s forwards; }
-      #boot-splash .bs-corner { fill: #83B7A0; transform-box: fill-box; transform-origin: 100% 0;
+      #boot-splash .bs-corner { fill: #38BDF8; transform-box: fill-box; transform-origin: 100% 0;
         opacity: 0; transform: scale(.4); animation: bs-pop .45s cubic-bezier(.34,1.56,.64,1) .8s forwards; }
       #boot-splash .bs-l { fill: #F0F3F0; opacity: 0; transform: translateY(40px);
         animation: bs-rise .5s cubic-bezier(.22,1,.36,1) forwards; }
@@ -67,7 +67,7 @@
       #boot-splash .bs-m { animation-delay: .65s; }
       #boot-splash .bs-bar { width: 56px; height: 2px; border-radius: 2px; overflow: hidden;
         background: rgba(240,243,240,.10); opacity: 0; animation: bs-fade .4s ease 1.3s forwards; }
-      #boot-splash .bs-bar i { display: block; width: 40%; height: 100%; border-radius: 2px; background: #83B7A0;
+      #boot-splash .bs-bar i { display: block; width: 40%; height: 100%; border-radius: 2px; background: #38BDF8;
         transform: translateX(-100%); animation: bs-slide 1.2s ease-in-out 1.3s infinite; }
       @keyframes bs-draw { to { stroke-dashoffset: 0; } }
       @keyframes bs-pop  { to { opacity: 1; transform: none; } }

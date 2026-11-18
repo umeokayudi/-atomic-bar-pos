@@ -7,6 +7,7 @@ import { areaOpen, loadLock } from './_barVault.js'
 import { resolveBarActor } from './_barLaneAuth.js'
 import { errText } from '../src/lib/errText.js'
 import { LIVE_TABLE_AREA, canAccessAny } from '../src/lib/barAccess.js'
+import { BAR_ROLES, needsOwnSales, scopeLiveRequest, scopePatch } from './_liveScope.js'
 import { frontDeleteError, frontSaleWriteError, guardSalePatch, isFrontLogin, stampSaleRows } from './_posSaleStamp.js'
 
 function sendResult(res, result) {
@@ -66,7 +67,7 @@ async function appendAudit(admin, auth, entry) {
       bar_id: (['cliente', 'gerente', 'caixa', 'bar_staff'].includes(auth.perfil?.role) ? auth.perfil?.bar_id : entry.bar_id) || auth.perfil?.bar_id || null,
       tabela: String(entry.tabela || ''),
       registro_id: entry.registro_id ? String(entry.registro_id) : null,
-      acao: ['insert', 'update', 'delete', 'upsert'].includes(entry.acao) ? entry.acao : 'update',
+      acao: ['insert', 'update', 'delete', 'upsert', 'confirm', 'owner_decision', 'resolve'].includes(entry.acao) ? entry.acao : 'update',
       antes: trimJson(entry.antes),
       depois: trimJson(entry.depois),
       fonte: entry.fonte || 'app',
@@ -111,23 +112,6 @@ async function runPgSelect(admin, spec) {
   if (spec.wantSingle === true) q = q.single()
   if (spec.wantSingle === 'maybe') q = q.maybeSingle()
   return q
-}
-
-function scopedFilters(auth, table, filters, row) {
-  const barRoles = ['cliente', 'gerente', 'caixa', 'bar_staff']
-  if (!barRoles.includes(auth.perfil?.role) || !auth.perfil.bar_id) return { filters, row, error: null }
-  const barId = auth.perfil.bar_id
-  if (table === 'staff_extras') return { filters, row, error: null }
-  if (table === 'pos_vendas_itens') return { filters, row, error: null }
-  if (row && row.bar_id && row.bar_id !== barId) return { error: 'bar_id mismatch' }
-  // jbm_company is one row for the whole company (the receipt issuer), not a bar's row.
-  if (table === 'jbm_company') return { filters, row, error: null }
-  if (row && !row.bar_id && table !== 'bar_geo') row.bar_id = barId
-  const next = [...(filters || [])]
-  if (!next.some(f => f.k === 'bar_id') && table !== 'bar_geo' && table !== 'staff_extras' && table !== 'pos_vendas_itens') {
-    next.push({ op: 'eq', k: 'bar_id', v: barId })
-  }
-  return { filters: next, row, error: null }
 }
 
 async function runPgOp(db, spec) {
@@ -244,20 +228,32 @@ export default async function handler(req, res) {
       updatePatch: body.updatePatch || null,
     }
 
+    // Bar isolation is decided here, from the signed-in login, never from the filters the browser sends.
+    let ownSaleIds = []
+    if (needsOwnSales(auth, table)) {
+      const q = { table: 'pos_vendas', columns: 'id', filters: [{ op: 'eq', k: 'bar_id', v: auth.perfil.bar_id }] }
+      const sales = admin ? await runLiveOp(admin, { mode: 'select', ...q }) : await runPgSelect(db, q)
+      ownSaleIds = (sales.data || []).map(r => r.id)
+    }
+    const scoped = scopeLiveRequest(auth, spec, { ownSaleIds })
+    if (scoped.error) return res.status(scoped.status || 403).json({ error: scoped.error })
+    spec.filters = scoped.filters
+    // An upsert replaces the row with the same id: a bar login may only replace rows that are already its own.
+    if (spec.mode === 'upsert' && BAR_ROLES.includes(auth.perfil?.role) && table !== 'pos_vendas_itens') {
+      const ids = (scoped.insertRows || []).map(r => r?.id).filter(Boolean)
+      if (ids.length) {
+        const q = { table, columns: 'id,bar_id', filters: [{ op: 'in', k: 'id', v: ids }] }
+        const found = admin ? await runLiveOp(admin, { mode: 'select', ...q }) : await runPgSelect(db, q)
+        if ((found.data || []).some(r => r.bar_id && r.bar_id !== auth.perfil.bar_id)) {
+          return res.status(403).json({ error: 'bar_id mismatch' })
+        }
+      }
+    }
     if (spec.mode === 'insert' || spec.mode === 'upsert') {
-      spec.insertRows = (spec.insertRows || []).map(row => {
-        const scoped = scopedFilters(auth, table, spec.filters, { ...row })
-        return scoped.row
-      })
       // Who rang the sale up comes from the signed-in login, never from the browser.
-      spec.insertRows = stampSaleRows(table, spec.insertRows, auth)
-      const bad = spec.insertRows.find(r => r && auth.perfil.bar_id && r.bar_id && r.bar_id !== auth.perfil.bar_id && ['cliente', 'gerente', 'caixa', 'bar_staff'].includes(auth.perfil.role))
-      if (bad) return res.status(403).json({ error: 'bar_id mismatch' })
-    } else {
-      if (spec.mode === 'update') spec.updatePatch = guardSalePatch(table, spec.updatePatch, auth)
-      const scoped = scopedFilters(auth, table, spec.filters, null)
-      if (scoped.error) return res.status(403).json({ error: scoped.error })
-      spec.filters = scoped.filters
+      spec.insertRows = stampSaleRows(table, scoped.insertRows || [], auth)
+    } else if (spec.mode === 'update') {
+      spec.updatePatch = scopePatch(auth, guardSalePatch(table, spec.updatePatch, auth))
     }
 
     const frontErr = frontSaleWriteError(table, spec, auth)

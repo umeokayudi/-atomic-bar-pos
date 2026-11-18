@@ -1,4 +1,5 @@
 import { Component } from 'react'
+import MoneyLabelsLive from './components/ui/MoneyLabels'
 import { asReactText, errText } from './lib/errText'
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
@@ -42,6 +43,7 @@ const RyoshushoTab = lazy(() => import('./components/Ryoshusho'))
 const SeikyushoTab = lazy(() => import('./components/Seikyusho'))
 const Fornecedores = lazy(() => import('./components/Fornecedores'))
 const Faturas = lazy(() => import('./components/Faturas'))
+const ConciliacaoCentral = lazy(() => import('./components/ConciliacaoCentral'))
 const Cashflow = lazy(() => import('./components/Cashflow'))
 const ReportsBilling = lazy(() => import('./components/ReportsBilling'))
 const ProductsTab = lazy(() => import('./components/Configs').then(m => ({ default: m.ProductsTab })))
@@ -80,6 +82,7 @@ const ADMIN_TABS = [
   { id:'bars',      labelKey:'nav.bars', icon:'bars' },
   { id:'usuarios',  labelKey:'nav.users', icon:'usuarios' },
   { id:'faturas',    labelKey:'nav.invoices', icon:'faturas' },
+  { id:'conciliacao', labelKey:'mm.conc.nav', icon:'conciliacao' },
   { id:'suppliers',  labelKey:'nav.suppliers', icon:'suppliers' },
   { id:'cashflow',   labelKey:'nav.cashflow', icon:'cashflow' },
   { id:'payroll', labelKey:'nav.payroll', icon:'payroll' },
@@ -260,6 +263,7 @@ function Dashboard({ onNav }) {
           .join('\n'),
       }) }} />
 
+      <MoneyLabelsLive compact />
       <DashboardGrid id="hq" renderHead={customize => (
         <WelcomeHeader
           kicker={`${t('welcome.hqKicker')} · ${isCurrentMonth ? t('dashboard.currentMonth') : t('dashboard.history')} · ${monthLabel(selMonth)}`}
@@ -721,6 +725,7 @@ function Shell() {
           {activeTab==='bars'      && <><BarsTab/><PushSettings hq /></>}
           {activeTab==='usuarios'  && <UsuariosTab/>}
           {activeTab==='faturas'   && <Faturas />}
+          {activeTab==='conciliacao' && <ConciliacaoCentral />}
           {activeTab==='cashflow'   && <Cashflow />}
           {activeTab==='suppliers' && <Fornecedores />}
           {activeTab==='ai' && <AiCenter />}

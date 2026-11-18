@@ -1,3 +1,4 @@
+import { escapeHtml } from './html.js'
 import { downloadHtmlAsPdf } from './pdfFile'
 /** Guest 領収書 from POS till — never a JBM invoice / RY- number. */
 
@@ -35,11 +36,11 @@ export function buildGuestReceiptHtml({
   const lines = (items || []).map(it => {
     const qty = it.qtd || 1
     const unit = +it.preco_unitario || +it.preco || 0
-    const name = String(it.nome || '').replace(/</g, '')
+    const name = escapeHtml(it.nome || '')
     return `<tr><td>${name}</td><td style="text-align:center">${qty}</td><td style="text-align:right">${yen(unit * qty)}</td></tr>`
   }).join('')
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${numero}</title>
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(numero)}</title>
 <style>
 body{font-family:serif;padding:36px;max-width:640px;margin:0 auto;color:#111}
 h1{text-align:center;font-size:24px;letter-spacing:10px;margin-bottom:8px}
@@ -55,19 +56,19 @@ td,th{padding:6px 4px;border-bottom:1px solid #eee;text-align:left}
 </style></head><body>
 <h1>領　収　書</h1>
 <div class="sub">ゲスト用（バー売上）— JBM請求ではありません</div>
-<div class="row"><span>No. <strong>${numero}</strong></span>
-<span>発行日：<strong>${when || '—'}</strong></span></div>
-<div class="client">${(guestNome || 'ゲスト').replace(/</g, '')}　様</div>
+<div class="row"><span>No. <strong>${escapeHtml(numero)}</strong></span>
+<span>発行日：<strong>${escapeHtml(when || '—')}</strong></span></div>
+<div class="client">${escapeHtml(guestNome || 'ゲスト')}　様</div>
 <div style="font-size:13px;line-height:1.7;margin-bottom:12px">
-  <div><strong>店舗：</strong>${(barNome || '—').replace(/</g, '')}</div>
-  ${cast ? `<div><strong>CAST：</strong>${String(cast).replace(/</g, '')}</div>` : ''}
-  ${spaceNome ? `<div><strong>席：</strong>${String(spaceNome).replace(/</g, '')}</div>` : ''}
-  <div><strong>支払方法：</strong>${String(payMethod || sale.metodo_pagamento || 'Cash').replace(/</g, '')}</div>
-  ${cash?.restMethod ? `<div><strong>現金：</strong>${yen(cash.tendered)}　<strong>${String(cash.restMethod).replace(/</g, '')}：</strong>${yen(cash.rest)}（記録のみ）</div>` : ''}
+  <div><strong>店舗：</strong>${escapeHtml(barNome || '—')}</div>
+  ${cast ? `<div><strong>CAST：</strong>${escapeHtml(cast)}</div>` : ''}
+  ${spaceNome ? `<div><strong>席：</strong>${escapeHtml(spaceNome)}</div>` : ''}
+  <div><strong>支払方法：</strong>${escapeHtml(payMethod || sale.metodo_pagamento || 'Cash')}</div>
+  ${cash?.restMethod ? `<div><strong>現金：</strong>${yen(cash.tendered)}　<strong>${escapeHtml(cash.restMethod)}：</strong>${yen(cash.rest)}（記録のみ）</div>` : ''}
   ${cash && !cash.exact && !cash.restMethod ? `<div><strong>預かり：</strong>${yen(cash.tendered)}　<strong>お釣り：</strong>${yen(cash.change)}</div>` : ''}
   ${cash?.exact ? `<div><strong>預かり：</strong>${yen(cash.tendered)}（ちょうど）</div>` : ''}
   ${!cash && payMethod && !/cash|現金/i.test(payMethod) ? `<div><strong>記録のみ：</strong>端末・PayPay連携なし</div>` : ''}
-  ${details ? `<div><strong>備考：</strong>${String(details).replace(/</g, '')}</div>` : ''}
+  ${details ? `<div><strong>備考：</strong>${escapeHtml(details)}</div>` : ''}
 </div>
 <table>
 <thead><tr><th>品名</th><th style="text-align:center">数量</th><th style="text-align:right">金額</th></tr></thead>

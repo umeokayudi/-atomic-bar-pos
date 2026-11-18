@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import LiveClock from './ui/LiveClock'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import { useI18n } from '../lib/i18n'
@@ -92,6 +93,7 @@ export default function SupplierPortal({ onSignOut }) {
     <div className="ff-portal">
       <header className="ff-portal-bar">
         <strong>{t('fulfillment.supplierTitle')}</strong>
+        <LiveClock className="live-clock-desk" />
         <button type="button" onClick={onSignOut}>{t('common.signOut')}</button>
       </header>
       {missing && <p className="ff-miss">{t('fulfillment.schemaMissing')}</p>}

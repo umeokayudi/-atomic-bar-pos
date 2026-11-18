@@ -1,34 +1,24 @@
 import { supabase } from './supabase'
+import { addFaturaPayment, faturaTotal } from './faturaLedger'
 
+/**
+ * "Mark invoice paid" = log one confirmed payment for what is still open, through the same ledger as every
+ * other payment (so there is always a payment row with a date behind the paid amount; if the row cannot be
+ * saved, nothing is marked). Undoing is done payment by payment in the invoice's payment list, never by
+ * zeroing the invoice.
+ */
 export async function markFaturaPaid(id, { paid, date }) {
+  if (!paid) throw new Error('To undo, open the invoice payments and remove the payment that was logged by mistake.')
+  if (!date) throw new Error('Payment date is required')
   const { data: f, error } = await supabase
     .from('faturas')
     .select('id,total,valor,pago,status')
     .eq('id', id)
     .single()
   if (error) throw error
-  const total = +f.total || +f.valor || 0
-  if (paid) {
-    const remaining = Math.max(0, total - (+f.pago || 0))
-    if (remaining > 0) {
-      const { error: payErr } = await supabase.from('fatura_pagamentos').insert({
-        fatura_id: id,
-        valor: remaining,
-        metodo: 'Manual',
-        data: date,
-        confirmado: true,
-        confirmado_em: new Date().toISOString(),
-      })
-      if (payErr) {
-        /* fatura still marked paid even if history row fails */
-      }
-    }
-    const { error: upd } = await supabase.from('faturas').update({ pago: total, status: 'pago' }).eq('id', id)
-    if (upd) throw upd
-    return
-  }
-  const { error: upd } = await supabase.from('faturas').update({ pago: 0, status: 'pendente' }).eq('id', id)
-  if (upd) throw upd
+  const remaining = Math.max(0, faturaTotal(f) - (+f.pago || 0))
+  if (remaining <= 0) return
+  await addFaturaPayment(supabase, id, { valor: remaining, data: date, metodo: 'Manual', confirmado: true })
 }
 
 export async function markCompraPaid(id, { paid, date, metodo }) {

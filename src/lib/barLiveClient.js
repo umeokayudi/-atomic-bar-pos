@@ -175,6 +175,11 @@ class LiveQuery {
       })
       const j = await r.json().catch(() => ({ error: r.statusText }))
       if (r.ok && !j.error) return { data: j.data, error: null }
+      // The server said no (not signed in, not allowed, locked behind the PIN): that answer is final.
+      // Retrying the same write straight on the database would go around the server's rule.
+      if (r.status === 401 || r.status === 403 || r.status === 423) {
+        return { data: this.spec.wantSingle ? null : [], error: { message: errText(j.error, r.statusText || 'Not allowed'), code: j.code || `HTTP_${r.status}`, status: r.status, locked: j.locked, area: j.area } }
+      }
       const fallback = await this.executeRaw()
       if (!fallback.error) return fallback
       const msg = errText(j.error, '') || errText(j.message, '') || errText(fallback.error, r.statusText || 'Error')

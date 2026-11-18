@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { LanguageToggle } from './UiPrefsPanel'
 import { useAuth } from './Auth'
 import { useI18n } from '../lib/i18n'
 import { errText } from '../lib/errText'
@@ -34,6 +35,7 @@ export default function MyAccount() {
       <div className="fade-in vault-settings">
         <PageHeader title={t('myAccount.title')} subtitle={t('myAccount.lead')} />
         <p className="ui-card desk-note">{t('myAccount.laneOnly')}</p>
+        <div className="ui-card" style={{ padding: 14, marginTop: 12 }}><LanguageToggle /></div>
       </div>
     )
   }
@@ -77,6 +79,7 @@ export default function MyAccount() {
   return (
     <div className="fade-in vault-settings">
       <PageHeader title={t('myAccount.title')} subtitle={t('myAccount.lead')} />
+      <div className="ui-card" style={{ padding: 14, marginBottom: 12 }}><LanguageToggle /></div>
       <div className="ui-card vault-form">
         {line('nome', t('myAccount.name'), perfil?.nome)}
         {line('email', t('myAccount.email'), email)}

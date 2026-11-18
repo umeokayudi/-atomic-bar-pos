@@ -22,19 +22,10 @@ export function receiptableItems(faturas = [], pagamentos = []) {
         fatura: f,
       })
     }
-    // Older balance with no payment row (paid before the log existed), minus known direct payments.
-    const older = invoiceMoney(f, pagamentos).unrecorded
+    // An amount marked paid with no confirmed payment row gets NO receipt: it is pending confirmation and
+    // waits for the owner's decision in the Central de Conciliação (Missão Máxima 4.3).
     void faturaPago
-    if (older > 0.5) {
-      items.push({
-        key: `f-${f.id}-saldo`,
-        valor: older,
-        data: f.data_pagamento || faturaEmissao(f) || faturaVencimento(f),
-        metodo: 'Pagamento confirmado',
-        notas: f.obs || '',
-        fatura: f,
-      })
-    }
+    void invoiceMoney
   }
   return items
     .filter(i => i.valor > 0)

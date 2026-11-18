@@ -1,7 +1,6 @@
 import { invoiceTotal } from '../src/lib/money.js'
 import { loadReconciledCash } from '../src/lib/cashLoad.js'
 import { createClient } from '@supabase/supabase-js'
-import { fixAtomicReceivables, revertAtomicPedidosToJune } from './_atomicJuneFix.js'
 import { isSupplierVenda } from './_supplierVenda.js'
 import { requireGlobalFinance } from './_requireStaff.js'
 import { drinksAdminClient } from './_supabaseAdmin.js'
@@ -90,18 +89,6 @@ export default async function handler(req, res) {
     const auth = await requireGlobalFinance(req, sb)
     if (auth.error) return res.status(auth.status).json({ error: auth.error })
 
-    if (req.query.revertPedidosJune === '1' && req.query.confirm === 'atomic-june-465000') {
-      const revert = await revertAtomicPedidosToJune(sb)
-      return res.status(200).json({ ok: true, revert })
-    }
-
-    if (req.query.fixAtomicJune === '1' && req.query.confirm === 'atomic-june-465000') {
-      const debt = Number(req.query.debt || 465000)
-      const fix = await fixAtomicReceivables(sb)
-      const { data: faturas } = await sb.from('faturas').select('valor,total,pago,status').eq('bar_id', ATOMIC_BAR_ID).neq('status', 'pago')
-      const aReceber = (faturas || []).reduce((a, f) => a + Math.max(0, invoiceTotal(f) - (+f.pago || 0)), 0)
-      return res.status(200).json({ ok: true, fix, aReceber })
-    }
 
     let holding = { nome: 'JBM Holding', negocios: [] }
     try {

@@ -339,8 +339,14 @@ ${extra ? `\nSCREEN CONTEXT:\n${extra}` : ''}`
 
 export function parseAgentJson(text) {
   const cleaned = String(text || '').replace(/```json|```/g, '').trim()
+  // Some models wrap the JSON in a sentence: take the outermost { … } when the whole text is not JSON.
+  const a = cleaned.indexOf('{')
+  const b = cleaned.lastIndexOf('}')
+  const candidates = a >= 0 && b > a ? [cleaned, cleaned.slice(a, b + 1)] : [cleaned]
   try {
-    const out = JSON.parse(cleaned)
+    let out = null
+    for (const c of candidates) { try { out = JSON.parse(c); break } catch { /* next */ } }
+    if (!out || typeof out !== 'object') throw new Error('not json')
     return {
       reply: String(out.reply || ''),
       actions: Array.isArray(out.actions) ? out.actions.slice(0, 5) : [],

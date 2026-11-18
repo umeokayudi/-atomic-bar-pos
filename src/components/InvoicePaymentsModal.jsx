@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { openStoredFile } from '../lib/privateFile'
 import { supabase } from '../lib/supabase'
 import { fmtYen, fmtDate } from './utils'
 import { useI18n } from '../lib/i18n'
@@ -193,7 +194,7 @@ export default function InvoicePaymentsModal({ faturaId, onClose, onSaved }) {
                       <div className="ledger-item-amt">{fmtYen(p.valor)}</div>
                       <div className="ledger-item-meta">
                         {fmtDate(p.data)} · {p.metodo}{p.notas ? ` · ${p.notas}` : ''}
-                        {p.comprovante_url && <> · <a href={p.comprovante_url} target="_blank" rel="noreferrer">{t('ledger.receipt')}</a></>}
+                        {p.comprovante_url && <> · <a href={p.comprovante_url} onClick={openStoredFile(supabase, p.comprovante_url)} target="_blank" rel="noreferrer">{t('ledger.receipt')}</a></>}
                       </div>
                       {!p.confirmado && <div className="ledger-item-flag">{t('ledger.waiting')}</div>}
                       {isDirectMethod(p.metodo) && <div className="ledger-item-flag">{t('ledger.directTag')}</div>}

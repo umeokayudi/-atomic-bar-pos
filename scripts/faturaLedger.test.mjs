@@ -25,19 +25,21 @@ function fakeDb(fatura) {
   return {
     tables,
     from(name) {
-      const rows = tables[name]
-      const q = { filter: null, patch: null, del: false }
+      const q = { filters: [], patch: null, del: false }
+      const match = r => q.filters.every(([k, v]) => (v === null ? r[k] == null : r[k] === v))
       const api = {
         select() { return api },
-        eq(_, v) { q.filter = v; return api },
-        single() { return Promise.resolve({ data: rows.find(r => r.id === q.filter), error: null }) },
-        insert(row) { rows.push({ id: 'p' + (++n), ...row }); return Promise.resolve({ error: null }) },
+        eq(k, v) { q.filters.push([k, v]); return api },
+        is(k, v) { q.filters.push([k, v]); return api },
+        single() { return Promise.resolve({ data: tables[name].find(match), error: null }) },
+        insert(row) { tables[name].push({ id: 'p' + (++n), confirmado: false, ...row }); return Promise.resolve({ error: null }) },
         update(patch) { q.patch = patch; return api },
         delete() { q.del = true; return api },
         then(res) {
-          if (q.patch) Object.assign(rows.find(r => r.id === q.filter), q.patch)
-          if (q.del) tables[name] = rows.filter(r => r.id !== q.filter)
-          return Promise.resolve({ error: null }).then(res)
+          const hit = tables[name].filter(match)
+          if (q.patch) hit.forEach(r => Object.assign(r, q.patch))
+          if (q.del) tables[name] = tables[name].filter(r => !hit.includes(r))
+          return Promise.resolve({ data: hit.map(r => ({ id: r.id })), error: null }).then(res)
         },
       }
       return api
@@ -52,7 +54,11 @@ assert.equal(db.tables.faturas[0].status, 'parcial')
 await addFaturaPayment(db, 'f1', { valor: 700, data: '2026-10-05', metodo: 'Stripe', confirmado: false })
 assert.equal(db.tables.faturas[0].pago, 300, 'waiting payment does not count')
 const waiting = db.tables.fatura_pagamentos.find(p => !p.confirmado)
+const stale = { ...waiting }
 await confirmFaturaPayment(db, waiting)
+// Double tap / second person with the old screen: the same payment is not added twice.
+const again = await confirmFaturaPayment(db, stale)
+assert.equal(again.already, true)
 assert.equal(db.tables.faturas[0].pago, 1000)
 assert.equal(db.tables.faturas[0].status, 'pago')
 assert.equal(db.tables.faturas[0].data_pagamento, '2026-10-05')

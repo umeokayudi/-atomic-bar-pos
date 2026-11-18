@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import MoneyLabelsLive from './ui/MoneyLabels'
 import { supabase } from '../lib/supabase'
 import { fmtYen, fmtDate, Spinner, Empty, compraDueDate, isCompraOverdue } from './utils'
 import { splitPendingCompras, splitPendingFaturas, buildCashflowEvents, pagamentoFor, pagamentoMap } from '../lib/compraPagamentos'
@@ -40,6 +41,7 @@ export default function Cashflow() {
         />
       }
     >
+      <MoneyLabelsLive />
       {tab==='overview'  && <CashflowOverview />}
       {tab==='agenda'    && <Calendario />}
       {tab==='in'        && <MoneyIn />}

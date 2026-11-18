@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { escapeHtml } from '../lib/html'
 import { supabase } from '../lib/supabase'
 import { fmtYen, fmtDate, Spinner, Empty, filterSupplierVendas, RowActions } from './utils'
 import { AdminPage, PortalSurface } from './ui/PageLayout'
@@ -132,12 +133,12 @@ export default function RyoshushoTab() {
     }
 
     const rows = items.map(it =>
-      '<tr><td>' + it.nome + '</td><td style="text-align:center">' + it.qtd +
+      '<tr><td>' + escapeHtml(it.nome) + '</td><td style="text-align:center">' + it.qtd +
       '</td><td style="text-align:right">&#165;' + Number(Math.round(it.preco / 1.1)).toLocaleString('ja-JP') +
       '</td><td style="text-align:right">&#165;' + Number(Math.round(it.preco / 1.1 * it.qtd)).toLocaleString('ja-JP') + '</td></tr>'
     ).join('')
 
-    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + numero + '</title>' +
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escapeHtml(numero) + '</title>' +
       '<style>' +
       'body{font-family:serif;padding:40px;max-width:680px;margin:0 auto;color:#111}' +
       'h1{text-align:center;font-size:26px;letter-spacing:10px;margin-bottom:24px}' +
@@ -153,9 +154,9 @@ export default function RyoshushoTab() {
       '@media print{body{padding:0}}' +
       '</style></head><body>' +
       '<h1>&#9領&#12288;収&#12288;書</h1>' +
-      '<div class="row"><span>No. <strong>' + numero + '</strong></span>' +
+      '<div class="row"><span>No. <strong>' + escapeHtml(numero) + '</strong></span>' +
       '<span>&#30330;&#34892;&#26085;&#65306;<strong>' + new Date(dataEmis + 'T12:00').toLocaleDateString('ja-JP') + '</strong></span></div>' +
-      '<div class="client">' + (bar ? bar.nome : '') + '&#12288;&#24481;&#20013;</div>' +
+      '<div class="client">' + escapeHtml(bar ? bar.nome : '') + '&#12288;&#24481;&#20013;</div>' +
       (periodoIni ? '<div style="font-size:12px;color:#666;margin-bottom:14px">&#23550;&#35937;&#26399;&#38291;&#65306;' + periodoIni + '&#12288;&#65374;&#12288;' + periodoFim + '</div>' : '') +
       '<div class="box">&#21512;&#35336;&#37329;&#39069;&#12288;&#165; ' + Number(total).toLocaleString('ja-JP') + '&#12288;&#65288;&#31税;&#36796;&#65289;</div>' +
       '<table><thead><tr><th>&#21697;&#30446;</th><th>&#25968;&#37327;</th><th>&#21333;&#20385;</th><th>&#37329;&#39069;</th></tr></thead>' +
@@ -164,8 +165,8 @@ export default function RyoshushoTab() {
       '<tr><td>&#28040;&#36027;&#31290;&#65288;10%&#65289;</td><td style="text-align:right">&#165;' + Number(tax).toLocaleString('ja-JP') + '</td></tr>' +
       '<tr><td><strong>&#21512;&#35336;</strong></td><td style="text-align:right"><strong>&#165;' + Number(total).toLocaleString('ja-JP') + '</strong></td></tr></table>' +
       '<div class="footer">&#19978;&#35352;&#12398;&#37329;&#39069;&#12434;&#27491;&#12395;&#9領;&#21463;&#12356;&#12383;&#12375;&#12414;&#12375;&#12383;<br><br>' +
-      emitNome + (emitEnd ? '&#12288;' + emitEnd : '') + (emitTel ? '&#12288;TEL:' + emitTel : '') +
-      (emitReg ? '<br>&#30331;&#37682;&#30058;&#21495; ' + emitReg : '') +
+      escapeHtml(emitNome) + (emitEnd ? '&#12288;' + escapeHtml(emitEnd) : '') + (emitTel ? '&#12288;TEL:' + escapeHtml(emitTel) : '') +
+      (emitReg ? '<br>&#30331;&#37682;&#30058;&#21495; ' + escapeHtml(emitReg) : '') +
       '</div></body></html>'
 
     const res = await downloadHtmlAsPdf(html, `ryoshusho-${numero}`)

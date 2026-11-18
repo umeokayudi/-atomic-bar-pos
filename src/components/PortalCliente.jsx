@@ -1,4 +1,6 @@
 import { issueReceiptChecked } from './ui/issueReceipt'
+import MoneyLabelsLive from './ui/MoneyLabels'
+import { openStoredFile } from '../lib/privateFile'
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Icon, { hasIcon } from './ui/Icon'
@@ -1008,6 +1010,7 @@ function FaturasTab({ bar }) {
   return (
     <div className="fade-in portal-page" style={{ maxWidth:860 }}>
       <PageHeader title={t('portal.invoices.title')} subtitle={t('portal.invoices.subtitle')} />
+      <MoneyLabelsLive barId={bar.id} />
       <RangeCalendar from={dateFrom} to={dateTo} onChange={(a, b) => { setDateFrom(a); setDateTo(b) }} />
       <BillMatch orders={ordersInRange} notes={notesInRange} invoices={filtered} monthKey={activeMonth} variant="slip" />
       <div className="ar-war">
@@ -1165,7 +1168,7 @@ function FaturasTab({ bar }) {
                           {p.confirmado&&<span style={{ marginLeft:8, color:"var(--green)", fontWeight:600 }}>{t('portal.invoices.confirmed')}</span>}
                         </div>
                         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                          {p.comprovante_url&&<a href={p.comprovante_url} target="_blank" rel="noreferrer" style={{ fontSize:11, color:"var(--navy)" }}>{t('portal.invoices.proofLink')}</a>}
+                          {p.comprovante_url&&<a href={p.comprovante_url} onClick={openStoredFile(supabase, p.comprovante_url)} target="_blank" rel="noreferrer" style={{ fontSize:11, color:"var(--navy)" }}>{t('portal.invoices.proofLink')}</a>}
                           {p.confirmado && (
                             <button
                               type="button"

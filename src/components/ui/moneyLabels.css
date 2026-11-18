@@ -1,0 +1,31 @@
+/* Four money labels. Colours are AA on both themes: text uses --c-text; only the left bar carries the tone. */
+.money-labels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0 0 16px; }
+.money-label { background: var(--c-surface, #fff); border: 1px solid var(--c-border, #d5dce6); border-left: 4px solid var(--c-accent, #1B4B8A); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+.money-label.is-ok { border-left-color: #15803d; }
+.money-label.is-due { border-left-color: #b45309; }
+.money-label.is-pending { border-left-color: #b91c1c; border-left-style: dashed; }
+.money-label-name { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--c-text-2, #40506a); }
+.money-label-value { font-size: 20px; font-weight: 800; color: var(--c-text, #0F1B2D); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.money-label-hint { font-size: 11px; color: var(--c-text-2, #40506a); margin-top: 2px; }
+.money-labels.is-compact .money-label-value { font-size: 16px; }
+.money-labels.is-loading .money-label-value { opacity: .5; }
+.money-labels-error { border: 1px solid #b91c1c; color: var(--c-text, #0F1B2D); border-radius: 10px; padding: 10px 12px; margin: 0 0 16px; }
+@media (max-width: 720px) { .money-labels { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.conc-list { display: grid; gap: 12px; }
+.conc-item { background: var(--c-surface, #fff); border: 1px solid var(--c-border, #d5dce6); border-radius: 12px; padding: 14px; }
+.conc-item.is-decided { opacity: .92; border-style: dashed; }
+.conc-kind { font-weight: 800; color: var(--c-text, #0F1B2D); margin-bottom: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.conc-sides { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: stretch; }
+.conc-side { border: 1px solid var(--c-border, #d5dce6); border-radius: 10px; padding: 10px; min-width: 0; }
+.conc-side-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--c-text-2, #40506a); }
+.conc-side-value { font-size: 18px; font-weight: 800; color: var(--c-text, #0F1B2D); font-variant-numeric: tabular-nums; }
+.conc-side-ref { font-size: 12px; color: var(--c-text-2, #40506a); overflow-wrap: anywhere; }
+.conc-diff { display: flex; flex-direction: column; justify-content: center; text-align: center; font-size: 12px; color: var(--c-text-2, #40506a); }
+.conc-diff b { font-size: 15px; color: var(--c-text, #0F1B2D); }
+.conc-foot { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 10px; }
+.conc-decision { font-size: 13px; color: var(--c-text, #0F1B2D); }
+.conc-decision small { display: block; color: var(--c-text-2, #40506a); }
+.conc-form textarea { width: 100%; min-height: 80px; border: 1px solid var(--c-border, #d5dce6); border-radius: 10px; padding: 10px; font: inherit; color: var(--c-text, #0F1B2D); background: var(--c-surface, #fff); }
+.conc-filters { display: flex; gap: 8px; margin: 0 0 12px; flex-wrap: wrap; }
+@media (max-width: 720px) { .conc-sides { grid-template-columns: 1fr; } .conc-diff { flex-direction: row; gap: 8px; justify-content: flex-start; } }

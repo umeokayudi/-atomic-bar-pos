@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import MoneyLabelsLive from './ui/MoneyLabels'
 import { supabase } from '../lib/supabase'
 import { fmtYen, monthKey, monthLabel, fmtDate, Spinner, Empty, filterSupplierVendas, saleMonthKey, compraMonthKey, RowActions } from './utils'
 import { aggregateComprasItens } from '../lib/marginCost'
@@ -188,6 +189,7 @@ export default function RelatorioTab() {
         </>
       }
     >
+      <MoneyLabelsLive month={selMonth || null} />
       <div className="admin-kpi-grid" style={{ marginBottom: 18 }}>
         {companyLedger && (
           <PortalKpi label={t('report.purchasesNotes')} value={fmtYen(custoCompras)} color={custoCompras > 0 ? 'var(--red)' : undefined}

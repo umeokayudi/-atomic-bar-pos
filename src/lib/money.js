@@ -108,16 +108,44 @@ export function invoiceMoney(f, pagamentos = []) {
   const legacyDirect = Math.min(unrecorded, Math.max(0, legacyDirectFor(f) - direct))
   direct += legacyDirect
   unrecorded -= legacyDirect
-  received += unrecorded
+  // RULE (Missão Máxima 4.3): money with no confirmed payment row behind it is NOT received. It stays visible
+  // as "pending confirmation" until the owner decides (Central de Conciliação). `received` = confirmed rows only.
+  const directRecorded = direct - legacyDirect
+  const receivable = Math.max(0, total - received - directRecorded)
   return {
     total,
     paid,
     received,
     direct,
+    // Direct payment known only from the old fixed list (no payment row): shown as pending confirmation.
+    directUnrecorded: legacyDirect,
     review,
     unrecorded,
     remaining: Math.max(0, total - paid),
+    // The four labels every money screen shows.
+    receivable,
+    pending: Math.min(receivable, review + unrecorded + legacyDirect),
   }
+}
+
+/**
+ * FATURADO × RECEBIDO (confirmado) × A RECEBER × PENDENTE DE CONFIRMAÇÃO, the same on every money screen.
+ *  - faturado:  official invoice totals
+ *  - recebido:  confirmed payment rows only (never a credit under review, never an amount with no row)
+ *  - aReceber:  faturado − recebido − direct payments that have a confirmed row
+ *  - pendente:  the part of aReceber someone says is paid but nobody confirmed (Stripe under review,
+ *               "paid" with no payment row, direct payment with no row)
+ */
+export function moneyBuckets(faturas = [], pagamentos = []) {
+  const out = { faturado: 0, recebido: 0, aReceber: 0, pendente: 0 }
+  for (const f of faturas || []) {
+    const m = invoiceMoney(f, pagamentos)
+    out.faturado += m.total
+    out.recebido += m.received
+    out.aReceber += m.receivable
+    out.pendente += m.pending
+  }
+  return out
 }
 
 /** Totals over many invoices. received never includes review or direct. */

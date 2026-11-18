@@ -1,3 +1,4 @@
+import { escapeHtml } from './html.js'
 import { downloadHtmlAsPdf } from './pdfFile.js'
 const DEFAULT_EMITENTE = {
   nome: 'JBM Drinks',
@@ -44,7 +45,7 @@ export function buildPaymentRyoshushoHtml({
     : '飲料代金のお支払い')
   const metodoLabel = metodo || '—'
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${numero}</title>
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(numero)}</title>
 <style>
 body{font-family:serif;padding:40px;max-width:680px;margin:0 auto;color:#111}
 h1{text-align:center;font-size:26px;letter-spacing:10px;margin-bottom:24px}
@@ -59,14 +60,14 @@ h1{text-align:center;font-size:26px;letter-spacing:10px;margin-bottom:24px}
 @media print{body{padding:0}}
 </style></head><body>
 <h1>領　収　書</h1>
-<div class="row"><span>No. <strong>${numero}</strong></span>
-<span>発行日：<strong>${emissaoFmt}</strong></span></div>
-<div class="client">${barNome || '—'}　御中</div>
+<div class="row"><span>No. <strong>${escapeHtml(numero)}</strong></span>
+<span>発行日：<strong>${escapeHtml(emissaoFmt)}</strong></span></div>
+<div class="client">${escapeHtml(barNome || '—')}　御中</div>
 <div class="meta">
-  <div><strong>但し書き：</strong>${purpose}</div>
-  <div><strong>支払日：</strong>${emissaoFmt}</div>
-  <div><strong>支払方法：</strong>${metodoLabel}</div>
-  ${notas ? `<div><strong>備考：</strong>${notas}</div>` : ''}
+  <div><strong>但し書き：</strong>${escapeHtml(purpose)}</div>
+  <div><strong>支払日：</strong>${escapeHtml(emissaoFmt)}</div>
+  <div><strong>支払方法：</strong>${escapeHtml(metodoLabel)}</div>
+  ${notas ? `<div><strong>備考：</strong>${escapeHtml(notas)}</div>` : ''}
 </div>
 <div class="box">合計金額　¥ ${total.toLocaleString('ja-JP')}　（税込）</div>
 <table class="totals">
@@ -75,8 +76,8 @@ h1{text-align:center;font-size:26px;letter-spacing:10px;margin-bottom:24px}
 <tr><td><strong>合計</strong></td><td style="text-align:right"><strong>¥${total.toLocaleString('ja-JP')}</strong></td></tr>
 </table>
 <div class="footer">上記の金額を正に領収いたしました。<br><br>
-${emitente.nome}${emitente.endereco ? `　${emitente.endereco}` : ''}${emitente.tel ? `　TEL:${emitente.tel}` : ''}
-${emitente.registro ? `<br>登録番号 ${emitente.registro}` : ''}
+${escapeHtml(emitente.nome)}${emitente.endereco ? `　${escapeHtml(emitente.endereco)}` : ''}${emitente.tel ? `　TEL:${escapeHtml(emitente.tel)}` : ''}
+${emitente.registro ? `<br>登録番号 ${escapeHtml(emitente.registro)}` : ''}
 </div></body></html>`
 }
 

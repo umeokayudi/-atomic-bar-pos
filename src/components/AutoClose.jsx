@@ -8,6 +8,7 @@ import { addDays } from '../lib/barClose'
 import { summarizeNight } from '../lib/nightClose'
 import { tokyoDateKey, tokyoParts } from '../lib/tokyo'
 import { useAuth } from './Auth'
+import { EXCEPTION_TABLE, OPEN_TAB_STATUSES, closeCleared, tabsBlockingNight } from '../lib/openTabsClose'
 
 export default function AutoClose({ bar }) {
   const { user } = useAuth()
@@ -30,6 +31,15 @@ export default function AutoClose({ bar }) {
           supabase.from('pos_shifts').select('id,night_key,status').eq('bar_id', bar.id).gte('night_key', from),
         ])
         const sales = salesR.data || []
+        // An open tab never disappears into a closed night: while a tab from that night (or earlier) is still
+        // open and has no recorded exception, the night is NOT closed automatically. It stays in the
+        // "open tabs" queue and the Close page asks for it to be closed or resolved.
+        const [tabsR, excR] = await Promise.all([
+          supabase.from('pos_comandas').select('id,status,aberta_em').eq('bar_id', bar.id).in('status', OPEN_TAB_STATUSES),
+          supabase.from(EXCEPTION_TABLE).select('*').eq('bar_id', bar.id).then(r => r, () => ({ data: [] })),
+        ])
+        const openTabs = tabsR.error ? null : (tabsR.data || [])
+        const exceptions = excR?.data || []
         const existing = new Set((shiftsR.data || []).filter(s => s.status === 'closed' || s.status === 'counting').map(s => s.night_key))
         const patch = {}
         for (const item of due) {
@@ -38,6 +48,8 @@ export default function AutoClose({ bar }) {
             continue
           }
           const nightKey = item.kind === 'dia' ? item.day : item.key
+          // Could not read the tabs (offline, error): do not close blind; try again next minute.
+          if (item.kind !== 'dia' && (openTabs === null || !closeCleared(tabsBlockingNight(openTabs, nightKey), exceptions, nightKey))) continue
           const daySales = item.kind === 'dia'
             ? sales.filter(s => {
               const stamp = s.criado_em || s.data
