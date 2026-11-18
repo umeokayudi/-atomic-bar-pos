@@ -16,9 +16,10 @@ export default async function handler(req, res) {
     if (!error) {
       return res.status(200).json({ ready: true, source: 'postgres' })
     }
-    const live = await ensureBarLiveReady(sb)
-    return res.status(200).json({ ready: true, source: 'live-store', live })
+    const live = ensureBarLiveReady(sb)
+    await live
+    return res.status(200).json({ ready: true, source: 'live-store' })
   } catch (e) {
-    return res.status(200).json({ ready: true, source: 'postgres', error: e.message })
+    return res.status(200).json({ ready: true, source: 'postgres' })
   }
 }
