@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { openStoredFile } from '../lib/privateFile'
 import { supabase } from '../lib/supabase'
 import { fmtYen, fmtDate, Spinner, Empty, filterSupplierVendas } from './utils'
 import { PageHeader, PortalKpi, PortalSurface, PortalPills, PortalAlert } from './ui/PageLayout'
@@ -132,7 +133,7 @@ function Overview() {
                 <div style={{ fontSize:11, color:'var(--text2)' }}>{fmtDate(p.data)} · {p.metodo} {p.notas?'· '+p.notas:''}</div>
               </div>
               <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                {p.comprovante_url && <a href={p.comprovante_url} target="_blank" rel="noreferrer" style={{ fontSize:12, color:'var(--c-text)', fontWeight:600, padding:'5px 10px', borderRadius:8, border:'1px solid var(--border)', background: 'var(--bg2)', textDecoration:'none' }}>{t('invoices.receiptLink')}</a>}
+                {p.comprovante_url && <a href={p.comprovante_url} onClick={openStoredFile(supabase, p.comprovante_url)} target="_blank" rel="noreferrer" style={{ fontSize:12, color:'var(--c-text)', fontWeight:600, padding:'5px 10px', borderRadius:8, border:'1px solid var(--border)', background: 'var(--bg2)', textDecoration:'none' }}>{t('invoices.receiptLink')}</a>}
                 <button onClick={async()=>{
                   // Crediting money is not a one-tap action: show amount, method and bar first.
                   const ok = await askConfirm({ title: t('ledger.confirmCreditTitle'), details: [[t('confirm.who'), p.faturas?.bars?.nome || '—'], [t('confirm.amount'), fmtYen(p.valor)], [t('confirm.method'), p.metodo || '—'], [t('confirm.date'), fmtDate(p.data)]], confirmLabel: t('invoices.confirmCredit') })

@@ -1,4 +1,5 @@
 import { issueReceiptChecked } from './ui/issueReceipt'
+import { openStoredFile } from '../lib/privateFile'
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Icon, { hasIcon } from './ui/Icon'
@@ -1165,7 +1166,7 @@ function FaturasTab({ bar }) {
                           {p.confirmado&&<span style={{ marginLeft:8, color:"var(--green)", fontWeight:600 }}>{t('portal.invoices.confirmed')}</span>}
                         </div>
                         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                          {p.comprovante_url&&<a href={p.comprovante_url} target="_blank" rel="noreferrer" style={{ fontSize:11, color:"var(--navy)" }}>{t('portal.invoices.proofLink')}</a>}
+                          {p.comprovante_url&&<a href={p.comprovante_url} onClick={openStoredFile(supabase, p.comprovante_url)} target="_blank" rel="noreferrer" style={{ fontSize:11, color:"var(--navy)" }}>{t('portal.invoices.proofLink')}</a>}
                           {p.confirmado && (
                             <button
                               type="button"

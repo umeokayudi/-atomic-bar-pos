@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { openStoredFile } from '../lib/privateFile'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './Auth'
 import {
@@ -395,7 +396,7 @@ export default function ComprasTab() {
                   </td>
                   <td>{+c.pontos_ganhos > 0 ? `+${c.pontos_ganhos}${c.tipo_ponto?' ('+c.tipo_ponto+')':''}` : '—'}</td>
                   <td style={{ color: c.status_pagamento === 'pago' && !c.data_pagamento ? 'var(--red)' : undefined }}>{c.data_pagamento ? fmtDate(c.data_pagamento) : c.status_pagamento === 'pago' ? t('payMark.pickDate') : '—'}</td>
-                  <td>{c.foto_url ? <a href={c.foto_url} target="_blank" rel="noreferrer" aria-label="photo"><Icon name="image" size={15} /></a> : '—'}</td>
+                  <td>{c.foto_url ? <a href={c.foto_url} onClick={openStoredFile(supabase, c.foto_url)} target="_blank" rel="noreferrer" aria-label="photo"><Icon name="image" size={15} /></a> : '—'}</td>
                   <td>{(c.compras_itens || []).length ? t('purchaseRules.itemized', { count: c.compras_itens.length }) : <Badge color="var(--amber)">{t('purchaseRules.notItemized')}</Badge>}</td>
                   <td><DelBtn onClick={() => deleteCompra(c.id)} /></td>
                 </tr>
