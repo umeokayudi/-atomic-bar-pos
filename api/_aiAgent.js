@@ -4,7 +4,7 @@
  * trusted-origin and lane tokens are not accepted here.
  */
 import { randomUUID } from 'crypto'
-import { geminiGenerate } from './_gemini.js'
+import { aiGenerate } from './_ai.js'
 import { bearerToken } from './_requireStaff.js'
 import { createStaffUserClient, drinksAuthClient } from './_supabaseAdmin.js'
 import {
@@ -95,15 +95,17 @@ async function plan(res, actor, body) {
   const ctx = await ctxP
   const screen = [String(body.screen || '').slice(0, 4000), analysis].filter(Boolean).join('\n\n')
 
-  const data = await geminiGenerate({
+  // Reading an attached photo/PDF into fields is data filling (Gemini); everything else is thinking (Muse).
+  const filling = !!body.image?.data || attached.parts.length > 0
+  const data = await aiGenerate({
     systemInstruction: { parts: [{ text: agentSystemPrompt(ctx, screen) }] },
     contents,
     generationConfig: { temperature: 0.2, maxOutputTokens: body.analysis ? 3000 : 1500, responseMimeType: 'application/json' },
-  })
+  }, { purpose: filling ? 'fill' : 'think' })
   const text = data.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || ''
   const out = parseAgentJson(text)
   const proposals = out.actions.map(a => publicProposal(normalizeAction(ctx, a), randomUUID()))
-  return res.status(200).json({ reply: out.reply, proposals, sources })
+  return res.status(200).json({ reply: out.reply, proposals, sources, provider: data.provider, fallback: data.fallback || null })
 }
 
 async function logStart(db, row) {

@@ -122,7 +122,7 @@ export default async function handler(req, res) {
 async function aiText(body) {
   const t = typeOf(body.type)
   if (!t) throw Object.assign(new Error('Unknown kind'), { status: 400 })
-  const { geminiGenerate } = await import('./_gemini.js')
+  const { aiGenerate } = await import('./_ai.js')
   const lang = body.lang === 'ja' ? 'Japanese' : 'English'
   const tone = { party: 'cheerful, warm, with one or two emoji', neutral: 'clear and professional, no emoji', short: 'very short, a few words' }[body.tone] || 'cheerful'
   const wish = String(body.hint || '').slice(0, 300)
@@ -136,7 +136,7 @@ async function aiText(body) {
     wish ? `The owner asks: ${wish}` : '',
     'Answer with the text only, no quotes, no explanation.',
   ].filter(Boolean).join('\n')
-  const data = await geminiGenerate({
+  const data = await aiGenerate({
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     generationConfig: { temperature: 0.9, maxOutputTokens: 200 },
   })
